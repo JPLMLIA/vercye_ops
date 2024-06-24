@@ -1,0 +1,11 @@
+# syntax: https://docs.python.org/3/distutils/commandref.html
+
+include pyproject.toml requirements.txt setup.cfg setup.py
+include CITATION.md
+include citation.cff
+include LICENSE
+include MANIFEST.in
+include README.md
+include requirements.txt
+include .gitignore
+recursive-exclude experiments tests

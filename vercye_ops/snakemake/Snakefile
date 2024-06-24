@@ -1,0 +1,141 @@
+# type: ignore  # Prevent issues with auto-linting snakefiles
+"""This snakefile generates and executes .apsimx simulations given geojson regions and some simulation parameters"""
+
+import os.path as op
+configfile: "config.yaml"
+
+
+rule all:
+    input:
+        expand('logs_execute_simulation/{region}.log', region=config['regions'])
+        
+        
+# Rule to hit NASA POWER's API to get weather data and save as CSV
+rule fetch_met_data:
+    input:
+        op.join(config['sim_study_head_dir'], '{region}', '{region}.geojson')
+    params:
+        nasa_power_start_date = config['nasa_power_start_date'],
+        nasa_power_end_date = config['nasa_power_end_date'],
+        script_fpath = config['scripts']['fetch_met_data'],
+        head_dir = config['sim_study_head_dir'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else ''
+    output:
+        csv = op.join(config['sim_study_head_dir'], '{region}', '{region}_nasapower.csv'),
+        logs = 'logs_generate_met_data/{region}.log'
+    threads:48  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
+    shell:
+        """
+        {params.jq_load_statement}
+        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+
+        python {params.script_fpath} \
+        --start_date {params.nasa_power_start_date} \
+        --end_date {params.nasa_power_end_date} \
+        --variables ALLSKY_SFC_SW_DWN \
+        --variables T2M_MAX \
+        --variables T2M_MIN \
+        --variables T2M \
+        --variables PRECTOTCORR \
+        --variables WS2M \
+        --lon ${{LON}} \
+        --lat ${{LAT}} \
+        --output_dir {params.head_dir}/{wildcards.region}/ \
+        --overwrite \
+        --verbose
+        
+        touch {output.logs}
+        """
+
+
+# Rule to generate .met files from weather CSVs
+rule construct_met_files:
+    input:
+        csv = op.join(config['sim_study_head_dir'], '{region}', '{region}_nasapower.csv'),
+        geojson = op.join(config['sim_study_head_dir'], '{region}', '{region}.geojson')
+    params:
+        script_fpath = config['scripts']['construct_met_files'],
+        head_dir = config['sim_study_head_dir'],
+        sim_end_date = config['sim_end_date']
+    output:
+        logs = 'logs_construct_met_files/{region}.log',
+        met = op.join(config['sim_study_head_dir'], '{region}', '{region}_weather.met'),
+    shell:
+        """
+        read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+
+        python {params.script_fpath} \
+        --weather_data_fpath {input.csv} \
+        --lon ${{LON}} \
+        --lat ${{LAT}} \
+        --sim_end_date {params.sim_end_date} \
+        --output_dir {params.head_dir}/{wildcards.region} \
+        --verbose
+        
+        touch {output.logs}
+        """
+        
+
+# Rule to sub in the .met files to a .apsimx simulation template
+rule update_apsimx_template:
+    input:
+        op.join(config['sim_study_head_dir'], '{region}', '{region}_weather.met'),
+    params:
+        script_fpath = config['scripts']['update_apsimx_template'],
+        head_dir = config['sim_study_head_dir'],
+        sim_end_date = config['sim_end_date']
+    output:
+        logs = 'logs_update_apsimx_template/{region}.log',
+        apsimx_fpath = op.join(config['sim_study_head_dir'], '{region}', '{region}.apsimx')
+    shell:
+        """
+        python {params.script_fpath} \
+        --apsimx_template_fpath {params.head_dir}/{wildcards.region}/{wildcards.region}_template.apsimx \
+        --apsimx_output_fpath {output.apsimx_fpath} \
+        --new_met_fpath {input} \
+        --verbose
+        
+        touch {output.logs}
+        """
+
+
+# Rule to run the APSIM executable (via local executable) on .apsimx files
+rule execute_simulations:
+    input:
+        op.join(config['sim_study_head_dir'], '{region}', '{region}.apsimx'),
+    params:
+        head_dir = config['sim_study_head_dir'],
+        executable_fpath = config['apsim_execution']['local_exe']
+    output:
+        logs = 'logs_execute_simulation/{region}.log',
+        db_file = op.join(config['sim_study_head_dir'], '{region}', '{region}.db')
+    shell:
+        """
+        {params.executable_fpath} \
+        {input} \
+        --verbose
+        
+        touch {output.logs}
+        """
+'''
+# Rule to run the APSIM executable (via docker) on .apsimx files
+rule execute_simulations:
+    input:
+        op.join(config['sim_study_head_dir'], '{region}', '{region}_template_filled.apsimx'),
+    params:
+        head_dir = config['sim_study_head_dir'],
+        docker_image = config['docker']['image'],
+        docker_platform = config['docker']['platform']
+    output:
+        logs = 'logs_execute_apsimng/{region}.log'
+    shell:
+        """
+        docker run -i --rm --platform={params.docker_platform} \
+        -v "{params.head_dir}:{params.head_dir}" \
+        {params.docker_image} \
+        {input} \
+        --verbose
+        
+        touch {output.logs}
+        """
+'''

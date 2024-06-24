@@ -1,0 +1,9 @@
+click
+earthengine-api
+geopandas
+pandas
+pulp==2.7.0  # Pinned for snakemake
+pytest
+rasterio
+requests
+snakemake  # If using mamba/conda, install from the bioconda channel
