@@ -4,6 +4,9 @@ tests/__pycache__/
 *.py[cod]
 *$py.class
 
+outdir/
+*.zip
+
 # C extensions
 *.so
 
@@ -166,6 +169,7 @@ cython_debug/
 # Snakemake
 .snakemake
 vercye_ops/snakemake/logs*
+vercye_ops/snakemake/benchmarks*
 
 # Packaged release
 *.tar.gz
