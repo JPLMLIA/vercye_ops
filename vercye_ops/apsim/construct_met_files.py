@@ -2,15 +2,15 @@
 
 import os.path as op
 from pathlib import Path
-import logging
-import calendar
 from datetime import datetime
 
 import numpy as np
 import click
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO)
+from vercye_ops.utils.init_logger import get_logger
+
+logger = get_logger()
 
 
 # Mapping constants for conversion of NASA POWER data to APSIM compatible names
@@ -109,7 +109,7 @@ def load_prep_project_data(weather_data_fpath, sim_end_date):
         return df
         
     if sim_end_date.year != last_date.year:
-        logging.warning('Attempting to project weather data beyond the current year. You likely want data and simulation end date to be in the same year.')
+        logger.warning('Attempting to project weather data beyond the current year. You likely want data and simulation end date to be in the same year.')
     
     # Generate average weather data from past years, tack on year and day of year
     past_years_inds = df['YEAR'] < sim_end_date.year
@@ -119,7 +119,7 @@ def load_prep_project_data(weather_data_fpath, sim_end_date):
     if len(yearly_avg_data) == 365:
         yearly_avg_data.loc[366, :] = yearly_avg_data.loc[365, :]
     elif len(yearly_avg_data) < 365:
-        logging.error('Projection is needed, but there\'s less than a full year of data.')
+        logger.error('Projection is needed, but there\'s less than a full year of data.')
         raise RuntimeError()
 
     # Get projected days, years, and dt (for index)
@@ -184,7 +184,7 @@ def get_tav_amp(df):
     return tav, amp
 
 
-def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, verbose):
+def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir):
     """
     Processes weather data for APSIM simulations, integrating measured and forecasted data, and writing to a .met file.
     """
@@ -198,15 +198,13 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir,
     region = Path(output_dir).name
     output_fpath = Path(op.join(output_dir, f'{region}_weather.met'))
 
-    if verbose:
-        logging.info('Loaded data from %s', weather_data_fpath)
+    logger.info('Loaded data from %s', weather_data_fpath)
 
     ###################################
     # Load, prep, project data and calc tav/amp
 
     df = load_prep_project_data(weather_data_fpath, sim_end_date)
     tav, amp = get_tav_amp(df)
-    import ipdb; ipdb.set_trace()
 
     ###################################
     # Write out to .met file
@@ -237,8 +235,7 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir,
         # Write all lines at once
         file.writelines(formatted_data_lines)
 
-    if verbose:
-        logging.info('Wrote .met file (containing %i data records) to\n%s', len(df), output_fpath)
+    logger.info('Wrote .met file (containing %i data records) to\n%s', len(df), output_fpath)
 
 
 @click.command()
@@ -250,7 +247,11 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir,
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
 def cli(weather_data_fpath, lon, lat, sim_end_date, output_dir, verbose):
     """Wrapper to processess weather data"""
-    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, verbose)
+    
+    if verbose:
+       logger.setLevel('INFO')
+
+    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir)
     
     
 if __name__ == '__main__':

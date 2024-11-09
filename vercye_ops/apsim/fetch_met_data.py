@@ -1,16 +1,15 @@
 """CLI tools for fetching/formatting meteorological data"""
 
 import os.path as op
-import logging
 from pathlib import Path
 
 import click
 import requests
 import pandas as pd
 
+from vercye_ops.utils.init_logger import get_logger
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+logger = get_logger()
 
 # Valid climate variables for the NASA POWER API
 VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
@@ -19,24 +18,54 @@ DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "
 
 def error_checking_function(df):
     """
-    Stub function to perform error checking and cleaning on the dataframe.
-    Replace or extend this function with actual error checking as needed.
-
+    Perform error checking and logging on a dataframe containing NASA POWER data.
+    
     Parameters
     ----------
     df : pandas.DataFrame
         DataFrame containing weather data.
-
+    
     Returns
     -------
     pandas.DataFrame
         Cleaned DataFrame.
     """
-    # Placeholder for actual error checking logic
+
+    # Constant limits
+    # TODO: verify these with Harvest team
+    T2M_MAX_LIMIT = 50
+    T2M_MIN_LIMIT = -40
+    WS2M_MIN_LIMIT = 0
+    WS2M_MAX_LIMIT = 20
+    PRECTOTCORR_MIN_LIMIT = 0
+    PRECTOTCORR_MAX_LIMIT = 300
+    ALLSKY_SFC_SW_DWN_MIN_LIMIT = 0
+    ALLSKY_SFC_SW_DWN_MAX_LIMIT = 100
+
+    # Check T2M_MAX
+    if (df['T2M_MAX'] > T2M_MAX_LIMIT).any():
+        logger.error(f"T2M_MAX exceeds {T2M_MAX_LIMIT}")
+
+    # Check T2M_MIN
+    if (df['T2M_MIN'] < T2M_MIN_LIMIT).any():
+        logger.error(f"T2M_MIN is below {T2M_MIN_LIMIT}")
+
+    # Check WS2M
+    if ((df['WS2M'] < WS2M_MIN_LIMIT) | (df['WS2M'] > WS2M_MAX_LIMIT)).any():
+        logger.error(f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}")
+
+    # Check PRECTOTCORR
+    if ((df['PRECTOTCORR'] < PRECTOTCORR_MIN_LIMIT) | (df['PRECTOTCORR'] > PRECTOTCORR_MAX_LIMIT)).any():
+        logger.error(f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}")
+
+    # Check ALLSKY_SFC_SW_DWN
+    if ((df['ALLSKY_SFC_SW_DWN'] < ALLSKY_SFC_SW_DWN_MIN_LIMIT) | (df['ALLSKY_SFC_SW_DWN'] > ALLSKY_SFC_SW_DWN_MAX_LIMIT)).any():
+        logger.error(f"ALLSKY_SFC_SW_DWN is not within the range {ALLSKY_SFC_SW_DWN_MIN_LIMIT} to {ALLSKY_SFC_SW_DWN_MAX_LIMIT}")
+
     return df
 
 
-def fetch_met_data(start_date, end_date, variables, lon, lat, output_dir, overwrite, verbose):
+def fetch_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite):
     """
     Fetches weather data from the NASA POWER API for a given latitude and longitude between start_date and end_date,
     for the desired variables, and writes it to a CSV after processing.
@@ -44,11 +73,10 @@ def fetch_met_data(start_date, end_date, variables, lon, lat, output_dir, overwr
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
     if Path(output_fpath).exists and not overwrite:
-        logging.info("Weather data already exists locally. Skipping: \n%s", output_fpath)
+        logger.info("Weather data already exists locally. Skipping: \n%s", output_fpath)
         return
 
-    if verbose:
-        logging.info("Fetching data from NASA POWER for %s to %s...", start_date.date(), end_date.date())
+    logger.info("Fetching data from NASA POWER for %s to %s...", start_date.date(), end_date.date())
 
     # Format the variables list into a comma-separated string for the API
     variables_str = ','.join(variables)
@@ -68,8 +96,7 @@ def fetch_met_data(start_date, end_date, variables, lon, lat, output_dir, overwr
     response.raise_for_status()
     data = response.json()['properties']['parameter']
 
-    if verbose:
-        logging.info("Data fetched successfully. Processing data.")
+    logger.info("Data fetched successfully. Processing data.")
 
     # Convert to DataFrame
     df = pd.DataFrame(data)
@@ -82,8 +109,7 @@ def fetch_met_data(start_date, end_date, variables, lon, lat, output_dir, overwr
     # Writing the cleaned DataFrame to the CSV file
     df_cleaned.to_csv(output_fpath)
 
-    if verbose:
-        logging.info("Data successfully written to %s", output_fpath)
+    logger.info("Data successfully written to %s", output_fpath)
 
 
 @click.command()
@@ -97,8 +123,10 @@ def fetch_met_data(start_date, end_date, variables, lon, lat, output_dir, overwr
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
 def cli(start_date, end_date, variables, lon, lat, output_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
+    if verbose:
+        logger.setLevel('INFO')
 
-    fetch_met_data(start_date, end_date, variables, lon, lat, output_dir, overwrite, verbose)
+    fetch_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
 
 
 if __name__ == '__main__':

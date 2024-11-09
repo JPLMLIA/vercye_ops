@@ -1,10 +1,10 @@
-import logging
 from pathlib import Path
 
 import click
 import geopandas as gpd
+from vercye_ops.utils.init_logger import get_logger
 
-logging.basicConfig(level=logging.INFO)
+logger = get_logger()
 
 
 # TODO: Extend this in the future to allow for more points to be created
@@ -14,7 +14,7 @@ def generate_met_points(gdf_row):
     return centroid
 
 
-def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir, verbose):
+def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -26,8 +26,6 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         `oblast` or `raion` specifying the administrative level to process in the shapefile.
     output_dir : str
         The directory where the GeoJSON files will be saved.
-    verbose : bool
-        Enables verbose output.
 
     Returns:
     --------
@@ -57,8 +55,7 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
     # Convert back to geodesic, and then to WKT. WKT is needed since we can't save multiple geometries to geojson
     gdf['centroid'] = raw_centroids.to_crs(epsg=4326).to_wkt()
     
-    if verbose:
-        logging.info('Processing %i %s regions.', len(gdf), admin_level)
+    logger.info('Processing %i %s regions.', len(gdf), admin_level)
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
@@ -82,11 +79,9 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         # Write the single row GeoDataFrame to a GeoJSON file
         single_row_gdf.to_file(output_fpath, driver='GeoJSON')
 
-        if verbose:
-            logging.info('GeoJSON file written to %s', output_fpath)
+        logger.info('GeoJSON file written to %s', output_fpath)
 
-    if verbose:
-        logging.info('Processing Complete')
+    logger.info('Processing Complete')
 
 
 @click.command()
@@ -97,7 +92,10 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
 @click.option('--verbose', is_flag=True, help="Print verbose output.")
 def cli(shp_fpath, admin_level, projection_epsg, output_head_dir, verbose):
     """Wrapper around geojson generation func"""
-    convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir, verbose)
+    
+    if verbose:
+        logger.setLevel('INFO')
+    convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir)
     
     
 if __name__ == '__main__':

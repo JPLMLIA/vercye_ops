@@ -2,10 +2,11 @@
 
 import click
 import json
-import logging
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
+from vercye_ops.utils.init_logger import get_logger
+
+logger = get_logger()
 
 
 def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=False):
@@ -34,8 +35,7 @@ def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=F
     if isinstance(json_data, dict):
         for key, value in json_data.items():
             if key == key_to_update and isinstance(value, str) and value.endswith(file_suffix):
-                if verbose:
-                    logging.info('Replacing entry "%s:%s"', key, value)
+                logger.info('Replacing entry "%s:%s"', key, value)
                 json_data[key] = new_value
             elif isinstance(value, (dict, list)):
                 recursive_update(value, key_to_update, new_value, file_suffix, verbose)
@@ -52,6 +52,8 @@ def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=F
 @click.option('--verbose', is_flag=True, help="Enable verbose output.")
 def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, verbose):
     """Update an .apsimx file with new fields and save the updated version."""
+    if verbose:
+        logger.setLevel('INFO')
 
     apsimx_template_fpath = Path(apsimx_template_fpath)
     with open(apsimx_template_fpath, 'r') as file:
@@ -63,8 +65,7 @@ def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, verbose):
     with open(apsimx_output_fpath, 'w') as file:
         json.dump(json_data, file, indent=2)
 
-    if verbose:
-        logging.info("Updated file saved to %s", apsimx_output_fpath)
+    logger.info("Updated file saved to %s", apsimx_output_fpath)
 
 if __name__ == "__main__":
     cli()
