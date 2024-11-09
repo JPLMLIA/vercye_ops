@@ -2,28 +2,35 @@
 """This snakefile generates and executes .apsimx simulations given geojson regions and some simulation parameters"""
 
 import os.path as op
-configfile: "config.yaml"
-
 
 rule all:
     input:
-        expand('logs_execute_simulation/{region}.log', region=config['regions'])
-        
-        
+        #sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        sim_match_report_html_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        usim_match_report_png_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),  year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        #converted_lai_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        #sim_match_report_logs = expand('logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log', year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        #total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'), year=config['years'], timepoint=config['timepoints']),
+
+#######################################
+# APSIM Section of Snakemake pipeline
+
 # Rule to hit NASA POWER's API to get weather data and save as CSV
 rule fetch_met_data:
     input:
-        op.join(config['sim_study_head_dir'], '{region}', '{region}.geojson')
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson')
     params:
-        nasa_power_start_date = config['nasa_power_start_date'],
-        nasa_power_end_date = config['nasa_power_end_date'],
+        nasa_power_start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
+        nasa_power_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
         script_fpath = config['scripts']['fetch_met_data'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else ''
+    log: 
+        'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     output:
-        csv = op.join(config['sim_study_head_dir'], '{region}', '{region}_nasapower.csv'),
-        logs = 'logs_generate_met_data/{region}.log'
-    threads:48  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_nasapower.csv'),
+    threads: workflow.cores * 0.75  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
     shell:
         """
         {params.jq_load_statement}
@@ -40,102 +47,290 @@ rule fetch_met_data:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
-        --output_dir {params.head_dir}/{wildcards.region}/ \
+        --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
-        --verbose
-        
-        touch {output.logs}
+        --verbose > {log}
         """
 
-
 # Rule to generate .met files from weather CSVs
-rule construct_met_files:
+rule construct_plot_met_files:
     input:
-        csv = op.join(config['sim_study_head_dir'], '{region}', '{region}_nasapower.csv'),
-        geojson = op.join(config['sim_study_head_dir'], '{region}', '{region}.geojson')
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_nasapower.csv'),
+        geojson = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
-        script_fpath = config['scripts']['construct_met_files'],
+        met_gen_script_fpath = config['scripts']['construct_met_files'],
+        met_plot_script_fpath = config['scripts']['plot_met_files'],
         head_dir = config['sim_study_head_dir'],
-        sim_end_date = config['sim_end_date']
+        sim_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+    log:
+        'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
-        logs = 'logs_construct_met_files/{region}.log',
-        met = op.join(config['sim_study_head_dir'], '{region}', '{region}_weather.met'),
+        met_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather.met'),
+        plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
     shell:
         """
         read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
-        python {params.script_fpath} \
+        python {params.met_gen_script_fpath} \
         --weather_data_fpath {input.csv} \
         --lon ${{LON}} \
         --lat ${{LAT}} \
         --sim_end_date {params.sim_end_date} \
-        --output_dir {params.head_dir}/{wildcards.region} \
-        --verbose
+        --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region} \
+        --verbose > {log}
         
-        touch {output.logs}
+        python {params.met_plot_script_fpath} \
+        --input_fpath {output.met_fpath} \
+        --output_fpath {output.plot_fpath} > {log}
         """
         
 
 # Rule to sub in the .met files to a .apsimx simulation template
 rule update_apsimx_template:
     input:
-        op.join(config['sim_study_head_dir'], '{region}', '{region}_weather.met'),
+        met_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather.met'),
+        met_plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
     params:
         script_fpath = config['scripts']['update_apsimx_template'],
         head_dir = config['sim_study_head_dir'],
-        sim_end_date = config['sim_end_date']
+        sim_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date']
+    log:
+        'logs_update_apsimx_template/{year}_{timepoint}_{region}.log',
     output:
-        logs = 'logs_update_apsimx_template/{region}.log',
-        apsimx_fpath = op.join(config['sim_study_head_dir'], '{region}', '{region}.apsimx')
+        apsimx_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx')
     shell:
         """
         python {params.script_fpath} \
-        --apsimx_template_fpath {params.head_dir}/{wildcards.region}/{wildcards.region}_template.apsimx \
+        --apsimx_template_fpath {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_template.apsimx \
         --apsimx_output_fpath {output.apsimx_fpath} \
-        --new_met_fpath {input} \
-        --verbose
-        
-        touch {output.logs}
+        --new_met_fpath {input.met_fpath} \
+        --verbose > {log}
         """
 
 
+'''
 # Rule to run the APSIM executable (via local executable) on .apsimx files
 rule execute_simulations:
     input:
-        op.join(config['sim_study_head_dir'], '{region}', '{region}.apsimx'),
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
     params:
         head_dir = config['sim_study_head_dir'],
         executable_fpath = config['apsim_execution']['local_exe']
+    log:
+        'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
-        logs = 'logs_execute_simulation/{region}.log',
-        db_file = op.join(config['sim_study_head_dir'], '{region}', '{region}.db')
+        db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
     shell:
         """
         {params.executable_fpath} \
         {input} \
-        --verbose
-        
-        touch {output.logs}
+        --verbose > {log}
         """
+
 '''
 # Rule to run the APSIM executable (via docker) on .apsimx files
 rule execute_simulations:
     input:
-        op.join(config['sim_study_head_dir'], '{region}', '{region}_template_filled.apsimx'),
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
     params:
         head_dir = config['sim_study_head_dir'],
-        docker_image = config['docker']['image'],
-        docker_platform = config['docker']['platform']
+        docker_image = config['apsim_execution']['docker']['image'],
+        docker_platform = config['apsim_execution']['docker']['platform'],
+    log:
+        'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
-        logs = 'logs_execute_apsimng/{region}.log'
+        db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
+    retries: 5
+    benchmark:
+        "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
         """
         docker run -i --rm --platform={params.docker_platform} \
         -v "{params.head_dir}:{params.head_dir}" \
         {params.docker_image} \
         {input} \
-        --verbose
-        
-        touch {output.logs}
+        --verbose > {log}
         """
-'''
+
+#######################################
+# S2/LAI portion of Snakemake pipeline
+
+
+# Clip the original cropmask
+rule constrain_lai_cropmask:
+    input:
+        original_lai_cropmask = lambda wildcards: config['lai_params']['crop_mask'][int(wildcards.year)],  # Will need to update to time period
+        geometry_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+    params:
+        executable_fpath = config['scripts']['constrain_lai_cropmask'],
+    log:
+        'logs_constrain_lai_cropmask/{year}_{timepoint}_{region}.log'
+    output:
+        constrained_cropmask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_cropmask_constrained.tif'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        {input.original_lai_cropmask} \
+        {input.geometry_path} \
+        {output.constrained_cropmask} > {log}
+        """
+
+# Run LAI analysis to extract LAI stats and max image
+rule lai_analysis:
+    input:
+        constrained_cropmask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_cropmask_constrained.tif')
+    params:
+        executable_fpath = config['scripts']['lai_analysis'],
+        lai_dir = config['lai_params']['lai_dir'],
+        lai_region = config['lai_params']['lai_region'],
+        mode = config['lai_params']['lai_analysis_mode'],
+        adjustment = config['lai_params']['adjustment'],
+        start_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][0],
+        end_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][1],
+    benchmark:
+        "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
+    log:
+        'logs_lai_analysis/{year}_{timepoint}_{region}.log'
+    output:
+        stats_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
+        max_lai_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_MAX.tif'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        {params.lai_dir} \
+        {output.stats_csv} \
+        {output.max_lai_tif} \
+        {params.lai_region} \
+        {input.constrained_cropmask} \
+        --mode {params.mode} \
+        --adjustment {params.adjustment} \
+        --start_date {params.start_date} \
+        --end_date {params.end_date} > {log}
+        """
+
+rule lai_quicklook:
+    input:
+        stats_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
+        max_lai_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_MAX.tif'),
+    params:
+        executable_fpath = config['scripts']['lai_quicklook'],
+    log:
+        'logs_lai_quicklook/{year}_{timepoint}_{region}.log',
+    output:
+        output_png = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_QUICKLOOK.tif'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        {input.stats_csv} \
+        {input.max_lai_tif} > {log}
+        """
+
+#######################################
+# Match sim/real (APSIM/S2-LAI) outputs
+
+rule match_sim_real:
+    input:
+        stats_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
+        db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
+    params:
+        executable_fpath = config['scripts']['match_sim_real'],
+        adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",
+    log:
+        'logs_match_sim_real/{year}_{timepoint}_{region}.log',
+    output:
+        sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
+        conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --rs_lai_csv {input.stats_csv} \
+        --db_path {input.db_fpath} \
+        --sim_matches_output_fpath {output.sim_matches_output_fpath} \
+        --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
+        {params.adjustment} \
+        --verbose > {log}
+        """
+
+rule generate_converted_lai_map:
+    input:
+        max_lai_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_MAX.tif'),
+        conversion_factor_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
+    params:
+        executable_fpath = config['scripts']['generate_converted_lai_map'],
+        adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
+    log:
+        'generate_converted_lai_map/{year}_{timepoint}_{region}.log',
+    output:
+        converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --tif_fpath {input.max_lai_tif} \
+        --csv_fpath {input.conversion_factor_fpath} \
+        --output_tif_fpath {output.converted_lai_map} \
+        {params.adjustment} \
+        --verbose > {log}
+        """
+
+rule estimate_total_yield:
+    input:
+        converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
+    params:
+        executable_fpath = config['scripts']['estimate_total_yield'],
+        target_epsg = config['matching_params']['target_epsg'],
+    log:
+        'logs_estimate_total_yield/{year}_{timepoint}_{region}.log',
+    output:
+        total_yield_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --converted_lai_tif_fpath {input.converted_lai_map} \
+        --target_epsg {params.target_epsg} \
+        --output_yield_csv_fpath {output.total_yield_csv} \
+        --verbose > {log}
+        """
+
+
+rule match_sim_real_quicklook:
+    input:
+        sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
+        rs_stats_csv_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
+        apsim_db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
+        total_yield_csv_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'),
+ 
+    params:
+        executable_fpath = config['scripts']['match_sim_real_quicklook'],
+    log:
+        'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
+    output:
+        html_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html'),
+        png_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --apsim_filtered_fpath {input.sim_matches_output_fpath} \
+        --rs_lai_csv_fpath {input.rs_stats_csv_fpath} \
+        --apsim_db_fpath {input.apsim_db_fpath} \
+        --total_yield_csv_fpath {input.total_yield_csv_fpath} \
+        --html_fpath {output.html_fpath} \
+        --png_fpath {output.png_fpath} > {log}
+        """
+
+rule aggregate_yield_estimates:
+    input:
+        total_yield_csvs = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=config['regions'])
+    params:
+        executable_fpath = config['scripts']['aggregate_yield_estimates'],
+        yield_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')
+    log:
+        'logs_aggregate_yield_estimates/{year}_{timepoint}.log'
+    output:
+        aggregated_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv')
+    shell:
+        """
+        python {params.executable_fpath} \
+        --yield_dir {params.yield_dir} \
+        --output_csv {output.aggregated_csv} \
+        --verbose > {log}
+        """

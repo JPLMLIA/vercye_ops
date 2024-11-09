@@ -1,0 +1,155 @@
+########################################
+# Platform
+platform: 'local'
+
+########################################
+# Simulation Parameters
+
+# Directory containing each region. Update this for each new snakemake run
+sim_study_head_dir: '/Users/wronk/Data/vercye_ops/Rayon_District_Level_Yield/completed_simulations/yield_run_20241105'
+
+# Specify one or more simulations
+regions:
+  - 'Chornukhynskyi'
+  - 'Chutivskyi'
+  - 'Dykanskyi'
+  - 'Hadiatskyi'
+  - 'Hlobynskyi'
+  - 'Hrebinkivskyi'
+  - 'Karlivskyi'
+  - 'Khorolskyi'
+  - 'Kobeliatskyi'
+  - 'Komsomolska'
+  - 'Kotelevskyi'
+  - 'Kozelshchynskyi'
+  - 'Kremenchutskyi'
+  - 'Lokhvytskyi'
+  - 'Lubenskyi'
+  - 'Mashivskyi'
+  - 'Myrhorodskyi'
+  - 'Novosanzharskyi'
+  - 'Orzhytskyi'
+  - 'Poltavskyi'
+  - 'Pyriatynskyi'
+  - 'Reshetylivskyi'
+  - 'Semenivskyi'
+  - 'Shyshatskyi'
+  - 'Velykobahachanskyi'
+  - 'Zinkivskyi'
+
+years:
+  - 2021
+  - 2022
+  - 2023
+
+timepoints:  # Days relative to harvest
+  - T-0
+  - T-30
+  - T-60
+
+########################################
+# APSIM Parameters
+#
+apsim_params:
+  2021:
+    T-0:
+      sim_start_date: '2020-08-20'
+      sim_end_date: '2021-08-01'
+      nasa_power_start_date: '1991-07-01'
+      nasa_power_end_date: '2021-08-01'
+    T-30:
+      sim_start_date: '2020-08-20'
+      sim_end_date: '2021-08-01'
+      nasa_power_start_date: '1991-07-01'
+      nasa_power_end_date: '2021-07-02'
+    T-60:
+      sim_start_date: '2020-08-20'
+      sim_end_date: '2021-08-01'
+      nasa_power_start_date: '1991-07-01'
+      nasa_power_end_date: '2021-06-03'
+  2022:
+    T-0:
+      sim_start_date: '2021-08-20'
+      sim_end_date: '2022-07-27'
+      nasa_power_start_date: '1992-07-01'
+      nasa_power_end_date: '2022-07-27'
+    T-30:
+      sim_start_date: '2021-08-20'
+      sim_end_date: '2022-07-27'
+      nasa_power_start_date: '1992-07-01'
+      nasa_power_end_date: '2022-06-28'
+    T-60:
+      sim_start_date: '2021-08-20'
+      sim_end_date: '2022-07-27'
+      nasa_power_start_date: '1992-07-01'
+      nasa_power_end_date: '2022-05-29'
+  2023:
+    T-0:
+      sim_start_date: '2022-08-20'
+      sim_end_date: '2023-07-26'
+      nasa_power_start_date: '1993-07-01'
+      nasa_power_end_date: '2023-07-26'
+    T-30:
+      sim_start_date: '2022-08-20'
+      sim_end_date: '2023-07-26'
+      nasa_power_start_date: '1993-07-01'
+      nasa_power_end_date: '2023-06-27'
+    T-60:
+      sim_start_date: '2022-08-20'
+      sim_end_date: '2023-07-26'
+      nasa_power_start_date: '1993-07-01'
+      nasa_power_end_date: '2023-05-28'
+
+# If using Docker, make sure to pull the docker image before executing this snakemake pipeline
+apsim_execution:
+  docker:
+    image: 'apsiminitiative/apsimng'
+    platform: 'linux/amd64'
+  local_exe: '~/Builds/APSIMInitiative/ApsimX/bin/Release/net6.0/Models'
+
+########################################
+# LAI parameters
+lai_params:
+  lai_dir: '/Volumes/red/NASA_Ag/LAI'
+  lai_region: 'Poltava'
+  adjustment: 'wheat'  # "none", "wheat", "maize"
+  lai_analysis_mode: 'raster'
+  time_bounds: 
+    2021: 
+      T-0: ['2020-08-20', '2021-08-01']
+      T-30: ['2020-08-20', '2021-07-02']
+      T-60: ['2020-08-20', '2021-06-03']
+    2022: 
+      T-0: ['2021-08-20', '2022-07-27']
+      T-30: ['2021-08-20', '2022-06-28']
+      T-60: ['2021-08-20', '2022-05-29']
+    2023: 
+      T-0: ['2022-08-20', '2023-07-26']
+      T-30: ['2022-08-20', '2023-06-27']
+      T-60: ['2022-08-20', '2023-05-28']
+  crop_mask:
+    2021: '/Users/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
+    2022: '/Users/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
+    2023: '/Users/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
+########################################
+# Sim/Real Matching Parameters
+    
+matching_params:
+  target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  
+########################################
+# Local paths to the python/APSIM scripts
+
+scripts:
+  construct_met_files: '~/Builds/vercye_ops/vercye_ops/apsim/construct_met_files.py'
+  plot_met_files: '~/Builds/vercye_ops/vercye_ops/apsim/generate_weather_report.py'
+  fetch_met_data: '~/Builds/vercye_ops/vercye_ops/apsim/fetch_met_data.py'
+  update_apsimx_template: '~/Builds/vercye_ops/vercye_ops/apsim/update_apsimx_template.py'
+  constrain_lai_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_mask_cropmask.py'
+  lai_analysis: '~/Builds/vercye_ops/vercye_ops/lai/3_analysis_LAI.py'
+  lai_quicklook: '~/Builds/vercye_ops/vercye_ops/lai/4_quicklook.py'
+  match_sim_real: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/match_sim_rs_lai.py'
+  match_sim_real_quicklook: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_matching_report.py'
+  generate_converted_lai_map: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_converted_lai_map.py'
+  estimate_total_yield: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
+  aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
