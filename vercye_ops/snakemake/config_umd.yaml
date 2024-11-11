@@ -6,7 +6,7 @@ platform: 'umd'
 # Simulation Parameters
 
 # Directory containing each region. Update this for each new snakemake run
-sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/simstudy_20241107'
+sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
 
 # Specify one or more simulations
 regions:
@@ -37,19 +37,19 @@ regions:
   - 'Velykobahachanskyi'
   - 'Zinkivskyi'
 
-years:
+years:  # For any years, be sure to set APSIM/LAI params below
   - 2021
-  - 2022
-  - 2023
+#  - 2022
+#  - 2023
 
 timepoints:  # Days relative to harvest
   - T-0
-  - T-30
-  - T-60
+#   - T-30
+#   - T-60
 
 ########################################
 # APSIM Parameters
-#
+
 apsim_params:
   2021:
     T-0:
@@ -105,7 +105,9 @@ apsim_execution:
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
-  local_exe: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
+  local: 
+    executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
+    n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
 ########################################
 # LAI parameters

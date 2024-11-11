@@ -108,22 +108,26 @@ rule update_apsimx_template:
         """
 
 
-'''
 # Rule to run the APSIM executable (via local executable) on .apsimx files
 rule execute_simulations:
     input:
         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
     params:
         head_dir = config['sim_study_head_dir'],
-        executable_fpath = config['apsim_execution']['local_exe']
+        executable_fpath = config['apsim_execution']['local']['executable_fpath'],
+        n_jobs = config['apsim_execution']['local']['n_jobs']
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
         db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
+    retries: 2
+    benchmark:
+        "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
         """
         {params.executable_fpath} \
         {input} \
+        --cpu-count {params.n_jobs} \
         --verbose > {log}
         """
 
@@ -140,7 +144,7 @@ rule execute_simulations:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
         db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
-    retries: 5
+    retries: 5  # Docker image has habit of failing sometimes 
     benchmark:
         "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
@@ -151,6 +155,7 @@ rule execute_simulations:
         {input} \
         --verbose > {log}
         """
+'''
 
 #######################################
 # S2/LAI portion of Snakemake pipeline
