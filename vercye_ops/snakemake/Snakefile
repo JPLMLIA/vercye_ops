@@ -264,7 +264,7 @@ rule generate_converted_lai_map:
         executable_fpath = config['scripts']['generate_converted_lai_map'],
         adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
     log:
-        'generate_converted_lai_map/{year}_{timepoint}_{region}.log',
+        'logs_generate_converted_lai_map/{year}_{timepoint}_{region}.log',
     output:
         converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
     shell:
