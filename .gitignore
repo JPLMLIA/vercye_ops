@@ -173,3 +173,6 @@ vercye_ops/snakemake/benchmarks*
 
 # Packaged release
 *.tar.gz
+
+# Private matching script 
+vercye_ops/matching_sim_real/match_sim_rs_lai.py
