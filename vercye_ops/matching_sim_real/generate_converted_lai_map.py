@@ -42,7 +42,9 @@ def process_geotiff(tif_path, csv_path, output_tif_fpath, use_adjusted):
         
         # Check for negative values. All LAI vals should be nonnegative
         if np.any(data < 0):
-            raise ValueError("Negative values found in the raw yield image data.")
+            data = np.clip(data, 0, None)  # Clip lower bound to 0
+
+            logger.error("Negative values found in the raw yield image data. Clipping lower bound to 0.")
 
     # Apply conversion factor
     data_converted = data * conversion_factor
