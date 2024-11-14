@@ -1,5 +1,6 @@
 # vercye_ops
-Code to support operations of the Versatile Crop Yield Estimate (VeRCYe) pipeline.
+Code to support operations of the Versatile Crop Yield Estimate (VeRCYe) pipeline. The original VeRCYe algorithm is [published here](https://doi.org/10.1007/s13593-024-00974-4).<img width="219" alt="image" src="https://github.com/user-attachments/assets/21e41533-5526-4325-ab55-56a1b59b4938">
+
 
 # Features
 * Tools to greatly reduce manual effort required for executing the VERYCE crop yield estimate pipeline.
