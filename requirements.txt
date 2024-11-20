@@ -2,7 +2,7 @@ click
 colorlog
 earthengine-api
 ee
-gdal
+gdal==3.4.3  # Pinned for UMD cluster ease
 geopandas
 kaleido  # For static image plots in plotly
 numpy
