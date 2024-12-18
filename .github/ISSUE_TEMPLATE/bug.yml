@@ -1,0 +1,39 @@
+name: Bug Report
+description: Report a bug in the project
+title: "[BUG] "
+labels: bugsudo apt-get install -y libgdal-dev gdal-bin python3-gdal
+assignees: ''
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please provide as much detail as possible.
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: "What happened?"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the issue?
+      placeholder: "Step 1, Step 2, ..."
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+      placeholder: "Expected result..."
+  - type: textarea
+    attributes:
+      label: Screenshots or logs
+      description: Provide screenshots or log output to help us diagnose the issue.
+  - type: dropdown
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem.

@@ -1,0 +1,30 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "[FEATURE] "
+labels: enhancement
+assignees: ''
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a new feature. Please provide detailed context and benefits.
+  - type: input
+    attributes:
+      label: Feature description
+      description: Briefly describe the feature or enhancement.
+      placeholder: "Feature description..."
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Problem it solves
+      description: Explain the problem/requirement your feature addresses.
+  - type: textarea
+    attributes:
+      label: Suggested solution
+      description: Describe your proposed solution or implementation if known.
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the feature request.
