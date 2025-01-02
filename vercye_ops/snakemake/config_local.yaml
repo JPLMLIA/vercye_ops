@@ -6,50 +6,52 @@ platform: 'local'
 # Simulation Parameters
 
 # Directory containing each region. Update this for each new snakemake run
-sim_study_head_dir: '/Users/wronk/Data/vercye_ops/Rayon_District_Level_Yield/completed_simulations/yield_run_20241105'
+sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 
 # Specify one or more simulations
 regions:
-  - 'Chornukhynskyi'
-  - 'Chutivskyi'
-  - 'Dykanskyi'
-  - 'Hadiatskyi'
-  - 'Hlobynskyi'
-  - 'Hrebinkivskyi'
-  - 'Karlivskyi'
-  - 'Khorolskyi'
-  - 'Kobeliatskyi'
-  - 'Komsomolska'
-  - 'Kotelevskyi'
-  - 'Kozelshchynskyi'
-  - 'Kremenchutskyi'
-  - 'Lokhvytskyi'
-  - 'Lubenskyi'
+  # - 'Chornukhynskyi'
+  # - 'Chutivskyi'
+  # - 'Dykanskyi'
+  # - 'Hadiatskyi'
+  # - 'Hlobynskyi'
+  # - 'Hrebinkivskyi'
+  # - 'Karlivskyi'
+  # - 'Khorolskyi'
+  # - 'Kobeliatskyi'
+  # - 'Komsomolska'
+  # - 'Kotelevskyi'
+  # - 'Kozelshchynskyi'
+  # - 'Kremenchutskyi'
+  # - 'Lokhvytskyi'
+  # - 'Lubenskyi'
   - 'Mashivskyi'
-  - 'Myrhorodskyi'
-  - 'Novosanzharskyi'
-  - 'Orzhytskyi'
-  - 'Poltavskyi'
-  - 'Pyriatynskyi'
-  - 'Reshetylivskyi'
-  - 'Semenivskyi'
-  - 'Shyshatskyi'
-  - 'Velykobahachanskyi'
-  - 'Zinkivskyi'
+  # - 'Myrhorodskyi'
+  # - 'Novosanzharskyi'
+  # - 'Orzhytskyi'
+  # - 'Poltavskyi'
+  # - 'Pyriatynskyi'
+  # - 'Reshetylivskyi'
+  # - 'Semenivskyi'
+  # - 'Shyshatskyi'
+  # - 'Velykobahachanskyi'
+  # - 'Zinkivskyi'
 
 years:
   - 2021
-  - 2022
-  - 2023
+  # - 2022
+  # - 2023
 
 timepoints:  # Days relative to harvest
-  - T-0
+  # - T-0
   - T-30
-  - T-60
+  # - T-60
 
 ########################################
 # APSIM Parameters
-#
+
+# TODO check if it makes sense to refactor the precipitation source and agg. method into a separate config and not by timepoint
+
 apsim_params:
   2021:
     T-0:
@@ -57,48 +59,66 @@ apsim_params:
       sim_end_date: '2021-08-01'
       nasa_power_start_date: '1991-07-01'
       nasa_power_end_date: '2021-08-01'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
     T-30:
       sim_start_date: '2020-08-20'
       sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
+      nasa_power_start_date: '2020-07-01'
       nasa_power_end_date: '2021-07-02'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
     T-60:
       sim_start_date: '2020-08-20'
       sim_end_date: '2021-08-01'
       nasa_power_start_date: '1991-07-01'
       nasa_power_end_date: '2021-06-03'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
   2022:
     T-0:
       sim_start_date: '2021-08-20'
       sim_end_date: '2022-07-27'
       nasa_power_start_date: '1992-07-01'
       nasa_power_end_date: '2022-07-27'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
     T-30:
       sim_start_date: '2021-08-20'
       sim_end_date: '2022-07-27'
       nasa_power_start_date: '1992-07-01'
       nasa_power_end_date: '2022-06-28'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
     T-60:
       sim_start_date: '2021-08-20'
       sim_end_date: '2022-07-27'
       nasa_power_start_date: '1992-07-01'
       nasa_power_end_date: '2022-05-29'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
   2023:
     T-0:
       sim_start_date: '2022-08-20'
       sim_end_date: '2023-07-26'
       nasa_power_start_date: '1993-07-01'
       nasa_power_end_date: '2023-07-26'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
     T-30:
       sim_start_date: '2022-08-20'
       sim_end_date: '2023-07-26'
       nasa_power_start_date: '1993-07-01'
       nasa_power_end_date: '2023-06-27'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
     T-60:
       sim_start_date: '2022-08-20'
       sim_end_date: '2023-07-26'
       nasa_power_start_date: '1993-07-01'
       nasa_power_end_date: '2023-05-28'
+      precipitation_source: 'CHIRPS'
+      precipitation_agg_method: 'centroid'
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
@@ -128,9 +148,9 @@ lai_params:
       T-30: ['2022-08-20', '2023-06-27']
       T-60: ['2022-08-20', '2023-05-28']
   crop_mask:
-    2021: '/Users/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
-    2022: '/Users/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
-    2023: '/Users/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
+    2021: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+    2022: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+    2023: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
 ########################################
 # Sim/Real Matching Parameters
     
@@ -141,15 +161,15 @@ matching_params:
 # Local paths to the python/APSIM scripts
 
 scripts:
-  construct_met_files: '~/Builds/vercye_ops/vercye_ops/apsim/construct_met_files.py'
-  plot_met_files: '~/Builds/vercye_ops/vercye_ops/apsim/generate_weather_report.py'
-  fetch_met_data: '~/Builds/vercye_ops/vercye_ops/apsim/fetch_met_data.py'
-  update_apsimx_template: '~/Builds/vercye_ops/vercye_ops/apsim/update_apsimx_template.py'
-  constrain_lai_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_mask_cropmask.py'
-  lai_analysis: '~/Builds/vercye_ops/vercye_ops/lai/3_analysis_LAI.py'
-  lai_quicklook: '~/Builds/vercye_ops/vercye_ops/lai/4_quicklook.py'
-  match_sim_real: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/match_sim_rs_lai.py'
-  match_sim_real_quicklook: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_matching_report.py'
-  generate_converted_lai_map: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_converted_lai_map.py'
-  estimate_total_yield: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
-  aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
+  construct_met_files: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/apsim/construct_met_files.py'
+  plot_met_files: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/apsim/generate_weather_report.py'
+  fetch_met_data: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/apsim/fetch_met_data.py'
+  update_apsimx_template: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/apsim/update_apsimx_template.py'
+  constrain_lai_cropmask: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/lai/0_mask_cropmask.py'
+  lai_analysis: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/lai/3_analysis_LAI.py'
+  lai_quicklook: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/lai/4_quicklook.py'
+  match_sim_real: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/matching_sim_real/match_sim_rs_lai.py'
+  match_sim_real_quicklook: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/matching_sim_real/generate_matching_report.py'
+  generate_converted_lai_map: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/matching_sim_real/generate_converted_lai_map.py'
+  estimate_total_yield: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
+  aggregate_yield_estimates: '~/nasa-harvest/vercye/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'

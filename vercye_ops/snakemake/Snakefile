@@ -23,6 +23,8 @@ rule fetch_met_data:
     params:
         nasa_power_start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
         nasa_power_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+        precipitation_source = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['precipitation_source'],
+        precipitation_agg_method = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['precipitation_agg_method'],
         script_fpath = config['scripts']['fetch_met_data'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else ''
@@ -47,6 +49,8 @@ rule fetch_met_data:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
+        --precipitation_source {params.precipitation_source} \
+        --precipitation_aggregation_method {params.precipitation_agg_method} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
         --verbose > {log}
@@ -107,7 +111,7 @@ rule update_apsimx_template:
         --verbose > {log}
         """
 
-
+'''
 # Rule to run the APSIM executable (via local executable) on .apsimx files
 rule execute_simulations:
     input:
@@ -130,8 +134,8 @@ rule execute_simulations:
         --cpu-count {params.n_jobs} \
         --verbose > {log}
         """
-
 '''
+
 # Rule to run the APSIM executable (via docker) on .apsimx files
 rule execute_simulations:
     input:
@@ -151,11 +155,12 @@ rule execute_simulations:
         """
         docker run -i --rm --platform={params.docker_platform} \
         -v "{params.head_dir}:{params.head_dir}" \
+        -u $(id -u ${{USER}}):$(id -g ${{USER}}) \
         {params.docker_image} \
         {input} \
         --verbose > {log}
         """
-'''
+
 
 #######################################
 # S2/LAI portion of Snakemake pipeline

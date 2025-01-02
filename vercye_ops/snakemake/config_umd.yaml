@@ -49,7 +49,6 @@ timepoints:  # Days relative to harvest
 
 ########################################
 # APSIM Parameters
-
 apsim_params:
   2021:
     T-0:
