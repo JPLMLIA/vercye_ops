@@ -51,6 +51,7 @@ rule fetch_met_data:
         --lat ${{LAT}} \
         --precipitation_source {params.precipitation_source} \
         --precipitation_aggregation_method {params.precipitation_agg_method} \
+        --geometry_path {input} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
         --verbose > {log}
