@@ -50,75 +50,59 @@ timepoints:  # Days relative to harvest
 ########################################
 # APSIM Parameters
 
-# TODO check if it makes sense to refactor the precipitation source and agg. method into a separate config and not by timepoint
-
 apsim_params:
-  2021:
-    T-0:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-08-01'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-    T-30:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '2020-07-01'
-      nasa_power_end_date: '2021-07-02'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-    T-60:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-06-03'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-  2022:
-    T-0:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-07-27'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-    T-30:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-06-28'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-    T-60:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-05-29'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-  2023:
-    T-0:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-07-26'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-    T-30:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-06-27'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
-    T-60:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-05-28'
-      precipitation_source: 'CHIRPS'
-      precipitation_agg_method: 'mean'
+  precipitation_source: 'CHIRPS'
+  precipitation_agg_method: 'mean'
+  chirps_dir: '/home/rohan/nasa-harvest/vercye/data/chirps' # Only required to set if precipitation_source is 'CHIRPS'
+  time_bounds:
+    2021:
+      T-0:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-08-01'
+      T-30:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '2020-07-01'
+        nasa_power_end_date: '2021-07-02'
+      T-60:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-06-03'
+    2022:
+      T-0:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-07-27'
+      T-30:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-06-28'
+      T-60:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-05-29'
+    2023:
+      T-0:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-07-26'
+      T-30:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-06-27'
+      T-60:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-05-28'
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
