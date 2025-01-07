@@ -56,16 +56,17 @@ def convert_shapefile_to_geojson(shp_fpath, projection_epsg, output_head_dir):
     logger.info('Processing %i %s regions.', len(gdf))
 
     # Validate that only a single administrative division name column is present
-    if not 'NAME_1' in gdf.columns:
-        raise ValueError('The shapefile does not contain a "NAME_1" column. Please ensure that the administrative division name is stored in a column named "NAME_1".')
-
-    if 'NAME_2' in gdf.columns or 'NAME_3' in gdf.columns:
-        raise ValueError('Warning: The shapefile contains multiple administrative division name columns (e.g "Name_2", "Name_3"). Ensure that only a single name column called "NAME_1" is present.')
+    if not 'admin_name' in gdf.columns:
+        raise ValueError(
+            '''The shapefile is missing the "admin_name" column. Ensure the column 
+            contains administrative division names. Use the "prepare_shapefile.py" 
+            script to standardize the shapefile with correct column names.'''
+        )
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
-        
-        region_name = row['NAME_1']
+
+        region_name = row['admin_name']
 
         # Take out any apostrophes as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "")

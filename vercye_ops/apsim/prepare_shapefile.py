@@ -24,6 +24,8 @@ def standardize_shapefile(shp_fpath, output_dir):
     None
     """
 
+    logger.info('This script allows you to standardize the column names of the administrative divisions in a shapefile. It will create a new shapefile containing only the entries for your selected administrative division level.')
+
     shp_fpath = Path(shp_fpath)
 
     if output_dir is None:
@@ -34,23 +36,11 @@ def standardize_shapefile(shp_fpath, output_dir):
 
     output_fpath = Path(output_dir, shp_fpath.stem + '_standardized' + shp_fpath.suffix)
     
-    # Read shapefile
     gdf = gpd.read_file(shp_fpath)
 
     logger.info('The administrative division column specifies the administrative level of the region, e.g this could typically be a state or a district etc.')
 
-    # Validate that only a single administrative division name column is present
-    if 'NAME_1' in gdf.columns and not 'NAME_2' in gdf.columns and not 'NAME_3' in gdf.columns:
-        logger.info('The shapefile is already standardized as contains a single administrative division name column "Name_1".')
-        
-        logger.info('Would you like to set a different column as the administrative division level? (y/n)')
-        user_input = input()
-
-        if user_input.lower() == 'n':
-            return
-    
-    if sum(col in gdf.columns for col in ['NAME_0', 'NAME_1', 'NAME_2', 'NAME_3']) > 1:
-        logger.info('The shapefile contains multiple known administrative division name columns (e.g "Name_0", "Name_1", "Name_2", "Name_3"). Please select the administrative level for which you want to do the analysis')
+    logger.info('Step 1: Selecting the Column for the Administrative Division Level Name of interest.')
 
     # Print examples for values in each column
     logger.info('Columns in the shapefile:')
@@ -66,12 +56,32 @@ def standardize_shapefile(shp_fpath, output_dir):
 
     if admin_column_name not in gdf.columns:
         raise ValueError('The column name provided is not valid. Please provide a valid column name from the list above.')
-        
-    # Drop Name_2, Name_3 columns if they exist
-    gdf.drop(columns=['NAME_2', 'NAME_3'], errors='ignore', inplace=True)
+    
+    # Copy the column to a new column called 'admin_name'
+    gdf['admin_name'] = gdf[admin_column_name]
 
-    # Rename the column to NAME_1
-    gdf.rename(columns={admin_column_name: 'NAME_1'}, inplace=True)
+    logger.info('Step 2: Ensuring that only entries at the same administrative division level are in your shapefile.')
+
+    logger.info('If you are absolutely sure that the shapefile contains only entries at the same administrative division level, you can skip this step. For this, type "skip" and press enter. Otherwise type anything else and press enter.')
+
+    user_input = input()
+
+    if user_input.lower() != 'skip':
+
+        # TODO we could also use presets for common admin levels such as name_1, name_2, name_3 etc.
+        logger.info('Please specify all columns that contain the names of different admin levels. Separate the column names with a comma. It is important that you ensure that the ordering is from the highest (e.g country) to the lowest (e.g neighborhood) administrative level.')
+
+        admin_column_names = input().split(',')
+        admin_column_names = [col.strip() for col in admin_column_names]
+
+        # Drop all columns that have null at the admin_column_name
+        gdf = gdf.dropna(subset=[admin_column_name])
+
+        # Drop all column that have a value other than null in a column after the admin_column_name
+        deeper_admin_columns = admin_column_names[admin_column_names.index(admin_column_name) + 1:]
+        for col in deeper_admin_columns:
+            gdf = gdf[gdf[col].isnull()]
+
 
     # Save as modified shapefile
     output_dir.mkdir(exist_ok=True)
