@@ -1,48 +1,12 @@
 from pathlib import Path
-
 import click
 import geopandas as gpd
-
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
-
-def standardize_shapefile(shp_fpath, output_dir):
-    """
-    Read a shapefile using Geopandas, standardize the column names of the administrative divisions, and save the file to a new location.
-
-    Parameters:
-    -----------
-    shp_fpath : str
-        The path to the .shp file.
-    output_dir : str
-        The dir where the new shapefile will be saved.
-
-    Returns:
-    --------
-    None
-    """
-
-    logger.info('This script allows you to standardize the column names of the administrative divisions in a shapefile. It will create a new shapefile containing only the entries for your selected administrative division level.')
-
-    shp_fpath = Path(shp_fpath)
-
-    if output_dir is None:
-        output_dir = Path(shp_fpath.parent, shp_fpath.stem + '_standardized')
-
-        if output_dir.exists():
-            raise Exception(f'There already exists a standardized shapefile under the default directory ({output_dir}). Please use --output_dir to specify a different location.')
-
-    output_fpath = Path(output_dir, shp_fpath.stem + '_standardized' + shp_fpath.suffix)
-    
-    gdf = gpd.read_file(shp_fpath)
-
-    logger.info('The administrative division column specifies the administrative level of the region, e.g this could typically be a state or a district etc.')
-
-    logger.info('Step 1: Selecting the Column for the Administrative Division Level Name of interest.')
-
-    # Print examples for values in each column
+def log_shapefile_columns(gdf):
+    """Log columns in the shapefile with example values."""
     logger.info('Columns in the shapefile:')
     for col in gdf.columns:
         if col == 'geometry':
@@ -50,55 +14,94 @@ def standardize_shapefile(shp_fpath, output_dir):
         entries_to_log = min(5, len(gdf[col].unique()))
         logger.info(f'Column name: "{col}". Examples: {gdf[col].unique()[:entries_to_log]}')
 
-    logger.info('Please type the name of the column that contains the name of the administrative level for which you want to do the analysis.')
-    
-    admin_column_name = input()
+def input_admin_column_name(gdf):
+    """Prompt user to select the column for administrative division."""
+    logger.info('Please type the name of the column that contains the name of the administrative level for analysis.')
+    admin_column_name = input().strip()
 
     if admin_column_name not in gdf.columns:
-        raise ValueError('The column name provided is not valid. Please provide a valid column name from the list above.')
-    
-    # Copy the column to a new column called 'admin_name'
+        raise ValueError(f'The column name "{admin_column_name}" is not valid. Please choose from the listed columns.')
+
+    return admin_column_name
+
+def input_admin_hierarchy_columns(gdf, admin_column_name):
+    """Identify or prompt for columns representing hierarchical admin levels."""
+    standard_col_names = ['NAME_0', 'NAME_1', 'NAME_2', 'NAME_3', 'NAME_4']
+    present_columns = [col for col in gdf.columns if col in standard_col_names]
+
+    if present_columns:
+        logger.info(f'Suggested hierarchy columns: {present_columns}. Are these correct? (y/n)')
+        if input().strip().lower() == 'y':
+            return present_columns
+
+    logger.info('Please specify all columns for admin levels, ordered from highest to lowest. Separate names with commas.')
+    admin_column_names = input().split(',')
+    return [col.strip() for col in admin_column_names]
+
+def filter_by_admin_level(gdf, admin_column_name, admin_column_names):
+    """Filter the GeoDataFrame to ensure only entries for the specified admin level are present."""
+
+    # Drop all columns that have null at the admin_column_name
+    gdf = gdf.dropna(subset=[admin_column_name])
+
+    # Drop all column that have a value other than null in a admin level column deeper than the admin_column_nameQ
+    deeper_admin_columns = admin_column_names[admin_column_names.index(admin_column_name) + 1:]
+    for col in deeper_admin_columns:
+        gdf = gdf[gdf[col].isnull()]
+
+    return gdf
+
+def standardize_shapefile(shp_fpath, output_dir):
+    """
+    Standardize shapefile by renaming admin column and filtering for admin level.
+
+    Parameters:
+        shp_fpath (str): Path to the input shapefile.
+        output_dir (str): Directory to save the standardized shapefile.
+
+    Returns:
+        None
+    """
+    logger.info('This script allows you to standardize the column names of the administrative divisions in a shapefile. It will create a new shapefile containing only the entries for your selected administrative division level.')
+
+    logger.info('The administrative division level specifies the administrative level of the region, e.g this could typically be a state or a district etc.')
+
+    shp_fpath = Path(shp_fpath)
+    output_dir = Path(output_dir or shp_fpath.parent / f'{shp_fpath.stem}_standardized')
+    output_fpath = output_dir / f'{shp_fpath.stem}_standardized{shp_fpath.suffix}'
+
+    if output_fpath.exists():
+        raise FileExistsError(f'Standardized shapefile already exists at {output_fpath}. Provide a different output directory.')
+
+    gdf = gpd.read_file(shp_fpath)
+
+    log_shapefile_columns(gdf)
+    admin_column_name = input_admin_column_name(gdf)
+
     gdf['admin_name'] = gdf[admin_column_name]
 
-    logger.info('Step 2: Ensuring that only entries at the same administrative division level are in your shapefile.')
+    logger.info('Does your shapefile contain only entries (geometries) at a single administrative level (e.g NOT for both states and districts). Type "y" for yes and "n" for no.')
+    logger.info('If you are unsure, make sure to manually check the shapefile before proceeding as this is important.')
+    if input().strip().lower() == 'n':
+        admin_column_names = input_admin_hierarchy_columns(gdf, admin_column_name)
+        gdf = filter_by_admin_level(gdf, admin_column_name, admin_column_names)
+    if input().strip().lower() != 'y':
+        raise ValueError('Invalid input. Please type "y" or "n".')
 
-    logger.info('If you are absolutely sure that the shapefile contains only entries at the same administrative division level, you can skip this step. For this, type "skip" and press enter. Otherwise type anything else and press enter.')
-
-    user_input = input()
-
-    if user_input.lower() != 'skip':
-
-        # TODO we could also use presets for common admin levels such as name_1, name_2, name_3 etc.
-        logger.info('Please specify all columns that contain the names of different admin levels. Separate the column names with a comma. It is important that you ensure that the ordering is from the highest (e.g country) to the lowest (e.g neighborhood) administrative level.')
-
-        admin_column_names = input().split(',')
-        admin_column_names = [col.strip() for col in admin_column_names]
-
-        # Drop all columns that have null at the admin_column_name
-        gdf = gdf.dropna(subset=[admin_column_name])
-
-        # Drop all column that have a value other than null in a column after the admin_column_name
-        deeper_admin_columns = admin_column_names[admin_column_names.index(admin_column_name) + 1:]
-        for col in deeper_admin_columns:
-            gdf = gdf[gdf[col].isnull()]
-
-
-    # Save as modified shapefile
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     gdf.to_file(output_fpath)
-    
-    logger.info('Processing Complete. Please manually ensure the resulting shapefile administrative division column names are as expected.')
-    logger.info(f'Saving shapefile to {output_fpath}. Please use this file as input for the following steps.')
 
+    logger.info(f'Processing complete. Shapefile saved to {output_fpath}.')
 
 @click.command()
-@click.option('--shp_fpath', type=click.Path(exists=True), help='Path to the .shp file.')
-@click.option('--output_dir', type=click.Path(file_okay=False), default=None, help='Optional: Dir where the standardized output file for the Vercye pipeline is saved.')
+@click.option('--shp_fpath', type=click.Path(exists=True), required=True, help='Path to the .shp file.')
+@click.option('--output_dir', type=click.Path(file_okay=False), default=None, help='Directory for saving the standardized shapefile.')
 def cli(shp_fpath, output_dir):
-    
     logger.setLevel('INFO')
-    standardize_shapefile(shp_fpath, output_dir)
-    
-    
+    try:
+        standardize_shapefile(shp_fpath, output_dir)
+    except Exception as e:
+        logger.error(f'Error: {e}')
+
 if __name__ == '__main__':
     cli()
