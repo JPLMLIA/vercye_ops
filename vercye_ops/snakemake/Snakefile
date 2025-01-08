@@ -116,14 +116,14 @@ rule execute_simulations:
     params:
         head_dir = config['sim_study_head_dir'],
         use_docker =  config['apsim_execution']['use_docker'],
-        execution_command = build_apsim_execution_command(
+        execution_command = lambda wildcards, input: build_apsim_execution_command(
             config['sim_study_head_dir'],
             config['apsim_execution']['use_docker'],
             config['apsim_execution']['docker']['image'],
             config['apsim_execution']['docker']['platform'],
             config['apsim_execution']['local']['executable_fpath'],
             config['apsim_execution']['local']['n_jobs'],
-            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'))
+            input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
