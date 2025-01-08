@@ -454,7 +454,8 @@ $ python 0_reproj_mask.py \
 
 ### 0_build_library.py
 
-This script takes a single `shp` file of region-defining polygons and exports each one to a `geojson` for future reference. It is currently Ukraine-specific.
+This script takes a single `shp` file of region-defining polygons and exports each one to a `geojson` for future reference.
+The shapefile attribute data must contain a column for the administrative division name (region) called "admin_name". The file is only allowed to contain entries that specify geometries for this administrative level. You can also use the `prepare_shapefile.py` script in the `apsim` directory to preprocess your shapefile to follow these conventions. If using the script, ensure you use the newly created file from the script in the following steps. We recommend to additionally manually ensure that your shapefile does not mix entries from different administrative levels.
 
 ```
 $ python 0_build_library.py --help
@@ -463,9 +464,6 @@ Usage: 0_build_library.py [OPTIONS] SHP_FPATH
   Wrapper around geojson generation func
 
 Options:
-  --admin_level [oblast|raion]  Level of administration to process. `oblast`
-                                corresponds to Level 1, `raion` corresponds to
-                                Level 2
   --output_head_dir DIRECTORY   Head directory where the region output dirs
                                 will be created.
   --verbose                     Print verbose output.
