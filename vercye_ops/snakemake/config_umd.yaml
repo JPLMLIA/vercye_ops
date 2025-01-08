@@ -102,6 +102,7 @@ apsim_params:
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
+  use_docker: False
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'

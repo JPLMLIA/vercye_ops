@@ -102,10 +102,13 @@ apsim_params:
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
+  use_docker: False
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
-  local_exe: '~/Builds/APSIMInitiative/ApsimX/bin/Release/net6.0/Models'
+  local: 
+    executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
+    n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
 ########################################
 # LAI parameters
