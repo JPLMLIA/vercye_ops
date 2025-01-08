@@ -109,6 +109,7 @@ rule update_apsimx_template:
 
 
 # Rule to run the APSIM executable (via local executable) on .apsimx files
+'''
 rule execute_simulations:
     input:
         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
@@ -134,8 +135,8 @@ rule execute_simulations:
         --cpu-count {params.n_jobs} \
         --verbose > {log}
         """
-
 '''
+
 # Rule to run the APSIM executable (via docker) on .apsimx files
 rule execute_simulations:
     input:
@@ -159,11 +160,11 @@ rule execute_simulations:
         """
         docker run -i --rm --platform={params.docker_platform} \
         -v "{params.head_dir}:{params.head_dir}" \
+        -u $(id -u ${{USER}}):$(id -g ${{USER}}) \
         {params.docker_image} \
         {input} \
         --verbose > {log}
         """
-'''
 
 #######################################
 # S2/LAI portion of Snakemake pipeline
