@@ -1,0 +1,31 @@
+name: General
+description: Ask a question, seek help, or discuss a topic
+title: "[GENERAL] "
+labels: question, discussion
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question, need help, or want to discuss something? Please provide as much information as possible to help us assist you.
+  - type: textarea
+    attributes:
+      label: Your question or topic
+      description: What is your question, issue, or topic for discussion?
+      placeholder: "What do you need help with or want to discuss?"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Context or background
+      description: Provide any relevant background information or context.
+      placeholder: "Describe the context..."
+  - type: textarea
+    attributes:
+      label: What have you tried or considered?
+      description: Let us know what you've already tried or considered to resolve the issue or approach the topic.
+      placeholder: "Details of attempts, research, or considerations..."
+  - type: textarea
+    attributes:
+      label: Additional details or resources
+      description: Add any other details, screenshots, links, or resources related to your question or topic.

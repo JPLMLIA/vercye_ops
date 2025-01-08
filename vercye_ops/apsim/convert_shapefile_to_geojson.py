@@ -14,7 +14,7 @@ def generate_met_points(gdf_row):
     return centroid
 
 
-def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir):
+def convert_shapefile_to_geojson(shp_fpath, projection_epsg, output_head_dir):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -22,8 +22,6 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
     -----------
     shp_fpath : str
         The path to the .shp file.
-    admin_level : str
-        `oblast` or `raion` specifying the administrative level to process in the shapefile.
     output_dir : str
         The directory where the GeoJSON files will be saved.
 
@@ -42,9 +40,9 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
 
     
     if gdf.empty:
-        raise ValueError("The shapefile does not contain any polygons.")
+        raise ValueError('The shapefile does not contain any polygons.')
     if gdf.crs.to_epsg() != 4326:
-        raise ValueError("The shapefile coordinate system is not WGS 84.")
+        raise ValueError('The shapefile coordinate system is not WGS 84.')
     
     # Add a new column for the centroid of each polygon
     gdf_proj = gdf.to_crs(epsg=projection_epsg)  # Calculate this in flattened projection instead of geodesic space
@@ -55,16 +53,20 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
     # Convert back to geodesic, and then to WKT. WKT is needed since we can't save multiple geometries to geojson
     gdf['centroid'] = raw_centroids.to_crs(epsg=4326).to_wkt()
     
-    logger.info('Processing %i %s regions.', len(gdf), admin_level)
+    logger.info('Processing %i %s regions.', len(gdf))
+
+    # Validate that only a single administrative division name column is present
+    if not 'admin_name' in gdf.columns:
+        raise ValueError(
+            '''The shapefile is missing the "admin_name" column. Ensure the column 
+            contains administrative division names. Use the "prepare_shapefile.py" 
+            script to standardize the shapefile with correct column names.'''
+        )
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
 
-        # Generate the output fpath
-        if admin_level == 'oblast':
-            region_name = row["NAME_1"]
-        else:
-            region_name = row["NAME_2"]
+        region_name = row['admin_name']
 
         # Take out any apostrophes as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "")
@@ -86,16 +88,15 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
 
 @click.command()
 @click.option('--shp_fpath', type=click.Path(exists=True), help='Path to the .shp file.')
-@click.option('--admin_level', type=click.Choice(['oblast', 'raion']), default='oblast', help='Level of administration to process. `oblast` corresponds to Level 1, `raion` corresponds to Level 2')
 @click.option('--projection_epsg', type=int, default=6381, help='EPSG code to define projection. Default is for Ukraine.')
 @click.option('--output_head_dir', type=click.Path(file_okay=False), help='Head directory where the region output dirs will be created.')
-@click.option('--verbose', is_flag=True, help="Print verbose output.")
-def cli(shp_fpath, admin_level, projection_epsg, output_head_dir, verbose):
+@click.option('--verbose', is_flag=True, help='Print verbose output.')
+def cli(shp_fpath, projection_epsg, output_head_dir, verbose):
     """Wrapper around geojson generation func"""
     
     if verbose:
         logger.setLevel('INFO')
-    convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir)
+    convert_shapefile_to_geojson(shp_fpath, projection_epsg, output_head_dir)
     
     
 if __name__ == '__main__':

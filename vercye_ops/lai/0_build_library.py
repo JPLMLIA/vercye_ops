@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-def convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbose):
+def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -15,8 +15,6 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbos
     -----------
     shp_fpath : str
         The path to the .shp file.
-    admin_level : str
-        `oblast` or `raion` specifying the administrative level to process in the shapefile.
     output_dir : str
         The directory where the GeoJSON files will be saved.
     verbose : bool
@@ -36,21 +34,26 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbos
     gdf = gpd.read_file(shp_fpath)
     
     if gdf.empty:
-        raise ValueError("The shapefile does not contain any polygons.")
+        raise ValueError('The shapefile does not contain any polygons.')
     if gdf.crs.to_epsg() != 4326:
-        raise ValueError("The shapefile coordinate system is not WGS 84.")
+        raise ValueError('The shapefile coordinate system is not WGS 84.')
     
     if verbose:
-        logging.info('Processing %i %s regions.', len(gdf), admin_level)
+        logging.info('Processing %i %s regions.', len(gdf))
+
+    # Validate that only a single administrative division name column is present
+    if not 'admin_name' in gdf.columns:
+        raise ValueError(
+            '''The shapefile is missing the "admin_name" column. Ensure the column 
+            contains administrative division names. Use the "prepare_shapefile.py" 
+            script to standardize the shapefile with correct column names.'''
+        )
+
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
 
-        # Generate the output fpath
-        if admin_level == 'oblast':
-            region_name = row["NAME_1"]
-        else:
-            region_name = row["NAME_2"]
+        region_name = row['admin_name']
 
         # Take out any apostrophes as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "")
@@ -72,12 +75,11 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbos
 
 @click.command()
 @click.argument('shp_fpath', required=True, type=click.Path(exists=True))
-@click.option('--admin_level', type=click.Choice(['oblast', 'raion']), default='oblast', help='Level of administration to process. `oblast` corresponds to Level 1, `raion` corresponds to Level 2')
 @click.option('--output_head_dir', type=click.Path(file_okay=False), default='library', help='Head directory where the region output dirs will be created.')
-@click.option('--verbose', is_flag=True, help="Print verbose output.")
-def cli(shp_fpath, admin_level, output_head_dir, verbose):
+@click.option('--verbose', is_flag=True, help='Print verbose output.')
+def cli(shp_fpath, output_head_dir, verbose):
     """Wrapper around geojson generation func"""
-    convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbose)
+    convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose)
     
 if __name__ == '__main__':
     cli()
