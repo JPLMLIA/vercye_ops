@@ -107,6 +107,10 @@ apsim_execution:
     platform: 'linux/amd64'
   local_exe: '~/Builds/APSIMInitiative/ApsimX/bin/Release/net6.0/Models'
 
+# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
+# after the pipeline finishes, set this to False.
+keep_apsim_db_files: True
+
 ########################################
 # LAI parameters
 lai_params:
