@@ -219,15 +219,43 @@ def all_chirps_data_exists(dates, chirps_dir):
     return True
 
 
+def bbox_within_bounds(bbox, bounds):
+    """
+    Validate that a given bounding box is within the bounds.
+    """
+    return (bbox[0] >= bounds[0] and bbox[1] <= bounds[1] and bbox[2] >= bounds[2] and bbox[3] <= bounds[3])
+
+
+def coord_within_bounds(lon, lat, bounds):
+    """
+    Validate that the given coordinates are within the bounds.
+    """
+    return (lon >= bounds[0] and lon <= bounds[1] and lat >= bounds[2] and lat <= bounds[3])
+
+
+def within_chirps_bounds(geometry_path, lon, lat):
+    """
+    Validate that the given coordinates are within the bounds of the CHIRPS data.
+    """
+
+    chirps_bounds = (-180, 180, -50, 50)
+
+    if geometry_path:
+        geometry = gpd.read_file(geometry_path)
+        geometry_bounds = geometry.total_bounds
+
+        return bbox_within_bounds(geometry_bounds, chirps_bounds)
+
+    if lon and lat:
+       return coord_within_bounds(lon, lat, chirps_bounds)
+
+    raise Exception("No valid geometry or coordinates provided.")
+
+
 def get_chirps_precipitation(start_date, end_date, aggregation_method, geometry_path, lon, lat, chirps_dir):
     """
     Fetches precipitation data from the CHIRPS API between start_date and end_date if not already present in the output_dir.
     """
-
-    # TODO Fallback to NASA POWER if CHIRPS data is not available fr certain regions (-50 to 50 lat)
-    # TODO Parallelize this
-    # TODO add better logging   
-    # TODO validate mean and centroid values. Currently large discrepancies to nasa power. Check scale
 
     logger.info("Using CHIRPS precipitation data for the given date range.")
 
@@ -237,7 +265,12 @@ def get_chirps_precipitation(start_date, end_date, aggregation_method, geometry_
     if not all_chirps_data_exists(required_dates, chirps_dir):
         raise FileNotFoundError(f"CHIRPS data incomplete. Please download the data first. You may use the download_chirps_data.py script.")
     
+    # Validate that the coordinates are within the bounds of the CHIRPS data
+    if not within_chirps_bounds(geometry_path, lon, lat):
+        raise ValueError("Coordinates of ROI out of bounds for CHIRPS data.")
+    
     # Process the CHIRPS data by the given spatial aggregation method
+    # TODO Parallelize this
     logger.info("Processing CHIRPS data using the %s aggregation method...", aggregation_method)
     chirps_data = construct_chirps_data(required_dates, aggregation_method, geometry_path, lon, lat, chirps_dir)
 
