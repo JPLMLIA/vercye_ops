@@ -169,19 +169,28 @@ def process_mean_data(chirps_dir, dates, geometry):
 
 def construct_chirps_data(dates, aggregation_method, geometry_path=None, lon=None, lat=None, chirps_dir=None):
     """
-    Constructs a DataFrame of CHIRPS precipitation data for the given date range and aggregation method.
-    
-    Parameters:
-        dates (pd.DatetimeIndex): Date range for the CHIRPS data.
-        aggregation_method (str): Aggregation method ('centroid' or 'mean').
-        geometry_path (str, optional): Path to a shapefile for the 'mean' aggregation method.
-        lon (float, optional): Longitude for the 'centroid' aggregation method.
-        lat (float, optional): Latitude for the 'centroid' aggregation method.
-        chirps_dir (str): Directory containing CHIRPS .cog files.
+       Constructs (aggregates) CHIRPS precipitation data based on the provided parameters.
 
-    Returns:
-        pd.DataFrame: DataFrame with CHIRPS precipitation data.
-    """
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            Date range for the CHIRPS data.
+        aggregation_method : str
+            Aggregation method to use ('centroid' or 'mean').
+        geometry_path : str, optional
+            Path to a shapefile to use for the 'mean' aggregation method.
+        lon : float, optional
+            Longitude for the 'centroid' aggregation method.
+        lat : float, optional
+            Latitude for the 'centroid' aggregation method.
+        chirps_dir : str
+            Directory containing CHIRPS .cog files.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame containing CHIRPS precipitation data.
+        """
     validate_chirps_aggregation_inp(aggregation_method, lon, lat, geometry_path)
 
     if aggregation_method == 'centroid':
