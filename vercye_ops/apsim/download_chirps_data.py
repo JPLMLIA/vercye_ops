@@ -194,6 +194,53 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, cpu_fracti
 
         logger.error("Maximum retries reached. Some files could not be downloaded.")
 
+def chirps_file_exists(date, output_dir):
+    """
+    Check if a CHIRPS file exists locally for a given date.
+
+    Parameters
+    ----------
+    date : datetime.datetime
+        Date to check for.
+    output_dir : str
+        Directory to check for the file.
+
+    Returns
+    -------
+    bool
+        True if the file exists, False otherwise.
+    """
+    chirps_file_name = f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog'
+    output_fpath = op.join(output_dir, chirps_file_name)
+    return op.exists(output_fpath)
+
+
+def validate_chirps_files(start_date, end_date, output_dir):
+    """
+    Validate the downloaded CHIRPS files for existence and corruption.
+
+    Parameters
+    ----------
+    start_date : datetime.datetime
+        Start date for the data fetch.
+    end_date : datetime.datetime
+        End date for the data fetch.
+    output_dir : str
+        Directory to save downloaded files.
+    """
+    logger.info("Validating downloaded CHIRPS files for range: %s to %s", start_date, end_date)
+    all_dates = pd.date_range(start_date, end_date)
+
+    # Validate existence of files
+    for date in all_dates:
+        if not chirps_file_exists(date, output_dir):
+            logger.error("CHIRPS file not found for date: %s", date)
+            continue
+
+    # Validate file integrity
+    #TODO: Implement file integrity validation
+    logger.info("Validation completed. Check for errors above.")
+
 
 @click.command()
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date for CHIRPS data collection in YYYY-MM-DD format.")
@@ -216,15 +263,19 @@ def cli(start_date, end_date, output_dir, cpu_fraction):
         Fraction of available CPU cores to use.
 
     """
+    logger.setLevel('INFO')
+
     if cpu_fraction <= 0 or cpu_fraction > 1:
         raise ValueError("CPU fraction must be between 0 and 1.")
     
     if not op.exists(output_dir):
         raise FileNotFoundError(f"Output directory {output_dir} does not exist.")
 
+    # Download CHIRPS data for the specified date range if not already present in outputdir
     fetch_chirps_daterange_parallel(start_date, end_date, output_dir, cpu_fraction)
 
-    # TODO Validate the downloaded files for existence and corruption
+    # Validate the downloaded files for existence and integrity
+    validate_chirps_files(start_date, end_date, output_dir)
 
 if __name__ == '__main__':
     cli()
