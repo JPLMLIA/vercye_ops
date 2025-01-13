@@ -20,13 +20,16 @@ MET_FILE_DTYPES = {
 @click.command()
 @click.option('--input_fpath', required=True, type=click.Path(exists=True), help='Path to the input .met file.')
 @click.option('--output_fpath', required=True, type=click.Path(writable=True), help='Path to save the output HTML plot.')
+@click.option('--precipitation_source', required=True, type=click.Choice(['NASA_POWER', 'CHIRPS']), help='Source of precipitation data. "NASA_Power" or "CHIRPS".')
+@click.option('--precipitation_agg', required=True, type=click.Choice(['centroid', 'mean']), help='Aggregation method for precipitation data. "centroid" or "mean".')
+@click.option('--nasapower_fpath', required=False, type=click.Path(exists=True), default=None, help='Path to the NASA Power CSV file.')
 @click.option('--header_lines', default=8, show_default=True, help='Number of lines in the header.')
 @click.option('--column_line', default=6, show_default=True, help='Line number of the column headers (1-based index).')
-def cli(input_fpath, output_fpath, header_lines, column_line):
+def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, nasapower_fpath, header_lines, column_line):
     """
     CLI wrapper to plot weather data from a .met file and save as an interactive HTML plot.
     """
-    data, metadata = plot_weather_data(input_fpath, header_lines, column_line)
+    data, metadata = plot_weather_data(input_fpath, precipitation_source, precipitation_agg, nasapower_fpath, header_lines, column_line)
     
     metadata.update({'input_fpath': input_fpath,
                      'output_fpath': output_fpath})
@@ -34,7 +37,7 @@ def cli(input_fpath, output_fpath, header_lines, column_line):
     fig.write_html(output_fpath)
 
 
-def plot_weather_data(file_path, header_lines=8, column_line=6):
+def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapower_fpath, header_lines=8, column_line=6):
     """
     Plot weather data from a .met file and save as an interactive HTML plot.
 
@@ -42,6 +45,12 @@ def plot_weather_data(file_path, header_lines=8, column_line=6):
     ----------
     file_path : str
         Path to the input .met file.
+    precipitation_source : str
+        Source of precipitation data. "NASA_POWER" or "CHIRPS".
+    precipitation_agg : str
+        Aggregation method for precipitation data. "centroid" or "mean".
+    nasapower_fpath : str
+        Path to the NASA Power CSV file.
     header_lines : int
         Number of lines in the header.
     column_line : int
@@ -79,6 +88,18 @@ def plot_weather_data(file_path, header_lines=8, column_line=6):
     df = pd.DataFrame(data, columns=columns)
     df = df.astype(MET_FILE_DTYPES)
     df['date'] = pd.to_datetime(df['year'].astype(str) + df['day'].astype(str), format='%Y%j')
+
+    # Add unused NASA Power precipitation data for comparison if available
+    metadata['precipitation_source'] = precipitation_source
+    metadata['precipitation_agg'] = precipitation_agg
+
+    if precipitation_source.lower() == 'CHIRPS':
+        df_nasapower = pd.read_csv(nasapower_fpath)
+        if not 'NASA_POWER_PRECTOTCORR_UNUSED' in df_nasapower.columns:
+            raise ValueError('NASA Power CSV file does not contain the required column "NASA_POWER_PRECTOTCORR_UNUSED".')
+
+        df['rain_nasapower_unused'] = df_nasapower['NASA_POWER_PRECTOTCORR_UNUSED']
+        metadata['precipitation_source'] = 'CHIRPS'
     
     # Extract date information
     metadata['met_start_date'] = df.iloc[0]['date']
@@ -135,8 +156,15 @@ def create_plots(df, metadata):
                                  line=dict(color='goldenrod', dash=line_dash, width=1.5)), row=2, col=1)
 
         # Precipitation
-        fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Precipitation (Corrected) ({data_type})',
-                                 line=dict(color='dodgerblue', dash=line_dash, width=1.5)), row=3, col=1)
+        if 'rain_nasapower_unused' in df.columns:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['rain_nasapower_unused'], mode='lines', name=f'Unused NASA_Power Precipitation ({data_type})',
+                                     line=dict(color='darkgreen', dash=line_dash, width=1.5)), row=3, col=1)
+
+            fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Chirps Precipitation (Corrected) ({data_type})',
+                                    line=dict(color='dodgerblue', dash=line_dash, width=1.5)), row=3, col=1)
+        else:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Precipitation (Corrected) ({data_type})',
+                                    line=dict(color='navy', dash=line_dash, width=1.5)), row=3, col=1)
 
         # Wind
         fig.add_trace(go.Scatter(x=df['date'], y=df['wind'], mode='lines', name=f'Surface Wind ({data_type})',
@@ -156,7 +184,7 @@ def create_plots(df, metadata):
                   annotation_position='top left')
 
     # Update text, layout, and hover details
-    sim_date_information = f"Met File Start Date: {metadata['met_start_date'].date()}<br>Met File Last Measurement Date: {metadata['met_meas_end_date'].date()}<br>Met File End Date: {metadata['met_end_date'].date()}"
+    sim_date_information = f"Met File Start Date: {metadata['met_start_date'].date()}<br>Met File Last Measurement Date: {metadata['met_meas_end_date'].date()}<br>Met File End Date: {metadata['met_end_date'].date()}<br>Precipitation Config: {metadata['precipitation_source']}, {metadata['precipitation_agg']}"
     met_header_information = f"Lat {metadata['latitude']}, Lon {metadata['longitude']}, Tav {metadata['tav']}°C, Amp {metadata['amp']}°C"
 
     fig.update_layout(

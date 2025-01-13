@@ -26,6 +26,7 @@ def download_file_ftp(file_name, output_fpath, ftp_connection):
 
 
 def fetch_chirps_daterange(start_date, end_date, output_dir):
+    logger.info("Fetching CHIRPS precipitation data for date range: %s to %s", start_date, end_date)
     try:
         ftp_connection = ftplib.FTP(CHIRPS_URL)
         ftp_connection.login(CHIRPS_USER, CHIRPS_PASS)
@@ -62,3 +63,6 @@ def cli(start_date, end_date, output_dir):
     # TODO Parallelize download
 
     fetch_chirps_daterange(start_date, end_date, output_dir)
+
+if __name__ == '__main__':
+    cli()

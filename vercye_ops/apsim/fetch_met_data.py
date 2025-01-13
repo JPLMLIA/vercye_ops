@@ -103,11 +103,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     df = pd.DataFrame(data)
     df.index = pd.to_datetime(df.index)
     
-    # Error checking function
-    # TODO: Flesh out required checks
-    df_cleaned = error_checking_function(df)
-
-    return df_cleaned
+    return df
 
 
 def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite):
@@ -146,7 +142,6 @@ def read_chirps_file(chirps_dir, date):
 def process_centroid_data(chirps_dir, dates, lon, lat):
     """Process CHIRPS data using the centroid aggregation method."""
     results = np.full(len(dates), np.nan)
-
     for idx, date in enumerate(dates):
         with read_chirps_file(chirps_dir, date) as src:
             row, col = rowcol(src.transform, lon, lat)
@@ -163,7 +158,6 @@ def process_centroid_data(chirps_dir, dates, lon, lat):
 def process_mean_data(chirps_dir, dates, geometry):
     """Process CHIRPS data using the mean aggregation method."""
     results = np.full(len(dates), np.nan)
-
     for idx, date in enumerate(dates):
         with read_chirps_file(chirps_dir, date) as src:
             chirps_data, _ = mask(src, geometry.geometry, crop=True, nodata=src.nodata)
@@ -308,21 +302,26 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, precipi
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
-    if precipitation_source == 'nasa_power' and precipitation_aggregation_method != 'centroid':
+    if precipitation_source.lower() == 'nasa_power' and precipitation_aggregation_method != 'centroid':
         raise ValueError("NASA POWER currenlty only supports centroid aggregation method for precipitation data. Please choose 'centroid' as the aggregation method.")
 
     df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
 
-    if precipitation_source == 'chirps':
+    if precipitation_source.lower() == 'chirps':
         chirps_data = get_chirps_precipitation(start_date, end_date, precipitation_aggregation_method, geometry_path, lon, lat, chirps_dir)
 
         # Sanity check
         if len(chirps_data) != len(df):
             raise ValueError("NasaPower and Chirps data do not have the same length.")
         
+        df['NASA_POWER_PRECTOTCORR_UNUSED'] = df['PRECTOTCORR']
         df['PRECTOTCORR'] = chirps_data
+    
+    # Error checking function
+    # TODO: Flesh out required checks
+    df_cleaned = error_checking_function(df)
 
-    write_met_data_to_csv(df, output_fpath)
+    write_met_data_to_csv(df_cleaned, output_fpath)
 
 if __name__ == '__main__':
     cli()

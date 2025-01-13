@@ -69,6 +69,8 @@ rule construct_plot_met_files:
         met_plot_script_fpath = config['scripts']['plot_met_files'],
         head_dir = config['sim_study_head_dir'],
         sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+        precipitation_source = config['apsim_params']['precipitation_source'],
+        precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
@@ -88,7 +90,10 @@ rule construct_plot_met_files:
         
         python {params.met_plot_script_fpath} \
         --input_fpath {output.met_fpath} \
-        --output_fpath {output.plot_fpath} > {log}
+        --output_fpath {output.plot_fpath} \
+        --precipitation_source {params.precipitation_source} \
+        --precipitation_agg {params.precipitation_agg_method} \
+        --nasapower_fpath {input.csv} > {log}
         """
         
 
