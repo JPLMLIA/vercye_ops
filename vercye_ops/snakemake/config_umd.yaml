@@ -156,3 +156,4 @@ scripts:
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
+  aggregate_maps : '../matching_sim_real/aggregate_maps.py'

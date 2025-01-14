@@ -187,10 +187,10 @@ def cli(roi_base_dir, output_lai_tif_fpath=None, output_yield_tif_fpath=None, ou
     logger.info(f'Starting map aggregation for regions in {roi_base_dir}...')
 
     output_fpaths = {
-        'yield': output_yield_tif_fpath or op.join(roi_base_dir, f'aggregated_yield.tif'),
+        'yield': output_yield_tif_fpath or op.join(roi_base_dir, f'aggregated_yield_map.tif'),
         'LAI': output_lai_tif_fpath or op.join(roi_base_dir, f'aggregated_LAI_MAX.tif'),
         'cropmask': output_cropmask_tif_fpath or op.join(roi_base_dir, f'aggregated_cropmask.tif'),
-        'shapefile': output_shapefile_fpath or op.join(roi_base_dir, 'aggregated.geojson')
+        'shapefile': output_shapefile_fpath or op.join(roi_base_dir, 'aggregated_region_boundaries.geojson')
     }
 
     region_dirs = [d for d in os.listdir(roi_base_dir) if op.isdir(op.join(roi_base_dir, d))]
@@ -212,13 +212,15 @@ def cli(roi_base_dir, output_lai_tif_fpath=None, output_yield_tif_fpath=None, ou
     # Merge TIF files and save aggregated map
     logger.info('Merging TIF files...')
 
-    # for label, file_group in file_groups.items():
-    #     result = merge_tifs(file_group, label)
-    #     save_aggregated_map(output_fpaths[label], result['array'], result['band_names'], result['profile'])
+    for label, file_group in file_groups.items():
+        result = merge_tifs(file_group, label)
+        save_aggregated_map(output_fpaths[label], result['array'], result['band_names'], result['profile'])
     
     # Merge shapefiles and save
     merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in region_dirs])
     merged_gdf.to_file(output_fpaths['shapefile'], driver='GeoJSON')
+
+    logger.info('Aggregation complete.')
 
 if __name__ == '__main__':
     cli()
