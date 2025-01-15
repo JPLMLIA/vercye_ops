@@ -93,7 +93,7 @@ def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapo
     metadata['precipitation_source'] = precipitation_source
     metadata['precipitation_agg'] = precipitation_agg
 
-    if precipitation_source.lower() == 'CHIRPS':
+    if precipitation_source.lower() == 'chirps':
         df_nasapower = pd.read_csv(nasapower_fpath)
         if not 'NASA_POWER_PRECTOTCORR_UNUSED' in df_nasapower.columns:
             raise ValueError('NASA Power CSV file does not contain the required column "NASA_POWER_PRECTOTCORR_UNUSED".')
