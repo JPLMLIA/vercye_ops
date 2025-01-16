@@ -39,7 +39,18 @@ def aggregate_yields(yield_dir):
 
             if conv_factor_csv_path.exists():
                 conv_df = pd.read_csv(conv_factor_csv_path)
-                conv_df = conv_df[['max_rs_lai', 'max_rs_lai_date', 'apsim_mean_yield_estimate', 'max_matched_sim_lai', 'max_matched_sim_lai_date', 'max_total_sim_lai', 'max_total_sim_lai_date']]
+                conv_df = conv_df[['max_rs_lai', 
+                                   'max_rs_lai_date', 
+                                   'apsim_mean_yield_estimate', 
+                                   'max_matched_sim_lai', 
+                                   'max_matched_sim_lai_date', 
+                                   'max_total_sim_lai', 
+                                   'max_total_sim_lai_date',
+                                   'apsim_matched_std_yield_estimate',
+                                   'apsim_total_std_yield_estimate',
+                                   'apsim_matched_maxlai_std',
+                                   'apsim_total_maxlai_std',
+                                   ]]
                 conv_df['region'] = region_name
             else:
                 conv_df = pd.DataFrame()  # Empty DataFrame as a fallback
