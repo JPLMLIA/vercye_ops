@@ -15,9 +15,12 @@ from threading import Lock
 # Initialize logger
 logger = get_logger()
 
+# Constant to adapt depending on the CHIRPS data version
+CHIRPS_BASEDIR = '/pub/org/chg/products/CHIRPS-2.0/global_daily/cogs/p05'
+CHIRPS_FILE_FORMAT = 'chirps-v2.0.{date}.cog'
+
 # Constants
 CHIRPS_URL = 'ftp.chc.ucsb.edu'
-CHIRPS_BASEDIR = '/pub/org/chg/products/CHIRPS-2.0/global_daily/cogs/p05'
 CHIRPS_USER = 'anonymous'
 CHIRPS_PASS = 'your_email_address'
 NUM_RETRIES = 5
@@ -108,7 +111,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
 
-        chirps_file_name = f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog'
+        chirps_file_name = CHIRPS_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
         output_fpath = op.join(output_dir, chirps_file_name)
         if not op.exists(output_fpath):
             logger.info("Chirps precipitation data not existing locally for date {date}. Fetching and storing to: \n%s", output_fpath)
@@ -210,7 +213,7 @@ def chirps_file_exists(date, output_dir):
     bool
         True if the file exists, False otherwise.
     """
-    chirps_file_name = f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog'
+    chirps_file_name = CHIRPS_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
     output_fpath = op.join(output_dir, chirps_file_name)
     return op.exists(output_fpath)
 
