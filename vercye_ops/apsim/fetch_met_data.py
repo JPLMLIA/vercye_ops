@@ -160,7 +160,7 @@ def process_mean_data(chirps_dir, dates, geometry):
     results = np.full(len(dates), np.nan)
     for idx, date in enumerate(dates):
         with read_chirps_file(chirps_dir, date) as src:
-            chirps_data, _ = mask(src, geometry.geometry, crop=True, nodata=src.nodata)
+            chirps_data, _ = mask(src, geometry.geometry, crop=True, nodata=np.nan)
             chirps_mean = np.nanmean(chirps_data)
             results[idx] = chirps_mean
 
