@@ -15,7 +15,7 @@ rule all:
         #total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map.tif'), year=config['years'], timepoint=config['timepoints']),
-
+        final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report.html'), year=config['years'], timepoint=config['timepoints']),
 #######################################
 # APSIM Section of Snakemake pipeline
 
@@ -343,4 +343,29 @@ rule aggregate_maps:
         --output_yield_tif_fpath {output.aggregated_yield_map} \
         --output_cropmask_tif_fpath {output.aggregated_cropmask} \
         --output_shapefile_fpath {output.aggregated_shapefile} > {log}
+        """
+
+rule generale_final_report:
+    input:
+        region_geojsons = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'),
+        aggregated_maps =  op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map.tif'),
+    params:
+        executable_fpath = config['scripts']['generate_final_report'],
+        regions_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
+        end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+    log:
+        'logs_generate_final_report/{year}_{timepoint}.log'
+    output:
+        report_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report.html'), 
+    shell:
+        """
+        python {params.executable_fpath} \
+        --regions_dir {params.regions_dir} \
+        --out_fpath {output.report_fpath} \
+        --start_date {params.start_date} \
+        --end_date {params.end_date} \
+        --aggregated_yield_map_path {input.aggregated_maps} \
+        --verbose > {log}
         """

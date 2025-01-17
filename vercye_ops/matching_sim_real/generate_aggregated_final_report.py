@@ -222,7 +222,7 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
 
     yield_map = create_map(regions_summary, combined_geojson)
     yield_map_path = op.join(regions_dir, 'yield_map.png')
-    yield_map.figure.savefig(yield_map_path)
+    yield_map.figure.savefig(yield_map_path, dpi=600)
 
     aggregated_yield_map_preview_path = op.join(regions_dir, 'aggregated_yield_map_preview.png')
     convert_geotiff_to_png_with_legend(aggregated_yield_map_path, aggregated_yield_map_preview_path)

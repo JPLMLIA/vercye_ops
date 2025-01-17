@@ -166,6 +166,18 @@ def merge_shapefiles(shapefile_paths):
 
     return merged_gdf
 
+
+def is_valid_region_dir(base_dir, region_name):
+    if not op.isdir(op.join(base_dir, region_name)):
+        return False
+    
+    for suffix in ['_yield_map.tif', '_LAI_MAX.tif', '_cropmask_constrained.tif', '.geojson']:
+        if not op.exists(get_file_path(base_dir, region_name, suffix)):
+            return False
+        
+    return True
+
+
 @click.command()
 @click.option('--roi_base_dir', required=True, type=click.Path(exists=True), help='Path to the directory containing region subdirectories.')
 @click.option('--output_lai_tif_fpath', required=False, type=click.Path(), help='Path to save the aggregated lai GeoTIFF.')
@@ -193,11 +205,12 @@ def cli(roi_base_dir, output_lai_tif_fpath=None, output_yield_tif_fpath=None, ou
         'shapefile': output_shapefile_fpath or op.join(roi_base_dir, 'aggregated_region_boundaries.geojson')
     }
 
-    region_dirs = [d for d in os.listdir(roi_base_dir) if op.isdir(op.join(roi_base_dir, d))]
+    # Only considering directories that contain all required files.
+    regions= [d for d in os.listdir(roi_base_dir) if is_valid_region_dir(roi_base_dir, d)]
 
-    yield_files = [get_file_path(roi_base_dir, region, '_yield_map.tif') for region in region_dirs]
-    lai_files = [get_file_path(roi_base_dir, region, '_LAI_MAX.tif') for region in region_dirs]
-    cropmask_files = [get_file_path(roi_base_dir, region, '_cropmask_constrained.tif') for region in region_dirs]
+    yield_files = [get_file_path(roi_base_dir, region, '_yield_map.tif') for region in regions]
+    lai_files = [get_file_path(roi_base_dir, region, '_LAI_MAX.tif') for region in regions]
+    cropmask_files = [get_file_path(roi_base_dir, region, '_cropmask_constrained.tif') for region in regions]
 
     file_groups = {
         'yield': yield_files,
@@ -217,7 +230,7 @@ def cli(roi_base_dir, output_lai_tif_fpath=None, output_yield_tif_fpath=None, ou
         save_aggregated_map(output_fpaths[label], result['array'], result['band_names'], result['profile'])
     
     # Merge shapefiles and save
-    merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in region_dirs])
+    merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in regions])
     merged_gdf.to_file(output_fpaths['shapefile'], driver='GeoJSON')
 
     logger.info('Aggregation complete.')

@@ -157,3 +157,4 @@ scripts:
   estimate_total_yield: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
   aggregate_maps : '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_maps.py'
+  generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
