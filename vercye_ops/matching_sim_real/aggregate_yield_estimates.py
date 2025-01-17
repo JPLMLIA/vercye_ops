@@ -27,18 +27,43 @@ def aggregate_yields(yield_dir):
     for region_dir in Path(yield_dir).iterdir():
         if region_dir.is_dir():
             region_name = region_dir.name
-            csv_path = region_dir / f"{region_name}_converted_map_yield_estimate.csv"
+            yield_estimate_csv_path = region_dir / f"{region_name}_converted_map_yield_estimate.csv"
+            conv_factor_csv_path = region_dir / f"{region_name}_conversion_factor.csv"
             
-            if csv_path.exists():
-                df = pd.read_csv(csv_path)
-                df['region'] = region_name
-                all_yields.append(df)
+            if yield_estimate_csv_path.exists():
+                yield_df = pd.read_csv(yield_estimate_csv_path)
+                yield_df['region'] = region_name
             else:
-                logger.warning(f"CSV file not found for region: {region_name}")
-    
-    if not all_yields:
-        logger.error("No yield estimate CSV files found in any region.")
-        return None
+                yield_df = pd.DataFrame()  # Empty DataFrame as a fallback
+                logger.warning(f"Converted map yield estimate CSV file not found for region: {region_name}")
+
+            if conv_factor_csv_path.exists():
+                conv_df = pd.read_csv(conv_factor_csv_path)
+                conv_df = conv_df[['max_rs_lai', 
+                                   'max_rs_lai_date', 
+                                   'apsim_mean_yield_estimate', 
+                                   'max_matched_sim_lai', 
+                                   'max_matched_sim_lai_date', 
+                                   'max_total_sim_lai', 
+                                   'max_total_sim_lai_date',
+                                   'apsim_matched_std_yield_estimate',
+                                   'apsim_total_std_yield_estimate',
+                                   'apsim_matched_maxlai_std',
+                                   'apsim_total_maxlai_std',
+                                   ]]
+                conv_df['region'] = region_name
+            else:
+                conv_df = pd.DataFrame()  # Empty DataFrame as a fallback
+                logger.warning(f"Conversion factor CSV file not found for region: {region_name}")
+
+            # Merge the DataFrames
+            if not yield_df.empty or not conv_df.empty:
+                combined_df = pd.merge(yield_df, conv_df, on='region', how='outer')
+                all_yields.append(combined_df)
+                
+                if not all_yields:
+                    logger.error("No yield estimate CSV files found in any region.")
+                    return None
     
     aggregated_yields = pd.concat(all_yields, ignore_index=True)
     

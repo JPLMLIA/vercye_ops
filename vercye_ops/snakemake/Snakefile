@@ -110,7 +110,7 @@ rule update_apsimx_template:
         --verbose > {log}
         """
 
-# Rule to run the APSIM executable (via local executable) on .apsimx files
+# Rule to run the APSIM executable either with docker or local executable on .apsimx files
 rule execute_simulations:
     input:
         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
@@ -283,7 +283,6 @@ rule match_sim_real_quicklook:
         rs_stats_csv_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
         apsim_db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
         total_yield_csv_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'),
- 
     params:
         executable_fpath = config['scripts']['match_sim_real_quicklook'],
     log:
@@ -304,7 +303,8 @@ rule match_sim_real_quicklook:
 
 rule aggregate_yield_estimates:
     input:
-        total_yield_csvs = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=config['regions'])
+        total_yield_csvs = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=config['regions']),
+        conversion_factor_fpath =  expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=config['regions'])
     params:
         executable_fpath = config['scripts']['aggregate_yield_estimates'],
         yield_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')

@@ -46,16 +46,20 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_epsg):
 
     # Estimate mean yield, total area, and total yield
     mean_yield = np.nanmean(data)  # Use nansum as there are likely nodata values in the input data
+    median_yield = np.nanmedian(data)
     total_area_ha = np.sum(~np.isnan(data)) * pixel_area_ha
     total_yield = np.nansum(data * pixel_area_ha)  # Use nansum as there are likely nodata values in the input data
-    logger.info(f"Total yield: {total_yield} kg (average of {mean_yield:0.2f} kg/ha for {total_area_ha:0.2f} hectares)")
+    total_yield_tons = total_yield / 1000
+    logger.info(f"Total yield: {total_yield} kg (mean of {mean_yield:0.2f} and median of {median_yield:0.2f} kg/ha) for {total_area_ha:0.2f} hectares)")
 
     # Save total yield to CSV
     logger.info(f"Saving total yield to {output_yield_csv_fpath}")
     with open(output_yield_csv_fpath, 'w') as f:
         pd.DataFrame({"mean_yield_kg_ha": [mean_yield],
+                      "median_yield_kg_ha": [median_yield],
                       "total_area_ha": [total_area_ha],
-                      "total_yield_kg": [total_yield]}).to_csv(f, index=False)
+                      "total_yield_production_kg": [total_yield],
+                      "total_yield_production_ton": [total_yield_tons]}).to_csv(f, index=False)
 
 
 @click.command()

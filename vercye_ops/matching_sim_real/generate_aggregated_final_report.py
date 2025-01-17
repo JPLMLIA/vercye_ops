@@ -158,7 +158,7 @@ def create_map(regions_summary, combined_geojson):
             #weight='bold'
         )
 
-    ax.set_title("Yield Map - Mean Yield (kg/ha) per Region", fontsize=16)
+    ax.set_title("Crop Productivity Overview - Mean Yield (kg/ha) per Region", fontsize=16)
     ax.axis('off')
     return ax
 
@@ -205,8 +205,9 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
         fraction=0.046,
         pad=0.04
     )
-    cbar.set_label('Yield kg')
+    cbar.set_label('Yield kg/ha')
 
+    ax.set_title("Crop Productivity Pixel-Level - Yield in kg/ha", fontsize=16)
     fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=600)
     plt.close(fig)
     return output_png_path
