@@ -14,6 +14,7 @@ pytest
 rasterio
 requests
 scipy>=1.14  # For Akima interpolator
+scikit-learn
 snakemake  # If using mamba/conda, install from the bioconda channel
 torch
 tqdm

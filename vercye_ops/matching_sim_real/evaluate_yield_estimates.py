@@ -8,19 +8,19 @@ def load_csv(fpath):
 
 
 def compute_metrics(gt, pred):
-    errors_kg_ha = pred['yield_kg_ha'] - gt['yield_kg_ha']
+    errors_kg_ha = pred['mean_yield_kg_ha'] - gt['reported_mean_yield_kg_ha']
 
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
 
-    rmse = np.sqrt(mean_squared_error(gt['yield_kg_ha'], pd['yield_kg_ha']))
-    rrmse = rmse / np.mean(gt['yield_kg_ha']) # TODO check that this is the correct rrmse formulat used in downstream eval
-    r2 = r2_score(gt['yield_kg_ha'], pd['yield_kg_ha'])
+    rmse = np.sqrt(mean_squared_error(gt['reported_mean_yield_kg_ha'], pred['mean_yield_kg_ha']))
+    rrmse = rmse / np.mean(gt['reported_mean_yield_kg_ha']) # TODO check that this is the correct rrmse formulat used in downstream eval
+    r2 = r2_score(gt['reported_mean_yield_kg_ha'], pred['mean_yield_kg_ha'])
 
     aggregated_metrics = {
         'mean_err_kg_ha': mean_err_kg_ha,
         'median_err_kg_ha': median_err_kg_ha,
-        'rmse': rmse,
+        'rmse_kg_ha': rmse,
         'rrmse': rrmse,
         'r2': r2
     }

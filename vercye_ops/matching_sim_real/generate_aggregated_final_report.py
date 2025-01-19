@@ -16,16 +16,16 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path):
+def fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path, evaluation_results):
     html_content = f"""
     <!DOCTYPE html>
-    <html lang=\"en\">
+    <html lang="en">
     <head>
-        <meta charset=\"UTF-8\">
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Yield Report</title>
-        <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-        <link href=\"https://fonts.googleapis.com/css?family=Open+Sans\" rel=\"stylesheet\">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
         <style>
             body {{
                 font-family: 'Open Sans', sans-serif;
@@ -61,53 +61,69 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         </style>
     </head>
     <body>
-        <div class=\"content-container\">
+        <div class="content-container">
             <h1><strong>Yield Report</strong></h1>
 
             <p><strong>Date Range:</strong> {start_date} to {end_date}</p>
             <p><strong>Total Yield (t):</strong> {global_summary['total_yield_production_ton']:.3f}</p>
-            <p><strong>Weighted Mean Yield (kg/ha):</strong> {global_summary['weighted_mean_yield_kg']:.4f}</p>
+            <p><strong>Mean Yield (kg/ha):</strong> {global_summary['mean_yield_kg']:.4f}</p>
             <p><strong>Total Cropland Area (ha):</strong> {global_summary['total_area_ha']:.4f}</p>
 
-            <img src=\"{aggregated_yield_map_preview_path}\" alt=\"Yield per Pixel Map\">
-
+            <img src="{aggregated_yield_map_preview_path}" alt="Yield per Pixel Map"> 
+            
             <hr>
             <h4>Yield Per Region</h4>
 
-            <img src=\"{yield_map_path}\" alt=\"Yield per Region Map\">
+            <img src="{yield_map_path}" alt="Yield per Region Map">
 
-            <table class=\"table table-striped table-bordered\">
+            <table class="table table-striped table-bordered">
                 <thead>
                     <tr>
                         <th>Region</th>
                         <th>Total Yield (t)</th>
                         <th>Mean Yield (kg/ha)</th>
                         <th>Cropland Area (ha)</th>
+                        {'<th>Reported Yield (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
+                        {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
                     </tr>
                 </thead>
                 <tbody>
-        """
+    """
 
     for _, row in regions_summary.iterrows():
         html_content += f"""
-                    <tr>
-                        <td>{row['region']}</td>
-                        <td>{row['total_yield_production_ton']}</td>
-                        <td>{row['mean_yield_kg_ha']}</td>
-                        <td>{row['total_area_ha']}</td>
-                    </tr>
+                        <tr>
+                            <td>{row['region']}</td>
+                            <td>{row['total_yield_production_ton']:.3f}</td>
+                            <td>{row['mean_yield_kg_ha']:.3f}</td>
+                            <td>{row['total_area_ha']:.3f}</td>
+                            {f'<td>{(row["reported_yield_kg"] / 1000):.3f}</td>' if 'reported_yield_kg' in row else ''}
+                            {f'<td>{row["reported_mean_yield_kg_ha"]:.3f}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
+                        </tr>
         """
 
-    html_content += """
-                </tbody>
-            </table>
-        </div>
+    
 
-        <script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js\"></script>
-    </body>
-    </html>
-    """
+    html_content += f"""
+                    </tbody>
+                </table>
 
+                <hr>
+                {f'''
+                <h4>Evaluation Metrics</h4>
+                <p><strong>Mean Error (kg/ha):</strong> {evaluation_results['mean_err_kg_ha'].iloc[0]:.4f}</p>
+                <p><strong>Median Error (kg/ha):</strong> {evaluation_results['median_err_kg_ha'].iloc[0]:.4f}</p>
+                <p><strong>RMSE (kg/ha):</strong> {evaluation_results['rmse_kg_ha'].iloc[0]:.4f}</p>
+                <p><strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.4f}</p>
+                <p><strong>R2:</strong> {evaluation_results['r2'].iloc[0]:.4f}</p>
+                ''' if evaluation_results is not None else ''}
+
+            </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+        </body>
+        </html>
+        """
 
     return html_content
 
@@ -116,9 +132,9 @@ def compute_global_summary(regions_summary):
     total_area_ha = regions_summary['total_area_ha'].sum()
     total_yield_production_ton = regions_summary['total_yield_production_ton'].sum()
     total_yield_production_kg =  regions_summary['total_yield_production_kg'].sum()
-    weighted_mean_yield_kg = total_yield_production_kg / total_area_ha
+    mean_yield_kg = total_yield_production_kg / total_area_ha
 
-    return {'total_area_ha': total_area_ha, 'total_yield_production_ton': total_yield_production_ton, 'weighted_mean_yield_kg': weighted_mean_yield_kg}
+    return {'total_area_ha': total_area_ha, 'total_yield_production_ton': total_yield_production_ton, 'mean_yield_kg': mean_yield_kg}
 
 
 def get_regions_geometry_paths(regions_dir):
@@ -213,9 +229,15 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     return output_png_path
 
 
-def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path):
+def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path, evaluation_results_path, gt_yield_path):
     aggregated_data_fpath = op.join(regions_dir, 'aggregated_yield_estimates.csv')
     regions_summary = pd.read_csv(aggregated_data_fpath)
+
+    if gt_yield_path:
+        gt = pd.read_csv(gt_yield_path)
+        regions_summary['reported_yield_kg'] = gt['reported_yield_kg']
+        regions_summary['reported_mean_yield_kg_ha'] = gt['reported_mean_yield_kg_ha']
+
     global_summary = compute_global_summary(regions_summary)
 
     regions_geometry_paths = get_regions_geometry_paths(regions_dir)
@@ -228,7 +250,12 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
     aggregated_yield_map_preview_path = op.join(regions_dir, 'aggregated_yield_map_preview.png')
     convert_geotiff_to_png_with_legend(aggregated_yield_map_path, aggregated_yield_map_preview_path)
 
-    return fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path)
+    if evaluation_results_path:
+        evaluation_results = pd.read_csv(evaluation_results_path)
+    else:
+        evaluation_results = None
+
+    return fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path, evaluation_results)
 
 
 def save_report(report, out_fpath):
@@ -242,14 +269,16 @@ def save_report(report, out_fpath):
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date of considered timespan in YYYY-MM-DD format.")
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of considered timespan in YYYY-MM-DD format.")
 @click.option('--aggregated_yield_map_path', required=True, type=click.Path(), help='Path to the combined yield map of all regions. ')
+@click.option('--evaluation_results_path', required=False, type=click.Path(), help='Path to the evaluation results csv.', default=None)
+@click.option('--val_fpath', required=False, type=click.Path(), help='Filepath to the csv containing the validation data per region.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(regions_dir, out_fpath, start_date, end_date, aggregated_yield_map_path, verbose):
+def cli(regions_dir, out_fpath, start_date, end_date, aggregated_yield_map_path, evaluation_results_path, val_fpath, verbose):
     """Generate an aggregated final report from multiple regions."""
 
     if verbose:
         logger.setLevel('INFO')
 
-    report = generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path)
+    report = generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path, evaluation_results_path, val_fpath)
     save_report(report, out_fpath)
 
 
