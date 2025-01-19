@@ -63,6 +63,17 @@ To run a new simulation, update the parameters in the `.yaml` file in the `vercy
 
 Other config parameters should rarely (if ever) need updates.
 
+## Validation
+If you have reported groundtruth data, this can be used to automatically include validation in the pipeline. For this, you will have to create a file called `validation.csv` in the study head directory. This file has to follow the specified format:
+
+|    region    | reported_yield |
+|--------------|----------------|
+| regionname1  |      2345      |
+| regionname2  |      1784      |
+...
+
+with the reported_yield being in kg. If the file is present in the head directory, a validation report containing RMSE, mean error etc. will be automatically created when running the snakemake pipeline.
+
 ## Full Snakemake Pipeline
 1. Run `snakemake -c 4` to execute the pipeline with 4 cores. Some other useful command line flags are `--configfile <filename>` to use an alternative config or `-F` to force rerunning the pipeline.
 
