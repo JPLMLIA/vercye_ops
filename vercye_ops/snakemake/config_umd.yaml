@@ -139,6 +139,11 @@ lai_params:
     
 matching_params:
   target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+
+########################################
+# Other Parameters
+
+validation_csv_path: ''
   
 ########################################
 # Local paths to the python/APSIM scripts
@@ -158,3 +163,4 @@ scripts:
   aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
   aggregate_maps : '../matching_sim_real/aggregate_maps.py'
   generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'
+  evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'

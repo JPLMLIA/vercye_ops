@@ -345,11 +345,30 @@ rule aggregate_maps:
         --output_shapefile_fpath {output.aggregated_shapefile} > {log}
         """
 
+rule evaluate_yield_estimates:
+    input:
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'),
+        validation_csv_fpath = config['validation_csv_fpath']
+    params:
+        executable_fpath = config['scripts']['evaluate_yield_estimates'],
+    log:
+        'logs_evaluate_yield_estimates/{year}_{timepoint}.log'
+    output:
+        evaluation_out_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.csv')
+    shell:
+        """
+        python {params.executable_fpath} \
+        --val_fpath {input.validation_csv_fpath} \
+        --estimation_fpath {input.aggregated_yield_estimates} \
+        --out_fpath {output.evaluation_out_path} > {log}
+        """
+
 rule generale_final_report:
     input:
         region_geojsons = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
         aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'),
         aggregated_maps =  op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map.tif'),
+        evaluation_results = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.csv')
     params:
         executable_fpath = config['scripts']['generate_final_report'],
         regions_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
