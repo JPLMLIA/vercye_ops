@@ -102,10 +102,13 @@ apsim_params:
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
+  use_docker: False
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
-  local_exe: '~/Builds/APSIMInitiative/ApsimX/bin/Release/net6.0/Models'
+  local: 
+    executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
+    n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
 ########################################
 # LAI parameters
@@ -153,3 +156,5 @@ scripts:
   generate_converted_lai_map: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
+  aggregate_maps : '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_maps.py'
+  generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
