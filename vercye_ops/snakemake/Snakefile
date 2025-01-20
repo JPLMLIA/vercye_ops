@@ -325,9 +325,11 @@ rule aggregate_maps:
         cropmasks = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_cropmask_constrained.tif'), region=config['regions']),
         lai_maps = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_LAI_MAX.tif'), region=config['regions']),
         yield_maps = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_yield_map.tif'), region=config['regions']),
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'),
     params:
         executable_fpath = config['scripts']['aggregate_maps'],
-        roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')
+        roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        validation_cmd = f'--val_fpath {config["validation_csv_fpath"]}' if config['validation_csv_fpath'] else '',
     log:
         'logs_aggregate_maps/{year}_{timepoint}.log'
     output:
@@ -339,6 +341,8 @@ rule aggregate_maps:
         """
         python {params.executable_fpath} \
         --roi_base_dir {params.roi_base_dir} \
+        {params.validation_cmd} \
+        --yield_estimates_fpath {input.aggregated_yield_estimates} \
         --output_lai_tif_fpath {output.aggregated_lai_map} \
         --output_yield_tif_fpath {output.aggregated_yield_map} \
         --output_cropmask_tif_fpath {output.aggregated_cropmask} \
@@ -363,7 +367,7 @@ rule evaluate_yield_estimates:
         --out_fpath {output.evaluation_out_path} > {log}
         """
 
-rule generale_final_report:
+rule generate_final_report:
     input:
         region_geojsons = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
         aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'),

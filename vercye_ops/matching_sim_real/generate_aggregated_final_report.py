@@ -235,8 +235,11 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
 
     if gt_yield_path:
         gt = pd.read_csv(gt_yield_path)
-        regions_summary['reported_yield_kg'] = gt['reported_yield_kg']
-        regions_summary['reported_mean_yield_kg_ha'] = gt['reported_mean_yield_kg_ha']
+        regions_summary = regions_summary.merge(
+            gt[['reported_yield_kg', 'reported_mean_yield_kg_ha', 'region']],
+            how='left',
+            on='region'
+        )
 
     global_summary = compute_global_summary(regions_summary)
 

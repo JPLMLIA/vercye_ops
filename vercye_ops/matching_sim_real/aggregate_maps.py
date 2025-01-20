@@ -180,11 +180,13 @@ def is_valid_region_dir(base_dir, region_name):
 
 @click.command()
 @click.option('--roi_base_dir', required=True, type=click.Path(exists=True), help='Path to the directory containing region subdirectories.')
+@click.option('--yield_estimates_fpath', required=True, type=click.Path(), help='Path to the CSV containing the yield estimates per region.')
+@click.option('--val_fpath', required=False, type=click.Path(), help='Path to the csv containing the validation data per region.', default=None)
 @click.option('--output_lai_tif_fpath', required=False, type=click.Path(), help='Path to save the aggregated lai GeoTIFF.')
 @click.option('--output_yield_tif_fpath', required=False, type=click.Path(), help='Path to save the aggregated simulated yield GeoTIFF.')
 @click.option('--output_cropmask_tif_fpath', required=False, type=click.Path(), help='Path to save the aggregated cropmask GeoTIFF.')
 @click.option('--output_shapefile_fpath', required=False, type=click.Path(), help='Path to save the aggregated GeoJsons.')
-def cli(roi_base_dir, output_lai_tif_fpath=None, output_yield_tif_fpath=None, output_cropmask_tif_fpath=None, output_shapefile_fpath=None):
+def cli(roi_base_dir, yield_estimates_fpath, val_fpath, output_lai_tif_fpath=None, output_yield_tif_fpath=None, output_cropmask_tif_fpath=None, output_shapefile_fpath=None):
     """
     Command-line interface to aggregate maps from regions.
 
@@ -231,6 +233,15 @@ def cli(roi_base_dir, output_lai_tif_fpath=None, output_yield_tif_fpath=None, ou
     
     # Merge shapefiles and save
     merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in regions])
+
+    yield_estimates = pd.read_csv(yield_estimates_fpath)
+    yield_estimates.rename(columns={'mean_yield_kg_ha': 'estimated_mean_yield_kg_ha', 'total_yield_production_kg': 'estimated_yield_kg'}, inplace=True)
+    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='admin_name', right_on='region')
+
+    if val_fpath:
+        val_data = pd.read_csv(val_fpath)
+        merged_gdf = merged_gdf.merge(val_data, left_on='admin_name', right_on='region')
+
     merged_gdf.to_file(output_fpaths['shapefile'], driver='GeoJSON')
 
     logger.info('Aggregation complete.')

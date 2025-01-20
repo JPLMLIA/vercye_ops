@@ -8,14 +8,27 @@ def load_csv(fpath):
 
 
 def compute_metrics(gt, pred):
-    errors_kg_ha = pred['mean_yield_kg_ha'] - gt['reported_mean_yield_kg_ha']
+    # Merging to ensure that the regions are in the same order
+    combined = pd.merge(gt, pred, on='region')
+
+    if 'mean_yield_kg_ha' not in combined.columns:
+        raise ValueError("Column 'mean_yield_kg_ha' not found in the input estimation csv. Please ensure that the columns are named correctly.")
+
+    # It might occur that the reported mean yield is not available in the input csv.
+    if 'reported_mean_yield_kg_ha' not in combined.columns:
+        if not 'reported_yield_kg' in combined.columns:
+            raise ValueError("Could not compute metrics as neither 'reported_mean_yield_kg_ha' or 'reported_yield_kg' are not available in the input csv.")
+
+        combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_yield_kg']
+
+    errors_kg_ha = combined['mean_yield_kg_ha'] - combined['reported_mean_yield_kg_ha']
 
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
 
-    rmse = np.sqrt(mean_squared_error(gt['reported_mean_yield_kg_ha'], pred['mean_yield_kg_ha']))
-    rrmse = rmse / np.mean(gt['reported_mean_yield_kg_ha']) # TODO check that this is the correct rrmse formulat used in downstream eval
-    r2 = r2_score(gt['reported_mean_yield_kg_ha'], pred['mean_yield_kg_ha'])
+    rmse = np.sqrt(mean_squared_error(combined['reported_mean_yield_kg_ha'], combined['mean_yield_kg_ha']))
+    rrmse = rmse / np.mean(combined['reported_mean_yield_kg_ha']) # TODO check that this is the correct relative rmse formula used in downstream eval
+    r2 = r2_score(combined['reported_mean_yield_kg_ha'], combined['mean_yield_kg_ha'])
 
     aggregated_metrics = {
         'mean_err_kg_ha': mean_err_kg_ha,
