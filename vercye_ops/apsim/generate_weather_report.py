@@ -22,14 +22,15 @@ MET_FILE_DTYPES = {
 @click.option('--output_fpath', required=True, type=click.Path(writable=True), help='Path to save the output HTML plot.')
 @click.option('--precipitation_source', required=True, type=click.Choice(['NASA_POWER', 'CHIRPS']), help='Source of precipitation data. "NASA_Power" or "CHIRPS".')
 @click.option('--precipitation_agg', required=True, type=click.Choice(['centroid', 'mean']), help='Aggregation method for precipitation data. "centroid" or "mean".')
+@click.option('--nasapower_fallback', default=False, help='Boolean specifying wether to fallback on nasa power data if chirps data is not available.')
 @click.option('--nasapower_fpath', required=False, type=click.Path(exists=True), default=None, help='Path to the NASA Power CSV file.')
 @click.option('--header_lines', default=8, show_default=True, help='Number of lines in the header.')
 @click.option('--column_line', default=6, show_default=True, help='Line number of the column headers (1-based index).')
-def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, nasapower_fpath, header_lines, column_line):
+def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, nasapower_fallback, nasapower_fpath, header_lines, column_line):
     """
     CLI wrapper to plot weather data from a .met file and save as an interactive HTML plot.
     """
-    data, metadata = plot_weather_data(input_fpath, precipitation_source, precipitation_agg, nasapower_fpath, header_lines, column_line)
+    data, metadata = plot_weather_data(input_fpath, precipitation_source, precipitation_agg, nasapower_fallback, nasapower_fpath, header_lines, column_line)
     
     metadata.update({'input_fpath': input_fpath,
                      'output_fpath': output_fpath})
@@ -37,7 +38,7 @@ def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, nasa
     fig.write_html(output_fpath)
 
 
-def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapower_fpath, header_lines=8, column_line=6):
+def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapower_fallback, nasapower_fpath, header_lines=8, column_line=6):
     """
     Plot weather data from a .met file and save as an interactive HTML plot.
 
@@ -96,10 +97,13 @@ def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapo
     if precipitation_source.lower() == 'chirps':
         df_nasapower = pd.read_csv(nasapower_fpath)
         if not 'NASA_POWER_PRECTOTCORR_UNUSED' in df_nasapower.columns:
-            raise ValueError('NASA Power CSV file does not contain the required column "NASA_POWER_PRECTOTCORR_UNUSED".')
-
-        df['rain_nasapower_unused'] = df_nasapower['NASA_POWER_PRECTOTCORR_UNUSED']
-        metadata['precipitation_source'] = 'CHIRPS'
+            if not nasapower_fallback:
+                raise ValueError('NASA Power CSV file does not contain the required column "NASA_POWER_PRECTOTCORR_UNUSED".')
+            metadata['precipitation_source'] = 'NASA Power fallback.'
+            metadata['precipitation_agg'] = 'centroid'
+        else:
+            df['rain_nasapower_unused'] = df_nasapower['NASA_POWER_PRECTOTCORR_UNUSED']
+            metadata['precipitation_source'] = 'CHIRPS'
     
     # Extract date information
     metadata['met_start_date'] = df.iloc[0]['date']

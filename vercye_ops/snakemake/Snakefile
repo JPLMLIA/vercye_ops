@@ -25,6 +25,7 @@ rule fetch_met_data:
         nasa_power_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
         precipitation_source = config['apsim_params']['precipitation_source'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
+        fallback_nasapower = config['apsim_params']['fallback_on_nasa_power_centroid'],
         chirps_dir = config['apsim_params']['chirps_dir'],
         script_fpath = config['scripts']['fetch_met_data'],
         head_dir = config['sim_study_head_dir'],
@@ -53,6 +54,7 @@ rule fetch_met_data:
         --precipitation_source {params.precipitation_source} \
         --precipitation_aggregation_method {params.precipitation_agg_method} \
         --geometry_path {input} \
+        --fallback_nasapower {params.fallback_nasapower} \
         --chirps_dir {params.chirps_dir} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
@@ -71,6 +73,7 @@ rule construct_plot_met_files:
         sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
         precipitation_source = config['apsim_params']['precipitation_source'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
+        nasapower_fallback = config['apsim_params']['fallback_on_nasa_power_centroid']
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
@@ -93,6 +96,7 @@ rule construct_plot_met_files:
         --output_fpath {output.plot_fpath} \
         --precipitation_source {params.precipitation_source} \
         --precipitation_agg {params.precipitation_agg_method} \
+        --nasapower_fallback {params.nasapower_fallback} \
         --nasapower_fpath {input.csv} > {log}
         """
         

@@ -52,6 +52,7 @@ timepoints:  # Days relative to harvest
 apsim_params:
   precipitation_source: 'NASA_POWER' # 'NASA_POWER' or 'CHIRPS'
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
+  fallback_on_nasa_power_centroid: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
   chirps_dir: '' # Only required to set if precipitation_source is 'CHIRPS'
   time_bounds:
     2021:

@@ -11,6 +11,7 @@ import rasterio
 from rasterio.mask import mask
 from rasterio.transform import rowcol
 import requests
+import time
 
 
 from vercye_ops.utils.init_logger import get_logger
@@ -20,6 +21,11 @@ logger = get_logger()
 # Valid climate variables for the NASA POWER API
 VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
+
+class OutOfBoundsError(Exception):
+    """Exception raised when a query is out of of bounds."""
+    def __init__(self, message="Operation is out of bounds!"):
+        super().__init__(message)
 
 
 def error_checking_function(df):
@@ -146,10 +152,9 @@ def process_centroid_data(chirps_dir, dates, lon, lat):
         with read_chirps_file(chirps_dir, date) as src:
             row, col = rowcol(src.transform, lon, lat)
             try:
-                value = src.read(1)[row, col]
+                value = list(src.sample([(lon, lat)]))[0][0]
             except IndexError:
-                raise Exception(f"Coordinates out of bounds for date {date}.")
-                # Handle cases where the coordinates are out of bounds by possibly falling back on nasa power
+                raise OutOfBoundsError(f"Coordinates out of bounds for date {date}. Could not read value at row={row} col={col}.")
             results[idx] = value
 
     return results
@@ -222,18 +227,27 @@ def all_chirps_data_exists(dates, chirps_dir):
     return True
 
 
-def bbox_within_bounds(bbox, bounds):
+def is_bbox_within_bounds(inner_bbox, outer_bbox):
     """
-    Validate that a given bounding box is within the bounds.
+    Check if an inner bounding box is completely within an outer bounding box.
     """
-    return (bbox[0] >= bounds[0] and bbox[1] <= bounds[1] and bbox[2] >= bounds[2] and bbox[3] <= bounds[3])
+    minx, miny, maxx, maxy = inner_bbox
+    outer_bbox_lon_min, outer_bbox_lat_min, outer_bbox_lon_max, outer_bbox_lat_max = outer_bbox
+
+    return (
+        outer_bbox_lon_min <= minx <= outer_bbox_lon_max and
+        outer_bbox_lat_min <= miny <= outer_bbox_lat_max and
+        outer_bbox_lon_min <= maxx <= outer_bbox_lon_max and
+        outer_bbox_lat_min <= maxy <= outer_bbox_lat_max
+    )
 
 
-def coord_within_bounds(lon, lat, bounds):
+def is_coord_within_bounds(lon, lat, bounds):
     """
     Validate that the given coordinates are within the bounds.
     """
-    return (lon >= bounds[0] and lon <= bounds[1] and lat >= bounds[2] and lat <= bounds[3])
+    return (lon >= bounds[0] and lon <= bounds[2] and 
+            lat >= bounds[1] and lat <= bounds[3])
 
 
 def within_chirps_bounds(geometry_path, lon, lat):
@@ -241,23 +255,28 @@ def within_chirps_bounds(geometry_path, lon, lat):
     Validate that the given coordinates are within the bounds of the CHIRPS data.
     """
 
-    chirps_bounds = (-180, 180, -50, 50)
+    chirps_bounds = [-180.0, -50.0, 180.0, 50.0]
 
     if geometry_path:
         geometry = gpd.read_file(geometry_path)
-        geometry_bounds = geometry.total_bounds
 
-        return bbox_within_bounds(geometry_bounds, chirps_bounds)
+        if geometry.crs and geometry.crs.to_epsg() != 4326:
+            geometry = geometry.to_crs(epsg=4326)
+
+        geometry_bounds = geometry.total_bounds
+        
+
+        return is_bbox_within_bounds(geometry_bounds, chirps_bounds)
 
     if lon and lat:
-       return coord_within_bounds(lon, lat, chirps_bounds)
+       return is_coord_within_bounds(lon, lat, chirps_bounds)
 
     raise Exception("No valid geometry or coordinates provided.")
 
 
 def get_chirps_precipitation(start_date, end_date, aggregation_method, geometry_path, lon, lat, chirps_dir):
     """
-    Fetches precipitation data from the CHIRPS API between start_date and end_date if not already present in the output_dir.
+    Creates chirps precipitation data for the given date range and spatial aggregation method.
     """
 
     logger.info("Using CHIRPS precipitation data for the given date range.")
@@ -270,7 +289,7 @@ def get_chirps_precipitation(start_date, end_date, aggregation_method, geometry_
     
     # Validate that the coordinates are within the bounds of the CHIRPS data
     if not within_chirps_bounds(geometry_path, lon, lat):
-        raise ValueError("Coordinates of ROI out of bounds for CHIRPS data.")
+        raise OutOfBoundsError("Coordinates out of bounds for CHIRPS data. Location has to be within  (-180, 180, -50, 50).")
     
     # Process the CHIRPS data by the given spatial aggregation method
     # TODO Parallelize this
@@ -299,11 +318,12 @@ def write_met_data_to_csv(df, output_fpath):
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--precipitation_aggregation_method', type=click.Choice(['centroid', 'mean'], case_sensitive=False), default='centroid', show_default=True, help="Method to spatially aggregate precipitation data.")
 @click.option('--geometry_path', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True), default=None, help="Path to the shapefile for the mean aggregation method.")
-@click.option('--chirps_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the CHIRPS data is saved / will be saved.")
+@click.option('--fallback_nasapower', help="Fallback to NASA POWER data if CHIRPS data is not available.", default=False)
+@click.option('--chirps_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the CHIRPS data is saved")
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, precipitation_source, precipitation_aggregation_method, geometry_path, chirps_dir, output_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, precipitation_source, precipitation_aggregation_method, geometry_path, fallback_nasapower, chirps_dir, output_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
@@ -311,20 +331,30 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, precipi
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
-    if precipitation_source.lower() == 'nasa_power' and precipitation_aggregation_method != 'centroid':
+    if precipitation_source.lower() == 'nasa_power' and precipitation_aggregation_method.lower() != 'centroid':
         raise ValueError("NASA POWER currenlty only supports centroid aggregation method for precipitation data. Please choose 'centroid' as the aggregation method.")
 
     df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
 
     if precipitation_source.lower() == 'chirps':
-        chirps_data = get_chirps_precipitation(start_date, end_date, precipitation_aggregation_method, geometry_path, lon, lat, chirps_dir)
+        try:
+            chirps_data = get_chirps_precipitation(start_date, end_date, precipitation_aggregation_method, geometry_path, lon, lat, chirps_dir)
 
-        # Sanity check
-        if len(chirps_data) != len(df):
-            raise ValueError("NasaPower and Chirps data do not have the same length.")
-        
-        df['NASA_POWER_PRECTOTCORR_UNUSED'] = df['PRECTOTCORR']
-        df['PRECTOTCORR'] = chirps_data
+            # Sanity check
+            if len(chirps_data) != len(df):
+                raise ValueError("NasaPower and Chirps data do not have the same length.")
+            
+            df['NASA_POWER_PRECTOTCORR_UNUSED'] = df['PRECTOTCORR']
+            df['PRECTOTCORR'] = chirps_data
+        except OutOfBoundsError as e:
+            if fallback_nasapower:
+                logger.error(e)
+                logger.error("Falling back to NASA POWER centroid data.")
+                # No action needed as PRECTOTCORR is already initalized with nasapower data.
+            else:
+                logger.error(e)
+                logger.error("You can set the --fallback_nasapower flag to use NASA POWER data as a fallback (Use with caution).")
+                raise e
     
     # Error checking function
     # TODO: Flesh out required checks
