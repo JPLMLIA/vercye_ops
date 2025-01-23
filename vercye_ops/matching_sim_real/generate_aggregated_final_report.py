@@ -82,9 +82,9 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <th>Region</th>
                         <th>Total Yield (t)</th>
                         <th>Mean Yield (kg/ha)</th>
-                        <th>Cropland Area (ha)</th>
                         {'<th>Reported Yield (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
                         {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
+                        <th>Cropland Area (ha)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -96,9 +96,9 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <td>{row['region']}</td>
                         <td>{row['total_yield_production_ton']}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
-                        <td>{row['total_area_ha']:.2f}</td>
                         {f'<td>{(row["reported_yield_kg"] / 1000):.3f}</td>' if 'reported_yield_kg' in row else ''}
-                        {f'<td>{row["reported_mean_yield_kg_ha"]:.3f}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
+                        {f'<td>{int(row["reported_mean_yield_kg_ha"])}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
+                        <td>{row['total_area_ha']:.2f}</td>
                     </tr>
         """
 
@@ -111,11 +111,11 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                 <hr>
                 {f'''
                 <h4>Evaluation Metrics</h4>
-                <p><strong>Mean Error (kg/ha):</strong> {evaluation_results['mean_err_kg_ha'].iloc[0]:.4f}</p>
-                <p><strong>Median Error (kg/ha):</strong> {evaluation_results['median_err_kg_ha'].iloc[0]:.4f}</p>
-                <p><strong>RMSE (kg/ha):</strong> {evaluation_results['rmse_kg_ha'].iloc[0]:.4f}</p>
-                <p><strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.4f}</p>
-                <p><strong>R2:</strong> {evaluation_results['r2'].iloc[0]:.4f}</p>
+                <p><strong>Mean Error (kg/ha):</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])}</p>
+                <p><strong>Median Error (kg/ha):</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])}</p>
+                <p><strong>RMSE (kg/ha):</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])}</p>
+                <p><strong>Relative RMSE (%):</strong> {evaluation_results['rrmse'].iloc[0]:.2f}</p>
+                <p><strong>R2:</strong> {evaluation_results['r2'].iloc[0]:.3f}</p>
                 ''' if evaluation_results is not None else ''}
 
             </div>

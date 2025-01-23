@@ -55,8 +55,8 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_epsg):
     # Save total yield to CSV
     logger.info(f"Saving total yield to {output_yield_csv_fpath}")
     with open(output_yield_csv_fpath, 'w') as f:
-        pd.DataFrame({"mean_yield_kg_ha": int([mean_yield]),
-                      "median_yield_kg_ha": int([median_yield]),
+        pd.DataFrame({"mean_yield_kg_ha": [int(mean_yield)],
+                      "median_yield_kg_ha": [int(median_yield)],
                       "total_area_ha": [total_area_ha],
                       "total_yield_production_kg": [total_yield],
                       "total_yield_production_ton": [total_yield_tons]}).to_csv(f, index=False)

@@ -328,7 +328,7 @@ rule aggregate_maps:
         cropmasks = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_cropmask_constrained.tif'), region=config['regions']),
         lai_maps = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_LAI_MAX.tif'), region=config['regions']),
         yield_maps = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_yield_map.tif'), region=config['regions']),
-        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'),
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
     params:
         executable_fpath = config['scripts']['aggregate_maps'],
         roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
