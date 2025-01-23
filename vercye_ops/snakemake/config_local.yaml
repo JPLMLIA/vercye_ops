@@ -8,6 +8,9 @@ platform: 'local'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/Users/wronk/Data/vercye_ops/Rayon_District_Level_Yield/completed_simulations/yield_run_20241105'
 
+# Name that best describes the primary region of interest of the simulation
+roi_name: 'Poltava'  
+
 # Specify one or more simulations
 regions:
   - 'Chornukhynskyi'

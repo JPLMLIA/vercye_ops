@@ -113,9 +113,6 @@ def merge_tifs(tif_files, label):
     for ds in datasets:
         ds.close()
 
-    logger.info(f'Merged {label} TIF files successfully.')
-    logger.info(f'Merged array shape: {merged_array.shape}')
-
     return {
         'array': merged_array,
         'band_names': band_names, 

@@ -51,7 +51,19 @@ def aggregate_yields(yield_dir):
                                    'apsim_matched_maxlai_std',
                                    'apsim_total_maxlai_std',
                                    ]]
-                conv_df['region'] = region_name
+                
+                conv_df['max_rs_lai'] = conv_df['max_rs_lai'].round(2)
+                conv_df['apsim_mean_yield_estimate'] = conv_df['apsim_mean_yield_estimate'].astype(int)
+                conv_df['max_matched_sim_lai'] = conv_df['max_matched_sim_lai'].round(2)
+                conv_df['max_total_sim_lai'] = conv_df['max_total_sim_lai'].round(2)
+                conv_df['apsim_matched_maxlai_std'] = conv_df['apsim_matched_maxlai_std'].round(2)
+                conv_df['apsim_total_maxlai_std'] = conv_df['apsim_total_maxlai_std'].round(2)
+                conv_df['apsim_matched_std_yield_estimate'] = conv_df['apsim_matched_std_yield_estimate'].astype(int)
+                conv_df['apsim_total_std_yield_estimate'] = conv_df['apsim_total_std_yield_estimate'].astype(int)
+
+                conv_df.rename(columns={'apsim_matched_std_yield_estimate': 'apsim_matched_std_yield_estimate_kg_ha',
+                                        'apsim_total_std_yield_estimate': 'apsim_total_std_yield_estimate_kg_ha',}, inplace=True)
+                conv_df['region'] = region_name                                                                                                                
             else:
                 conv_df = pd.DataFrame()  # Empty DataFrame as a fallback
                 logger.warning(f"Conversion factor CSV file not found for region: {region_name}")
