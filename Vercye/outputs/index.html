@@ -1,0 +1,653 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../inputs/">
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.50">
+    
+    
+      
+        <title>Outputs - VeRCYE Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.a40c8224.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#per-region-and-timepoint-outputs" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="VeRCYE Documentation" class="md-header__button md-logo" aria-label="VeRCYE Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VeRCYE Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Outputs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="VeRCYE Documentation" class="md-nav__button md-logo" aria-label="VeRCYE Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    VeRCYE Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Vercye
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Vercye
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inputs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Inputs
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Outputs
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Outputs
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#per-region-and-timepoint-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Per Region (-and timepoint) Outputs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aggregated-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Aggregated Outputs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validation Outputs
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture.md" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Architecture
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    LAI
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            LAI
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../LAI/getting-started.md" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  <h1>Outputs</h1>
+
+<p>The VeRCYE pipeline produces outputs at multiple abstraction levels, such as pixel-wise yield prediction, predictions for each region of interest (ROI) and
+aggregated insights from multiple ROIs. In the following, we define all output artifacts and how they are computed.</p>
+<h3 id="per-region-and-timepoint-outputs">Per Region (-and timepoint) Outputs</h3>
+<p><strong>Reports</strong></p>
+<ul>
+<li><strong>weather_report.html</strong>: Allows to interactively inspect the metereological data. All values except the rain graph are computed for the centroid of the region. For the rain graph, if the precipitation data source in the experiment is NASA_Power, this is also for the centroid. If the precipitation data source is CHIRPS, this might either be the value at the centroid or the mean of all CHIRPS values within the region, depending on what was specified in the configuration. </li>
+<li><strong>yield_report.html</strong>: This summarize the yield study on this region and timepoint. The displayed values are the following:<ul>
+<li>Number of simulation traces in mean data: The number of APSIM simulations that best match remotely sensed LAI data, after filtering out simulations in <code>match_sim_rs_lai.py</code>. We referr to these as 'matched'</li>
+<li>Date range: APSIM simulation date range.</li>
+<li>Mean yield rate: See <code>converted_map_yield_estimate.csv</code> under <code>mean_yield_kg_ha</code>.</li>
+<li>Production: See <code>converted_map_yield_estimate.csv</code> under <code>total_yield_production_ton</code>.</li>
+<li>LAI filtered on step x: APSIM Simulated <code>Wheat.Leaf.LAI</code> for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in <code>match_sim_rs_lai.py</code>.</li>
+<li>Yield filtered on step x: APSIM Simulated yield for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in <code>match_sim_rs_lai.py</code>. Yield in kg/ha.</li>
+<li>RS mean LAI: The remotely sensed mean LAI at each date. The mean is taken over the spatial axes, so the mean of the pixel values of all pixel locations that are within the regions geometry.</li>
+<li>Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated <code>Wheat.Leaf.LAI</code> values at that date. Yield in</li>
+<li>Mean Yield: Analogues to <code>Mean LAI</code> for the APSIM simulated yield. All simulated yield values are in kg/ha.</li>
+</ul>
+</li>
+<li><strong>yield_report.png</strong>: A non-interactive snapshot with lower resolution of the <code>.html</code> yield report.</li>
+</ul>
+<p><strong>Maps</strong></p>
+<ul>
+<li><strong>yield_map.tif</strong>: Raster output representing the yield in kg/ha per pixel. The pixel values are derived my multiplying the remotely sensed LAI with a conversion factor. The conversion factor is computed from the matched simulations of the region.</li>
+</ul>
+<p><strong>Detailed Outputs</strong></p>
+<ul>
+<li>
+<p><strong>converted_map_yield_estimate.csv</strong>: </p>
+<ul>
+<li>mean_yield_kg_ha: Mean yield based on pixel level yield predictions from <code>yield_map.tif</code>. Mean over all pixels estimates in kg/ha.</li>
+<li>median_yield_kg_ha: Median yield based on pixel level yield predictions from <code>yield_map.tif</code>. Medial over all pixel estimates in kg/ha. </li>
+<li>total_area_ha: Total cropland in region in ha. Computed from number of cropland pixels in region multiplied with the pixel size.</li>
+<li>total_yield_production_kg: Total yield from the region in kg. Sum over yield per pixel.</li>
+<li>total_yield_production_ton: <code>total_yield_production_kg</code> / 1000</li>
+</ul>
+</li>
+<li>
+<p><strong>sim_matches.csv</strong>: Contains aggregated statistics per APSIM simulation:</p>
+<ul>
+<li>SimulationID: The internal ID of the APSIM simulation.</li>
+<li>Max_Yield: The maximum yield that the APSIM simulation reaches during the specified simulation date range.</li>
+<li>Max_LAI: The maximum LAI that the APSIM simulation reaches during the specified simulation date range.</li>
+<li>StepFilteredOut: The step number at which the APSIM simulation was removed from matching candidates, as described in <code>match_sim_rs_lai.py</code>. If this field is empty/nan, the simultion was matched and not filtered out.</li>
+<li>Further details not publicly available at the moment.</li>
+</ul>
+</li>
+<li>
+<p><strong>conversion_factor.csv</strong>: Contains numerous values related to the APSIM simulations (and remotely sensed LAI). <code>Max_Yield</code> and <code>Max_LAI</code> as defined in <code>sim_matches.csv</code>.</p>
+<ul>
+<li>apsim_mean_yield_estimate_kg_ha: The mean of <code>Max_Yield</code> over the remaining APSIM simulations fter filtering out simulations as described in <code>match_sim_rs_lai.py</code>.</li>
+<li>apsim_max_matched_lai: The maximum <code>Max_Sim_LAI</code> value over all matched (filtered) APSIM simulations. </li>
+<li>apsim_max_matched_lai_date: The correspinding date on which <code>apsim_max_matched_lai</code> is reached.</li>
+<li>apsim_max_all_lai: The maximum <code>Max_Sim_LAI</code> value over all (not-filtered) APSIM simulations. </li>
+<li>apsim_max_all_lai_date: The correspinding date on which <code>apsim_max_all_lai</code> is reached.</li>
+<li>apsim_matched_std_yield_estimate_kg_ha: The standard deviation in kg/ha of <code>Max_Yield</code> over all matched (filtered) APSIM simulations.</li>
+<li>apsim_all_std_yield_estimate_kg_ha: The standard deviation in kg/ha of <code>Max_Yield</code> over all (not-filtered) APSIM simulations.</li>
+<li>apsim_matched_maxlai_std: The standard LAI deviation of <code>Max_Sim_LAI</code> over the matched (filtered) APSIM simulations.</li>
+<li>apsim_all_maxlai_std: The standard LAI deviation of <code>Max_Sim_LAI</code> over all (not-filtered) APSIM simulations.</li>
+<li>max_rs_lai: For each date the remotely sensed mean LAI is computed. Hereby the mean is taken spatially over the region. <code>max_rs_lai</code> then defines the maximum LAI value of these.</li>
+<li>max_rs_lai_date: The correspinding date of the <code>max_rs_lai</code> value.</li>
+<li>conversion_factor: The factor used to convert the remotely sensed LAI raster to yield estimates that are in kg/ha per pixel.</li>
+</ul>
+</li>
+<li>
+<p><strong>LAI_STATS.csv</strong>: Insights on the estimated LAI from the remotely sensed data.</p>
+<ul>
+<li>Date</li>
+<li>n_pixels: Number of non-nan pixels in the estimated LAI raster for this date.</li>
+<li>interpolated: 1 if this LAI value is interpolated based on surrounding values since no remote sensed image was available on this date. 0 it is estimated with the ML model from the remotely sensed image.</li>
+<li>LAI mean: Mean estimated LAI value over all spatial locations at this date.</li>
+<li>LAI stddev: Standard deviation of LAI values over all spatial locations at this date.</li>
+<li>LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in <code>3_analysis_LAI.py</code>.</li>
+<li>LAI stddev adjusted: Analogous to <code>LAI stddev</code> for the adjusted LAI.</li>
+</ul>
+</li>
+<li>
+<p><strong>nasapower.csv</strong>: Meteorological data fetched from nasapower for each date in the daterange. If CHIRPS was used for precipitation data, then <code>PRECTOTCORR</code> is replaced by CHIRPS data and an additional <code>NASA_POWER_PRECTOTCORR_UNUSED</code> column is added for comparison, which is not used for the simulation. Documentation of other columns will be added soon.</p>
+</li>
+<li>
+<p><strong>weather.met</strong>: Met file generated from <code>nasapower.csv*</code> for the APSIM simulations.</p>
+</li>
+<li>
+<p><strong>cropmask_constrained.tif</strong>: Binary cropmask (raster) constrained to the region.</p>
+</li>
+<li><strong>LAI_MAX.tif</strong>: Raster of the remotely sensed LAI given as the maximum value per pixel troughout the date range.</li>
+</ul>
+<h3 id="aggregated-outputs">Aggregated Outputs</h3>
+<p>The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as <code>yieldstudyname_totalROIname_year_timepoint</code>, to allow easier sharing of these results.</p>
+<ul>
+<li>
+<p><strong>final_report_suffix.html</strong>: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.
+If sharing this file, please ensure it is shared together with both following <code>.png</code> files in the same folder. </p>
+<ul>
+<li>date range: Simulation start and end date</li>
+<li>total yield: The sum of the estimated yield of all regions.</li>
+<li>weighted mean yield: The total yield divided by the total cropland area.</li>
+<li>total cropland area: The sum of all the area of all ROIs in ha.</li>
+<li>crop productivity pixel level: Visualizes the crop productivity in kg/ha per pixel. Derived from the remotely sensed LAI data coupled with the APSIM simulation trough the conversion factor.</li>
+</ul>
+</li>
+<li>
+<p><strong>yield_map_suffix.png</strong>: Preview image of all ROI boundaries with the corresponding mean and median yield in kg/ha.</p>
+</li>
+<li>
+<p><strong>aggregated_yield_map_preview_suffix.png</strong>: Downsampled image preview of the all regional pixel-level yieldmaps merged into one.</p>
+</li>
+<li>
+<p><strong>aggregated_yield_map_suffix.tif</strong>: Spatially aggregated yield maps from all regions (See regional <code>yield_map.tif</code>).</p>
+</li>
+<li><strong>aggregated_LAI_max_suffix.tif</strong>: Spatially aggregated LAI_MAX maps from all regions (See regional <code>LAI_MAX.tif</code>).</li>
+<li><strong>aggregated_cropmask_suffix.tif</strong>: Spatially aggregated cropmasks from all regions (See regional <code>cropmask_constrained.tif</code>). </li>
+<li><strong>aggregated_region_boundaries_suffix.geojson</strong>: All regional geojsons merged into a single one for easier importing into GIS.</li>
+</ul>
+<h3 id="validation-outputs">Validation Outputs</h3>
+<p>If reported (ground truth) data was provided, common metrics are written to the <code>final_report.html</code>.</p>
+<ul>
+<li>mean_err_kg_ha: The mean error computed as the mean over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.</li>
+<li>median_err_kg_ha: The median error computed as the median over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.</li>
+<li>rmse: The root mean square error of the predicted and reported mean yields of all study regions in kg/ha.</li>
+<li>rrmse: rmse / mean(reported_mean_yield)</li>
+<li>r2: The R2 score of the predicted and reported mean yield per region.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.60a45f97.min.js"></script>
+      
+    
+  </body>
+</html>

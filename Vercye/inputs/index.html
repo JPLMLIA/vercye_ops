@@ -1,0 +1,687 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../intro/">
+      
+      
+        <link rel="next" href="../outputs/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.50">
+    
+    
+      
+        <title>Inputs - VeRCYE Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.a40c8224.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#yield-study-setup-overview" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="VeRCYE Documentation" class="md-header__button md-logo" aria-label="VeRCYE Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VeRCYE Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Inputs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="VeRCYE Documentation" class="md-nav__button md-logo" aria-label="VeRCYE Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    VeRCYE Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Vercye
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Vercye
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Inputs
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Inputs
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#yield-study-setup-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Yield Study Setup Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#region-geojsons" class="md-nav__link">
+    <span class="md-ellipsis">
+      Region GeoJSONS
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#years-and-timepoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      Years and Timepoints
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#apsimx-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      APSIMX Templates
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#snakemake-configuration-file-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Snakemake Configuration File Parameters
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outputs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Outputs
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture.md" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Architecture
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    LAI
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            LAI
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../LAI/getting-started.md" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  <h1>Inputs</h1>
+
+<p>To run the vercye pipeline, a number of inputs are required. In the following, we define the formats of input files and the input parameters that can be set via the snakemake config file.</p>
+<h3 id="yield-study-setup-overview">Yield Study Setup Overview</h3>
+<p>Your yield study is organized within a single directory referred to as the <code>simulation head directory</code>. The directory structure is outlined below:</p>
+<pre><code>head dir
+|   snakemake_config.yaml
+|---Year1
+|   |---TimePoint-1
+|   |   |---region1
+|   |   |   |   region1.geojson
+|   |   |   |   region1_template.apsimx
+|   |   |---region2
+|   |   |   |   region2.geojson
+|   |   |   |   region2_template.apsimx
+|   |   |---regionN
+|   |       |   regionN.geojson
+|   |       |   regionN_template.apsimx
+|   |---TimePoint-N
+|       |---region1
+|       |   |   region1.geojson
+|       |   |   region1_template.apsimx
+|       |---region2
+|       |   |   region2.geojson
+|       |   |   region2_template.apsimx
+|       |---regionN
+|           |   regionN.geojson
+|           |   regionN_template.apsimx
+|---Year2
+|   |---TimePoint-1
+|   |   |---region1
+|   |   |   |   region1.geojson
+|   |   |   |   region1_template.apsimx
+|   |   |---region2
+|   |   |   |   region2.geojson
+|   |   |   |   region2_template.apsimx
+|   |   |---regionN
+|   |       |   regionN.geojson
+|   |       |   regionN_template.apsimx
+|   |---TimePoint-N
+|       |---region1
+|       |   |   region1.geojson
+|       |   |   region1_template.apsimx
+|       |---region2
+|       |   |   region2.geojson
+|       |   |   region2_template.apsimx
+|       |---regionN
+|           |   regionN.geojson
+|           |   regionN_template.apsimx
+</code></pre>
+<p>The following sections describe the components of this structure, including the role of <code>snakemake_config.yaml</code>, region naming conventions, <code>GeoJSON</code> creation, timepoints, and <code>apsimx</code> templates.</p>
+<h3 id="region-geojsons">Region GeoJSONS</h3>
+<p>The pipeline allows execution across multiple Regions of Interest (ROIs) in a batch process. Each ROI is processed individually, and aggregated metrics across all regions are provided.</p>
+<p>Each ROI must be represented by an individual GeoJSON file named in the format <code>regionname.geojson</code>. For every year-timepoint combination, the directory must contain a subfolder for each region, containing its corresponding GeoJSON file. For example, if studying regions in the US, a timepoint folder may contain a folder named <code>california</code> with a file <code>california.geojson</code>.</p>
+<p><strong>I only have a .shp shapefile and instead of GeoJSON - What to do?</strong>
+If you only have .shp shapefiles instead of GeoJSON files, use the provided helper scripts to convert them:</p>
+<p><strong>Option A: Standardized, Single Administrative Level Shapefile</strong></p>
+<ul>
+<li>Your shapefile contains geometries at a single administrative level (e.g., districts).</li>
+<li>It has a column named admin_name with the names of the regions.</li>
+<li>Use the apsim/convert_shapefile_to_geojson script to extract individual GeoJSON files.</li>
+</ul>
+<p><strong>Option B: Mixed Administrative Levels</strong></p>
+<ul>
+<li>Your shapefile lacks the admin_name column or contains mixed levels of geometries.</li>
+<li>Run the apsim/prepare_shapefile.py script to standardize the shapefile, then proceed with Option A to extract GeoJSONs.</li>
+</ul>
+<p>The documentation will soon be updated on how to process the shapefiles in more depth.</p>
+<h3 id="years-and-timepoints">Years and Timepoints</h3>
+<p><strong>Years</strong>
+Most likely you will want to run your yield study over multiple seasons, for example to observe the change over the years. Therefore, you can definie different years in the <code>simulation head directory</code>. These should be names like the year (e.g <code>2024</code>).</p>
+<p><strong>Timepoints</strong>
+A timepoint specifies simulation configurations within that year. For example you might want to run one simulation that considers all metereological data available one simulation that only considers metereological data up until 30 days before the latest data, to observe forecasting abilities. </p>
+<p>Each timepoint within a year is defined by 6 parameters:
+- The start date of the of the APSIM simulation
+- The end date of the APSIM simulation
+- The start date of the metereological data for that region to use
+- The end date of the metereological data for that region to use
+- The start date from when to use remotely sensed LAI data
+- The end date from when to use remotely sensed LAI data</p>
+<p>These parameters are set in in the <code>snakemake_config.yaml</code> later on and should be referred to with the name given in the <code>year folder</code> in the <code>simulation head directory</code>. So for example in the experiment described above you might want to create two timepoints called <code>T-0</code> and <code>T-30</code> as folders in each <code>year folder</code>.</p>
+<h3 id="apsimx-templates">APSIMX Templates</h3>
+<p>Each region in each timepoint must contain its own <code>apsimx</code> template file called <code>regionname.apsimx</code>, so for the example above <code>california_template.apsimx</code>. The <code>apsimx</code> template defines the parameters for the yield simulation of this region with <a href="https://github.com/APSIMInitiative/ApsimX"><code>APSIMX</code></a>.</p>
+<p>This is the only step that requires expert knowledge to set region specific parameters for example for the soil characteristics.
+For every template at the different timepoints, you will have to ensure that the dates of the apsimx template file match up with the desired simulation dates specified in your snakemake config (both in <code>apsim_params</code> and <code>lai_params</code> sections). We will provide details on this in the future.</p>
+<h3 id="snakemake-configuration-file-parameters">Snakemake Configuration File Parameters</h3>
+<p>Now that you know about all the files and their names required to create the <code>simulation head directory</code>, we will define the <code>snakemake_config.yaml</code>. This file is the heart of the pipeline and links the <code>simulation head directory</code> with the actual definition of yield study parameters.</p>
+<p>Take a look at the <a href="https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml">example configuration</a> for the format of the parameters. The following solely gives some background on the parameters.</p>
+<ul>
+<li>platform: Specify 'local' or 'umd' for dependency handling.</li>
+<li>sim_study_head_dir: The path to the simulation head directory.</li>
+<li>regions: List of regions to include (must match region folder names).</li>
+<li>years: List of years to include (must match year folder names).</li>
+<li>timepoints: List of timepoints to include (must match timepoint folder names).</li>
+<li>apsim_params:<ul>
+<li>precipitation_source: You can either use the precipitation data for the APSIM simulation from <code>NASA_POWER</code> or from <code>CHIRPS</code>. If you are using <code>CHIRPS</code>, you will have to manually download the precipitation data before starting the pipeline (<code>apsim/download_chirps_data.py</code>).</li>
+<li>precipitation_agg_method: When using <code>CHIRPS</code> you can aggregate the precipitation data over all CHIRPS pixels within the region as their mean, or you can use the centroid of the region. <code>NASA_POWER</code> currently only allows using the centroid.</li>
+<li>fallback_on_nasa_power_centroid: CHIRPS only provides coverage from -50 to 50 degrees. Therefore if the region partly falls outside of these bounds, <code>NASA_POWER</code> precipitation data can be used instead if setting to True.</li>
+<li>chirps_dir: The directory where the downloaded CHIRPS precipitation data is stored. Should be downloaded with <code>apsim/download_chirps_data.py</code>.</li>
+<li>time_bounds: Has to contain the definition of each timepoint for every year specified above. Hereby the timepoint names have to match the names specified above. For each timepoint the following parameters have to be set:<ul>
+<li>sim_start_date: Start date of the simulation in APSIM</li>
+<li>sim_end_date: End date for the simulation in APSIM</li>
+<li>nasa_power_start_date: Start date from when to include metereological data into APSIM.</li>
+<li>nasa_power_end_date: End date up to when to include meteorological data in to APSIM.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>lai_params:<ul>
+<li>lai_dir: Root directory where remotely sensed LAI data (from the LAI pipeline) is stored </li>
+<li>lai_region: Region name, such that the files in <code>lai_dir</code> match <code>{region}_{date}_LAI.tif</code>. Use the LAI pipeline to create such files.</li>
+<li>adjustment: Adjustment applied to the remotely sensed estimated LAI. Can be either "none", "wheat", "maize"</li>
+<li>lai_analysis_mode: 'raster'</li>
+<li>time_bounds: For every year and timepoint the start and enddate from which to use LAI data. This should usually match the simulation dates.</li>
+<li>crop_mask: path to the cropmasks for every year defined above.</li>
+</ul>
+</li>
+<li>matching_params<ul>
+<li>target_epsg: (To be documented).</li>
+</ul>
+</li>
+</ul>
+<p>The following will rarely have to be changed:</p>
+<ul>
+<li>apsim_execution:<ul>
+<li>use_docker: True or False depending on whether you want to run <code>APSIM</code> in docker or with the local executable.</li>
+<li>docker:<ul>
+<li>image: 'apsiminitiative/apsimng'</li>
+<li>platform: Your devices platform e.g 'linux/amd64'</li>
+</ul>
+</li>
+<li>local: 
+    executable_fpath: Path to the APSIM executable on your machine
+    n_jobs: Number of threads to spawn. -1 is default in APSIM.</li>
+</ul>
+</li>
+<li>scripts: The paths to the individual scripts used in the snakemake pipeline.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.60a45f97.min.js"></script>
+      
+    
+  </body>
+</html>
