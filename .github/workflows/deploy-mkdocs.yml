@@ -28,6 +28,7 @@ jobs:
 
       # Step 4: Build the site
       - name: Build MkDocs site
+        working-directory: ./docs
         run: mkdocs build
 
       # Step 5: Deploy to GitHub Pages
@@ -35,4 +36,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
+          publish_dir: ./docs/site
