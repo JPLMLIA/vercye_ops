@@ -82,6 +82,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <th>Region</th>
                         <th>Total Yield (t)</th>
                         <th>Mean Yield (kg/ha)</th>
+                        <th>Median Yield (kg/ha)</th>
                         <th>Cropland Area (ha)</th>
                     </tr>
                 </thead>
@@ -94,6 +95,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <td>{row['region']}</td>
                         <td>{row['total_yield_production_ton']}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
+                        <td>{int(row['median_yield_kg_ha'])}</td>
                         <td>{row['total_area_ha']:.2f}</td>
                     </tr>
         """
@@ -122,10 +124,6 @@ def compute_global_summary(regions_summary):
 
 
 def get_regions_geometry_paths(regions_dir):
-    for region in os.listdir(regions_dir):
-        if op.isdir(op.join(regions_dir, region)):
-            op.join(regions_dir, region, f'{region}.geojson')
-
     return {region: op.join(regions_dir, region, f'{region}.geojson')
             for region in os.listdir(regions_dir) 
             if op.isdir(op.join(regions_dir, region))}
