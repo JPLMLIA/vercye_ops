@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from PIL import Image
+from xhtml2pdf import pisa
 
 import matplotlib.pyplot as plt
 
@@ -24,9 +25,12 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         <meta charset=\"UTF-8\">
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
         <title>Yield Report {roi_name}</title>
-        <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-        <link href=\"https://fonts.googleapis.com/css?family=Open+Sans\" rel=\"stylesheet\">
+        <link href=\"https://gist.githubusercontent.com/chachra/4075119/raw/f08b301cac2c1563b26db92a6da14477874b2e14/bootstrap.css\" rel=\"stylesheet\">
         <style>
+            @font-face {{
+                font-family: Open Sans;
+                src: url('https://github.com/edx/edx-fonts/raw/refs/heads/master/open-sans/fonts/Regular/OpenSans-Regular.ttf');
+            }}
             body {{
                 font-family: 'Open Sans', sans-serif;
                 background-color: #f9f9f9;
@@ -64,15 +68,15 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         <div class=\"content-container\">
             <h1><strong>Yield Report {roi_name}</strong></h1>
 
-            <p><strong>Date Range:</strong> {start_date.date()} to {end_date.date()}</p>
-            <p><strong>Total Yield (t):</strong> {global_summary['total_yield_production_ton']:.3f}</p>
-            <p><strong>Weighted Mean Yield (kg/ha):</strong> {int(global_summary['mean_yield_kg'])}</p>
-            <p><strong>Total Cropland Area (ha):</strong> {global_summary['total_area_ha']:.2f}</p>
+            <p><strong>Date Range:</strong> {start_date.date()} to {end_date.date()}</br>
+            <strong>Total Yield:</strong> {global_summary['total_yield_production_ton']:.3f} t</br>
+            <strong>Weighted Mean Yield:</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
+            <strong>Total Cropland Area:</strong> {global_summary['total_area_ha']:.2f} ha</p>
 
             <img src="{aggregated_yield_map_preview_path}" alt="Yield per Pixel Map"> 
             
             <hr>
-            <h4>Yield Per Region</h4>
+            <h4 style='-pdf-keep-with-next: true; '>Yield Per Region</h4>
 
             <img src="{yield_map_path}" alt="Yield per Region Map">
 
@@ -82,6 +86,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <th>Region</th>
                         <th>Total Yield (t)</th>
                         <th>Mean Yield (kg/ha)</th>
+                        <th>Median Yield (kg/ha)</th>
                         {'<th>Reported Yield (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
                         {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
                         <th>Cropland Area (ha)</th>
@@ -96,7 +101,8 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <td>{row['region']}</td>
                         <td>{row['total_yield_production_ton']}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
-                        {f'<td>{(row["reported_yield_kg"] / 1000):.3f}</td>' if 'reported_yield_kg' in row else ''}
+                        <td>{int(row['median_yield_kg_ha'])}</td>
+                        {f'<td>{(row["reported_yield_kg"] / 1000):.2f}</td>' if 'reported_yield_kg' in row else ''}
                         {f'<td>{int(row["reported_mean_yield_kg_ha"])}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
                         <td>{row['total_area_ha']:.2f}</td>
                     </tr>
@@ -110,12 +116,12 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
 
                 <hr>
                 {f'''
-                <h4>Evaluation Metrics</h4>
-                <p><strong>Mean Error (kg/ha):</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])}</p>
-                <p><strong>Median Error (kg/ha):</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])}</p>
-                <p><strong>RMSE (kg/ha):</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])}</p>
-                <p><strong>Relative RMSE (%):</strong> {evaluation_results['rrmse'].iloc[0]:.2f}</p>
-                <p><strong>R2:</strong> {evaluation_results['r2'].iloc[0]:.3f}</p>
+                <h4  style='-pdf-keep-with-next: true; '>Evaluation Metrics</h4>
+                <p><strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
+                <strong>R2:</strong> {evaluation_results['r2'].iloc[0]:.3f}</p>
                 ''' if evaluation_results is not None else ''}
 
             </div>
@@ -138,10 +144,6 @@ def compute_global_summary(regions_summary):
 
 
 def get_regions_geometry_paths(regions_dir):
-    for region in os.listdir(regions_dir):
-        if op.isdir(op.join(regions_dir, region)):
-            op.join(regions_dir, region, f'{region}.geojson')
-
     return {region: op.join(regions_dir, region, f'{region}.geojson')
             for region in os.listdir(regions_dir) 
             if op.isdir(op.join(regions_dir, region))}
@@ -263,17 +265,31 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
     else:
         evaluation_results = None
 
-    return fill_report_template(yield_map_fname, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_fname, evaluation_results, roi_name)
+    return fill_report_template(yield_map_path, 
+                                regions_summary,
+                                global_summary,
+                                start_date,
+                                end_date,
+                                aggregated_yield_map_preview_path,
+                                evaluation_results,
+                                roi_name)
 
 
 def save_report(report, out_fpath):
-    with open(out_fpath, 'w') as f:
-        f.write(report)
+    with open(out_fpath, "w+b") as result_file:
+        # convert HTML to PDF
+        pisa_status = pisa.CreatePDF(
+            report,
+            dest=result_file,
+        )
+
+        if pisa_status.err:
+            print("An error occured!")
 
 
 @click.command()
 @click.option('--regions_dir', required=True, type=click.Path(exists=True), help='Path to the directory containing region subdirectories.')
-@click.option('--out_fpath', required=True, type=click.Path(), help='Path to save the aggregated final report.')
+@click.option('--out_fpath', required=True, type=click.Path(), help='Path to save the aggregated final report (has to be .pdf).')
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date of considered timespan in YYYY-MM-DD format.")
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of considered timespan in YYYY-MM-DD format.")
 @click.option('--aggregated_yield_map_path', required=True, type=click.Path(), help='Path to the combined yield map of all regions.')
