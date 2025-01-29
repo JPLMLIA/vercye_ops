@@ -232,8 +232,10 @@ def cli(roi_base_dir, yield_estimates_fpath, val_fpath, output_lai_tif_fpath=Non
     merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in regions])
 
     yield_estimates = pd.read_csv(yield_estimates_fpath)
-    yield_estimates.rename(columns={'mean_yield_kg_ha': 'estimated_mean_yield_kg_ha', 'total_yield_production_kg': 'estimated_yield_kg'}, inplace=True)
-    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='admin_name', right_on='region')
+    yield_estimates.rename(columns={'mean_yield_kg_ha': 'estimated_mean_yield_kg_ha',
+                                    'total_yield_production_kg': 'estimated_yield_kg',
+                                    'median_yield_kg_ha': 'estimated_median_yield_kg_ha'}, inplace=True)
+    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='admin_name', right_on='region')
 
     if val_fpath:
         val_data = pd.read_csv(val_fpath)
