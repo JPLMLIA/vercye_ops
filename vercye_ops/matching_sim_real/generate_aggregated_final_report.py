@@ -108,8 +108,6 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                     </tr>
         """
 
-    
-
     html_content += f"""
                     </tbody>
                 </table>

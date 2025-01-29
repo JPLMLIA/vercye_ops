@@ -8,6 +8,7 @@ head dir
 |   snakemake_config.yaml
 |---Year1
 |   |---TimePoint-1
+|   |   |   groundtruth.csv
 |   |   |---region1
 |   |   |   |   region1.geojson
 |   |   |   |   region1_template.apsimx
@@ -18,6 +19,7 @@ head dir
 |   |       |   regionN.geojson
 |   |       |   regionN_template.apsimx
 |   |---TimePoint-N
+|       |   groundtruth.csv
 |       |---region1
 |       |   |   region1.geojson
 |       |   |   region1_template.apsimx
@@ -96,6 +98,14 @@ Each region in each timepoint must contain its own `apsimx` template file called
 
 This is the only step that requires expert knowledge to set region specific parameters for example for the soil characteristics.
 For every template at the different timepoints, you will have to ensure that the dates of the apsimx template file match up with the desired simulation dates specified in your snakemake config (both in `apsim_params` and `lai_params` sections). We will provide details on this in the future.
+
+### Validation data (optional)
+If you have validation (reported groundtruth) data, this should be added as a csv for each timepoint. The validation file must be called `groundtruth.csv` and must be placed in the `head_dir/year/timepoint/` directory. If you only have validation data for specific timepoints/years, this is also fine, you do not have to do add any file for the timepoints without validation data. 
+
+The csv has to follow this format:
+- first column called `region` containing the region names that match the folder region names of the geojsons.
+- one column called `reported_mean_yield_kg_ha` if available. This specifies the reported mean yield in kilograms per hectar.
+- or one column called `reported_yield_kg` which is the reported total yield in kilograms of the region, from which the `mean_yield_kg_ha` can be derived. `mean_yield_kg_ha` is derived by dividing `reported_yield_kg` trough the `cropland area in ha`.
 
 ### Snakemake Configuration File Parameters
 Now that you know about all the files and their names required to create the `simulation head directory`, we will define the `snakemake_config.yaml`. This file is the heart of the pipeline and links the `simulation head directory` with the actual definition of yield study parameters.
