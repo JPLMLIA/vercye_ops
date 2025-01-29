@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from PIL import Image
+from xhtml2pdf import pisa
 
 import matplotlib.pyplot as plt
 
@@ -24,9 +25,12 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         <meta charset=\"UTF-8\">
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
         <title>Yield Report {roi_name}</title>
-        <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-        <link href=\"https://fonts.googleapis.com/css?family=Open+Sans\" rel=\"stylesheet\">
+        <link href=\"https://gist.githubusercontent.com/chachra/4075119/raw/f08b301cac2c1563b26db92a6da14477874b2e14/bootstrap.css\" rel=\"stylesheet\">
         <style>
+            @font-face {{
+                font-family: Open Sans;
+                src: url('https://github.com/edx/edx-fonts/raw/refs/heads/master/open-sans/fonts/Regular/OpenSans-Regular.ttf');
+            }}
             body {{
                 font-family: 'Open Sans', sans-serif;
                 background-color: #f9f9f9;
@@ -64,15 +68,15 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         <div class=\"content-container\">
             <h1><strong>Yield Report {roi_name}</strong></h1>
 
-            <p><strong>Date Range:</strong> {start_date.date()} to {end_date.date()}</p>
-            <p><strong>Total Yield (t):</strong> {global_summary['total_yield_production_ton']:.3f}</p>
-            <p><strong>Weighted Mean Yield (kg/ha):</strong> {int(global_summary['weighted_mean_yield_kg'])}</p>
-            <p><strong>Total Cropland Area (ha):</strong> {global_summary['total_area_ha']:.2f}</p>
+            <p><strong>Date Range:</strong> {start_date.date()} to {end_date.date()}</br>
+            <strong>Total Yield (t):</strong> {global_summary['total_yield_production_ton']:.3f}</br>
+            <strong>Weighted Mean Yield (kg/ha):</strong> {int(global_summary['weighted_mean_yield_kg'])}</br>
+            <strong>Total Cropland Area (ha):</strong> {global_summary['total_area_ha']:.2f}</p>
 
             <img src=\"{aggregated_yield_map_preview_path}\" alt=\"Yield per Pixel Map\">
 
             <hr>
-            <h4>Yield Per Region</h4>
+            <h4 style='-pdf-keep-with-next: true; '>Yield Per Region</h4>
 
             <img src=\"{yield_map_path}\" alt=\"Yield per Region Map\">
 
@@ -109,7 +113,6 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
     </body>
     </html>
     """
-
 
     return html_content
 
@@ -230,23 +233,30 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
     aggregated_yield_map_preview_path = op.join(regions_dir, aggregated_yield_map_preview_fname)
     convert_geotiff_to_png_with_legend(aggregated_yield_map_path, aggregated_yield_map_preview_path)
 
-    return fill_report_template(yield_map_fname, 
+    return fill_report_template(yield_map_path, 
                                 regions_summary,
                                 global_summary,
                                 start_date,
                                 end_date,
-                                aggregated_yield_map_preview_fname,
+                                aggregated_yield_map_preview_path,
                                 roi_name)
 
 
 def save_report(report, out_fpath):
-    with open(out_fpath, 'w') as f:
-        f.write(report)
+    with open(out_fpath, "w+b") as result_file:
+        # convert HTML to PDF
+        pisa_status = pisa.CreatePDF(
+            report,
+            dest=result_file,
+        )
+
+        if pisa_status.err:
+            print("An error occured!")
 
 
 @click.command()
 @click.option('--regions_dir', required=True, type=click.Path(exists=True), help='Path to the directory containing region subdirectories.')
-@click.option('--out_fpath', required=True, type=click.Path(), help='Path to save the aggregated final report.')
+@click.option('--out_fpath', required=True, type=click.Path(), help='Path to save the aggregated final report (has to be .pdf).')
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date of considered timespan in YYYY-MM-DD format.")
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of considered timespan in YYYY-MM-DD format.")
 @click.option('--aggregated_yield_map_path', required=True, type=click.Path(), help='Path to the combined yield map of all regions.')

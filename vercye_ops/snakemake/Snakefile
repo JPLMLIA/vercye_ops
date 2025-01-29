@@ -18,7 +18,7 @@ rule all:
         #total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
-        final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}_{}.html'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
 #######################################
 # APSIM Section of Snakemake pipeline
 
@@ -365,7 +365,7 @@ rule generate_final_report:
         report_fpath = op.join(config['sim_study_head_dir'], 
                                '{year}',
                                '{timepoint}', 
-                               'final_report_{}_{}_{}_{}.html'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), 
+                               'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), 
     shell:
         """
         python {params.executable_fpath} \
