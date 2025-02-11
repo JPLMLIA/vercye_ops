@@ -109,6 +109,11 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
                         .map(lambda image: image.updateMask(image.select('MSK_SNWPRB').lt(SNOW_THRESHOLD)))
         )
 
+        if S2_filtered.size().getInfo() == 0:
+            print(f"No images found for {current_datestr}. Skipping...")
+            current_date = next_date
+            continue
+
         # Add geometry bands
         S2_filtered = S2_filtered.map(addGeometry)
 
