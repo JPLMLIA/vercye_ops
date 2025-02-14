@@ -11,10 +11,10 @@ aggregated insights from multiple ROIs. In the following, we define all output a
     - Date range: APSIM simulation date range.
     - Mean yield rate: See `converted_map_yield_estimate.csv` under `mean_yield_kg_ha`.
     - Production: See `converted_map_yield_estimate.csv` under `total_yield_production_ton`.
-    - LAI filtered on step x: APSIM Simulated `Wheat.Leaf.LAI` for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in `match_sim_rs_lai.py`.
+    - LAI filtered on step x: APSIM Simulated `Wheat.Leaf.LAI` (or `Maize.Leaf.LAI`) for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in `match_sim_rs_lai.py`.
     - Yield filtered on step x: APSIM Simulated yield for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in `match_sim_rs_lai.py`. Yield in kg/ha.
     - RS mean LAI: The remotely sensed mean LAI at each date. The mean is taken over the spatial axes, so the mean of the pixel values of all pixel locations that are within the regions geometry.
-    - Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated `Wheat.Leaf.LAI` values at that date. Yield in
+    - Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated `Wheat.Leaf.LAI` (or `Maize.Leaf.LAI`) values at that date. Yield in
     - Mean Yield: Analogues to `Mean LAI` for the APSIM simulated yield. All simulated yield values are in kg/ha.
 - **yield_report.png**: A non-interactive snapshot with lower resolution of the `.html` yield report.
 
@@ -49,16 +49,17 @@ aggregated insights from multiple ROIs. In the following, we define all output a
     - apsim_all_std_yield_estimate_kg_ha: The standard deviation in kg/ha of `Max_Yield` over all (not-filtered) APSIM simulations.
     - apsim_matched_maxlai_std: The standard LAI deviation of `Max_Sim_LAI` over the matched (filtered) APSIM simulations.
     - apsim_all_maxlai_std: The standard LAI deviation of `Max_Sim_LAI` over all (not-filtered) APSIM simulations.
-    - max_rs_lai: For each date the remotely sensed mean LAI is computed. Hereby the mean is taken spatially over the region. `max_rs_lai` then defines the maximum LAI value of these.
+    - max_rs_lai: For each date the remotely sensed mean LAI is computed (negative values clipped to 0). Hereby the mean is taken spatially over the region. `max_rs_lai` then defines the maximum LAI value of these. 
     - max_rs_lai_date: The correspinding date of the `max_rs_lai` value.
     - conversion_factor: The factor used to convert the remotely sensed LAI raster to yield estimates that are in kg/ha per pixel.
 
 
 - **LAI_STATS.csv**: Insights on the estimated LAI from the remotely sensed data.
+    Before computation all negative values are clipped to 0.
     - Date
     - n_pixels: Number of non-nan pixels in the estimated LAI raster for this date.
     - interpolated: 1 if this LAI value is interpolated based on surrounding values since no remote sensed image was available on this date. 0 it is estimated with the ML model from the remotely sensed image.
-    - LAI mean: Mean estimated LAI value over all spatial locations at this date.
+    - LAI mean: Mean estimated LAI value over all spatial locations at this date. 
     - LAI stddev: Standard deviation of LAI values over all spatial locations at this date.
     - LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in `3_analysis_LAI.py`.
     - LAI stddev adjusted: Analogous to `LAI stddev` for the adjusted LAI.

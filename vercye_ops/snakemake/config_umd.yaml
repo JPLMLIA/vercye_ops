@@ -119,7 +119,8 @@ keep_apsim_db_files: True
 lai_params:
   lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI'
   lai_region: 'Poltava'
-  adjustment: 'wheat'  # "none", "wheat", "maize"
+  crop_name: 'wheat'  # "wheat", "maize"
+  use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'
   time_bounds: 
     2021: 

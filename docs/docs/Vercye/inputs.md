@@ -120,7 +120,8 @@ Take a look at the [example configuration](https://github.com/JPLMLIA/vercye_ops
 - lai_params:
     - lai_dir: Root directory where remotely sensed LAI data (from the LAI pipeline) is stored 
     - lai_region: Region name, such that the files in `lai_dir` match `{region}_{date}_LAI.tif`. Use the LAI pipeline to create such files.
-    - adjustment: Adjustment applied to the remotely sensed estimated LAI. Can be either "none", "wheat", "maize"
+    - crop_name: The name of the crop for which to estimate the yield. Is related to the crop defined in APSIM. Currently "wheat" or "maize" is supprted.
+    - use_crop_adjusted_lai: Whether to apply the adjustment to the estimated remotely sensed estimated LAI for the crop specified above. `True` or `False`.
     - lai_analysis_mode: 'raster'
     - time_bounds: For every year and timepoint the start and enddate from which to use LAI data. This should usually match the simulation dates.
     - crop_mask: path to the cropmasks for every year defined above.
