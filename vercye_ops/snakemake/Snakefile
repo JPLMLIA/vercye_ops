@@ -3,6 +3,8 @@
 
 import os.path as op
 
+from snakefile_helpers import build_apsim_execution_command
+
 rule all:
     input:
         #sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
@@ -107,15 +109,21 @@ rule update_apsimx_template:
         --verbose > {log}
         """
 
-
 # Rule to run the APSIM executable (via local executable) on .apsimx files
 rule execute_simulations:
     input:
         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
     params:
         head_dir = config['sim_study_head_dir'],
-        executable_fpath = config['apsim_execution']['local']['executable_fpath'],
-        n_jobs = config['apsim_execution']['local']['n_jobs']
+        use_docker =  config['apsim_execution']['use_docker'],
+        execution_command = lambda wildcards, input: build_apsim_execution_command(
+            config['sim_study_head_dir'],
+            config['apsim_execution']['use_docker'],
+            config['apsim_execution']['docker']['image'],
+            config['apsim_execution']['docker']['platform'],
+            config['apsim_execution']['local']['executable_fpath'],
+            config['apsim_execution']['local']['n_jobs'],
+            input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
@@ -124,47 +132,13 @@ rule execute_simulations:
             if config['keep_apsim_db_files']
             else temp(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'))
         )
-    retries: 2
+    retries: 2 if not config['apsim_execution']['use_docker'] else 5  # Docker image has habit of failing sometimes
     benchmark:
         "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
         """
-        {params.executable_fpath} \
-        {input} \
-        --cpu-count {params.n_jobs} \
-        --verbose > {log}
+        {params.execution_command} --verbose > {log}
         """
-
-# Rule to run the APSIM executable (via docker) on .apsimx files
-'''
-rule execute_simulations:
-    input:
-        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
-    params:
-        head_dir = config['sim_study_head_dir'],
-        docker_image = config['apsim_execution']['docker']['image'],
-        docker_platform = config['apsim_execution']['docker']['platform'],
-    log:
-        'logs_execute_simulation/{year}_{timepoint}_{region}.log',
-    output:
-        db_file = (
-            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
-            if config['keep_apsim_db_files']
-            else temp(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'))
-        )
-    retries: 5  # Docker image has habit of failing sometimes 
-    benchmark:
-        "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
-    shell:
-        """
-        docker run -i --rm --platform={params.docker_platform} \
-        -v "{params.head_dir}:{params.head_dir}" \
-        -u $(id -u ${{USER}}):$(id -g ${{USER}}) \
-        {params.docker_image} \
-        {input} \
-        --verbose > {log}
-        """
-'''
 
 #######################################
 # S2/LAI portion of Snakemake pipeline
