@@ -49,16 +49,17 @@ aggregated insights from multiple ROIs. In the following, we define all output a
     - apsim_all_std_yield_estimate_kg_ha: The standard deviation in kg/ha of `Max_Yield` over all (not-filtered) APSIM simulations.
     - apsim_matched_maxlai_std: The standard LAI deviation of `Max_Sim_LAI` over the matched (filtered) APSIM simulations.
     - apsim_all_maxlai_std: The standard LAI deviation of `Max_Sim_LAI` over all (not-filtered) APSIM simulations.
-    - max_rs_lai: For each date the remotely sensed mean LAI is computed. Hereby the mean is taken spatially over the region. `max_rs_lai` then defines the maximum LAI value of these.
+    - max_rs_lai: For each date the remotely sensed mean LAI is computed (negative values clipped to 0). Hereby the mean is taken spatially over the region. `max_rs_lai` then defines the maximum LAI value of these. 
     - max_rs_lai_date: The correspinding date of the `max_rs_lai` value.
     - conversion_factor: The factor used to convert the remotely sensed LAI raster to yield estimates that are in kg/ha per pixel.
 
 
 - **LAI_STATS.csv**: Insights on the estimated LAI from the remotely sensed data.
+    Before computation all negative values are clipped to 0.
     - Date
     - n_pixels: Number of non-nan pixels in the estimated LAI raster for this date.
     - interpolated: 1 if this LAI value is interpolated based on surrounding values since no remote sensed image was available on this date. 0 it is estimated with the ML model from the remotely sensed image.
-    - LAI mean: Mean estimated LAI value over all spatial locations at this date.
+    - LAI mean: Mean estimated LAI value over all spatial locations at this date. 
     - LAI stddev: Standard deviation of LAI values over all spatial locations at this date.
     - LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in `3_analysis_LAI.py`.
     - LAI stddev adjusted: Analogous to `LAI stddev` for the adjusted LAI.
