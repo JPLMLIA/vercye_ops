@@ -47,10 +47,10 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     logger.info(f"Reading total yield/conversion factor from {total_yield_csv_fpath}")
 
     df = pd.read_csv(total_yield_csv_fpath)
-    if 'total_yield_kg' not in df.columns:
-        raise KeyError("CSV file must contain a 'total_yield_kg' column.")
+    if 'total_yield_production_kg' not in df.columns:
+        raise KeyError("CSV file must contain a 'total_yield_production_kg' column.")
 
-    total_yield_kg = df['total_yield_kg'].iloc[0]
+    total_yield_kg = df['total_yield_production_kg'].iloc[0]
     total_yield_metric_tons = total_yield_kg / 1000
     mean_yield_kg_ha = df['mean_yield_kg_ha'].round().iloc[0]
     logger.info(f"Total yield: {total_yield_kg} kg")
