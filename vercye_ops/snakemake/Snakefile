@@ -253,7 +253,7 @@ rule match_sim_real:
         --db_path {input.db_fpath} \
         --sim_matches_output_fpath {output.sim_matches_output_fpath} \
         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
-        -- crop_name {params.crop_name} \
+        --crop_name {params.crop_name} \
         {params.adjustment} \
         --verbose > {log}
         """
@@ -308,6 +308,7 @@ rule match_sim_real_quicklook:
  
     params:
         executable_fpath = config['scripts']['match_sim_real_quicklook'],
+        crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
     output:
@@ -319,6 +320,7 @@ rule match_sim_real_quicklook:
         --apsim_filtered_fpath {input.sim_matches_output_fpath} \
         --rs_lai_csv_fpath {input.rs_stats_csv_fpath} \
         --apsim_db_fpath {input.apsim_db_fpath} \
+        --crop_name {params.crop_name} \
         --total_yield_csv_fpath {input.total_yield_csv_fpath} \
         --html_fpath {output.html_fpath} \
         --png_fpath {output.png_fpath} > {log}

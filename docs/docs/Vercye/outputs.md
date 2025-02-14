@@ -11,10 +11,10 @@ aggregated insights from multiple ROIs. In the following, we define all output a
     - Date range: APSIM simulation date range.
     - Mean yield rate: See `converted_map_yield_estimate.csv` under `mean_yield_kg_ha`.
     - Production: See `converted_map_yield_estimate.csv` under `total_yield_production_ton`.
-    - LAI filtered on step x: APSIM Simulated `Wheat.Leaf.LAI` for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in `match_sim_rs_lai.py`.
+    - LAI filtered on step x: APSIM Simulated `Wheat.Leaf.LAI` (or `Maize.Leaf.LAI`) for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in `match_sim_rs_lai.py`.
     - Yield filtered on step x: APSIM Simulated yield for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in `match_sim_rs_lai.py`. Yield in kg/ha.
     - RS mean LAI: The remotely sensed mean LAI at each date. The mean is taken over the spatial axes, so the mean of the pixel values of all pixel locations that are within the regions geometry.
-    - Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated `Wheat.Leaf.LAI` values at that date. Yield in
+    - Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated `Wheat.Leaf.LAI` (or `Maize.Leaf.LAI`) values at that date. Yield in
     - Mean Yield: Analogues to `Mean LAI` for the APSIM simulated yield. All simulated yield values are in kg/ha.
 - **yield_report.png**: A non-interactive snapshot with lower resolution of the `.html` yield report.
 
