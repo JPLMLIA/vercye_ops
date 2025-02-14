@@ -39,8 +39,7 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbos
     if gdf.empty:
         raise ValueError("The shapefile does not contain any polygons.")
     if gdf.crs.to_epsg() != 4326:
-        gdf = gdf.to_crs(epsg=4326)
-        #raise ValueError("The shapefile coordinate system is not WGS 84.")
+        raise ValueError("The shapefile coordinate system is not WGS 84.")
     
     if verbose:
         logging.info('Processing %i %s regions.', len(gdf), admin_level)
