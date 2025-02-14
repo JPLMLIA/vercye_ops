@@ -127,7 +127,11 @@ rule execute_simulations:
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
-        db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
+        db_file = (
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
+            if config['keep_apsim_db_files']
+            else temp(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'))
+        )
     retries: 2 if not config['apsim_execution']['use_docker'] else 5  # Docker image has habit of failing sometimes
     benchmark:
         "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
