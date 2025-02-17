@@ -172,7 +172,7 @@ rule lai_analysis:
         lai_dir = config['lai_params']['lai_dir'],
         lai_region = config['lai_params']['lai_region'],
         mode = config['lai_params']['lai_analysis_mode'],
-        adjustment = config['lai_params']['adjustment'],
+        adjustment = config['lai_params']['crop_name'] if config['lai_params']['use_crop_adjusted_lai'] else "none",
         start_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][0],
         end_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][1],
     benchmark:
@@ -222,7 +222,8 @@ rule match_sim_real:
         db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
     params:
         executable_fpath = config['scripts']['match_sim_real'],
-        adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",
+        adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",
+        crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     output:
@@ -235,6 +236,7 @@ rule match_sim_real:
         --db_path {input.db_fpath} \
         --sim_matches_output_fpath {output.sim_matches_output_fpath} \
         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
+        --crop_name {params.crop_name} \
         {params.adjustment} \
         --verbose > {log}
         """
@@ -245,7 +247,7 @@ rule generate_converted_lai_map:
         conversion_factor_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
     params:
         executable_fpath = config['scripts']['generate_converted_lai_map'],
-        adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
+        adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
     log:
         'logs_generate_converted_lai_map/{year}_{timepoint}_{region}.log',
     output:
@@ -289,6 +291,7 @@ rule match_sim_real_quicklook:
  
     params:
         executable_fpath = config['scripts']['match_sim_real_quicklook'],
+        crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
     output:
@@ -300,6 +303,7 @@ rule match_sim_real_quicklook:
         --apsim_filtered_fpath {input.sim_matches_output_fpath} \
         --rs_lai_csv_fpath {input.rs_stats_csv_fpath} \
         --apsim_db_fpath {input.apsim_db_fpath} \
+        --crop_name {params.crop_name} \
         --total_yield_csv_fpath {input.total_yield_csv_fpath} \
         --html_fpath {output.html_fpath} \
         --png_fpath {output.png_fpath} > {log}
