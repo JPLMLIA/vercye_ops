@@ -113,6 +113,10 @@ apsim_execution:
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
     n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
+# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
+# after the pipeline finishes, set this to False.
+keep_apsim_db_files: True
+
 ########################################
 # LAI parameters
 lai_params:
