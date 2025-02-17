@@ -53,6 +53,8 @@ def aggregate_yields(yield_dir):
                                    'apsim_matched_maxlai_std',
                                    'apsim_all_maxlai_std',
                                    ]]
+
+                conv_df = conv_df.fillna(-1)
                 
                 conv_df['max_rs_lai'] = conv_df['max_rs_lai'].round(2)
                 conv_df['apsim_mean_yield_estimate_kg_ha'] = conv_df['apsim_mean_yield_estimate_kg_ha'].astype(int)

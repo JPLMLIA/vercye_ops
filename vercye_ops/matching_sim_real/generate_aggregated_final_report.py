@@ -7,24 +7,27 @@ import rasterio
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+import matplotlib.colors as mcolors
 from PIL import Image
 from xhtml2pdf import pisa
 
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
 
-def fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path, evaluation_results, roi_name):
+def fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path, evaluation_results, roi_name, crop_name):
+    crop_name = crop_name.lower().capitalize()
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset=\"UTF-8\">
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-        <title>Yield Report {roi_name}</title>
+        <title>Yield Report {roi_name} - {crop_name}</title>
         <link href=\"https://gist.githubusercontent.com/chachra/4075119/raw/f08b301cac2c1563b26db92a6da14477874b2e14/bootstrap.css\" rel=\"stylesheet\">
         <style>
             @font-face {{
@@ -66,30 +69,31 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
     </head>
     <body>
         <div class=\"content-container\">
-            <h1><strong>Yield Report {roi_name}</strong></h1>
+            <h1><strong>Yield Report {roi_name} - {crop_name}</strong></h1>
 
             <p><strong>Date Range:</strong> {start_date.date()} to {end_date.date()}</br>
-            <strong>Total Yield:</strong> {global_summary['total_yield_production_ton']:.3f} t</br>
-            <strong>Weighted Mean Yield:</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
-            <strong>Total Cropland Area:</strong> {global_summary['total_area_ha']:.2f} ha</p>
+            <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
+            <strong>Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
+            <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
 
-            <img src="{aggregated_yield_map_preview_path}" alt="Yield per Pixel Map"> 
+            <img src="{aggregated_yield_map_preview_path}" alt="Estimated Yield per Pixel Map"> 
             
             <hr>
             <h4 style='-pdf-keep-with-next: true; '>Yield Per Region</h4>
 
-            <img src="{yield_map_path}" alt="Yield per Region Map">
+            <img src="{yield_map_path}" alt="Estimated Yield per Region Map">
 
             <table class="table table-striped table-bordered">
                 <thead>
                     <tr>
                         <th>Region</th>
-                        <th>Total Yield (t)</th>
-                        <th>Mean Yield (kg/ha)</th>
-                        <th>Median Yield (kg/ha)</th>
-                        {'<th>Reported Yield (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
+                        <th>Estimated Mean Yield (kg/ha)</th>
+                        <th>Estimated Median Yield (kg/ha)</th>
                         {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
-                        <th>Cropland Area (ha)</th>
+                        <th>Estimated Total Production (t)</th>
+                        {'<th>Reported Total Production (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
+                        {'<th>Estimation Error (kg/ha)</th>' if evaluation_results is not None else ''}
+                        <th>{crop_name} Area (ha)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,12 +103,13 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         html_content += f"""
                     <tr>
                         <td>{row['region']}</td>
-                        <td>{row['total_yield_production_ton']}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
                         <td>{int(row['median_yield_kg_ha'])}</td>
-                        {f'<td>{(row["reported_yield_kg"] / 1000):.2f}</td>' if 'reported_yield_kg' in row else ''}
                         {f'<td>{int(row["reported_mean_yield_kg_ha"])}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
-                        <td>{row['total_area_ha']:.2f}</td>
+                        <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
+                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000))}</td>' if 'reported_yield_kg' in row else ''}
+                        {f'<td>{int(row["mean_err_kg_ha"])}</td>' if 'mean_err_kg_ha' in row  else ''}
+                        <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
                     </tr>
         """
 
@@ -147,34 +152,46 @@ def get_regions_geometry_paths(regions_dir):
             if op.isdir(op.join(regions_dir, region))}
 
 
+def get_contrasting_text_color(rgb):
+    """Returns black or white based on perceived brightness of the background color."""
+    brightness = np.dot(rgb[:3], [0.299, 0.587, 0.114])  # Standard luminance formula
+    return 'black' if brightness > 0.5 else 'white'
+
 def create_map(regions_summary, combined_geojson):
     # Merge geometry with summary data
     merged = combined_geojson.merge(regions_summary, left_on='region', right_on='region')
+
+    # Define colormap and normalization
+    cmap = plt.get_cmap('viridis')
+    norm = mcolors.Normalize(vmin=merged['mean_yield_kg_ha'].min(), vmax=merged['mean_yield_kg_ha'].max())
 
     # Plot map
     fig, ax = plt.subplots(figsize=(12, 8))
     merged.plot(
         column='mean_yield_kg_ha',
-        cmap='viridis',
+        cmap=cmap,
         legend=True,
-        legend_kwds={'label': "Mean Yield (kg/ha)"},
+        legend_kwds={'label': "Estimated Mean Yield (kg/ha)"},
         ax=ax
     )
 
-    # Add region labels
+    # Add region labels with dynamic contrast adjustment
     for idx, row in merged.iterrows():
         centroid = row['geometry'].centroid
+        color_rgb = cmap(norm(row['mean_yield_kg_ha']))
+        text_color = get_contrasting_text_color(color_rgb)
+        
         ax.text(
             x=centroid.x,
             y=centroid.y,
-            s=f"{row['region']} \n {int(row['mean_yield_kg_ha'])}",  # Use the region name as the label
+            s=f"{row['region']} \n {int(row['mean_yield_kg_ha'])}",  
             horizontalalignment='center',
             fontsize=7,
-            color='black',
-            #weight='bold'
+            weight='bold',                                                                                                            
+            color=text_color,
         )
 
-    ax.set_title("Crop Productivity Overview - Mean Yield (kg/ha) per Region", fontsize=16)
+    ax.set_title("Crop Productivity Overview - Estimated Mean Yield (kg/ha) per Region", fontsize=16)
     ax.axis('off')
     return ax
 
@@ -207,6 +224,7 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     colormap = plt.cm.viridis
     
     colored_data = colormap(norm(data))
+    colored_data[np.isnan(data)] = [1, 1, 1, 1]
     rgb_image = (colored_data[:, :, :3] * 255).astype(np.uint8)
     
     fig, ax = plt.subplots(figsize=(12, 8), dpi=900, constrained_layout=True)
@@ -223,13 +241,13 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     )
     cbar.set_label('Yield kg/ha')
 
-    ax.set_title("Crop Productivity Pixel-Level - Yield in kg/ha", fontsize=16)
+    ax.set_title("Crop Productivity Pixel-Level - Estimated Yield in kg/ha", fontsize=16)
     fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=600)
     plt.close(fig)
     return output_png_path
 
 
-def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, gt_yield_path, roi_name):
+def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, gt_yield_path, roi_name, crop_name):
     aggregated_data_fpath = op.join(regions_dir, aggregated_yield_estimates_path)
     regions_summary = pd.read_csv(aggregated_data_fpath)
 
@@ -240,6 +258,7 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
             how='left',
             on='region'
         )
+        regions_summary['mean_err_kg_ha'] = regions_summary['mean_yield_kg_ha'] - regions_summary['reported_mean_yield_kg_ha']
 
     global_summary = compute_global_summary(regions_summary)
 
@@ -270,7 +289,8 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
                                 end_date,
                                 aggregated_yield_map_preview_path,
                                 evaluation_results,
-                                roi_name)
+                                roi_name,
+                                crop_name)
 
 
 def save_report(report, out_fpath):
@@ -295,15 +315,16 @@ def save_report(report, out_fpath):
 @click.option('--evaluation_results_path', required=False, type=click.Path(), help='Path to the evaluation results csv.', default=None)
 @click.option('--val_fpath', required=False, type=click.Path(), help='Filepath to the csv containing the validation data per region.')
 @click.option('--roi_name', required=True, type=click.STRING, help='Name of the primary region of interest.')
+@click.option('--crop_name', required=True, type=click.STRING, help='Name of the crop.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(regions_dir, out_fpath, start_date, end_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, verbose):
+def cli(regions_dir, out_fpath, start_date, end_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, crop_name, verbose):
     """Generate an aggregated final report from multiple regions."""
 
     if verbose:
         logger.setLevel('INFO')
 
     logger.info(f'Generating final report for regions in: {regions_dir}')
-    report = generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name)
+    report = generate_final_report(regions_dir, start_date, end_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, crop_name)
     logger.info(f'Saving report to: {out_fpath}')
     save_report(report, out_fpath)
 

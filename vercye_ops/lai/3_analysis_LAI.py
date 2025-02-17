@@ -262,6 +262,9 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             #LAI_estimate = masked_src[0]
             LAI_estimate = masked_src
 
+            # clip all negative values to zero
+            LAI_estimate[LAI_estimate < 0] = 0
+
             # Wheat and Maize calibrations
             if adjustment == "wheat":
                 LAI_adjusted = LAI_estimate**2 * 0.0482 + LAI_estimate * 0.9161 + 0.0026
