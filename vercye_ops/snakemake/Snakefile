@@ -384,6 +384,7 @@ rule generate_final_report:
         evaluation_results_cmd = lambda _, input: f'--evaluation_results_path {input.evaluation_results}' if input.evaluation_results else '',
         validation_cmd = lambda wildcards, input: f"--val_fpath {op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'groundtruth.csv')}" if input.evaluation_results else '',
         roi_name = config['roi_name'],
+        crop_name = config['lai']['crop_name']
     log:
         'logs_generate_final_report/{year}_{timepoint}.log'
     output:
@@ -403,5 +404,6 @@ rule generate_final_report:
         {params.evaluation_results_cmd} \
         {params.validation_cmd} \
         --roi_name {params.roi_name} \
+        --crop_name {params.crop_name} \
         --verbose > {log}
         """
