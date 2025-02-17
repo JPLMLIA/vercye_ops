@@ -496,10 +496,10 @@ aggregated insights from multiple ROIs. In the following, we define all output a
 <li>Date range: APSIM simulation date range.</li>
 <li>Mean yield rate: See <code>converted_map_yield_estimate.csv</code> under <code>mean_yield_kg_ha</code>.</li>
 <li>Production: See <code>converted_map_yield_estimate.csv</code> under <code>total_yield_production_ton</code>.</li>
-<li>LAI filtered on step x: APSIM Simulated <code>Wheat.Leaf.LAI</code> for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in <code>match_sim_rs_lai.py</code>.</li>
+<li>LAI filtered on step x: APSIM Simulated <code>Wheat.Leaf.LAI</code> (or <code>Maize.Leaf.LAI</code>) for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in <code>match_sim_rs_lai.py</code>.</li>
 <li>Yield filtered on step x: APSIM Simulated yield for a specific simulation and simulation date, with the simulation being filtered out at step x, as defined in <code>match_sim_rs_lai.py</code>. Yield in kg/ha.</li>
 <li>RS mean LAI: The remotely sensed mean LAI at each date. The mean is taken over the spatial axes, so the mean of the pixel values of all pixel locations that are within the regions geometry.</li>
-<li>Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated <code>Wheat.Leaf.LAI</code> values at that date. Yield in</li>
+<li>Mean LAI: The mean simulated LAI eat each date. Hereby the mean for each date, is computed as the mean of all matched (not-filtered out) AP-SIM simulated <code>Wheat.Leaf.LAI</code> (or <code>Maize.Leaf.LAI</code>) values at that date. Yield in</li>
 <li>Mean Yield: Analogues to <code>Mean LAI</code> for the APSIM simulated yield. All simulated yield values are in kg/ha.</li>
 </ul>
 </li>
@@ -543,18 +543,19 @@ aggregated insights from multiple ROIs. In the following, we define all output a
 <li>apsim_all_std_yield_estimate_kg_ha: The standard deviation in kg/ha of <code>Max_Yield</code> over all (not-filtered) APSIM simulations.</li>
 <li>apsim_matched_maxlai_std: The standard LAI deviation of <code>Max_Sim_LAI</code> over the matched (filtered) APSIM simulations.</li>
 <li>apsim_all_maxlai_std: The standard LAI deviation of <code>Max_Sim_LAI</code> over all (not-filtered) APSIM simulations.</li>
-<li>max_rs_lai: For each date the remotely sensed mean LAI is computed. Hereby the mean is taken spatially over the region. <code>max_rs_lai</code> then defines the maximum LAI value of these.</li>
+<li>max_rs_lai: For each date the remotely sensed mean LAI is computed (negative values clipped to 0). Hereby the mean is taken spatially over the region. <code>max_rs_lai</code> then defines the maximum LAI value of these. </li>
 <li>max_rs_lai_date: The correspinding date of the <code>max_rs_lai</code> value.</li>
 <li>conversion_factor: The factor used to convert the remotely sensed LAI raster to yield estimates that are in kg/ha per pixel.</li>
 </ul>
 </li>
 <li>
-<p><strong>LAI_STATS.csv</strong>: Insights on the estimated LAI from the remotely sensed data.</p>
+<p><strong>LAI_STATS.csv</strong>: Insights on the estimated LAI from the remotely sensed data.
+    Before computation all negative values are clipped to 0.</p>
 <ul>
 <li>Date</li>
 <li>n_pixels: Number of non-nan pixels in the estimated LAI raster for this date.</li>
 <li>interpolated: 1 if this LAI value is interpolated based on surrounding values since no remote sensed image was available on this date. 0 it is estimated with the ML model from the remotely sensed image.</li>
-<li>LAI mean: Mean estimated LAI value over all spatial locations at this date.</li>
+<li>LAI mean: Mean estimated LAI value over all spatial locations at this date. </li>
 <li>LAI stddev: Standard deviation of LAI values over all spatial locations at this date.</li>
 <li>LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in <code>3_analysis_LAI.py</code>.</li>
 <li>LAI stddev adjusted: Analogous to <code>LAI stddev</code> for the adjusted LAI.</li>

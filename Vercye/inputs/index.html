@@ -614,7 +614,8 @@ For every template at the different timepoints, you will have to ensure that the
 <li>lai_params:<ul>
 <li>lai_dir: Root directory where remotely sensed LAI data (from the LAI pipeline) is stored </li>
 <li>lai_region: Region name, such that the files in <code>lai_dir</code> match <code>{region}_{date}_LAI.tif</code>. Use the LAI pipeline to create such files.</li>
-<li>adjustment: Adjustment applied to the remotely sensed estimated LAI. Can be either "none", "wheat", "maize"</li>
+<li>crop_name: The name of the crop for which to estimate the yield. Is related to the crop defined in APSIM. Currently "wheat" or "maize" is supprted.</li>
+<li>use_crop_adjusted_lai: Whether to apply the adjustment to the estimated remotely sensed estimated LAI for the crop specified above. <code>True</code> or <code>False</code>.</li>
 <li>lai_analysis_mode: 'raster'</li>
 <li>time_bounds: For every year and timepoint the start and enddate from which to use LAI data. This should usually match the simulation dates.</li>
 <li>crop_mask: path to the cropmasks for every year defined above.</li>
