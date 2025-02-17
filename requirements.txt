@@ -8,6 +8,7 @@ joblib
 kaleido  # For static image plots in plotly
 numpy
 pandas
+pillow
 plotly
 pulp==2.7.0  # Pinned for snakemake
 pytest
@@ -17,3 +18,4 @@ scipy>=1.14  # For Akima interpolator
 snakemake  # If using mamba/conda, install from the bioconda channel
 torch
 tqdm
+xhtml2pdf
