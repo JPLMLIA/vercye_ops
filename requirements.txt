@@ -4,7 +4,9 @@ earthengine-api
 ee
 gdal
 geopandas
+joblib
 kaleido  # For static image plots in plotly
+matplotlib
 numpy
 pandas
 plotly
