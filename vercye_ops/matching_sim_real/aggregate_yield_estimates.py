@@ -41,28 +41,28 @@ def aggregate_yields(yield_dir):
                 conv_df = pd.read_csv(conv_factor_csv_path)
                 conv_df = conv_df[['max_rs_lai', 
                                    'max_rs_lai_date', 
-                                   'apsim_mean_yield_estimate', 
-                                   'max_matched_sim_lai', 
-                                   'max_matched_sim_lai_date', 
-                                   'max_total_sim_lai', 
-                                   'max_total_sim_lai_date',
-                                   'apsim_matched_std_yield_estimate',
-                                   'apsim_total_std_yield_estimate',
+                                   'apsim_mean_yield_estimate_kg_ha', 
+                                   'apsim_max_matched_lai', 
+                                   'apsim_max_matched_lai_date', 
+                                   'apsim_max_all_lai', 
+                                   'apsim_max_all_lai_date',
+                                   'apsim_matched_std_yield_estimate_kg_ha',
+                                   'apsim_all_std_yield_estimate_kg_ha',
                                    'apsim_matched_maxlai_std',
-                                   'apsim_total_maxlai_std',
+                                   'apsim_all_maxlai_std',
                                    ]]
+
+                conv_df = conv_df.fillna(-1)
                 
                 conv_df['max_rs_lai'] = conv_df['max_rs_lai'].round(2)
-                conv_df['apsim_mean_yield_estimate'] = conv_df['apsim_mean_yield_estimate'].astype(int)
-                conv_df['max_matched_sim_lai'] = conv_df['max_matched_sim_lai'].round(2)
-                conv_df['max_total_sim_lai'] = conv_df['max_total_sim_lai'].round(2)
+                conv_df['apsim_mean_yield_estimate_kg_ha'] = conv_df['apsim_mean_yield_estimate_kg_ha'].astype(int)
+                conv_df['apsim_max_matched_lai'] = conv_df['apsim_max_matched_lai'].round(2)
+                conv_df['apsim_max_all_lai'] = conv_df['apsim_max_all_lai'].round(2)
                 conv_df['apsim_matched_maxlai_std'] = conv_df['apsim_matched_maxlai_std'].round(2)
-                conv_df['apsim_total_maxlai_std'] = conv_df['apsim_total_maxlai_std'].round(2)
-                conv_df['apsim_matched_std_yield_estimate'] = conv_df['apsim_matched_std_yield_estimate'].astype(int)
-                conv_df['apsim_total_std_yield_estimate'] = conv_df['apsim_total_std_yield_estimate'].astype(int)
+                conv_df['apsim_all_maxlai_std'] = conv_df['apsim_all_maxlai_std'].round(2)
+                conv_df['apsim_matched_std_yield_estimate_kg_ha'] = conv_df['apsim_matched_std_yield_estimate_kg_ha'].astype(int)
+                conv_df['apsim_all_std_yield_estimate_kg_ha'] = conv_df['apsim_all_std_yield_estimate_kg_ha'].astype(int)
 
-                conv_df.rename(columns={'apsim_matched_std_yield_estimate': 'apsim_matched_std_yield_estimate_kg_ha',
-                                        'apsim_total_std_yield_estimate': 'apsim_total_std_yield_estimate_kg_ha',}, inplace=True)
                 conv_df['region'] = region_name                                                                                                                
             else:
                 conv_df = pd.DataFrame()  # Empty DataFrame as a fallback

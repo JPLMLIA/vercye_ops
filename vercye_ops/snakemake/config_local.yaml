@@ -113,12 +113,17 @@ apsim_execution:
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
     n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
+# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
+# after the pipeline finishes, set this to False.
+keep_apsim_db_files: True
+
 ########################################
 # LAI parameters
 lai_params:
   lai_dir: '/Volumes/red/NASA_Ag/LAI'
   lai_region: 'Poltava'
-  adjustment: 'wheat'  # "none", "wheat", "maize"
+  crop_name: 'wheat'  # "wheat", "maize"
+  use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'
   time_bounds: 
     2021: 
