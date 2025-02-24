@@ -8,6 +8,9 @@ platform: 'umd'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
 
+# Name that best describes the primary region of the simulation
+roi_name: 'Poltava'  
+
 # Specify one or more simulations
 regions:
   - 'Chornukhynskyi'
@@ -161,3 +164,5 @@ scripts:
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
+  aggregate_maps : '../matching_sim_real/aggregate_maps.py'
+  generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'

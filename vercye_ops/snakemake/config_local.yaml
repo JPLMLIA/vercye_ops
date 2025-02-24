@@ -8,6 +8,9 @@ platform: 'local'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/Users/wronk/Data/vercye_ops/Rayon_District_Level_Yield/completed_simulations/yield_run_20241105'
 
+# Name that best describes the primary region of interest of the simulation
+roi_name: 'Poltava'  
+
 # Specify one or more simulations
 regions:
   - 'Chornukhynskyi'
@@ -161,3 +164,5 @@ scripts:
   generate_converted_lai_map: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
+  aggregate_maps : '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_maps.py'
+  generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
