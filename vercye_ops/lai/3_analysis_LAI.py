@@ -166,7 +166,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Mean": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
-                    "LAI Stddev Adjusted": None
+                    "LAI Stddev Adjusted": None,
+                    "Cloud or Snow Percentage": None
                 }
                 statistics.append(stat)
                 continue
@@ -190,7 +191,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                         "LAI Mean": None,
                         "LAI Stddev": None,
                         "LAI Mean Adjusted": None,
-                        "LAI Stddev Adjusted": None
+                        "LAI Stddev Adjusted": None,
+                        "Cloud or Snow Percentage": None
                     }
                     statistics.append(stat)
                     continue
@@ -209,6 +211,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                         "transform": masked_transform,
                         "count": 2
                     })
+
+                cloud_snow_percentage = -1 # Not yet supported
 
             elif mode == "raster":
                 # Mask the raster with the raster
@@ -229,8 +233,16 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
 
                 # replace zeros with NaN's
+                cropmask_array_bool = cropmask_array.astype(bool)
                 cropmask_array = cropmask_array.astype(float)
+
+                # masked src at this point is not actually masked yet but the original data
+                cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
+                total_pixels_in_region = np.sum(cropmask_array_bool)
+                cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
+
                 cropmask_array[cropmask_array==0] = np.nan
+                
                 # apply mask
                 masked_src *= cropmask_array
 
@@ -253,7 +265,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Mean": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
-                    "LAI Stddev Adjusted": None
+                    "LAI Stddev Adjusted": None,
+                    "Cloud or Snow Percentage": cloud_snow_percentage
                 }
                 statistics.append(stat)
                 continue
@@ -261,6 +274,9 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             # Rasters get read as (1, height, width)
             #LAI_estimate = masked_src[0]
             LAI_estimate = masked_src
+
+            # clip all negative values to zero
+            LAI_estimate[LAI_estimate < 0] = 0
 
             # Wheat and Maize calibrations
             if adjustment == "wheat":
@@ -274,6 +290,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             # Calculate statistics for valid raster
             # Catching runtime warnings when numpy complains that a pixel only has NaNs
             # This is expected
+            
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 statistics.append({
@@ -284,6 +301,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Stddev": np.nanstd(LAI_estimate),
                     "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
                     "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
+                    "Cloud or Snow Percentage": cloud_snow_percentage,
                 })
 
                 # Update running maximum rasters
@@ -343,12 +361,12 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
         
         # Export running maximum
         # Set 0 to nan
-        with rio.open(output_max_tif_fpath, 'w', **src_meta) as dst:
-            dst.write(lai_max, 1)
-            dst.write(lai_adjusted_max, 2)
-            dst.set_band_description(1, "estimateLAImax")
-            dst.set_band_description(2, "adjustedLAImax")
-        print(f"Exported max LAI tif to {output_max_tif_fpath}")
+        # with rio.open(output_max_tif_fpath, 'w', **src_meta) as dst:
+        #     dst.write(lai_max, 1)
+        #     dst.write(lai_adjusted_max, 2)
+        #     dst.set_band_description(1, "estimateLAImax")
+        #     dst.set_band_description(2, "adjustedLAImax")
+        # print(f"Exported max LAI tif to {output_max_tif_fpath}")
 
     print(f"Finished in {time.time()-start:.2f} seconds")
 
