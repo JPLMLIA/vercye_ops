@@ -80,9 +80,10 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
         legend_group = str(int(step_filter)) if not pd.isna(step_filter) else "N/A"
  
         # Add LAI line
+        visible = True if step_filter is pd.NA else 'legendonly'
         style = style_dict.get(step_filter, style_dict[pd.NA])
         fig.add_trace(go.Scatter(x=sim_data.index, y=sim_data['Wheat.Leaf.LAI'], mode='lines', name=f'LAI/Yield (Filtered on Step: {legend_group})', opacity=style['opacity'], zorder=style['zorder'],
-                                 legendgroup=legend_group, showlegend=style['show_group'],
+                                 legendgroup=legend_group, showlegend=style['show_group'], visible=visible,
                                  line=dict(color='DarkGreen', dash=style['line_dash'], width=style['line_width'])),
                       row=1, col=1)
         style['show_group'] = False  # Set this to False so only the first group is shown
@@ -97,6 +98,9 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     logger.info("Plotting RS data.")
     fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df['LAI Mean'], mode='lines', name='RS Mean LAI', 
                              line=dict(color='black', width=3)), row=1, col=1)
+    
+    fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
+                             line=dict(color='gray', width=3), visible='legendonly'), row=1, col=1)
 
     ###################################
     logger.info("Calculating and plotting mean series for simulations not filtered out.")
@@ -122,6 +126,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     start_date = mean_data.index.min().strftime('%Y-%m-%d')
     end_date = mean_data.index.max().strftime('%Y-%m-%d')
     n_simulations = len(good_sim_ids)
+    n_days_with_rs_data = rs_df[rs_df['interpolated'] == 0].shape[0]
+    cloud_snow_percentage = rs_df['Cloud or Snow Percentage'].mean()
     
     title_text = (f"<b>Sim/Real (APSIM/S2-LAI) Matching</b><br>"
                   f"Input CSV: <i>{apsim_filtered_fpath}</i><br>"
@@ -129,7 +135,9 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
                   f"Number of simulation traces in mean data: {n_simulations}<br>"
                   f"Date range: {start_date} to {end_date}<br>"
                   f"Mean yield rate: {mean_yield_kg_ha:0.0f} kg/ha<br>"
-                  f"Production: <b>{total_yield_metric_tons:0.0f} metric tons</b>")
+                  f"Production: <b>{total_yield_metric_tons:0.0f} metric tons</b>"
+                  f"Days with RS data: {n_days_with_rs_data} days<br>"
+                  f"Average Cloud/Snow coverage per non-interpolated RS date: {cloud_snow_percentage:0.2f}%")
 
     fig.update_layout(title=dict(text=title_text, font=dict(size=10)),
                       margin={'t': 275})  # Adjust the top margin to avoid overlap
