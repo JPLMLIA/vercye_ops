@@ -4,6 +4,7 @@ import click
 import geopandas as gpd
 
 import logging
+import re
 
 logging.basicConfig(level=logging.INFO)
 
@@ -52,8 +53,9 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, output_head_dir, verbos
         else:
             region_name = row["NAME_2"]
 
-        # Take out any apostrophes as these cause headaches down the line with scripting the filename processing
-        region_name = region_name.replace("'", "")
+        # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
+        region_name = region_name.replace("'", "").replace('"', "")
+        region_name = re.sub(r"[^\w.-]", "_", region_name)
 
         output_fpath = output_head_dir / Path(f'{region_name}.geojson')
 

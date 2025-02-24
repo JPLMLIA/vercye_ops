@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import click
 import geopandas as gpd
@@ -68,8 +69,13 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         else:
             region_name = row["NAME_2"]
 
+<<<<<<< HEAD
         # Take out any apostrophes as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "")
+=======
+        # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
+        region_name = region_name.replace("'", "").replace('"', "")
+>>>>>>> main
         region_name = re.sub(r"[^\w.-]", "_", region_name)
 
         output_dir = output_head_dir / Path(region_name)
