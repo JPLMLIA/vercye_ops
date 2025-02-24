@@ -18,6 +18,11 @@ logger = get_logger()
 
 
 def fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path, roi_name):
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    bootstrap_css_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.css')
+    bootstrap_js_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.bundle.min.js')
+    font_path = os.path.join(BASE_DIR, 'assets', 'OpenSans-Regular.ttf')
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang=\"en\">
@@ -25,11 +30,11 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
         <meta charset=\"UTF-8\">
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
         <title>Yield Report {roi_name}</title>
-        <link href=\"https://gist.githubusercontent.com/chachra/4075119/raw/f08b301cac2c1563b26db92a6da14477874b2e14/bootstrap.css\" rel=\"stylesheet\">
+        <link href=\"{bootstrap_css_path}\" rel=\"stylesheet\">
         <style>
             @font-face {{
                 font-family: Open Sans;
-                src: url('https://github.com/edx/edx-fonts/raw/refs/heads/master/open-sans/fonts/Regular/OpenSans-Regular.ttf');
+                src: url('{font_path}');
             }}
             body {{
                 font-family: 'Open Sans', sans-serif;
@@ -104,12 +109,12 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                     </tr>
         """
 
-    html_content += """
+    html_content += f"""
                 </tbody>
             </table>
         </div>
 
-        <script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js\"></script>
+        <script src=\"{bootstrap_js_path}\"></script>
     </body>
     </html>
     """
