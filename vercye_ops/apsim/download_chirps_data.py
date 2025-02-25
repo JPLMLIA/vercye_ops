@@ -10,6 +10,8 @@ import time
 import random
 import queue
 from threading import Lock
+import tempfile
+import os
 
 
 # Initialize logger
@@ -71,11 +73,21 @@ def download_file_ftp(file_name, output_fpath, ftp_connection):
     ftp_connection : ftplib.FTP
         Active FTP connection.
     """
-    with open(output_fpath, 'wb') as local_file:
-        try:
-            ftp_connection.retrbinary(f"RETR {file_name}", local_file.write)
-        except ftplib.all_errors as e:
-            raise IOError(f"Error downloading file {file_name}: {e}")
+    temp_fpath = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_fpath = temp_file.name
+            ftp_connection.retrbinary(f"RETR {file_name}", temp_file.write)
+            fsize = ftp_connection.size(file_name)
+
+            # Check if the downloaded file is complete. Not ideal, but no checksums provided.
+            if fsize != os.path.getsize(temp_fpath):
+                raise IOError("Downloaded file is incomplete.")
+        os.replace(temp_fpath, output_fpath)
+    except ftplib.all_errors as e:
+        if temp_fpath and os.path.exists(temp_fpath):
+            os.remove(temp_fpath)  # Ensure temp file is deleted on error
+        raise IOError(f"Error downloading file {file_name}: {e}")
 
 
 def fetch_chirps_files(daterange, output_dir, connection_pool):
