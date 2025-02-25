@@ -64,16 +64,7 @@ To run a new simulation, update the parameters in the `.yaml` file in the `vercy
 Other config parameters should rarely (if ever) need updates.
 
 ## Validation
-If you have reported groundtruth data, this can be used to automatically include validation in the pipeline. For this, you will have to store the groundtruth data in a csv with one column being the  `region` (name), one column being the `reported_yield_kg` in kg and one column being the `reported_mean_yield_kg_ha` with the mean yield in kg per hectar. So the file should look like the following:
-
-|    region    | reported_yield_kg | reported_mean_yield_kg_ha |
-|--------------|-------------------|---------------------------|
-| regionname1  |        2345       |            1100           |
-| regionname2  |        1784       |             890           |
-...
-
-Then set the path to this file in your Snakemake Config under the parameter `` 
-The final report will then contain evaluation metrics such as RMSE, mean error etc.
+Please refer to [Vercye/Inputs](https://jplmlia.github.io/vercye_ops/Vercye/inputs/#snakemake-configuration-file-parameters) in the documentation for more information on how to include validation in the pipeline.
 
 ## Full Snakemake Pipeline
 1. Run `snakemake -c 4` to execute the pipeline with 4 cores. Some other useful command line flags are `--configfile <filename>` to use an alternative config or `-F` to force rerunning the pipeline.
