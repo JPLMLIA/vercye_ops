@@ -125,7 +125,8 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                 <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
-                <strong>R2:</strong> {evaluation_results['r2'].iloc[0]:.3f}</p>
+                <strong>R2 (scikit):</strong> {evaluation_results['r2'].iloc[0]:.3f}</p>
+                <strong>R2 (Excel):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</p>
                 ''' if evaluation_results is not None else ''}
 
             </div>

@@ -29,13 +29,15 @@ def compute_metrics(gt, pred):
     rmse = np.sqrt(mean_squared_error(combined['reported_mean_yield_kg_ha'], combined['mean_yield_kg_ha']))
     rrmse = rmse / np.mean(combined['reported_mean_yield_kg_ha']) # TODO check that this is the correct relative rmse formula used in downstream eval
     r2 = r2_score(combined['reported_mean_yield_kg_ha'], combined['mean_yield_kg_ha'])
+    r2_rsq_excel = (np.corrcoef(combined['reported_mean_yield_kg_ha'], combined['mean_yield_kg_ha'])[0, 1]) ** 2
 
     aggregated_metrics = {
         'mean_err_kg_ha': mean_err_kg_ha,
         'median_err_kg_ha': median_err_kg_ha,
         'rmse_kg_ha': rmse,
         'rrmse': rrmse,
-        'r2': r2
+        'r2_scikit': r2,
+        'r2_rsq_excel': r2_rsq_excel
     }
 
     return aggregated_metrics
