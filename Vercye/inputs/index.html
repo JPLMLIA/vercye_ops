@@ -9,7 +9,7 @@
       
       
       
-        <link rel="prev" href="../intro/">
+        <link rel="prev" href="../quickstart/">
       
       
         <link rel="next" href="../outputs/">
@@ -62,7 +62,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#yield-study-setup-overview" class="md-skip">
+        <a href="#vercye-pipeline-documentation" class="md-skip">
           Skip to content
         </a>
       
@@ -256,7 +256,29 @@
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Introduction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
     
   </span>
   
@@ -279,6 +301,8 @@
       
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
+      
+        
       
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
@@ -310,6 +334,8 @@
   
   
   
+    
+  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -318,47 +344,251 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#yield-study-setup-overview" class="md-nav__link">
+  <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
-      Yield Study Setup Overview
+      Overview
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#region-geojsons" class="md-nav__link">
+  <a href="#1-yield-study-setup" class="md-nav__link">
     <span class="md-ellipsis">
-      Region GeoJSONS
+      1. Yield Study Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Yield Study Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simulation-head-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Simulation Head Directory
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#years-and-timepoints" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#directory-structure" class="md-nav__link">
     <span class="md-ellipsis">
-      Years and Timepoints
+      Directory Structure
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#apsimx-templates" class="md-nav__link">
-    <span class="md-ellipsis">
-      APSIMX Templates
-    </span>
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#snakemake-configuration-file-parameters" class="md-nav__link">
+  <a href="#2-region-geojson-files" class="md-nav__link">
     <span class="md-ellipsis">
-      Snakemake Configuration File Parameters
+      2. Region GeoJSON Files
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="2. Region GeoJSON Files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#purpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      Purpose
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-naming-convention" class="md-nav__link">
+    <span class="md-ellipsis">
+      File Naming Convention
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#converting-shapefiles-to-geojson" class="md-nav__link">
+    <span class="md-ellipsis">
+      Converting Shapefiles to GeoJSON
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-years-and-timepoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Years and Timepoints
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Years and Timepoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#defining-years" class="md-nav__link">
+    <span class="md-ellipsis">
+      Defining Years
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#defining-timepoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      Defining Timepoints
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-apsimx-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. APSIMX Templates
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. APSIMX Templates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#purpose_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Purpose
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-validation-data-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Validation Data (Optional)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Validation Data (Optional)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      File Format
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-snakemake-configuration-snakemake_configyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. Snakemake Configuration (snakemake_config.yaml)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Snakemake Configuration (snakemake_config.yaml)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Parameters
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#general-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      General Settings
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apsim-parameters-apsim_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      APSIM Parameters (apsim_params)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lai-parameters-lai_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      LAI Parameters (lai_params)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matching-parameters-matching_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      Matching Parameters (matching_params)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apsim-execution-apsim_execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      APSIM Execution (apsim_execution)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scripts-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Scripts Configuration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -465,11 +695,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../LAI/getting-started.md" class="md-nav__link">
+      <a href="../../LAI/intro/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Introduction
     
   </span>
   
@@ -503,144 +733,142 @@
 
 
 
-  <h1>Inputs</h1>
-
-<p>To run the vercye pipeline, a number of inputs are required. In the following, we define the formats of input files and the input parameters that can be set via the snakemake config file.</p>
-<h3 id="yield-study-setup-overview">Yield Study Setup Overview</h3>
-<p>Your yield study is organized within a single directory referred to as the <code>simulation head directory</code>. The directory structure is outlined below:</p>
-<pre><code>head dir
+<h1 id="vercye-pipeline-documentation">VeRCYe Pipeline Documentation</h1>
+<h2 id="overview">Overview</h2>
+<p>The VeRCYe pipeline enables large-scale yield studies by organizing simulation data within a structured directory and processing it with <code>snakemake</code>. This document details the required input files, directory structure, and configurable parameters.</p>
+<hr />
+<h2 id="1-yield-study-setup">1. Yield Study Setup</h2>
+<h3 id="simulation-head-directory">Simulation Head Directory</h3>
+<p>Your yield study is structured within a single directory, referred to as the <strong>simulation head directory</strong>. This directory must follow a predefined structure to ensure compatibility with the pipeline.</p>
+<h3 id="directory-structure">Directory Structure</h3>
+<pre><code class="language-plaintext">head_dir/
 |   snakemake_config.yaml
-|---Year1
-|   |---TimePoint-1
-|   |   |---region1
+|---Year1/
+|   |---TimePoint-1/
+|   |   |   groundtruth.csv (optional)
+|   |   |---region1/
 |   |   |   |   region1.geojson
 |   |   |   |   region1_template.apsimx
-|   |   |---region2
-|   |   |   |   region2.geojson
-|   |   |   |   region2_template.apsimx
-|   |   |---regionN
-|   |       |   regionN.geojson
-|   |       |   regionN_template.apsimx
-|   |---TimePoint-N
-|       |---region1
-|       |   |   region1.geojson
-|       |   |   region1_template.apsimx
-|       |---region2
-|       |   |   region2.geojson
-|       |   |   region2_template.apsimx
-|       |---regionN
+|   |---TimePoint-N/
+|       |   groundtruth.csv (optional)
+|       |---regionN/
 |           |   regionN.geojson
 |           |   regionN_template.apsimx
-|---Year2
-|   |---TimePoint-1
-|   |   |---region1
-|   |   |   |   region1.geojson
-|   |   |   |   region1_template.apsimx
-|   |   |---region2
-|   |   |   |   region2.geojson
-|   |   |   |   region2_template.apsimx
-|   |   |---regionN
-|   |       |   regionN.geojson
-|   |       |   regionN_template.apsimx
-|   |---TimePoint-N
-|       |---region1
-|       |   |   region1.geojson
-|       |   |   region1_template.apsimx
-|       |---region2
-|       |   |   region2.geojson
-|       |   |   region2_template.apsimx
-|       |---regionN
-|           |   regionN.geojson
-|           |   regionN_template.apsimx
+|---Year2/
+    ...
 </code></pre>
-<p>The following sections describe the components of this structure, including the role of <code>snakemake_config.yaml</code>, region naming conventions, <code>GeoJSON</code> creation, timepoints, and <code>apsimx</code> templates.</p>
-<h3 id="region-geojsons">Region GeoJSONS</h3>
-<p>The pipeline allows execution across multiple Regions of Interest (ROIs) in a batch process. Each ROI is processed individually, and aggregated metrics across all regions are provided.</p>
-<p>Each ROI must be represented by an individual GeoJSON file named in the format <code>regionname.geojson</code>. For every year-timepoint combination, the directory must contain a subfolder for each region, containing its corresponding GeoJSON file. For example, if studying regions in the US, a timepoint folder may contain a folder named <code>california</code> with a file <code>california.geojson</code>.</p>
-<p><strong>I only have a .shp shapefile and instead of GeoJSON - What to do?</strong>
-If you only have .shp shapefiles instead of GeoJSON files, use the provided helper scripts to convert them:</p>
-<p><strong>Option A: Standardized, Single Administrative Level Shapefile</strong></p>
+<p>Each <strong>year</strong> contains <strong>timepoints</strong>, and each timepoint contains <strong>regions</strong> with their respective <code>geojson</code> and <code>apsimx</code> template files.
+The names in this structure are just descriptive placeholders and should be adjusted as described below.</p>
+<hr />
+<h2 id="2-region-geojson-files">2. Region GeoJSON Files</h2>
+<h3 id="purpose">Purpose</h3>
+<p>Each <strong>Region of Interest (ROI)</strong> is represented as a GeoJSON file within its respective <strong>timepoint</strong> directory.</p>
+<h3 id="file-naming-convention">File Naming Convention</h3>
+<p>Each GeoJSON file must follow the format:</p>
+<pre><code class="language-plaintext">regionname.geojson
+</code></pre>
+<p>For example, if studying California, the file structure would be:</p>
+<pre><code class="language-plaintext">2024/T-0/california/california.geojson
+</code></pre>
+<h3 id="converting-shapefiles-to-geojson">Converting Shapefiles to GeoJSON</h3>
+<p>If your data is in <strong>.shp (shapefile)</strong> format, use the provided scripts to convert it:
+- <strong>Single Administrative Level:</strong> Use <code>apsim/convert_shapefile_to_geojson.py</code> if the shapefile contains a uniform administrative level.
+- <strong>Mixed Administrative Levels:</strong> Use <code>apsim/prepare_shapefile.py</code> to standardize the shapefile before conversion.</p>
+<hr />
+<h2 id="3-years-and-timepoints">3. Years and Timepoints</h2>
+<h3 id="defining-years">Defining Years</h3>
+<p>Years should be named numerically (e.g., <code>2024</code>, <code>2025</code>) to represent different simulation periods.</p>
+<h3 id="defining-timepoints">Defining Timepoints</h3>
+<p>Each <strong>timepoint</strong> represents a simulation scenario, e.g., using all available meteorological data vs. limiting it to 30 days before the latest observation.</p>
+<p>Each timepoint must define:
+- <strong>APSIM Simulation Start &amp; End Dates</strong>
+- <strong>Meteorological Data Start &amp; End Dates</strong>
+- <strong>LAI (Leaf Area Index) Data Start &amp; End Dates</strong></p>
+<p>Years and Timepoints are referenced in <code>snakemake_config.yaml</code> using their respective names. Therefore the folder names must match these.</p>
+<hr />
+<h2 id="4-apsimx-templates">4. APSIMX Templates</h2>
+<h3 id="purpose_1">Purpose</h3>
+<p>Each region and timepoint requires an <strong>APSIMX template</strong> (<code>regionname_template.apsimx</code>). This file defines crop growth parameters and the dates (<code>Models.Clock</code>) in the APSIM file must align with the simulation dates set in <code>snakemake_config.yaml</code>.</p>
+<p>Adjustments for soil properties and simulation constraints must be manually configured with domain knowledge.</p>
+<hr />
+<h2 id="5-validation-data-optional">5. Validation Data (Optional)</h2>
+<p>If ground-truth yield data is available, it should be included as <code>groundtruth.csv</code> in the corresponding timepoint directory.</p>
+<h3 id="file-format">File Format</h3>
+<table>
+<thead>
+<tr>
+<th>Column Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>region</code></td>
+<td>Name matching GeoJSON folder</td>
+</tr>
+<tr>
+<td><code>reported_mean_yield_kg_ha</code></td>
+<td>Mean yield (kg/ha), if available</td>
+</tr>
+<tr>
+<td><code>reported_yield_kg</code></td>
+<td>Total yield (kg) (optional, used to derive mean yield)</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>reported_yield_kg</code> is provided, the mean yield is computed as:</p>
+<pre><code class="language-plaintext">mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
+</code></pre>
+<p>Validation data is optional and only needed for timepoints where it is available.</p>
+<hr />
+<h2 id="6-snakemake-configuration-snakemake_configyaml">6. Snakemake Configuration (<code>snakemake_config.yaml</code>)</h2>
+<p>This file defines the study parameters and links the <strong>simulation head directory</strong> with the pipeline. You will have to adapt this fill for each yield study. An example configuration can be found here <a href="https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml">example configuration file</a>. We reccomend, to use this as a template for adjustment. The following section describes the meaning of the paramters, but does not represent the syntac for how to organize the config. For this please refer to the example.</p>
+<h3 id="key-parameters">Key Parameters</h3>
+<h4 id="general-settings">General Settings</h4>
 <ul>
-<li>Your shapefile contains geometries at a single administrative level (e.g., districts).</li>
-<li>It has a column named admin_name with the names of the regions.</li>
-<li>Use the apsim/convert_shapefile_to_geojson script to extract individual GeoJSON files.</li>
+<li><code>platform</code>: Choose between <code>'local'</code> or <code>'umd'</code> for dependency management.</li>
+<li><code>sim_study_head_dir</code>: Path to the <strong>simulation head directory</strong>.</li>
+<li><code>regions</code>: List of included regions. Must match folder names of regions.</li>
+<li><code>years</code>: List of included years (<code>int</code>). Must match year folder names.</li>
+<li><code>timepoints</code>: List of included timepoints. Must match timepoint folder names.</li>
+<li><code>roi_name</code>: Descriptive Name of the complete area of the yield study. Freely choosable.</li>
+<li><code>keep_apsim_db_files</code>: Delete actual APSIM DB files after processing and reporting to free space.(<code>True</code>/<code>False</code>).</li>
 </ul>
-<p><strong>Option B: Mixed Administrative Levels</strong></p>
+<h4 id="apsim-parameters-apsim_params">APSIM Parameters (<code>apsim_params</code>)</h4>
 <ul>
-<li>Your shapefile lacks the admin_name column or contains mixed levels of geometries.</li>
-<li>Run the apsim/prepare_shapefile.py script to standardize the shapefile, then proceed with Option A to extract GeoJSONs.</li>
+<li><code>precipitation_source</code>: Choose between <code>'NASA_POWER'</code> or <code>'CHIRPS'</code>. If you are using CHIRPS, you will have to manually download the precipitation data before starting the pipeline (apsim/download_chirps_data.py).</li>
+<li><code>precipitation_agg_method</code>: Aggregation method for precipitation data (<code>mean</code> or <code>centroid</code>). <code>'NASA_POWER'</code> only supporting <code>centroid</code> currently.</li>
+<li><code>fallback_on_nasa_power_centroid</code>: Set <code>True</code> to use <code>NASA_POWER</code> data if <code>CHIRPS</code> is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.</li>
+<li><code>chirps_dir</code>: Directory containing CHIRPS data.</li>
+<li><code>time_bounds</code>: Defines timepoint parameters:</li>
+<li><code>sim_start_date</code>, <code>sim_end_date</code>: Start/End date of the simulation in APSIM.</li>
+<li><code>nasa_power_start_date</code>, <code>nasa_power_end_date</code>: Start/End date from when to include metereological data into APSIM.</li>
 </ul>
-<p>The documentation will soon be updated on how to process the shapefiles in more depth.</p>
-<h3 id="years-and-timepoints">Years and Timepoints</h3>
-<p><strong>Years</strong>
-Most likely you will want to run your yield study over multiple seasons, for example to observe the change over the years. Therefore, you can definie different years in the <code>simulation head directory</code>. These should be names like the year (e.g <code>2024</code>).</p>
-<p><strong>Timepoints</strong>
-A timepoint specifies simulation configurations within that year. For example you might want to run one simulation that considers all metereological data available one simulation that only considers metereological data up until 30 days before the latest data, to observe forecasting abilities. </p>
-<p>Each timepoint within a year is defined by 6 parameters:
-- The start date of the of the APSIM simulation
-- The end date of the APSIM simulation
-- The start date of the metereological data for that region to use
-- The end date of the metereological data for that region to use
-- The start date from when to use remotely sensed LAI data
-- The end date from when to use remotely sensed LAI data</p>
-<p>These parameters are set in in the <code>snakemake_config.yaml</code> later on and should be referred to with the name given in the <code>year folder</code> in the <code>simulation head directory</code>. So for example in the experiment described above you might want to create two timepoints called <code>T-0</code> and <code>T-30</code> as folders in each <code>year folder</code>.</p>
-<h3 id="apsimx-templates">APSIMX Templates</h3>
-<p>Each region in each timepoint must contain its own <code>apsimx</code> template file called <code>regionname.apsimx</code>, so for the example above <code>california_template.apsimx</code>. The <code>apsimx</code> template defines the parameters for the yield simulation of this region with <a href="https://github.com/APSIMInitiative/ApsimX"><code>APSIMX</code></a>.</p>
-<p>This is the only step that requires expert knowledge to set region specific parameters for example for the soil characteristics.
-For every template at the different timepoints, you will have to ensure that the dates of the apsimx template file match up with the desired simulation dates specified in your snakemake config (both in <code>apsim_params</code> and <code>lai_params</code> sections). We will provide details on this in the future.</p>
-<h3 id="snakemake-configuration-file-parameters">Snakemake Configuration File Parameters</h3>
-<p>Now that you know about all the files and their names required to create the <code>simulation head directory</code>, we will define the <code>snakemake_config.yaml</code>. This file is the heart of the pipeline and links the <code>simulation head directory</code> with the actual definition of yield study parameters.</p>
-<p>Take a look at the <a href="https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml">example configuration</a> for the format of the parameters. The following solely gives some background on the parameters.</p>
+<h4 id="lai-parameters-lai_params">LAI Parameters (<code>lai_params</code>)</h4>
 <ul>
-<li>platform: Specify 'local' or 'umd' for dependency handling.</li>
-<li>sim_study_head_dir: The path to the simulation head directory.</li>
-<li>regions: List of regions to include (must match region folder names).</li>
-<li>years: List of years to include (must match year folder names).</li>
-<li>timepoints: List of timepoints to include (must match timepoint folder names).</li>
-<li>apsim_params:<ul>
-<li>precipitation_source: You can either use the precipitation data for the APSIM simulation from <code>NASA_POWER</code> or from <code>CHIRPS</code>. If you are using <code>CHIRPS</code>, you will have to manually download the precipitation data before starting the pipeline (<code>apsim/download_chirps_data.py</code>).</li>
-<li>precipitation_agg_method: When using <code>CHIRPS</code> you can aggregate the precipitation data over all CHIRPS pixels within the region as their mean, or you can use the centroid of the region. <code>NASA_POWER</code> currently only allows using the centroid.</li>
-<li>fallback_on_nasa_power_centroid: CHIRPS only provides coverage from -50 to 50 degrees. Therefore if the region partly falls outside of these bounds, <code>NASA_POWER</code> precipitation data can be used instead if setting to True.</li>
-<li>chirps_dir: The directory where the downloaded CHIRPS precipitation data is stored. Should be downloaded with <code>apsim/download_chirps_data.py</code>.</li>
-<li>time_bounds: Has to contain the definition of each timepoint for every year specified above. Hereby the timepoint names have to match the names specified above. For each timepoint the following parameters have to be set:<ul>
-<li>sim_start_date: Start date of the simulation in APSIM</li>
-<li>sim_end_date: End date for the simulation in APSIM</li>
-<li>nasa_power_start_date: Start date from when to include metereological data into APSIM.</li>
-<li>nasa_power_end_date: End date up to when to include meteorological data in to APSIM.</li>
+<li><code>lai_dir</code>: Directory for LAI data.</li>
+<li><code>lai_region</code>: Region name with naming convention (<code>{region}_{date}_LAI.tif</code>).</li>
+<li><code>crop_name</code>: Specify crop (<code>wheat</code> or <code>maize</code>). Is related to the cropname defined in APSIM.</li>
+<li><code>use_crop_adjusted_lai</code>: Adjust LAI data for the crop specified (<code>True</code>/<code>False</code>).</li>
+<li><code>lai_analysis_mode</code>: Set to <code>'raster'</code>.</li>
+<li><code>time_bounds</code>: LAI start and end dates for each year.</li>
+<li><code>crop_mask</code>: Path to crop mask files for each year.</li>
 </ul>
-</li>
-</ul>
-</li>
-<li>lai_params:<ul>
-<li>lai_dir: Root directory where remotely sensed LAI data (from the LAI pipeline) is stored </li>
-<li>lai_region: Region name, such that the files in <code>lai_dir</code> match <code>{region}_{date}_LAI.tif</code>. Use the LAI pipeline to create such files.</li>
-<li>crop_name: The name of the crop for which to estimate the yield. Is related to the crop defined in APSIM. Currently "wheat" or "maize" is supprted.</li>
-<li>use_crop_adjusted_lai: Whether to apply the adjustment to the estimated remotely sensed estimated LAI for the crop specified above. <code>True</code> or <code>False</code>.</li>
-<li>lai_analysis_mode: 'raster'</li>
-<li>time_bounds: For every year and timepoint the start and enddate from which to use LAI data. This should usually match the simulation dates.</li>
-<li>crop_mask: path to the cropmasks for every year defined above.</li>
-</ul>
-</li>
-<li>matching_params<ul>
-<li>target_epsg: (To be documented).</li>
-</ul>
-</li>
-</ul>
-<p>The following will rarely have to be changed:</p>
+<h4 id="matching-parameters-matching_params">Matching Parameters (<code>matching_params</code>)</h4>
 <ul>
-<li>apsim_execution:<ul>
-<li>use_docker: True or False depending on whether you want to run <code>APSIM</code> in docker or with the local executable.</li>
-<li>docker:<ul>
-<li>image: 'apsiminitiative/apsimng'</li>
-<li>platform: Your devices platform e.g 'linux/amd64'</li>
+<li><code>target_epsg</code>: EPSG code for coordinate reference system used for area calculation. Should be choosen with care to minimize distortions.</li>
 </ul>
-</li>
-<li>local: 
-    executable_fpath: Path to the APSIM executable on your machine
-    n_jobs: Number of threads to spawn. -1 is default in APSIM.</li>
+<h4 id="apsim-execution-apsim_execution">APSIM Execution (<code>apsim_execution</code>)</h4>
+<ul>
+<li><code>use_docker</code>: Set <code>True</code> to run APSIM in Docker.</li>
+<li><code>docker.image</code>: Docker image (<code>apsiminitiative/apsimng</code>).</li>
+<li><code>docker.platform</code>: Device platform (e.g., <code>'linux/amd64'</code>).</li>
+<li><code>local.executable_fpath</code>: Path to APSIM executable.</li>
+<li><code>local.n_jobs</code>: Number of threads (<code>-1</code> uses APSIM default).</li>
 </ul>
-</li>
-<li>scripts: The paths to the individual scripts used in the snakemake pipeline.</li>
+<h4 id="scripts-configuration">Scripts Configuration</h4>
+<ul>
+<li>Paths to scripts used within the Snakemake pipeline.</li>
 </ul>
 
 

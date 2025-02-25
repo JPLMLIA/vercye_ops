@@ -12,6 +12,8 @@
         <link rel="prev" href="../inputs/">
       
       
+        <link rel="next" href="../../LAI/intro/">
+      
       
       <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.5">
@@ -254,7 +256,29 @@
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Introduction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
     
   </span>
   
@@ -445,11 +469,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../LAI/getting-started.md" class="md-nav__link">
+      <a href="../../LAI/intro/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Getting Started
+    Introduction
     
   </span>
   
@@ -576,8 +600,7 @@ aggregated insights from multiple ROIs. In the following, we define all output a
 <p>The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as <code>yieldstudyname_totalROIname_year_timepoint</code>, to allow easier sharing of these results.</p>
 <ul>
 <li>
-<p><strong>final_report_suffix.html</strong>: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.
-If sharing this file, please ensure it is shared together with both following <code>.png</code> files in the same folder. </p>
+<p><strong>final_report_suffix.pdf</strong>: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.</p>
 <ul>
 <li>date range: Simulation start and end date</li>
 <li>total yield: The sum of the estimated yield of all regions.</li>
@@ -606,7 +629,8 @@ If sharing this file, please ensure it is shared together with both following <c
 <li>median_err_kg_ha: The median error computed as the median over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.</li>
 <li>rmse: The root mean square error of the predicted and reported mean yields of all study regions in kg/ha.</li>
 <li>rrmse: rmse / mean(reported_mean_yield)</li>
-<li>r2: The R2 score of the predicted and reported mean yield per region.</li>
+<li>r2_scikit: The R2 score of the predicted and reported mean yield per region. Computed as the coefficient of determination with <a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html">scikit-learn</a></li>
+<li>r2_rsq_excel: The R2 score of the predicted and reported mean yield per region. Computed as the quare of the Pearson product moment correlation coefficient , as implemented in the excel <code>RSQ</code> function <a href="https://support.microsoft.com/en-us/office/rsq-function-d7161715-250d-4a01-b80d-a8364f2be08f">See here</a>.</li>
 </ul>
 
 
