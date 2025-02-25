@@ -75,9 +75,9 @@ Years and Timepoints are referenced in `snakemake_config.yaml` using their respe
 ## 4. APSIMX Templates
 
 ### Purpose
-Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop growth parameters and must align with the simulation dates set in `snakemake_config.yaml`.
+Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop growth parameters and the dates (`Models.Clock`) in the APSIM file must align with the simulation dates set in `snakemake_config.yaml`.
 
-Adjustments for soil properties and simulation constraints must be manually configured by experts in APSIMX.
+Adjustments for soil properties and simulation constraints must be manually configured with domain knowledge.
 
 ---
 
