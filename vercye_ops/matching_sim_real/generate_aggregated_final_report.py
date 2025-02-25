@@ -120,13 +120,13 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                 <hr>
                 {f'''
                 <h4  style='-pdf-keep-with-next: true; '>Evaluation Metrics</h4>
-                <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table above)</p><br>
-                <p><strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
+                <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table above)<br>
+                <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
-                <strong>R2 (scikit):</strong> {evaluation_results['r2'].iloc[0]:.3f}</p>
-                <strong>R2 (Excel):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</p>
+                <strong>R2 (Scikit - Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
+                <strong>R2 (Excel - Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</p>
                 ''' if evaluation_results is not None else ''}
 
             </div>
