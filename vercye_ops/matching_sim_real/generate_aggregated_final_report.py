@@ -120,6 +120,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                 <hr>
                 {f'''
                 <h4  style='-pdf-keep-with-next: true; '>Evaluation Metrics</h4>
+                <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table above)</p><br>
                 <p><strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
                 <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
