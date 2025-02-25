@@ -53,7 +53,6 @@ def main(secret_json, folder_id, outdir):
     # Build the downloader
     creds = get_credentials(secret_json)
     drive_downloader = build('drive', 'v3', credentials=creds)
-    exit()
 
     # query = f"Folder ID '{folder_id}'"  # you may get error for this line
     query = f"'{folder_id}' in parents"  # this works  ref https://stackoverflow.com/q/73119251/248616
