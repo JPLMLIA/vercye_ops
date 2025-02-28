@@ -236,7 +236,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 cropmask_array_bool = cropmask_array.astype(bool)
                 cropmask_array = cropmask_array.astype(float)
 
-                # masked src at this point is not actually masked yet but the original data
+                # Computing the percentage of pixels that are clouds or snow (and thus are nan)
                 cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
                 total_pixels_in_region = np.sum(cropmask_array_bool)
                 cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
@@ -361,12 +361,12 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
         
         # Export running maximum
         # Set 0 to nan
-        # with rio.open(output_max_tif_fpath, 'w', **src_meta) as dst:
-        #     dst.write(lai_max, 1)
-        #     dst.write(lai_adjusted_max, 2)
-        #     dst.set_band_description(1, "estimateLAImax")
-        #     dst.set_band_description(2, "adjustedLAImax")
-        # print(f"Exported max LAI tif to {output_max_tif_fpath}")
+        with rio.open(output_max_tif_fpath, 'w', **src_meta) as dst:
+            dst.write(lai_max, 1)
+            dst.write(lai_adjusted_max, 2)
+            dst.set_band_description(1, "estimateLAImax")
+            dst.set_band_description(2, "adjustedLAImax")
+        print(f"Exported max LAI tif to {output_max_tif_fpath}")
 
     print(f"Finished in {time.time()-start:.2f} seconds")
 
