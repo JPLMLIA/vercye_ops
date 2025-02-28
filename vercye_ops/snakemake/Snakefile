@@ -339,8 +339,7 @@ rule aggregate_met_stats:
         met_files = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_weather.met'), region=config['regions']),
     params:
         executable_fpath = config['scripts']['aggregate_met_stats'],
-        start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
-        end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+        year = lambda wildcards: wildcards.year,
         roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')
     log:
         'logs_aggregate_met_stats/{year}_{timepoint}.log'
@@ -350,9 +349,9 @@ rule aggregate_met_stats:
         """
         python {params.executable_fpath} \
         --regions_base_dir {params.roi_base_dir} \
-        --start_date {params.start_date} \
-        --end_date {params.end_date} \
-        --output_pdf_path {output.aggregated_met_stats} > {log}
+        --year {params.year} \
+        --output_pdf_path {output.aggregated_met_stats} \
+        --verbose > {log}
         """
 
 rule aggregate_maps:

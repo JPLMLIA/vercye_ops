@@ -9,6 +9,7 @@ import re
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from shapely.wkt import loads
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -58,17 +59,18 @@ def plot_map(gdf, column, cmap, title, legend_label, pdf_pages):
 
     # Add colorbar
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=-2.2)
+    cax = divider.append_axes("right", size="5%")
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=gdf[column].min(), vmax=gdf[column].max()))
     sm._A = []
     cbar = fig.colorbar(sm, cax=cax)
     cbar.set_label(legend_label, fontsize=14)
 
-    plt.title(title, fontsize=18)
+    ax.set_title(title, fontsize=18, loc='left', pad=20)
     plt.xlabel('Longitude', fontsize=14)
     plt.ylabel('Latitude', fontsize=14)
 
     plt.tight_layout()
+    fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
     fig.set_facecolor('white')
 
     pdf_pages.savefig(fig)
@@ -132,15 +134,20 @@ def aggregate_met_stats(regions_base_dir, year, num_last_years):
     pattern = re.compile(r'.*/([^/]+)/\1\.geojson$')  # Ensures the same wildcard value
     valid_gemoetry_files = [f for f in all_geometry_files if pattern.match(f)]
 
-    # geometries have an attribute called centroid. centroid is a POINT. match geometry to aggregated data by latitude longitute
+    # Load precomputed centroids to match with metfile
     geometries = []
     for geometry_file in valid_gemoetry_files:
         gdf = gpd.read_file(geometry_file)
-        gdf['latitude'] = gdf.centroid.y
-        gdf['longitude'] = gdf.centroid.x
+        centroid_geom = loads(gdf['centroid'].iloc[0])  # Extract the first (and only) centroid
+        gdf['latitude'] = centroid_geom.y
+        gdf['longitude'] = centroid_geom.x
         geometries.append(gdf)
 
     gdf_polygons = pd.concat(geometries, ignore_index=True)
+
+    # Entries in metfile are rounded to 2 digits
+    gdf_polygons['latitude'] = gdf_polygons['latitude'].round(2)
+    gdf_polygons['longitude'] = gdf_polygons['longitude'].round(2)
 
     gdf_last_n_years = gdf_polygons.merge(aggregated_last_n_years, on=['latitude', 'longitude'])
     gdf_single_year = gdf_polygons.merge(aggregated_single_year, on=['latitude', 'longitude'])
