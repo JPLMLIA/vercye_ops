@@ -81,7 +81,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
  
         # Add LAI line
         style = style_dict.get(step_filter, style_dict[pd.NA])
-        fig.add_trace(go.Scatter(x=sim_data.index, y=sim_data['Wheat.Leaf.LAI'], mode='lines', name=f'LAI/Yield (Filtered on Step: {legend_group})', opacity=style['opacity'], zorder=style['zorder'],
+        fig.add_trace(go.Scatter(x=sim_data.index, y=sim_data['Maize.Leaf.LAI'], mode='lines', name=f'LAI/Yield (Filtered on Step: {legend_group})', opacity=style['opacity'], zorder=style['zorder'],
                                  legendgroup=legend_group, showlegend=style['show_group'],
                                  line=dict(color='DarkGreen', dash=style['line_dash'], width=style['line_width'])),
                       row=1, col=1)
@@ -103,7 +103,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     good_sim_ids = apsim_filtered[apsim_filtered['StepFilteredOut'].isna()]['SimulationID']
     mean_data = report_data[report_data['SimulationID'].isin(good_sim_ids)].groupby('Date').mean()
 
-    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Wheat.Leaf.LAI'], mode='lines', name='Mean LAI',
+    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Maize.Leaf.LAI'], mode='lines', name='Mean LAI',
                              line=dict(color='chartreuse', width=4)), row=1, col=1)
 
     fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Yield'], mode='lines', name='Mean Yield',

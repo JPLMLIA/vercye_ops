@@ -14,7 +14,7 @@ def load_simulation_data(db_path):
     # Set up a connection, and extract the SQLite DB to a pandas DF
     conn = sqlite3.connect(db_path)
     query = """
-    SELECT SimulationID, `Clock.Today`, `Clock.Today.DayOfYear`, `Wheat.Leaf.LAI`, `Yield`
+    SELECT SimulationID, `Clock.Today`, `Clock.Today.DayOfYear`, `Maize.Leaf.LAI`, `Yield`
     FROM Report
     """
     df = pd.read_sql_query(query, conn, parse_dates='Clock.Today')
