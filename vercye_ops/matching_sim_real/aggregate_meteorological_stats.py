@@ -91,8 +91,13 @@ def aggregate_data(data):
         'wind': 'mean'
     }).reset_index()
 
+
     # Merge the average annual rainfall with the aggregated data
     aggregated_data = pd.merge(aggregated_data, annual_rainfall, on=['latitude', 'longitude'])
+
+    # Converting wind speed from m/s to km/h
+    aggregated_data['wind'] = aggregated_data['wind'] * 3.6
+
     return aggregated_data
 
 
@@ -165,14 +170,14 @@ def plot_stats_and_save(single_year_data, multi_year_data, year, num_last_years,
         plot_map(single_year_data, 'maxt', 'OrRd', f'Year {year}: Average Max Temperature (°C)', 'Max Temperature (°C)', pdf_pages)
         plot_map(single_year_data, 'mint', 'Blues', f'Year {year}: Average Min Temperature (°C)', 'Min Temperature (°C)', pdf_pages)
         plot_map(single_year_data, 'radn', 'YlOrBr', f'Year {year}: Average Radiation (MJ/m^2)', 'Radiation (MJ/m^2)', pdf_pages)
-        plot_map(single_year_data, 'wind', 'PuBu', f'Year {year}: Average Wind Speed (m/s)', 'Wind Speed (m/s)', pdf_pages)
+        plot_map(single_year_data, 'wind', 'PuBu', f'Year {year}: Average Wind Speed (km/h)', 'Wind Speed (km/h)', pdf_pages)
 
         plot_map(multi_year_data, 'rain', 'Blues', f'Last {num_last_years} years: Average Annual Rainfall (mm)', 'Annual Rainfall (mm)', pdf_pages)
         plot_map(multi_year_data, 'meant', 'coolwarm', f'Last {num_last_years} years: Average Mean Temperature (°C)', 'Mean Temperature (°C)', pdf_pages)
         plot_map(multi_year_data, 'maxt', 'OrRd', f'Last {num_last_years} years: Average Max Temperature (°C)', 'Max Temperature (°C)', pdf_pages)
         plot_map(multi_year_data, 'mint', 'Blues', f'Last {num_last_years} years: Average Min Temperature (°C)', 'Min Temperature (°C)', pdf_pages)
         plot_map(multi_year_data, 'radn', 'YlOrBr', f'Last {num_last_years} years:Average Radiation (MJ/m^2)', 'Radiation (MJ/m^2)', pdf_pages)
-        plot_map(multi_year_data, 'wind', 'PuBu', f'Last {num_last_years} years: Average Wind Speed (m/s)', 'Wind Speed (m/s)', pdf_pages)
+        plot_map(multi_year_data, 'wind', 'PuBu', f'Last {num_last_years} years: Average Wind Speed (km/h)', 'Wind Speed (km/h)', pdf_pages)
         pdf_pages.close()
 
 
