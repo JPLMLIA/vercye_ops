@@ -74,8 +74,8 @@ aggregated insights from multiple ROIs. In the following, we define all output a
 ### Aggregated Outputs
 The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as `yieldstudyname_totalROIname_year_timepoint`, to allow easier sharing of these results.
 
-- **final_report_suffix.html**: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.
-If sharing this file, please ensure it is shared together with both following `.png` files in the same folder. 
+- **final_report_suffix.pdf**: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.
+
     - date range: Simulation start and end date
     - total yield: The sum of the estimated yield of all regions.
     - weighted mean yield: The total yield divided by the total cropland area.
@@ -98,4 +98,5 @@ If reported (ground truth) data was provided, common metrics are written to the 
 - median_err_kg_ha: The median error computed as the median over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
 - rmse: The root mean square error of the predicted and reported mean yields of all study regions in kg/ha.
 - rrmse: rmse / mean(reported_mean_yield)
-- r2: The R2 score of the predicted and reported mean yield per region.
+- r2_scikit: The R2 score of the predicted and reported mean yield per region. Computed as the coefficient of determination with [scikit-learn](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html)
+- r2_rsq_excel: The R2 score of the predicted and reported mean yield per region. Computed as the quare of the Pearson product moment correlation coefficient , as implemented in the excel `RSQ` function [See here](https://support.microsoft.com/en-us/office/rsq-function-d7161715-250d-4a01-b80d-a8364f2be08f).
