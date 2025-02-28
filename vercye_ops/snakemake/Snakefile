@@ -48,7 +48,7 @@ rule construct_chirps_data:
 rule fetch_met_data:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
-        chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')
+        chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else []
     params:
         nasa_power_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
         nasa_power_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
@@ -59,6 +59,7 @@ rule fetch_met_data:
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
+        chirps_file = lambda wildcards: f"--chirps_file op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else ''
     log: 
         'fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -83,7 +84,7 @@ rule fetch_met_data:
         --precipitation_source {params.precipitation_source} \
         --chirps_column_name {params.region_name} \
         --fallback_nasapower {params.fallback_nasapower} \
-        --chirps_file {input.chirps_file} \
+        {params.chirps_file} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
         --verbose > {log}
