@@ -12,6 +12,7 @@ from rasterio.mask import mask
 from rasterio.transform import rowcol
 import requests
 import time
+import pyarrow.parquet as pq
 
 
 from vercye_ops.utils.init_logger import get_logger
@@ -134,12 +135,14 @@ def load_chirps_precipitation(start_date, end_date, chirps_file, column_name):
     logger.info("Using CHIRPS precipitation data for the given date range.")
     required_dates = get_dates_range(start_date, end_date)
 
-    df_header = pd.read_csv(chirps_file, nrows=0)
-    if column_name not in df_header.columns:
+    parquet_file = pq.ParquetFile(chirps_file)
+    column_names = parquet_file.schema.names
+    if column_name not in column_names:
         raise KeyError(f"CHIRPS data incomplete. {column_name} not found in CHIRPS data.")
 
-    chirps_data_unfiltered = pd.read_csv(chirps_file, usecols=[column_name], index_col=0)
+    chirps_data_unfiltered = pd.read_parquet(chirps_file, columns=[column_name])
     chirps_data = chirps_data_unfiltered.loc[required_dates.strftime('%Y-%m-%d')]
+    chirps_data.index = pd.to_datetime(chirps_data.index)
 
     return chirps_data
 
@@ -167,7 +170,7 @@ def write_met_data_to_csv(df, output_fpath):
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_column_name, fallback_nasapower, chirps_dir, output_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_column_name, fallback_nasapower, chirps_file, output_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
@@ -179,14 +182,14 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
 
     if precipitation_source.lower() == 'chirps':
         try:
-            chirps_data = load_chirps_precipitation(start_date, end_date, chirps_dir, chirps_column_name)
+            chirps_data = load_chirps_precipitation(start_date, end_date, chirps_file, chirps_column_name)
 
             # Sanity check
             if len(chirps_data) != len(df):
                 raise ValueError("NasaPower and Chirps data do not have the same length.")
             
             df['NASA_POWER_PRECTOTCORR_UNUSED'] = df['PRECTOTCORR']
-            df['PRECTOTCORR'] = chirps_data
+            df['PRECTOTCORR'] = chirps_data[chirps_column_name]
         except KeyError as e:
             if fallback_nasapower:
                 logger.error(e)

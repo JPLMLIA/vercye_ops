@@ -1,13 +1,17 @@
 import click
 import glob
-import defaultdict
+from collections import defaultdict
 import pandas as pd
 import geopandas as gpd
 import os.path as op
+import os
 import rasterio as rio
-from rasterio.mask import mask
-from rasterio.transform import rowcol
+from rasterio.mask import raster_geometry_mask, mask
 import numpy as np
+from shapely.wkt import loads
+import re
+from tqdm.contrib.logging import logging_redirect_tqdm
+from tqdm import tqdm
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -59,6 +63,8 @@ def load_geometry(geometry_path, epsg=4326):
     if geometry.crs != rio.crs.CRS.from_epsg(epsg):
         geometry = geometry.to_crs(rio.crs.CRS.from_epsg(epsg))
 
+    return geometry
+
 def read_chirps_file(chirps_dir, date):
     """Generate the file path for a given date and read the CHIRPS data file."""
     chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
@@ -69,35 +75,57 @@ def process_centroid_data(chirps_dir, date, centroids):
     centroid_values = []
 
     with read_chirps_file(chirps_dir, date) as src:
-        for centroid in centroids:
-            lon, lat = centroid
-            row, col = rowcol(src.transform, lon, lat)
-            try:
-                centroid_value = list(src.sample([(lon, lat)]))[0][0]
-                centroid_values.append(centroid_value)
-            except IndexError:
-                raise IndexError(f"Coordinates out of bounds for date {date}. Could not read value at row={row} col={col}.")
+        try:
+            centroid_values = [val[0] for val in src.sample(centroids)]
+        except IndexError as e:
+            raise IndexError(f"Coordinates out of bounds for date {date}: {e}")
 
     return centroid_values
 
-def process_mean_data(chirps_dir, date, geometries):
+
+def get_centroid(gdf):
+    if 'centroid' not in gdf:
+        raise KeyError('"centroid" not in the attributes of the shape. Please ensure you have used the convert_shapefile_to_geojson script.')
+    # Convert WKT string to a Shapely Point object
+    centroid_geom = loads(gdf['centroid'].iloc[0])  # Extract the first (and only) centroid
+
+    # Extract (longitude, latitude) from the Point
+    return (centroid_geom.x, centroid_geom.y)
+
+def rasterize_geometry(dataset, gdf):
+    if dataset.nodata is not None:
+        nodata = dataset.nodata
+    else:
+        nodata = 0
+
+    # using this function to to stay consistent with the rio.mask.mask function
+    mask_array, transform, window = raster_geometry_mask(dataset, gdf.geometry, crop=True, invert=True)
+    return mask_array, window
+
+def rasterize_geometries(dataset, geometries):
+    """Rasterizes multiple geometries once and returns their corresponding masks."""
+    masks = []
+    for geometry in geometries:
+        mask_array, mask_window = rasterize_geometry(dataset, geometry)
+        masks.append((mask_array, mask_window))
+    return masks
+
+def process_mean_data(chirps_dir, date, geometry_masks):
     """Process CHIRPS data using the mean aggregation method."""
     mean_values = []
 
     with read_chirps_file(chirps_dir, date) as src:
-        for geometry in geometries:
-            chirps_data, _ = mask(src, geometry.geometry, crop=True, nodata=np.nan)
-            chirps_mean = np.nanmean(chirps_data)
-            mean_values.append(chirps_mean)
+        for (mask_array, mask_window) in geometry_masks:
+            chirps_data = src.read(1, window=mask_window)
+            masked_data = np.where(mask_array, chirps_data, np.nan)
+            mean_values.append(np.nanmean(masked_data))
 
     return mean_values
 
-def get_centroid(gdf):
-    return gdf['centroid']
-
-def construct_chirps_precipitation_files(dates, aggregation_method, regions_base_dir, chirps_dir, date_start, date_end, output_dir):
-    region_geometry_files = glob.glob(regions_base_dir + '/*.geojson')
-    chirps_epsg = 4326 # Could be read dynamically from the CHIRPS data in the future
+def construct_chirps_precipitation_files(dates, aggregation_method, regions_base_dir, chirps_dir):
+    region_names = [region_name for region_name in os.listdir(regions_base_dir) if op.isdir(op.join(regions_base_dir, region_name))]
+    region_geometry_files = [op.join(regions_base_dir, region_name, f'{region_name}.geojson') for region_name in region_names]
+    chirps_epsg = 4326 # Could be read dynamically from CHIRPS data in the future
     region_names = [get_region_name(region_geometry_file) for region_geometry_file in region_geometry_files]
     prec_data = []
     chirps_bounds = [-180.0, -50.0, 180.0, 50.0]
@@ -106,22 +134,34 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
 
     if aggregation_method == 'centroid':
         centroids_unfiltered = [get_centroid(geometry) for geometry in region_gdfs_unfiltered]
-        region_centroids = [c for c in centroids_unfiltered if is_coord_within_bounds(c[0], c[1], chirps_bounds)]
-        region_geometries = None
-    else:
-        region_gdfs = [gdf for gdf in region_gdfs_unfiltered if is_bbox_within_bounds(gdf.total_bounds, chirps_bounds)]
-        centroids = None
-    
-    for date in dates:
-        if aggregation_method == 'centroid':
-            regional_results = process_centroid_data(chirps_dir, date, region_centroids)
-        elif aggregation_method == 'mean':
-            regional_results = process_mean_data(chirps_dir, date, region_gdfs)
-        else:
-            raise ValueError(f"Invalid aggregation method: {aggregation_method}")
-        prec_data.append(regional_results)
+        valid_indices = [i for i, c in enumerate(centroids_unfiltered) if is_coord_within_bounds(c[0], c[1], chirps_bounds)]
+        region_centroids = [centroids_unfiltered[i] for i in valid_indices]
+        region_names = [region_names[i] for i in valid_indices]
 
-    return pd.DataFrame(prec_data, index=dates, columns=region_names)
+    elif aggregation_method == 'mean':
+        valid_indices = [i for i, gdf in enumerate(region_gdfs_unfiltered) if is_bbox_within_bounds(gdf.total_bounds, chirps_bounds)]
+        region_gdfs = [region_gdfs_unfiltered[i] for i in valid_indices]
+        region_names = [region_names[i] for i in valid_indices]
+
+        logger.info('Rasterizing regions of interest.')
+        geometry_masks = None
+        with read_chirps_file(chirps_dir, dates[0]) as ds:
+            geometry_masks = rasterize_geometries(ds, region_gdfs)
+    else:
+        raise ValueError(f"Invalid aggregation method: {aggregation_method}")
+    
+    logger.info(f'Computing daily results for each region with aggregation method "{aggregation_method}".')
+    with logging_redirect_tqdm():
+        for date in tqdm(dates, desc="Aggregating Chirps Data"):
+            if aggregation_method == 'centroid':
+                regional_results = process_centroid_data(chirps_dir, date, region_centroids)
+            elif aggregation_method == 'mean':
+                regional_results = process_mean_data(chirps_dir, date, geometry_masks)
+            prec_data.append(regional_results)
+
+    df = pd.DataFrame(prec_data, index=dates, columns=region_names)
+    df.index.name = "Date"
+    return df
         
 
 @click.command()
@@ -129,28 +169,28 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date for data collection in YYYY-MM-DD format.")
 @click.option('--regions_base_dir', help='Regions directory', type=click.Path(exists=True))
 @click.option('--chirps_dir', help='CHIRPS directory', type=click.Path(exists=True))
-@click.option('--precipitation_aggregation_method', type=click.Choice(['centroid', 'mean'], case_sensitive=False), default='centroid', show_default=True, help="Method to spatially aggregate precipitation data.")
+@click.option('--aggregation_method', type=click.Choice(['centroid', 'mean'], case_sensitive=False), default='centroid', show_default=True, help="Method to spatially aggregate precipitation data.")
 @click.option('--output_file', help='Output File', type=click.Path())
-def cli_wrapper(start_date, end_date, regions_base_dir, chirps_dir, output_file):
+def cli_wrapper(start_date, end_date, regions_base_dir, chirps_dir, aggregation_method, output_file):
     # TODO: Currently keeping all results in memory for every region and date. 
     # We might want to add an iterative approach, defining a max number of regions to process at once
     # and then saving the results to disk before moving on to the next batch.
-
+    logger.setLevel('INFO')
     required_dates = get_dates_range(start_date, end_date)
 
     # Download CHIRPS data for the given data range
+    logger.info("Validating that CHIRPS data is available for all dates.")
     if not all_chirps_data_exists(required_dates, chirps_dir):
         raise FileNotFoundError(f"CHIRPS data incomplete. Please download the data first. You may use the download_chirps_data.py script.")
-    
+        
     logger.info("Constructing Chirps precipitation data for all regions")
-    prec_df = construct_chirps_precipitation_files(required_dates, regions_base_dir, chirps_dir)
+    prec_df = construct_chirps_precipitation_files(required_dates, aggregation_method, regions_base_dir, chirps_dir)
 
-    op.makedirs(op.dirname(output_file), exist_ok=True)
+    logger.info("Saving Chirps precipitation data to %s", output_file)
+    os.makedirs(op.dirname(output_file), exist_ok=True)
+    prec_df.to_parquet(output_file, engine="pyarrow", index=True)
 
-    prec_df.to_csv(output_file)
-    logger.info("Chirps precipitation data saved to %s", output_file)
-
-    # TODO think about how to deal with multiple date spans just take min and max and create for all inbetween?
+    logger.info("Constructing Chirps data completed.")
 
     
 if __name__ == '__main__':

@@ -19,25 +19,26 @@ rule all:
 # APSIM Section of Snakemake pipeline
 
 rule construct_chirps_data:
+    priority: 1 # This is a longer running job without dependencies, want to start as early as possible
     input:
         chirps_dir = config['apsim_params']['chirps_dir'],
-        geometries = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'), year=config['years'][0], region=config['regions'], timepoint=config['timepoints'][0]),
+        geometries = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
     params:
         script_fpath = config['scripts']['construct_chirps_data'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
-        regions_dir = op.join(config['sim_study_head_dir'], {config['years'][0]}, config['timepoints'][0]), # We choose a fixed one, since all year/timepoints should contain the same regions.
+        regions_dir = lambda wildcards: op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint), # We choose a fixed one, since all year/timepoints should contain the same regions.
         start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
         end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
     log:
-        'construct_chirps_prec/{year}_{timepoint}_{region}.log',
+        'construct_chirps_data/{year}_{timepoint}_chirps.log',
     output:
-        csv = temp(op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.csv')),
+        csv = temp(op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')),
     shell:
         """
         python {params.script_fpath} \
         --chirps_dir {input.chirps_dir} \
         --regions_base_dir {params.regions_dir} \
-        --precipitation_aggregation_method {params.precipitation_agg_method} \
+        --aggregation_method {params.precipitation_agg_method} \
         --start_date {params.start_date} \
         --end_date {params.end_date} \
         --output_file {output.csv} > {log}
@@ -47,7 +48,7 @@ rule construct_chirps_data:
 rule fetch_met_data:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
-        chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.csv')
+        chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')
     params:
         nasa_power_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
         nasa_power_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
@@ -100,7 +101,8 @@ rule construct_plot_met_files:
         sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
         precipitation_source = config['apsim_params']['precipitation_source'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
-        nasapower_fallback = config['apsim_params']['fallback_on_nasa_power_centroid']
+        nasapower_fallback = config['apsim_params']['fallback_on_nasa_power_centroid'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
@@ -108,6 +110,7 @@ rule construct_plot_met_files:
         plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
     shell:
         """
+        {params.jq_load_statement}
         read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         python {params.met_gen_script_fpath} \
