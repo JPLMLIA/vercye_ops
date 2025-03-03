@@ -146,7 +146,34 @@ lai_params:
 # Sim/Real Matching Parameters
     
 matching_params:
-  target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  # 9854 For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  target_epsgs: 
+    Chornukhynskyi: 9854
+    Chutivskyi: 9854
+    Dykanskyi: 9854
+    Hadiatskyi: 9854
+    Hlobynskyi: 9854
+    Hrebinkivskyi: 9854
+    Karlivskyi: 9854
+    Khorolskyi: 9854
+    Kobeliatskyi: 9854
+    Komsomolska: 9854
+    Kotelevskyi: 9854
+    Kozelshchynskyi: 9854
+    Kremenchutskyi: 9854
+    Lokhvytskyi: 9854
+    Lubenskyi: 9854
+    Mashivskyi: 9854
+    Myrhorodskyi: 9854
+    Novosanzharskyi: 9854
+    Orzhytskyi: 9854
+    Poltavskyi: 9854
+    Pyriatynskyi: 9854
+    Reshetylivskyi: 9854
+    Semenivskyi: 9854
+    Shyshatskyi: 9854
+    Velykobahachanskyi: 9854
+    Zinkivskyi: 9854
   
 ########################################
 # Local paths to the python/APSIM scripts

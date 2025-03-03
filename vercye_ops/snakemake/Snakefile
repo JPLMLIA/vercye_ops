@@ -271,7 +271,7 @@ rule estimate_total_yield:
         converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
     params:
         executable_fpath = config['scripts']['estimate_total_yield'],
-        target_epsg = config['matching_params']['target_epsg'],
+        target_epsg = lambda wildcards: config['matching_params']['target_epsgs'][wildcards.region],
     log:
         'logs_estimate_total_yield/{year}_{timepoint}_{region}.log',
     output:
