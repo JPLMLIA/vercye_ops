@@ -143,7 +143,7 @@ def save_aggregated_map(output_path, map, band_names, profile):
     logger.info(f'Aggregated map saved to: {output_path}')
 
 
-def merge_shapefiles(shapefile_paths):
+def merge_shapefiles(shapefile_paths, region_names):
     """
     Merge multiple shapefiles into a single GeoDataFrame.
 
@@ -152,6 +152,9 @@ def merge_shapefiles(shapefile_paths):
     shapefile_paths : list of str
         List of file paths to shapefiles.
 
+    region_names: list of str
+        List of the names of the regions for each shapefile.
+
     Returns
     -------
     GeoDataFrame
@@ -159,6 +162,11 @@ def merge_shapefiles(shapefile_paths):
     """
     logger.info('Merging shapefiles...')
     gdfs = [gpd.read_file(shp) for shp in shapefile_paths]
+
+    # Temporary fix for unmerged code. In the future 'cleaned_region_name' should be attribute in geojson
+    for gdf, region_name in zip(gdfs, region_names):
+        gdf['cleaned_region_name'] = region_name
+
     merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
 
     return merged_gdf
@@ -229,17 +237,18 @@ def cli(roi_base_dir, yield_estimates_fpath, val_fpath, output_lai_tif_fpath=Non
         save_aggregated_map(output_fpaths[label], result['array'], result['band_names'], result['profile'])
     
     # Merge shapefiles and save
-    merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in regions])
+    merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, '.geojson') for region in regions], regions)
 
     yield_estimates = pd.read_csv(yield_estimates_fpath)
+    
     yield_estimates.rename(columns={'mean_yield_kg_ha': 'estimated_mean_yield_kg_ha',
                                     'total_yield_production_kg': 'estimated_yield_kg',
                                     'median_yield_kg_ha': 'estimated_median_yield_kg_ha'}, inplace=True)
-    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='admin_name', right_on='region')
+    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='cleaned_region_name', right_on='region')
 
     if val_fpath:
         val_data = pd.read_csv(val_fpath)
-        merged_gdf = merged_gdf.merge(val_data, left_on='admin_name', right_on='region')
+        merged_gdf = merged_gdf.merge(val_data, left_on='cleaned_region_name', right_on='region')
 
     merged_gdf.to_file(output_fpaths['shapefile'], driver='GeoJSON')
 

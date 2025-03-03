@@ -41,13 +41,13 @@ def pad_to_polygon(src, geometry, masked_src):
 def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
     
     if not rio.coords.disjoint_bounds(src.bounds, cropmask_bounds):
-        left_pad = int(np.ceil((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
+        left_pad = int(np.floor((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.ceil((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
+        bottom_pad = int(np.floor((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.ceil((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
+        right_pad = int(np.floor((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(np.ceil((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
+        top_pad = int(np.floor((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
@@ -230,7 +230,13 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 # 0_reproj_mask.py should've ensured that the cropmask is the same size as a complete LAI raster
                 # Sometimes, however, an LAI raster is partial because of coverage.
                 # Pad the LAI raster to match the extent of the cropmask 
+                print('shp')
+                print(masked_src.shape)
+                print(cropmask_array.shape)
                 masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
+                print(masked_src.shape)
+                print(is_padded)
+
 
                 # replace zeros with NaN's
                 cropmask_array_bool = cropmask_array.astype(bool)
@@ -240,6 +246,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
                 total_pixels_in_region = np.sum(cropmask_array_bool)
                 cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
+               
 
                 cropmask_array[cropmask_array==0] = np.nan
                 
