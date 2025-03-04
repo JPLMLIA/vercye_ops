@@ -1,9 +1,10 @@
+import click
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import click
 
-from vercye_ops.matching_sim_real.utils import load_simulation_data, load_simulation_units
+from vercye_ops.matching_sim_real.utils import (load_simulation_data,
+                                                load_simulation_units)
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()

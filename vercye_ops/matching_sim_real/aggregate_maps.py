@@ -1,12 +1,13 @@
+import logging
 import os
 import os.path as op
-import logging
+
 import click
-import numpy as np
 import geopandas as gpd
+import numpy as np
+import pandas as pd
 import rasterio as rio
 from rasterio.merge import merge
-import pandas as pd
 
 from vercye_ops.utils.init_logger import get_logger
 

@@ -1,18 +1,17 @@
-import os.path as op
 import os
+import os.path as op
+
 import click
-import pandas as pd
 import geopandas as gpd
-import rasterio
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 import matplotlib.colors as mcolors
+import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import rasterio
+from matplotlib.colors import Normalize
 from PIL import Image
 from xhtml2pdf import pisa
-
-import matplotlib.pyplot as plt
-import matplotlib.patheffects as pe
 
 from vercye_ops.utils.init_logger import get_logger
 

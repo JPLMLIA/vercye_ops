@@ -1,7 +1,8 @@
 import os
+from pathlib import Path
+
 import click
 import pandas as pd
-from pathlib import Path
 
 from vercye_ops.utils.init_logger import get_logger
 
