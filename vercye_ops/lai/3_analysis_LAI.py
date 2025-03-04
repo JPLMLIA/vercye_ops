@@ -18,13 +18,13 @@ def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
 
     if not rio.coords.disjoint_bounds(src.bounds, geometry.total_bounds):
-        left_pad = int(np.ceil((src.bounds.left - geometry.total_bounds[0]) / src.res[0]))
+        left_pad = int(np.round((src.bounds.left - geometry.total_bounds[0]) / src.res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.ceil((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1]))
+        bottom_pad = int(np.round((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.ceil((geometry.total_bounds[2] - src.bounds.right) / src.res[0]))
+        right_pad = int(np.round((geometry.total_bounds[2] - src.bounds.right) / src.res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(np.ceil((geometry.total_bounds[3] - src.bounds.top) / src.res[1]))
+        top_pad = int(np.round((geometry.total_bounds[3] - src.bounds.top) / src.res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
@@ -41,13 +41,13 @@ def pad_to_polygon(src, geometry, masked_src):
 def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
     
     if not rio.coords.disjoint_bounds(src.bounds, cropmask_bounds):
-        left_pad = int(np.ceil((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
+        left_pad = int(np.round((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.ceil((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
+        bottom_pad = int(np.round((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.ceil((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
+        right_pad = int(np.round((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(np.ceil((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
+        top_pad = int(np.round((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
