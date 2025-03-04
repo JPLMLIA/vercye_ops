@@ -166,7 +166,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Mean": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
-                    "LAI Stddev Adjusted": None
+                    "LAI Stddev Adjusted": None,
+                    "Cloud or Snow Percentage": None
                 }
                 statistics.append(stat)
                 continue
@@ -190,7 +191,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                         "LAI Mean": None,
                         "LAI Stddev": None,
                         "LAI Mean Adjusted": None,
-                        "LAI Stddev Adjusted": None
+                        "LAI Stddev Adjusted": None,
+                        "Cloud or Snow Percentage": None
                     }
                     statistics.append(stat)
                     continue
@@ -210,6 +212,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                         "count": 2
                     })
 
+                cloud_snow_percentage = -1 # Not yet supported
+
             elif mode == "raster":
                 # Mask the raster with the raster
                 masked_src = src.read(1)
@@ -226,11 +230,26 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 # 0_reproj_mask.py should've ensured that the cropmask is the same size as a complete LAI raster
                 # Sometimes, however, an LAI raster is partial because of coverage.
                 # Pad the LAI raster to match the extent of the cropmask 
+                print('shp')
+                print(masked_src.shape)
+                print(cropmask_array.shape)
                 masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
+                print(masked_src.shape)
+                print(is_padded)
+
 
                 # replace zeros with NaN's
+                cropmask_array_bool = cropmask_array.astype(bool)
                 cropmask_array = cropmask_array.astype(float)
+
+                # Computing the percentage of pixels that are clouds or snow (and thus are nan)
+                cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
+                total_pixels_in_region = np.sum(cropmask_array_bool)
+                cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
+               
+
                 cropmask_array[cropmask_array==0] = np.nan
+                
                 # apply mask
                 masked_src *= cropmask_array
 
@@ -253,7 +272,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Mean": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
-                    "LAI Stddev Adjusted": None
+                    "LAI Stddev Adjusted": None,
+                    "Cloud or Snow Percentage": cloud_snow_percentage
                 }
                 statistics.append(stat)
                 continue
@@ -277,6 +297,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             # Calculate statistics for valid raster
             # Catching runtime warnings when numpy complains that a pixel only has NaNs
             # This is expected
+            
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 statistics.append({
@@ -287,6 +308,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Stddev": np.nanstd(LAI_estimate),
                     "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
                     "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
+                    "Cloud or Snow Percentage": cloud_snow_percentage,
                 })
 
                 # Update running maximum rasters

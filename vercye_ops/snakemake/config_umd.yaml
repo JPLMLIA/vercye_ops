@@ -166,4 +166,5 @@ scripts:
   aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
   aggregate_maps : '../matching_sim_real/aggregate_maps.py'
   generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'
+  aggregate_met_stats: '../matching_sim_real/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'

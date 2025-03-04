@@ -19,6 +19,9 @@ rule all:
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+
+
 #######################################
 # APSIM Section of Snakemake pipeline
 
@@ -328,6 +331,30 @@ rule aggregate_yield_estimates:
         python {params.executable_fpath} \
         --yield_dir {params.yield_dir} \
         --output_csv {output.aggregated_csv} \
+        --verbose > {log}
+        """
+
+rule aggregate_met_stats:
+    input:
+        met_files = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_weather.met'), region=config['regions']),
+        reference_tif_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+    params:
+        executable_fpath = config['scripts']['aggregate_met_stats'],
+        year = lambda wildcards: wildcards.year,
+        roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')
+    log:
+        'logs_aggregate_met_stats/{year}_{timepoint}.log'
+    output:
+        aggregated_met_stats_pdf = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        aggregated_met_stats_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --regions_base_dir {params.roi_base_dir} \
+        --year {params.year} \
+        --output_pdf_path {output.aggregated_met_stats_pdf} \
+        --reference_tif_path {input.reference_tif_path} \
+        --output_tif_path {output.aggregated_met_stats_tif} \
         --verbose > {log}
         """
 

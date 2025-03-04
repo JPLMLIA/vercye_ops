@@ -37,6 +37,14 @@ The names in this structure are just descriptive placeholders and should be adju
 ### Purpose
 Each **Region of Interest (ROI)** is represented as a GeoJSON file within its respective **timepoint** directory.
 
+### Converting Shapefiles to GeoJSON
+We expect you data ti initially be in **.shp (shapefile)** format. Use the provided scripts to convert it:
+- **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile contains a uniform administrative level.
+- **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion.
+
+[!CAUTION]
+Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
+
 ### File Naming Convention
 Each GeoJSON file must follow the format:
 ```plaintext
@@ -47,11 +55,7 @@ For example, if studying California, the file structure would be:
 ```plaintext
 2024/T-0/california/california.geojson
 ```
-
-### Converting Shapefiles to GeoJSON
-If your data is in **.shp (shapefile)** format, use the provided scripts to convert it:
-- **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile contains a uniform administrative level.
-- **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion.
+If you do not use our conversion from shapefile to GeoJSON, you will need to manually ensure that each GeoJSON contains a centroid column that has the same format as extracted in `convert_shapefile_to_geojson.py`.
 
 ---
 
@@ -84,7 +88,7 @@ Adjustments for soil properties and simulation constraints must be manually conf
 ## 5. Validation Data (Optional)
 If ground-truth yield data is available, it should be included as `groundtruth.csv` in the corresponding timepoint directory.
 
-### File Format
+### Refernece CSV Specification
 | Column Name               | Description |
 |---------------------------|-------------|
 | `region`                  | Name matching GeoJSON folder |

@@ -5,6 +5,8 @@ import click
 import geopandas as gpd
 from vercye_ops.utils.init_logger import get_logger
 
+import re
+
 logger = get_logger()
 
 
