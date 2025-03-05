@@ -14,6 +14,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from tqdm import tqdm
 
 from vercye_ops.utils.init_logger import get_logger
+from shapely.geometry import shape
 
 logger = get_logger()
 
@@ -99,7 +100,13 @@ def rasterize_geometry(dataset, gdf):
         nodata = 0
 
     # using this function to to stay consistent with the rio.mask.mask function
-    mask_array, transform, window = raster_geometry_mask(dataset, gdf.geometry, crop=True, invert=True)
+    mask_array, transform, window = raster_geometry_mask(dataset, gdf.geometry, crop=True, invert=True, all_touched=False)
+
+    # For small fields there might be not a single pixels whose centroid falls within geometry. In this case use all_touching pixels
+    if not np.any(mask_array):
+        logger.info('Using all touched for rasterization of small geometry.')
+        mask_array, transform, window = raster_geometry_mask(dataset, gdf.geometry, crop=True, invert=True, all_touched=True)
+
     return mask_array, window
 
 def rasterize_geometries(dataset, geometries):
@@ -108,6 +115,7 @@ def rasterize_geometries(dataset, geometries):
     for geometry in geometries:
         mask_array, mask_window = rasterize_geometry(dataset, geometry)
         masks.append((mask_array, mask_window))
+
     return masks
 
 def process_mean_data(chirps_dir, date, geometry_masks):
@@ -119,7 +127,6 @@ def process_mean_data(chirps_dir, date, geometry_masks):
             chirps_data = src.read(1, window=mask_window)
             masked_data = np.where(mask_array, chirps_data, np.nan)
             mean_values.append(np.nanmean(masked_data))
-
     return mean_values
 
 def construct_chirps_precipitation_files(dates, aggregation_method, regions_base_dir, chirps_dir):
@@ -144,6 +151,7 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
         region_names = [region_names[i] for i in valid_indices]
 
         logger.info('Rasterizing regions of interest.')
+        logger.info(region_names[0])
         geometry_masks = None
         with read_chirps_file(chirps_dir, dates[0]) as ds:
             geometry_masks = rasterize_geometries(ds, region_gdfs)

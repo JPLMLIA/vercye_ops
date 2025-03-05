@@ -1,7 +1,8 @@
 import os
+from pathlib import Path
+
 import click
 import pandas as pd
-from pathlib import Path
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -32,6 +33,8 @@ def aggregate_yields(yield_dir):
             
             if yield_estimate_csv_path.exists():
                 yield_df = pd.read_csv(yield_estimate_csv_path)
+                yield_df['total_yield_production_kg'] = yield_df['total_yield_production_kg'].astype(int)
+                yield_df['total_area_ha'] = yield_df['total_area_ha'].round(2)
                 yield_df['region'] = region_name
             else:
                 yield_df = pd.DataFrame()  # Empty DataFrame as a fallback
@@ -41,11 +44,11 @@ def aggregate_yields(yield_dir):
                 conv_df = pd.read_csv(conv_factor_csv_path)
                 conv_df = conv_df[['max_rs_lai', 
                                    'max_rs_lai_date', 
-                                   'apsim_mean_yield_estimate_kg_ha', 
                                    'apsim_max_matched_lai', 
                                    'apsim_max_matched_lai_date', 
                                    'apsim_max_all_lai', 
                                    'apsim_max_all_lai_date',
+                                   'apsim_mean_yield_estimate_kg_ha', 
                                    'apsim_matched_std_yield_estimate_kg_ha',
                                    'apsim_all_std_yield_estimate_kg_ha',
                                    'apsim_matched_maxlai_std',
@@ -62,7 +65,6 @@ def aggregate_yields(yield_dir):
                 conv_df['apsim_all_maxlai_std'] = conv_df['apsim_all_maxlai_std'].round(2)
                 conv_df['apsim_matched_std_yield_estimate_kg_ha'] = conv_df['apsim_matched_std_yield_estimate_kg_ha'].astype(int)
                 conv_df['apsim_all_std_yield_estimate_kg_ha'] = conv_df['apsim_all_std_yield_estimate_kg_ha'].astype(int)
-
                 conv_df['region'] = region_name                                                                                                                
             else:
                 conv_df = pd.DataFrame()  # Empty DataFrame as a fallback

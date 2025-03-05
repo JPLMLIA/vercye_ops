@@ -129,9 +129,9 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         print(f"Exporting {current_datestr} to Google Drive...")
 
         task = ee.batch.Export.image.toDrive(image=S2_mosaic,
-                    description=f"{geometry_name}_{current_datestr}",
-                    folder=geometry_name,
-                    scale=20,
+                    description=f"{geometry_name}_{current_datestr}_10m",
+                    folder=f"{geometry_name}_10m",
+                    scale=10,
                     fileFormat='GeoTIFF',
                     maxPixels=1e13,
                     region=geometry,

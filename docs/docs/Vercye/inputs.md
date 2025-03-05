@@ -1,141 +1,151 @@
-To run the vercye pipeline, a number of inputs are required. In the following, we define the formats of input files and the input parameters that can be set via the snakemake config file.
+# VeRCYe Pipeline Documentation
 
-### Yield Study Setup Overview
-Your yield study is organized within a single directory referred to as the `simulation head directory`. The directory structure is outlined below:
+## Overview
+The VeRCYe pipeline enables large-scale yield studies by organizing simulation data within a structured directory and processing it with `snakemake`. This document details the required input files, directory structure, and configurable parameters.
 
-```
-head dir
+---
+
+## 1. Yield Study Setup
+
+### Simulation Head Directory
+Your yield study is structured within a single directory, referred to as the **simulation head directory**. This directory must follow a predefined structure to ensure compatibility with the pipeline.
+
+### Directory Structure
+```plaintext
+head_dir/
 |   snakemake_config.yaml
-|---Year1
-|   |---TimePoint-1
-|   |   |---region1
+|---Year1/
+|   |---TimePoint-1/
+|   |   |   groundtruth.csv (optional)
+|   |   |---region1/
 |   |   |   |   region1.geojson
 |   |   |   |   region1_template.apsimx
-|   |   |---region2
-|   |   |   |   region2.geojson
-|   |   |   |   region2_template.apsimx
-|   |   |---regionN
-|   |       |   regionN.geojson
-|   |       |   regionN_template.apsimx
-|   |---TimePoint-N
-|       |---region1
-|       |   |   region1.geojson
-|       |   |   region1_template.apsimx
-|       |---region2
-|       |   |   region2.geojson
-|       |   |   region2_template.apsimx
-|       |---regionN
+|   |---TimePoint-N/
+|       |   groundtruth.csv (optional)
+|       |---regionN/
 |           |   regionN.geojson
 |           |   regionN_template.apsimx
-|---Year2
-|   |---TimePoint-1
-|   |   |---region1
-|   |   |   |   region1.geojson
-|   |   |   |   region1_template.apsimx
-|   |   |---region2
-|   |   |   |   region2.geojson
-|   |   |   |   region2_template.apsimx
-|   |   |---regionN
-|   |       |   regionN.geojson
-|   |       |   regionN_template.apsimx
-|   |---TimePoint-N
-|       |---region1
-|       |   |   region1.geojson
-|       |   |   region1_template.apsimx
-|       |---region2
-|       |   |   region2.geojson
-|       |   |   region2_template.apsimx
-|       |---regionN
-|           |   regionN.geojson
-|           |   regionN_template.apsimx
+|---Year2/
+    ...
+```
+Each **year** contains **timepoints**, and each timepoint contains **regions** with their respective `geojson` and `apsimx` template files.
+The names in this structure are just descriptive placeholders and should be adjusted as described below.
+---
+
+## 2. Region GeoJSON Files
+
+### Purpose
+Each **Region of Interest (ROI)** is represented as a GeoJSON file within its respective **timepoint** directory.
+
+### Converting Shapefiles to GeoJSON
+We expect you data ti initially be in **.shp (shapefile)** format. Use the provided scripts to convert it:
+- **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile contains a uniform administrative level.
+- **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion.
+
+[!CAUTION]
+Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
+
+### File Naming Convention
+Each GeoJSON file must follow the format:
+```plaintext
+regionname.geojson
 ```
 
-The following sections describe the components of this structure, including the role of `snakemake_config.yaml`, region naming conventions, `GeoJSON` creation, timepoints, and `apsimx` templates.
+For example, if studying California, the file structure would be:
+```plaintext
+2024/T-0/california/california.geojson
+```
+If you do not use our conversion from shapefile to GeoJSON, you will need to manually ensure that each GeoJSON contains a centroid column that has the same format as extracted in `convert_shapefile_to_geojson.py`.
 
-### Region GeoJSONS
-The pipeline allows execution across multiple Regions of Interest (ROIs) in a batch process. Each ROI is processed individually, and aggregated metrics across all regions are provided.
+---
 
-Each ROI must be represented by an individual GeoJSON file named in the format `regionname.geojson`. For every year-timepoint combination, the directory must contain a subfolder for each region, containing its corresponding GeoJSON file. For example, if studying regions in the US, a timepoint folder may contain a folder named `california` with a file `california.geojson`.
+## 3. Years and Timepoints
 
-**I only have a .shp shapefile and instead of GeoJSON - What to do?**
-If you only have .shp shapefiles instead of GeoJSON files, use the provided helper scripts to convert them:
+### Defining Years
+Years should be named numerically (e.g., `2024`, `2025`) to represent different simulation periods.
 
-__Option A: Standardized, Single Administrative Level Shapefile__
+### Defining Timepoints
+Each **timepoint** represents a simulation scenario, e.g., using all available meteorological data vs. limiting it to 30 days before the latest observation.
 
-- Your shapefile contains geometries at a single administrative level (e.g., districts).
-- It has a column named admin_name with the names of the regions.
-- Use the apsim/convert_shapefile_to_geojson script to extract individual GeoJSON files.
+Each timepoint must define:
+- **APSIM Simulation Start & End Dates**
+- **Meteorological Data Start & End Dates**
+- **LAI (Leaf Area Index) Data Start & End Dates**
 
-__Option B: Mixed Administrative Levels__
+Years and Timepoints are referenced in `snakemake_config.yaml` using their respective names. Therefore the folder names must match these.
 
-- Your shapefile lacks the admin_name column or contains mixed levels of geometries.
-- Run the apsim/prepare_shapefile.py script to standardize the shapefile, then proceed with Option A to extract GeoJSONs.
+---
 
-The documentation will soon be updated on how to process the shapefiles in more depth.
+## 4. APSIMX Templates
 
+### Purpose
+Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop growth parameters and the dates (`Models.Clock`) in the APSIM file must align with the simulation dates set in `snakemake_config.yaml`.
 
-### Years and Timepoints
-**Years**
-Most likely you will want to run your yield study over multiple seasons, for example to observe the change over the years. Therefore, you can definie different years in the `simulation head directory`. These should be names like the year (e.g `2024`).
+Adjustments for soil properties and simulation constraints must be manually configured with domain knowledge.
 
-**Timepoints**
-A timepoint specifies simulation configurations within that year. For example you might want to run one simulation that considers all metereological data available one simulation that only considers metereological data up until 30 days before the latest data, to observe forecasting abilities. 
+---
 
-Each timepoint within a year is defined by 6 parameters:
-- The start date of the of the APSIM simulation
-- The end date of the APSIM simulation
-- The start date of the metereological data for that region to use
-- The end date of the metereological data for that region to use
-- The start date from when to use remotely sensed LAI data
-- The end date from when to use remotely sensed LAI data
+## 5. Validation Data (Optional)
+If ground-truth yield data is available, it should be included as `groundtruth.csv` in the corresponding timepoint directory.
 
-These parameters are set in in the `snakemake_config.yaml` later on and should be referred to with the name given in the `year folder` in the `simulation head directory`. So for example in the experiment described above you might want to create two timepoints called `T-0` and `T-30` as folders in each `year folder`.
+### Refernece CSV Specification
+| Column Name               | Description |
+|---------------------------|-------------|
+| `region`                  | Name matching GeoJSON folder |
+| `reported_mean_yield_kg_ha` | Mean yield (kg/ha), if available |
+| `reported_yield_kg`        | Total yield (kg) (optional, used to derive mean yield) |
 
-### APSIMX Templates
-Each region in each timepoint must contain its own `apsimx` template file called `regionname.apsimx`, so for the example above `california_template.apsimx`. The `apsimx` template defines the parameters for the yield simulation of this region with [`APSIMX`](https://github.com/APSIMInitiative/ApsimX).
+If `reported_yield_kg` is provided, the mean yield is computed as:
+```plaintext
+mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
+```
 
-This is the only step that requires expert knowledge to set region specific parameters for example for the soil characteristics.
-For every template at the different timepoints, you will have to ensure that the dates of the apsimx template file match up with the desired simulation dates specified in your snakemake config (both in `apsim_params` and `lai_params` sections). We will provide details on this in the future.
+Validation data is optional and only needed for timepoints where it is available.
 
-### Snakemake Configuration File Parameters
-Now that you know about all the files and their names required to create the `simulation head directory`, we will define the `snakemake_config.yaml`. This file is the heart of the pipeline and links the `simulation head directory` with the actual definition of yield study parameters.
+---
 
-Take a look at the [example configuration](https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml) for the format of the parameters. The following solely gives some background on the parameters.
+## 6. Snakemake Configuration (`snakemake_config.yaml`)
+This file defines the study parameters and links the **simulation head directory** with the pipeline. You will have to adapt this fill for each yield study. An example configuration can be found here [example configuration file](https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml). We reccomend, to use this as a template for adjustment. The following section describes the meaning of the paramters, but does not represent the syntac for how to organize the config. For this please refer to the example.
 
-- platform: Specify 'local' or 'umd' for dependency handling.
-- sim_study_head_dir: The path to the simulation head directory.
-- regions: List of regions to include (must match region folder names).
-- years: List of years to include (must match year folder names).
-- timepoints: List of timepoints to include (must match timepoint folder names).
-- apsim_params:
-    - precipitation_source: You can either use the precipitation data for the APSIM simulation from `NASA_POWER` or from `CHIRPS`. If you are using `CHIRPS`, you will have to manually download the precipitation data before starting the pipeline (`apsim/download_chirps_data.py`).
-    - precipitation_agg_method: When using `CHIRPS` you can aggregate the precipitation data over all CHIRPS pixels within the region as their mean, or you can use the centroid of the region. `NASA_POWER` currently only allows using the centroid.
-    - fallback_on_nasa_power_centroid: CHIRPS only provides coverage from -50 to 50 degrees. Therefore if the region partly falls outside of these bounds, `NASA_POWER` precipitation data can be used instead if setting to True.
-    - chirps_dir: The directory where the downloaded CHIRPS precipitation data is stored. Should be downloaded with `apsim/download_chirps_data.py`.
-    - time_bounds: Has to contain the definition of each timepoint for every year specified above. Hereby the timepoint names have to match the names specified above. For each timepoint the following parameters have to be set:
-        - sim_start_date: Start date of the simulation in APSIM
-        - sim_end_date: End date for the simulation in APSIM
-        - nasa_power_start_date: Start date from when to include metereological data into APSIM.
-        - nasa_power_end_date: End date up to when to include meteorological data in to APSIM.
-- lai_params:
-    - lai_dir: Root directory where remotely sensed LAI data (from the LAI pipeline) is stored 
-    - lai_region: Region name, such that the files in `lai_dir` match `{region}_{date}_LAI.tif`. Use the LAI pipeline to create such files.
-    - crop_name: The name of the crop for which to estimate the yield. Is related to the crop defined in APSIM. Currently "wheat" or "maize" is supprted.
-    - use_crop_adjusted_lai: Whether to apply the adjustment to the estimated remotely sensed estimated LAI for the crop specified above. `True` or `False`.
-    - lai_analysis_mode: 'raster'
-    - time_bounds: For every year and timepoint the start and enddate from which to use LAI data. This should usually match the simulation dates.
-    - crop_mask: path to the cropmasks for every year defined above.
-- matching_params
-    - target_epsg: (To be documented).
+### Key Parameters
 
-The following will rarely have to be changed:
+#### General Settings
+- `platform`: Choose between `'local'` or `'umd'` for dependency management.
+- `sim_study_head_dir`: Path to the **simulation head directory**.
+- `regions`: List of included regions. Must match folder names of regions.
+- `years`: List of included years (`int`). Must match year folder names.
+- `timepoints`: List of included timepoints. Must match timepoint folder names.
+- `roi_name`: Descriptive Name of the complete area of the yield study. Freely choosable.
+- `keep_apsim_db_files`: Delete actual APSIM DB files after processing and reporting to free space.(`True`/`False`).
 
-- apsim_execution:
-    - use_docker: True or False depending on whether you want to run `APSIM` in docker or with the local executable.
-    - docker:
-        - image: 'apsiminitiative/apsimng'
-        - platform: Your devices platform e.g 'linux/amd64'
-    - local: 
-        executable_fpath: Path to the APSIM executable on your machine
-        n_jobs: Number of threads to spawn. -1 is default in APSIM.
-- scripts: The paths to the individual scripts used in the snakemake pipeline.
+#### APSIM Parameters (`apsim_params`)
+- `precipitation_source`: Choose between `'NASA_POWER'` or `'CHIRPS'`. If you are using CHIRPS, you will have to manually download the precipitation data before starting the pipeline (apsim/download_chirps_data.py).
+- `precipitation_agg_method`: Aggregation method for precipitation data (`mean` or `centroid`). `'NASA_POWER'` only supporting `centroid` currently.
+- `fallback_on_nasa_power_centroid`: Set `True` to use `NASA_POWER` data if `CHIRPS` is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.
+- `chirps_dir`: Directory containing CHIRPS data.
+- `time_bounds`: Defines timepoint parameters:
+  - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
+  - `nasa_power_start_date`, `nasa_power_end_date`: Start/End date from when to include metereological data into APSIM.
+
+#### LAI Parameters (`lai_params`)
+- `lai_dir`: Directory for LAI data.
+- `lai_region`: Region name with naming convention (`{region}_{date}_LAI.tif`).
+- `crop_name`: Specify crop (`wheat` or `maize`). Is related to the cropname defined in APSIM.
+- `use_crop_adjusted_lai`: Adjust LAI data for the crop specified (`True`/`False`).
+- `lai_analysis_mode`: Set to `'raster'`.
+- `time_bounds`: LAI start and end dates for each year.
+- `crop_mask`: Path to crop mask files for each year.
+
+#### Matching Parameters (`matching_params`)
+- `target_epsg`: EPSG code for coordinate reference system used for area calculation. Should be choosen with care to minimize distortions.
+
+#### APSIM Execution (`apsim_execution`)
+- `use_docker`: Set `True` to run APSIM in Docker.
+- `docker.image`: Docker image (`apsiminitiative/apsimng`).
+- `docker.platform`: Device platform (e.g., `'linux/amd64'`).
+- `local.executable_fpath`: Path to APSIM executable.
+- `local.n_jobs`: Number of threads (`-1` uses APSIM default).
+
+#### Scripts Configuration
+- Paths to scripts used within the Snakemake pipeline.
+
