@@ -72,6 +72,7 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
+        region_name = region_name.lower()
 
         output_dir = output_head_dir / Path(region_name)
         output_dir.mkdir(exist_ok=True)
