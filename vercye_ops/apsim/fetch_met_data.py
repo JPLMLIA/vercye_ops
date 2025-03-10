@@ -174,7 +174,6 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
-
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 

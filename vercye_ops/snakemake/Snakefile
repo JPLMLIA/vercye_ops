@@ -178,6 +178,7 @@ rule execute_simulations:
             input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
+    threads: int(config['apsim_execution']['local']['n_jobs'])
     output:
         db_file = (
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
@@ -195,11 +196,31 @@ rule execute_simulations:
 #######################################
 # S2/LAI portion of Snakemake pipeline
 
+# Reproject orginal cropmask to match LAI resolution
+rule reproject_cropmask:
+    input:
+        original_cropmask = lambda wildcards: config['lai_params']['crop_mask'][int(wildcards.year)],
+    params:
+        executable_fpath = config['scripts']['reproject_cropmask'],
+        lai_dir = config['lai_params']['lai_dir'],
+        lai_region = config['lai_params']['lai_region'],
+    log:
+        'logs_reproject_cropmask/{year}.log'
+    output:
+        reproj_cropmask = op.join(config['sim_study_head_dir'], '{year}', 'reprojected_cropmask.tif')
+    shell:
+        """
+        python {params.executable_fpath} \
+        {input.original_cropmask} \
+        {output.reproj_cropmask} \
+        --lai_dir {params.lai_dir} \
+        --lai_region {params.lai_region} > log
+        """
 
 # Clip the original cropmask
 rule constrain_lai_cropmask:
     input:
-        original_lai_cropmask = lambda wildcards: config['lai_params']['crop_mask'][int(wildcards.year)],  # Will need to update to time period
+        original_lai_cropmask = op.join(config['sim_study_head_dir'], '{year}', 'reprojected_cropmask.tif'),  # Will need to update to time period
         geometry_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
         executable_fpath = config['scripts']['constrain_lai_cropmask'],
