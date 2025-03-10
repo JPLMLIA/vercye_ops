@@ -1,7 +1,8 @@
 import click
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sklearn.metrics import mean_squared_error, r2_score
+
 
 def load_csv(fpath):
     return pd.read_csv(fpath)

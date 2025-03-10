@@ -1,18 +1,17 @@
-import os.path as op
 import os
+import os.path as op
+
 import click
-import pandas as pd
 import geopandas as gpd
-import rasterio
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 import matplotlib.colors as mcolors
+import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import rasterio
+from matplotlib.colors import Normalize
 from PIL import Image
 from xhtml2pdf import pisa
-
-import matplotlib.pyplot as plt
-import matplotlib.patheffects as pe
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -109,10 +108,10 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
                         <td>{row['region']}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
                         <td>{int(row['median_yield_kg_ha'])}</td>
-                        {f'<td>{int(row["reported_mean_yield_kg_ha"])}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
+                        {f'<td>{int(row["reported_mean_yield_kg_ha"])}</td>' if 'reported_mean_yield_kg_ha' in row and not np.isnan(row['reported_mean_yield_kg_ha']) else ''}
                         <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
-                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000))}</td>' if 'reported_yield_kg' in row else ''}
-                        {f'<td>{int(row["mean_err_kg_ha"])}</td>' if 'mean_err_kg_ha' in row  else ''}
+                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000))}</td>' if 'reported_yield_kg' in row and not np.isnan(row['reported_yield_kg']) else ''}
+                        {f'<td>{int(row["mean_err_kg_ha"])}</td>' if 'mean_err_kg_ha' in row  and not np.isnan(row['mean_err_kg_ha']) else ''}
                         <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
                     </tr>
         """
@@ -259,12 +258,21 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
 
     if gt_yield_path:
         gt = pd.read_csv(gt_yield_path)
+
+        cols = ['region']
+        if 'reported_yield_kg' in gt.columns:
+            cols.append('reported_yield_kg')
+        if 'reported_mean_yield_kg_ha' in gt.columns:
+            cols.append('reported_mean_yield_kg_ha')
+
         regions_summary = regions_summary.merge(
-            gt[['reported_yield_kg', 'reported_mean_yield_kg_ha', 'region']],
+            gt[cols],
             how='left',
             on='region'
         )
-        regions_summary['mean_err_kg_ha'] = regions_summary['mean_yield_kg_ha'] - regions_summary['reported_mean_yield_kg_ha']
+        
+        if 'reported_mean_yield_kg_ha' in gt.columns:
+            regions_summary['mean_err_kg_ha'] = regions_summary['mean_yield_kg_ha'] - regions_summary['reported_mean_yield_kg_ha']
 
     global_summary = compute_global_summary(regions_summary)
 

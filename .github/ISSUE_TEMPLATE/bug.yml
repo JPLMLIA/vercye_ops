@@ -15,7 +15,7 @@ body:
       placeholder: "What happened?"
     validations:
       required: true
-  - type: input
+  - type: textarea
     attributes:
       label: Steps to reproduce
       description: How can we reproduce the issue?
