@@ -122,6 +122,7 @@ keep_apsim_db_files: True
 lai_params:
   lai_dir: '/Volumes/red/NASA_Ag/LAI'
   lai_region: 'Poltava'
+  lai_resolution: 20 # meters/pixel
   crop_name: 'wheat'  # "wheat", "maize"
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'

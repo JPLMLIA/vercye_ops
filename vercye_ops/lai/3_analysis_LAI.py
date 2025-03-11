@@ -65,6 +65,7 @@ def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
 @click.argument('output_stats_fpath', type=click.Path(dir_okay=False))
 @click.argument('output_max_tif_fpath', type=click.Path(dir_okay=False))
 @click.argument('region', type=str)
+@click.argument('resolution', type=int)
 @click.argument('geometry_path', type=click.Path(exists=True))
 @click.option('--mode', type=click.Choice(['raster', 'poly_agg', 'poly_iter']), default='raster', 
               help="What kind of geometry to expect and how to apply it. \
@@ -74,16 +75,18 @@ def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
 @click.option('--adjustment', type=click.Choice(["none", "wheat", "maize"]), default="none", help='Adjustment to apply to the LAI estimate')
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
-def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_path, mode, adjustment, start_date, end_date):
+def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date):
     """ LAI Analysis function
 
     LAI_dir: Local path to the directory containing regional primary LAI rasters
 
     region: Name of the primary region from which regions should be cropped
 
+    resolution: Resolution in meters of the LAI. Shoud match with the value used in export.
+
     This pipeline does the following:
     1. For each date in the range start_date to end_date
-    2. Find the primary LAI raster for the given region and date
+    2. Find the primary LAI raster for the given region, resolution and date
     3. Apply the provided mask as specified by the mode
     4. Calculate the appropriate LAI statistics for the CSV
     5. Calculate a maximum LAI raster for the geometry and date range
@@ -155,7 +158,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             d_slash = datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y")
 
             # See if the LAI raster exists
-            LAI_path = op.join(lai_dir, f"{region}_{d}_LAI.tif")
+            LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.tif")
             if not op.exists(LAI_path):
                 print(f"{Path(LAI_path).name} [DOES NOT EXIST]")
                 
@@ -230,13 +233,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 # 0_reproj_mask.py should've ensured that the cropmask is the same size as a complete LAI raster
                 # Sometimes, however, an LAI raster is partial because of coverage.
                 # Pad the LAI raster to match the extent of the cropmask 
-                print('shp')
-                print(masked_src.shape)
-                print(cropmask_array.shape)
                 masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
-                print(masked_src.shape)
-                print(is_padded)
-
 
                 # replace zeros with NaN's
                 cropmask_array_bool = cropmask_array.astype(bool)
