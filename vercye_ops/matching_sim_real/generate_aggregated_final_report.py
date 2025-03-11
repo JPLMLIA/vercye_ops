@@ -294,7 +294,7 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
         )
         
         if 'reported_mean_yield_kg_ha' in gt.columns:
-            regions_summary['mean_err_kg_ha'] = regions_summary['mean_yield_kg_ha'] - regions_summary['reported_mean_yield_kg_ha']
+            regions_summary['mean_err_kg_ha'] = regions_summary['reported_mean_yield_kg_ha'] - regions_summary['mean_yield_kg_ha']
 
     global_summary = compute_global_summary(regions_summary)
 
