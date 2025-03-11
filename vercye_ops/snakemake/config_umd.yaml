@@ -173,3 +173,4 @@ scripts:
   aggregate_met_stats: '../matching_sim_real/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'
   construct_chirps_data: '../apsim/construct_chirps_precipitation_files.py'
+  reproject_cropmask: '../lai/0_reproj_mask.py'
