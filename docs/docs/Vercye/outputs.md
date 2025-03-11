@@ -110,6 +110,6 @@ If reported (ground truth) data was provided, common metrics are written to the 
 - **Mean Error (`mean_err_kg_ha`)**: The mean error computed as the mean over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
 - **Median Error (`median_err_kg_ha`)**: The median error computed as the median over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
 - **Root Mean Square Error (`rmse`)**: The root mean square error of the predicted and reported mean yields of all study regions in kg/ha.
-- **Relative RMSE (`rrmse`)**: rmse / mean(reported_mean_yield)
+- **Relative RMSE (`rrmse`)**: In percent. Computed as `rmse / mean(reported_mean_yield) * 100`
 - **R² Score Scikit (`r2_scikit`)**: The R2 score of the predicted and reported mean yield per region. Computed as the coefficient of determination with [scikit-learn](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html)
 - **R² Score Excel (`r2_rsq_excel`)**: The R2 score of the predicted and reported mean yield per region. Computed as the quare of the Pearson product moment correlation coefficient , as implemented in the excel `RSQ` function [See here](https://support.microsoft.com/en-us/office/rsq-function-d7161715-250d-4a01-b80d-a8364f2be08f).
