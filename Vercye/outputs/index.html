@@ -720,7 +720,7 @@
 <li><strong>Mean Error (<code>mean_err_kg_ha</code>)</strong>: The mean error computed as the mean over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.</li>
 <li><strong>Median Error (<code>median_err_kg_ha</code>)</strong>: The median error computed as the median over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.</li>
 <li><strong>Root Mean Square Error (<code>rmse</code>)</strong>: The root mean square error of the predicted and reported mean yields of all study regions in kg/ha.</li>
-<li><strong>Relative RMSE (<code>rrmse</code>)</strong>: rmse / mean(reported_mean_yield)</li>
+<li><strong>Relative RMSE (<code>rrmse</code>)</strong>: In percent. Computed as <code>rmse / mean(reported_mean_yield) * 100</code></li>
 <li><strong>R² Score Scikit (<code>r2_scikit</code>)</strong>: The R2 score of the predicted and reported mean yield per region. Computed as the coefficient of determination with <a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html">scikit-learn</a></li>
 <li><strong>R² Score Excel (<code>r2_rsq_excel</code>)</strong>: The R2 score of the predicted and reported mean yield per region. Computed as the quare of the Pearson product moment correlation coefficient , as implemented in the excel <code>RSQ</code> function <a href="https://support.microsoft.com/en-us/office/rsq-function-d7161715-250d-4a01-b80d-a8364f2be08f">See here</a>.</li>
 </ul>
