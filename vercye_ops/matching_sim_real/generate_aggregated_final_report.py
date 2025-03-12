@@ -72,7 +72,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
 
             .evaluation-image img {{
-                width: 330px; /* Makes sure the image takes full available width */
+                width: 400px; /* Makes sure the image takes full available width */
                 height: auto; /* Maintains aspect ratio */
                 object-fit: contain; /* Ensures the image doesn't get cropped */
             }}
