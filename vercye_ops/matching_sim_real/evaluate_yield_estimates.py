@@ -1,6 +1,7 @@
 import click
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, r2_score
 import seaborn as sns
 import scipy
@@ -61,9 +62,23 @@ def create_scatter_plot(preds, obs):
     rawr = sns.JointGrid(xlim=(-5, abs_max + 100), ylim=(-5, abs_max + 100), x=preds, y=obs)
     rawr.plot_joint(sns.scatterplot, c=kernel, cmap='viridis')
     rawr.plot_marginals(sns.kdeplot, fill=True)
+
+
     rawr.ax_joint.plot(np.arange(0, abs_max), np.arange(0, abs_max), label='1:1', color='gray')
     rawr.ax_joint.plot(preds, y_line, color='magenta', label=f"y = {theta[0]:.2f} x + {theta[1]:.2f}")
+    rawr.ax_joint.legend()
     rawr.set_axis_labels("Predicted (kg/ha)", "Observed (kg/ha)")
+
+    # Add colormap for scatter plot (placing it outside the plot)
+    norm = plt.Normalize(kernel.min(), kernel.max())
+    sm = plt.cm.ScalarMappable(cmap='viridis', norm=norm)
+
+    fig = rawr.figure
+    cbar_ax = fig.add_axes([1, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
+    cbar = fig.colorbar(sm, cax=cbar_ax)
+    cbar.set_label("Point Density")
+    cbar.ax.yaxis.get_offset_text().set_visible(False)
+
     return rawr
 
 def save_scatter_plot(scatter_plot, out_fpath):
@@ -95,7 +110,7 @@ def get_preds_obs(estimation_fpath, val_fpath):
 
 
 @click.command()
-@click.option('--val_fpath', required=True, type=click.Path(exists=True), help='Filepath to the csv containing the validation data per region.')
+@click.option('--val_fpath', required=True, type=click.Path(exists=True), help='Filepath to the csv containing the refernece data per region.')
 @click.option('--estimation_fpath', required=True, type=click.Path(exists=True), help='Filepath to the estimations per region csv.')
 @click.option('--out_fpath', required=True, type=click.Path(), help='Filepath where the resulting metrics csv should be saved.')
 @click.option('--verbose', is_flag=True, help='Set the logging level to DEBUG.')
