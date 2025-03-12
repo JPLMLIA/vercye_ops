@@ -254,13 +254,13 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir,
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="File path for the .met output file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(weather_data_fpath, lon, lat, sim_end_date, precipitation_src, output_dir, verbose):
+def cli(weather_data_fpath, lon, lat, sim_end_date, precipitation_source, output_dir, verbose):
     """Wrapper to processess weather data"""
     
     if verbose:
        logger.setLevel('INFO')
 
-    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, precipitation_src)
+    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, precipitation_source)
     
     
 if __name__ == '__main__':
