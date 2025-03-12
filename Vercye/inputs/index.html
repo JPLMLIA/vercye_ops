@@ -850,7 +850,8 @@ Ensure your shapefiles contains only geometries at the same administrative level
 <h4 id="lai-parameters-lai_params">LAI Parameters (<code>lai_params</code>)</h4>
 <ul>
 <li><code>lai_dir</code>: Directory for LAI data.</li>
-<li><code>lai_region</code>: Region name with naming convention (<code>{region}_{date}_LAI.tif</code>).</li>
+<li><code>lai_region</code>: Region name with naming convention (<code>{region}_{date}_{resolution}m_LAI.tif</code>).</li>
+<li><code>lai_resolution</code>: Spatial resolutin, used for matching as above. In meters/pixel.</li>
 <li><code>crop_name</code>: Specify crop (<code>wheat</code> or <code>maize</code>). Is related to the cropname defined in APSIM.</li>
 <li><code>use_crop_adjusted_lai</code>: Adjust LAI data for the crop specified (<code>True</code>/<code>False</code>).</li>
 <li><code>lai_analysis_mode</code>: Set to <code>'raster'</code>.</li>
