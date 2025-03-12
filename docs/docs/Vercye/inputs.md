@@ -129,7 +129,8 @@ This file defines the study parameters and links the **simulation head directory
 
 #### LAI Parameters (`lai_params`)
 - `lai_dir`: Directory for LAI data.
-- `lai_region`: Region name with naming convention (`{region}_{date}_LAI.tif`).
+- `lai_region`: Region name with naming convention (`{region}_{date}_{resolution}m_LAI.tif`).
+- `lai_resolution`: Spatial resolutin, used for matching as above. In meters/pixel.
 - `crop_name`: Specify crop (`wheat` or `maize`). Is related to the cropname defined in APSIM.
 - `use_crop_adjusted_lai`: Adjust LAI data for the crop specified (`True`/`False`).
 - `lai_analysis_mode`: Set to `'raster'`.

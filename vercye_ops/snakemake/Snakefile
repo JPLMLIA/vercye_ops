@@ -178,6 +178,7 @@ rule lai_analysis:
         executable_fpath = config['scripts']['lai_analysis'],
         lai_dir = config['lai_params']['lai_dir'],
         lai_region = config['lai_params']['lai_region'],
+        lai_resolution = config['lai_params']['lai_resolution'],
         mode = config['lai_params']['lai_analysis_mode'],
         adjustment = config['lai_params']['crop_name'] if config['lai_params']['use_crop_adjusted_lai'] else "none",
         start_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][0],
@@ -196,6 +197,7 @@ rule lai_analysis:
         {output.stats_csv} \
         {output.max_lai_tif} \
         {params.lai_region} \
+        {params.lai_resolution} \
         {input.constrained_cropmask} \
         --mode {params.mode} \
         --adjustment {params.adjustment} \
