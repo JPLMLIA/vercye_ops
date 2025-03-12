@@ -215,7 +215,7 @@ rule reproject_cropmask:
         {input.original_cropmask} \
         {output.reproj_cropmask} \
         --lai_dir {params.lai_dir} \
-        --lai_region {params.lai_region} > log
+        --lai_region {params.lai_region} > {log}
         """
 
 # Clip the original cropmask
