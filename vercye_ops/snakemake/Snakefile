@@ -463,13 +463,15 @@ rule evaluate_yield_estimates:
     log:
         'logs_evaluate_yield_estimates/{year}_{timepoint}.log'
     output:
-        evaluation_out_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.csv')
+        evaluation_out_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.csv'),
+        scatterplot_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.png')
     shell:
         """
         python {params.executable_fpath} \
         --val_fpath {input.validation_fpath} \
         --estimation_fpath {input.aggregated_yield_estimates} \
-        --out_fpath {output.evaluation_out_path} > {log}
+        --out_fpath {output.evaluation_out_path} \
+        --verbose > {log}
         """
 
 rule generate_final_report:
