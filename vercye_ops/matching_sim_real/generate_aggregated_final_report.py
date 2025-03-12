@@ -46,7 +46,14 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
             h1 {{
                 text-align: center;
-                margin-bottom: 30px;
+                margin-bottom: 5px;
+            }}
+            h4{{
+                margin-bottom: 0;
+            }}
+            p {{
+                margin: 0;
+                padding: 0;
             }}
             .content-container {{
                 max-width: 900px;
@@ -93,7 +100,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             <div class="evaluation-container">
                 <div class="evaluation-text">
                     <h4>Evaluation Metrics</h4>
-                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below)<br>
+                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below)<br><br>
                     <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
                     <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
                     <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha</br>

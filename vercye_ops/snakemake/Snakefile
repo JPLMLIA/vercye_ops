@@ -19,7 +19,7 @@ rule all:
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
-        met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        # met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
 
 
 #######################################
