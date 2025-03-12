@@ -18,7 +18,9 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def fill_report_template(yield_map_path, regions_summary, global_summary, start_date, end_date, aggregated_yield_map_preview_path, evaluation_results, roi_name, crop_name):
+def fill_report_template(yield_map_path, regions_summary, global_summary,
+                         start_date, end_date, aggregated_yield_map_preview_path,
+                         evaluation_results, roi_name, crop_name, scatter_plot_path=None):
     crop_name = crop_name.lower().capitalize()
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     bootstrap_css_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.css')
@@ -60,13 +62,19 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
             th {{
                 background-color: #f2f2f2;
             }}
-            img {{
+            .margin-img {{
                 display: block;
                 margin: 20px auto;
                 max-width: 100%;
                 height: auto;
                 border: 1px solid #ddd;
                 border-radius: 8px;
+            }}
+
+            .evaluation-image img {{
+                width: 400px; /* Makes sure the image takes full available width */
+                height: auto; /* Maintains aspect ratio */
+                object-fit: contain; /* Ensures the image doesn't get cropped */
             }}
         </style>
     </head>
@@ -79,12 +87,39 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
             <strong>Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
             <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
 
-            <img src="{aggregated_yield_map_preview_path}" alt="Estimated Yield per Pixel Map"> 
+
+            {f'''
+            <hr>
+            <div class="evaluation-container">
+                <div class="evaluation-text">
+                    <h4>Evaluation Metrics</h4>
+                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below)<br>
+                    <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
+                    <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
+                    <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha</br>
+                    <strong>Median Absolute Error:</strong> {int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha</br>
+                    <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
+                    <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
+                    <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
+                    <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</br>
+                    <strong>R2 (Best Fit):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}</p>
+                </div>
+            ''' if evaluation_results is not None else ''}
+
+            {f'''
+                <div class="evaluation-image">
+                    <img src="{scatter_plot_path}" alt="Scatter Plot">
+                </div>
+            ''' if scatter_plot_path else ''}
+
+            {'</div>' if evaluation_results is not None else ''}
+
+            <img src="{aggregated_yield_map_preview_path}" class="margin-img" alt="Estimated Yield per Pixel Map"> 
             
             <hr>
             <h4 style='-pdf-keep-with-next: true; '>Yield Per Region</h4>
 
-            <img src="{yield_map_path}" alt="Estimated Yield per Region Map">
+            <img src="{yield_map_path}" class="margin-img" alt="Estimated Yield per Region Map">
 
             <table class="table table-striped table-bordered">
                 <thead>
@@ -119,19 +154,6 @@ def fill_report_template(yield_map_path, regions_summary, global_summary, start_
     html_content += f"""
                     </tbody>
                 </table>
-
-                <hr>
-                {f'''
-                <h4  style='-pdf-keep-with-next: true; '>Evaluation Metrics</h4>
-                <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table above)<br>
-                <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
-                <strong>R2 (Scikit - Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
-                <strong>R2 (Excel - Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</p>
-                ''' if evaluation_results is not None else ''}
-
             </div>
 
             <script src=\"{bootstrap_js_path}\"></script>
@@ -272,7 +294,7 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
         )
         
         if 'reported_mean_yield_kg_ha' in gt.columns:
-            regions_summary['mean_err_kg_ha'] = regions_summary['mean_yield_kg_ha'] - regions_summary['reported_mean_yield_kg_ha']
+            regions_summary['mean_err_kg_ha'] = regions_summary['reported_mean_yield_kg_ha'] - regions_summary['mean_yield_kg_ha']
 
     global_summary = compute_global_summary(regions_summary)
 
@@ -293,6 +315,7 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
 
     if evaluation_results_path:
         evaluation_results = pd.read_csv(evaluation_results_path)
+        scatter_plot_path = evaluation_results_path.replace('.csv', '.png')
     else:
         evaluation_results = None
 
@@ -304,7 +327,8 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
                                 aggregated_yield_map_preview_path,
                                 evaluation_results,
                                 roi_name,
-                                crop_name)
+                                crop_name,
+                                scatter_plot_path=scatter_plot_path)
 
 
 def save_report(report, out_fpath):
