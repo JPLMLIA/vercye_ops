@@ -105,7 +105,7 @@ def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapo
             metadata['precipitation_source'] = 'NASA Power fallback.'
             metadata['precipitation_agg'] = 'centroid'
         else:
-            # Add unused NASA Power precipitation data for comparison
+            # Add unused NASA Power precipitation data for comparisons
             df['rain_nasapower_unused'] = df_nasapower['PRECTOTCORR']
             metadata['precipitation_source'] = 'CHIRPS'
             

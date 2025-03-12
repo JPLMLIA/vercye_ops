@@ -192,7 +192,7 @@ def get_tav_amp(df):
     return tav, amp
 
 
-def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir):
+def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, precipitation_src):
     """
     Processes weather data for APSIM simulations, integrating measured and forecasted data, and writing to a .met file.
     """
@@ -209,7 +209,7 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir)
     ###################################
     # Load, prep, project data and calc tav/amp
 
-    df = load_prep_project_data(weather_data_fpath, sim_end_date)
+    df = load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src)
     tav, amp = get_tav_amp(df)
 
     logger.info('Loaded data from %s', weather_data_fpath)
@@ -251,15 +251,16 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir)
 @click.option('--lon', type=float, required=True, help="Longitude of the location.")
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
 @click.option('--sim_end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of the simulation period.")
+@click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="File path for the .met output file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(weather_data_fpath, lon, lat, sim_end_date, output_dir, verbose):
+def cli(weather_data_fpath, lon, lat, sim_end_date, precipitation_src, output_dir, verbose):
     """Wrapper to processess weather data"""
     
     if verbose:
        logger.setLevel('INFO')
 
-    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir)
+    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, precipitation_src)
     
     
 if __name__ == '__main__':
