@@ -169,7 +169,7 @@ def create_plots(df, metadata):
             fig.add_trace(go.Scatter(x=df['date'], y=df['rain_nasapower_unused'], mode='lines', name=f'Unused NASA_Power Precipitation ({data_type})',
                                      line=dict(color='darkgreen', dash=line_dash, width=1.5)), row=3, col=1)
 
-            fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Chirps Precipitation (Corrected) ({data_type})',
+            fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Chirps Precipitation ({data_type})',
                                     line=dict(color='dodgerblue', dash=line_dash, width=1.5)), row=3, col=1)
         else:
             fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Precipitation (Corrected) ({data_type})',
