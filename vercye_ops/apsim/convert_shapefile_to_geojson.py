@@ -47,7 +47,8 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
     if gdf.empty:
         raise ValueError("The shapefile does not contain any polygons.")
     if gdf.crs.to_epsg() != 4326:
-        raise ValueError("The shapefile coordinate system is not WGS 84.")
+        logger.warning("Shapefile not in WGS84. Reprojecting.")
+        gdf = gdf.to_crs(epsg=4326)
     
     # Add a new column for the centroid of each polygon
     gdf_proj = gdf.to_crs(epsg=projection_epsg)  # Calculate this in flattened projection instead of geodesic space
@@ -72,6 +73,7 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
+        region_name = region_name.lower()
 
         output_dir = output_head_dir / Path(region_name)
         output_dir.mkdir(exist_ok=True)
