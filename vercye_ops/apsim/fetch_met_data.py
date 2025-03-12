@@ -64,8 +64,10 @@ def error_checking_function(df):
         logger.error(f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}")
 
     # Check PRECTOTCORR
-    if ((df['PRECTOTCORR'] < PRECTOTCORR_MIN_LIMIT) | (df['PRECTOTCORR'] > PRECTOTCORR_MAX_LIMIT)).any():
-        logger.error(f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}")
+    cols_to_check = ['PRECTOTCORR', 'PRECTOTCORR_CHIRPS'] if 'PRECTOTCORR_CHIRPS' in df.columns else ['PRECTOTCORR']
+    for col in cols_to_check:
+        if ((df[col] < PRECTOTCORR_MIN_LIMIT) | (df[col] > PRECTOTCORR_MAX_LIMIT)).any():
+            logger.error(f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}")
 
     # Check ALLSKY_SFC_SW_DWN
     if ((df['ALLSKY_SFC_SW_DWN'] < ALLSKY_SFC_SW_DWN_MIN_LIMIT) | (df['ALLSKY_SFC_SW_DWN'] > ALLSKY_SFC_SW_DWN_MAX_LIMIT)).any():
@@ -187,15 +189,13 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
             if len(chirps_data) != len(df):
                 raise ValueError("NasaPower and Chirps data do not have the same length.")
             
-            df['NASA_POWER_PRECTOTCORR_UNUSED'] = df['PRECTOTCORR']
-            df['PRECTOTCORR'] = chirps_data[chirps_column_name]
+            df['PRECTOTCORR_CHIRPS'] = chirps_data[chirps_column_name]
         except KeyError as e:
+            logger.error(e)
             if fallback_nasapower:
-                logger.error(e)
                 logger.error("Falling back to NASA POWER centroid data.")
                 # No action needed as PRECTOTCORR is already initalized with nasapower data.
             else:
-                logger.error(e)
                 logger.error("You can set the --fallback_nasapower flag to use NASA POWER data as a fallback (Use with caution).")
                 raise e
     

@@ -75,7 +75,7 @@ def parse_weather_filename(filename):
     return lat, lon, start, end
 
 
-def load_prep_project_data(weather_data_fpath, sim_end_date):
+def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src='NASA_POWER'):
     """
     Load CSV data and prepare it by adding day of year and measurement type. Add
     weather projections if necessary
@@ -94,6 +94,14 @@ def load_prep_project_data(weather_data_fpath, sim_end_date):
     """
     # Load CSV parsing dates in the first column and using that as the index
     df = pd.read_csv(weather_data_fpath, parse_dates=[0], index_col=0)
+
+    # Using CHIRPS data if specified, by simply replacing the PRECTOTCORR column
+    if precipitation_src.lower() == 'chirps':
+        if 'PRECTOTCORR_CHIRPS' not in df.columns:
+            raise KeyError('CHIRPS precipitation data not found in the input file.')
+
+        logger.info('Using CHIRPS data for precipitation.')
+        df['PRECTOTCORR'] = df['PRECTOTCORR_CHIRPS']
 
     # Add year and day of year columns to prep for .met export
     df.insert(0, 'YEAR', df.index.year)
@@ -198,13 +206,13 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir)
     region = Path(output_dir).name
     output_fpath = Path(op.join(output_dir, f'{region}_weather.met'))
 
-    logger.info('Loaded data from %s', weather_data_fpath)
-
     ###################################
     # Load, prep, project data and calc tav/amp
 
     df = load_prep_project_data(weather_data_fpath, sim_end_date)
     tav, amp = get_tav_amp(df)
+
+    logger.info('Loaded data from %s', weather_data_fpath)
 
     ###################################
     # Write out to .met file

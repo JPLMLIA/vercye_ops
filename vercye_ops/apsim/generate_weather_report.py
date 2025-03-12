@@ -90,20 +90,25 @@ def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapo
     df = df.astype(MET_FILE_DTYPES)
     df['date'] = pd.to_datetime(df['year'].astype(str) + df['day'].astype(str), format='%Y%j')
 
-    # Add unused NASA Power precipitation data for comparison if available
+    # Set precipitation Metadata
     metadata['precipitation_source'] = precipitation_source
     metadata['precipitation_agg'] = precipitation_agg
 
+    # If precipitation source is CHIRPS, add NASA Power data for comparison
     if precipitation_source.lower() == 'chirps':
         df_nasapower = pd.read_csv(nasapower_fpath)
-        if not 'NASA_POWER_PRECTOTCORR_UNUSED' in df_nasapower.columns:
+
+        # Check if the NASA Power CSV file contains any CHIRPS data, if not NASAPower fallback was used
+        if not 'PRECTOTCORR_CHIRPS' in df_nasapower.columns:
             if not nasapower_fallback:
                 raise ValueError('NASA Power CSV file does not contain the required column "NASA_POWER_PRECTOTCORR_UNUSED".')
             metadata['precipitation_source'] = 'NASA Power fallback.'
             metadata['precipitation_agg'] = 'centroid'
         else:
-            df['rain_nasapower_unused'] = df_nasapower['NASA_POWER_PRECTOTCORR_UNUSED']
+            # Add unused NASA Power precipitation data for comparison
+            df['rain_nasapower_unused'] = df_nasapower['PRECTOTCORR']
             metadata['precipitation_source'] = 'CHIRPS'
+            
     
     # Extract date information
     metadata['met_start_date'] = df.iloc[0]['date']
