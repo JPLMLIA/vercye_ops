@@ -2,16 +2,25 @@
 """This snakefile generates and executes .apsimx simulations given geojson regions and some simulation parameters"""
 
 import os.path as op
+from pathlib import Path
+
+from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func
 
 rule all:
+    params:
+        roi_name = config['roi_name']
     input:
         #sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         sim_match_report_html_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
-        usim_match_report_png_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),  year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        sim_match_report_png_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),  year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         #converted_lai_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         #sim_match_report_logs = expand('logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log', year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         #total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
-        aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv'), year=config['years'], timepoint=config['timepoints']),
+        aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+
 
 #######################################
 # APSIM Section of Snakemake pipeline
@@ -107,55 +116,36 @@ rule update_apsimx_template:
         --verbose > {log}
         """
 
-
-# Rule to run the APSIM executable (via local executable) on .apsimx files
+# Rule to run the APSIM executable either with docker or local executable on .apsimx files
 rule execute_simulations:
     input:
         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
     params:
         head_dir = config['sim_study_head_dir'],
-        executable_fpath = config['apsim_execution']['local']['executable_fpath'],
-        n_jobs = config['apsim_execution']['local']['n_jobs']
+        use_docker =  config['apsim_execution']['use_docker'],
+        execution_command = lambda wildcards, input: build_apsim_execution_command(
+            config['sim_study_head_dir'],
+            config['apsim_execution']['use_docker'],
+            config['apsim_execution']['docker']['image'],
+            config['apsim_execution']['docker']['platform'],
+            config['apsim_execution']['local']['executable_fpath'],
+            config['apsim_execution']['local']['n_jobs'],
+            input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     output:
-        db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
-    retries: 2
+        db_file = (
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
+            if config['keep_apsim_db_files']
+            else temp(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'))
+        )
+    retries: 2 if not config['apsim_execution']['use_docker'] else 5  # Docker image has habit of failing sometimes
     benchmark:
         "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
         """
-        {params.executable_fpath} \
-        {input} \
-        --cpu-count {params.n_jobs} \
-        --verbose > {log}
+        {params.execution_command} --verbose > {log}
         """
-
-'''
-# Rule to run the APSIM executable (via docker) on .apsimx files
-rule execute_simulations:
-    input:
-        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx'),
-    params:
-        head_dir = config['sim_study_head_dir'],
-        docker_image = config['apsim_execution']['docker']['image'],
-        docker_platform = config['apsim_execution']['docker']['platform'],
-    log:
-        'logs_execute_simulation/{year}_{timepoint}_{region}.log',
-    output:
-        db_file = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
-    retries: 5  # Docker image has habit of failing sometimes 
-    benchmark:
-        "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
-    shell:
-        """
-        docker run -i --rm --platform={params.docker_platform} \
-        -v "{params.head_dir}:{params.head_dir}" \
-        {params.docker_image} \
-        {input} \
-        --verbose > {log}
-        """
-'''
 
 #######################################
 # S2/LAI portion of Snakemake pipeline
@@ -188,8 +178,9 @@ rule lai_analysis:
         executable_fpath = config['scripts']['lai_analysis'],
         lai_dir = config['lai_params']['lai_dir'],
         lai_region = config['lai_params']['lai_region'],
+        lai_resolution = config['lai_params']['lai_resolution'],
         mode = config['lai_params']['lai_analysis_mode'],
-        adjustment = config['lai_params']['adjustment'],
+        adjustment = config['lai_params']['crop_name'] if config['lai_params']['use_crop_adjusted_lai'] else "none",
         start_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][0],
         end_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][1],
     benchmark:
@@ -206,6 +197,7 @@ rule lai_analysis:
         {output.stats_csv} \
         {output.max_lai_tif} \
         {params.lai_region} \
+        {params.lai_resolution} \
         {input.constrained_cropmask} \
         --mode {params.mode} \
         --adjustment {params.adjustment} \
@@ -239,7 +231,8 @@ rule match_sim_real:
         db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
     params:
         executable_fpath = config['scripts']['match_sim_real'],
-        adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",
+        adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",
+        crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     output:
@@ -252,6 +245,7 @@ rule match_sim_real:
         --db_path {input.db_fpath} \
         --sim_matches_output_fpath {output.sim_matches_output_fpath} \
         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
+        --crop_name {params.crop_name} \
         {params.adjustment} \
         --verbose > {log}
         """
@@ -262,7 +256,7 @@ rule generate_converted_lai_map:
         conversion_factor_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
     params:
         executable_fpath = config['scripts']['generate_converted_lai_map'],
-        adjustment = "--use_adjusted" if config['lai_params']['adjustment'] != "none" else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
+        adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
     log:
         'logs_generate_converted_lai_map/{year}_{timepoint}_{region}.log',
     output:
@@ -303,9 +297,9 @@ rule match_sim_real_quicklook:
         rs_stats_csv_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
         apsim_db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
         total_yield_csv_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'),
- 
     params:
         executable_fpath = config['scripts']['match_sim_real_quicklook'],
+        crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
     output:
@@ -317,6 +311,7 @@ rule match_sim_real_quicklook:
         --apsim_filtered_fpath {input.sim_matches_output_fpath} \
         --rs_lai_csv_fpath {input.rs_stats_csv_fpath} \
         --apsim_db_fpath {input.apsim_db_fpath} \
+        --crop_name {params.crop_name} \
         --total_yield_csv_fpath {input.total_yield_csv_fpath} \
         --html_fpath {output.html_fpath} \
         --png_fpath {output.png_fpath} > {log}
@@ -324,18 +319,130 @@ rule match_sim_real_quicklook:
 
 rule aggregate_yield_estimates:
     input:
-        total_yield_csvs = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=config['regions'])
+        total_yield_csvs = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=config['regions']),
+        conversion_factor_fpath =  expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=config['regions'])
     params:
         executable_fpath = config['scripts']['aggregate_yield_estimates'],
         yield_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')
     log:
         'logs_aggregate_yield_estimates/{year}_{timepoint}.log'
     output:
-        aggregated_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates.csv')
+        aggregated_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
     shell:
         """
         python {params.executable_fpath} \
         --yield_dir {params.yield_dir} \
         --output_csv {output.aggregated_csv} \
+        --verbose > {log}
+        """
+
+rule aggregate_met_stats:
+    input:
+        met_files = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_weather.met'), region=config['regions']),
+        reference_tif_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+    params:
+        executable_fpath = config['scripts']['aggregate_met_stats'],
+        year = lambda wildcards: wildcards.year,
+        roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}')
+    log:
+        'logs_aggregate_met_stats/{year}_{timepoint}.log'
+    output:
+        aggregated_met_stats_pdf = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        aggregated_met_stats_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --regions_base_dir {params.roi_base_dir} \
+        --year {params.year} \
+        --output_pdf_path {output.aggregated_met_stats_pdf} \
+        --reference_tif_path {input.reference_tif_path} \
+        --output_tif_path {output.aggregated_met_stats_tif} \
+        --verbose > {log}
+        """
+
+rule aggregate_maps:
+    input:
+        cropmasks = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_cropmask_constrained.tif'), region=config['regions']),
+        lai_maps = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_LAI_MAX.tif'), region=config['regions']),
+        yield_maps = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_yield_map.tif'), region=config['regions']),
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+    params:
+        executable_fpath = config['scripts']['aggregate_maps'],
+        roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        validation_cmd = f"--val_fpath {op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'groundtruth.csv')}" if op.exists(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'groundtruth.csv')) else ''
+    log:
+        'logs_aggregate_maps/{year}_{timepoint}.log'
+    output:
+        aggregated_yield_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        aggregated_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_LAI_MAX_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        aggregated_cropmask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_cropmask_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        aggregated_shapefile = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_region_boundaries_{}_{}_{}_{}.geojson'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --roi_base_dir {params.roi_base_dir} \
+        {params.validation_cmd} \
+        --yield_estimates_fpath {input.aggregated_yield_estimates} \
+        --output_lai_tif_fpath {output.aggregated_lai_map} \
+        --output_yield_tif_fpath {output.aggregated_yield_map} \
+        --output_cropmask_tif_fpath {output.aggregated_cropmask} \
+        --output_shapefile_fpath {output.aggregated_shapefile} > {log}
+        """
+
+rule evaluate_yield_estimates:
+    input:
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        validation_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'groundtruth.csv')
+    params:
+        executable_fpath = config['scripts']['evaluate_yield_estimates'],
+    log:
+        'logs_evaluate_yield_estimates/{year}_{timepoint}.log'
+    output:
+        evaluation_out_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.csv'),
+        scatterplot_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation.png')
+    shell:
+        """
+        python {params.executable_fpath} \
+        --val_fpath {input.validation_fpath} \
+        --estimation_fpath {input.aggregated_yield_estimates} \
+        --out_fpath {output.evaluation_out_path} \
+        --verbose > {log}
+        """
+
+rule generate_final_report:
+    input:
+        region_geojsons = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
+        aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        aggregated_yield_map =  op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')),
+        evaluation_results = get_evaluation_results_path_func(config)
+    params:
+        executable_fpath = config['scripts']['generate_final_report'],
+        regions_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
+        end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+        evaluation_results_cmd = lambda _, input: f'--evaluation_results_path {input.evaluation_results}' if input.evaluation_results else '',
+        validation_cmd = lambda wildcards, input: f"--val_fpath {op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'groundtruth.csv')}" if input.evaluation_results else '',
+        roi_name = config['roi_name'],
+        crop_name = config['lai_params']['crop_name']
+    log:
+        'logs_generate_final_report/{year}_{timepoint}.log'
+    output:
+        report_fpath = op.join(config['sim_study_head_dir'], 
+                               '{year}',
+                               '{timepoint}', 
+                               'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), 
+    shell:
+        """
+        python {params.executable_fpath} \
+        --regions_dir {params.regions_dir} \
+        --out_fpath {output.report_fpath} \
+        --start_date {params.start_date} \
+        --end_date {params.end_date} \
+        --aggregated_yield_map_path {input.aggregated_yield_map} \
+        --aggregated_yield_estimates_path {input.aggregated_yield_estimates} \
+        {params.evaluation_results_cmd} \
+        {params.validation_cmd} \
+        --roi_name {params.roi_name} \
+        --crop_name {params.crop_name} \
         --verbose > {log}
         """

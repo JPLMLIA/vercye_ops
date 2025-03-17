@@ -1,5 +1,6 @@
-import pandas as pd
 import sqlite3
+
+import pandas as pd
 from pyproj import Transformer
 
 from vercye_ops.utils.init_logger import get_logger
@@ -8,13 +9,16 @@ logger = get_logger()
 
 
 # Function to load simulation data from the SQLite database
-def load_simulation_data(db_path):
+def load_simulation_data(db_path, crop_name):
     """Helper to load APSIM Databases"""
+
+    crop_name = crop_name.lower()
+    crop_name = crop_name.capitalize()
 
     # Set up a connection, and extract the SQLite DB to a pandas DF
     conn = sqlite3.connect(db_path)
-    query = """
-    SELECT SimulationID, `Clock.Today`, `Clock.Today.DayOfYear`, `Wheat.Leaf.LAI`, `Yield`
+    query = f"""
+    SELECT SimulationID, `Clock.Today`, `Clock.Today.DayOfYear`, `{crop_name}.Leaf.LAI`, `Yield`
     FROM Report
     """
     df = pd.read_sql_query(query, conn, parse_dates='Clock.Today')

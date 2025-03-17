@@ -50,7 +50,8 @@ def addGeometry(image):
 @click.option('--shpfile', type=click.Path(exists=True), help='Local Path to the shapefile to override region')
 @click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end-date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
-def main(project, library=None, region=None, shpfile=None, start_date="2021-09-01", end_date="2021-10-01"):
+@click.option('--resolution', type=int, default=20, help='Spatial resolution in meters per pixel.')
+def main(project, library=None, region=None, shpfile=None, start_date="2021-09-01", end_date="2021-10-01", resolution=20):
 
     # Initialize Earth Engine
     ee.Initialize(project=project)
@@ -109,6 +110,11 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
                         .map(lambda image: image.updateMask(image.select('MSK_SNWPRB').lt(SNOW_THRESHOLD)))
         )
 
+        if S2_filtered.size().getInfo() == 0:
+            print(f"No images found for {current_datestr}. Skipping...")
+            current_date = next_date
+            continue
+
         # Add geometry bands
         S2_filtered = S2_filtered.map(addGeometry)
 
@@ -124,9 +130,9 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         print(f"Exporting {current_datestr} to Google Drive...")
 
         task = ee.batch.Export.image.toDrive(image=S2_mosaic,
-                    description=f"{geometry_name}_{current_datestr}",
-                    folder=geometry_name,
-                    scale=20,
+                    description=f"{geometry_name}_{str(resolution)}m_{current_datestr}",
+                    folder=f"{geometry_name}_{str(resolution)}m",
+                    scale=resolution,
                     fileFormat='GeoTIFF',
                     maxPixels=1e13,
                     region=geometry,

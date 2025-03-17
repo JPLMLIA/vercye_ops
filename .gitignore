@@ -170,6 +170,8 @@ cython_debug/
 .snakemake
 vercye_ops/snakemake/logs*
 vercye_ops/snakemake/benchmarks*
+vercye_ops/snakemake/custom_configs/*
+!vercye_ops/snakemake/custom_configs/.gitkeep
 
 # Packaged release
 *.tar.gz

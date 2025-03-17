@@ -63,6 +63,9 @@ To run a new simulation, update the parameters in the `.yaml` file in the `vercy
 
 Other config parameters should rarely (if ever) need updates.
 
+## Validation
+Please refer to [Vercye/Inputs](https://jplmlia.github.io/vercye_ops/Vercye/inputs/#snakemake-configuration-file-parameters) in the documentation for more information on how to include validation in the pipeline.
+
 ## Full Snakemake Pipeline
 1. Run `snakemake -c 4` to execute the pipeline with 4 cores. Some other useful command line flags are `--configfile <filename>` to use an alternative config or `-F` to force rerunning the pipeline.
 

@@ -1,0 +1,18 @@
+site_name: VeRCYE Documentation
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tracking
+    - toc.integrate
+
+nav:
+  - 'Home': 'index.md'
+  - 'Vercye':
+    - 'Introduction': 'Vercye/intro.md'
+    - 'Quickstart': 'Vercye/quickstart.md'
+    - 'Inputs': 'Vercye/inputs.md'
+    - 'Outputs': 'Vercye/outputs.md'
+    - 'Architecture': 'Vercye/architecture.md'
+  - 'LAI':
+    - 'Introduction': 'LAI/intro.md'

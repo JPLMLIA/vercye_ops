@@ -8,6 +8,9 @@ platform: 'umd'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
 
+# Name that best describes the primary region of the simulation
+roi_name: 'Poltava'  
+
 # Specify one or more simulations
 regions:
   - 'Chornukhynskyi'
@@ -102,6 +105,7 @@ apsim_params:
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
+  use_docker: False
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
@@ -109,12 +113,18 @@ apsim_execution:
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
     n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
+# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
+# after the pipeline finishes, set this to False.
+keep_apsim_db_files: True
+
 ########################################
 # LAI parameters
 lai_params:
   lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI'
   lai_region: 'Poltava'
-  adjustment: 'wheat'  # "none", "wheat", "maize"
+  lai_resolution: 20 # meters/pixel
+  crop_name: 'wheat'  # "wheat", "maize"
+  use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'
   time_bounds: 
     2021: 
@@ -155,3 +165,7 @@ scripts:
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
+  aggregate_maps : '../matching_sim_real/aggregate_maps.py'
+  generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'
+  aggregate_met_stats: '../matching_sim_real/aggregate_meteorological_stats.py'
+  evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'

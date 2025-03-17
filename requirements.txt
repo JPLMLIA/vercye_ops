@@ -4,15 +4,20 @@ earthengine-api
 ee
 gdal
 geopandas
+joblib
 kaleido  # For static image plots in plotly
+matplotlib
 numpy
 pandas
+pillow
 plotly
 pulp==2.7.0  # Pinned for snakemake
 pytest
 rasterio
 requests
 scipy>=1.14  # For Akima interpolator
+scikit-learn
 snakemake  # If using mamba/conda, install from the bioconda channel
 torch
 tqdm
+xhtml2pdf

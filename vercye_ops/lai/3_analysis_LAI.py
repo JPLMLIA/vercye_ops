@@ -18,13 +18,13 @@ def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
 
     if not rio.coords.disjoint_bounds(src.bounds, geometry.total_bounds):
-        left_pad = int(np.ceil((src.bounds.left - geometry.total_bounds[0]) / src.res[0]))
+        left_pad = int(np.round((src.bounds.left - geometry.total_bounds[0]) / src.res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.ceil((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1]))
+        bottom_pad = int(np.round((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.ceil((geometry.total_bounds[2] - src.bounds.right) / src.res[0]))
+        right_pad = int(np.round((geometry.total_bounds[2] - src.bounds.right) / src.res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(np.ceil((geometry.total_bounds[3] - src.bounds.top) / src.res[1]))
+        top_pad = int(np.round((geometry.total_bounds[3] - src.bounds.top) / src.res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
@@ -41,13 +41,13 @@ def pad_to_polygon(src, geometry, masked_src):
 def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
     
     if not rio.coords.disjoint_bounds(src.bounds, cropmask_bounds):
-        left_pad = int(np.ceil((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
+        left_pad = int(np.round((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.ceil((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
+        bottom_pad = int(np.round((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.ceil((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
+        right_pad = int(np.round((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(np.ceil((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
+        top_pad = int(np.round((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
@@ -65,6 +65,7 @@ def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
 @click.argument('output_stats_fpath', type=click.Path(dir_okay=False))
 @click.argument('output_max_tif_fpath', type=click.Path(dir_okay=False))
 @click.argument('region', type=str)
+@click.argument('resolution', type=int)
 @click.argument('geometry_path', type=click.Path(exists=True))
 @click.option('--mode', type=click.Choice(['raster', 'poly_agg', 'poly_iter']), default='raster', 
               help="What kind of geometry to expect and how to apply it. \
@@ -74,16 +75,18 @@ def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
 @click.option('--adjustment', type=click.Choice(["none", "wheat", "maize"]), default="none", help='Adjustment to apply to the LAI estimate')
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
-def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_path, mode, adjustment, start_date, end_date):
+def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date):
     """ LAI Analysis function
 
     LAI_dir: Local path to the directory containing regional primary LAI rasters
 
     region: Name of the primary region from which regions should be cropped
 
+    resolution: Resolution in meters of the LAI. Shoud match with the value used in export.
+
     This pipeline does the following:
     1. For each date in the range start_date to end_date
-    2. Find the primary LAI raster for the given region and date
+    2. Find the primary LAI raster for the given region, resolution and date
     3. Apply the provided mask as specified by the mode
     4. Calculate the appropriate LAI statistics for the CSV
     5. Calculate a maximum LAI raster for the geometry and date range
@@ -155,7 +158,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             d_slash = datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y")
 
             # See if the LAI raster exists
-            LAI_path = op.join(lai_dir, f"{region}_{d}_LAI.tif")
+            LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.tif")
             if not op.exists(LAI_path):
                 print(f"{Path(LAI_path).name} [DOES NOT EXIST]")
                 
@@ -166,7 +169,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Mean": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
-                    "LAI Stddev Adjusted": None
+                    "LAI Stddev Adjusted": None,
+                    "Cloud or Snow Percentage": None
                 }
                 statistics.append(stat)
                 continue
@@ -190,7 +194,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                         "LAI Mean": None,
                         "LAI Stddev": None,
                         "LAI Mean Adjusted": None,
-                        "LAI Stddev Adjusted": None
+                        "LAI Stddev Adjusted": None,
+                        "Cloud or Snow Percentage": None
                     }
                     statistics.append(stat)
                     continue
@@ -209,6 +214,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                         "transform": masked_transform,
                         "count": 2
                     })
+
+                cloud_snow_percentage = -1 # Not yet supported
 
             elif mode == "raster":
                 # Mask the raster with the raster
@@ -229,8 +236,17 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                 masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
 
                 # replace zeros with NaN's
+                cropmask_array_bool = cropmask_array.astype(bool)
                 cropmask_array = cropmask_array.astype(float)
+
+                # Computing the percentage of pixels that are clouds or snow (and thus are nan)
+                cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
+                total_pixels_in_region = np.sum(cropmask_array_bool)
+                cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
+               
+
                 cropmask_array[cropmask_array==0] = np.nan
+                
                 # apply mask
                 masked_src *= cropmask_array
 
@@ -253,7 +269,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Mean": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
-                    "LAI Stddev Adjusted": None
+                    "LAI Stddev Adjusted": None,
+                    "Cloud or Snow Percentage": cloud_snow_percentage
                 }
                 statistics.append(stat)
                 continue
@@ -261,6 +278,9 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             # Rasters get read as (1, height, width)
             #LAI_estimate = masked_src[0]
             LAI_estimate = masked_src
+
+            # clip all negative values to zero
+            LAI_estimate[LAI_estimate < 0] = 0
 
             # Wheat and Maize calibrations
             if adjustment == "wheat":
@@ -274,6 +294,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
             # Calculate statistics for valid raster
             # Catching runtime warnings when numpy complains that a pixel only has NaNs
             # This is expected
+            
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 statistics.append({
@@ -284,6 +305,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, geometry_pat
                     "LAI Stddev": np.nanstd(LAI_estimate),
                     "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
                     "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
+                    "Cloud or Snow Percentage": cloud_snow_percentage,
                 })
 
                 # Update running maximum rasters

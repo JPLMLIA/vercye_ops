@@ -52,6 +52,7 @@ Options:
   --shpfile PATH           Local Path to the shapefile to override region
   --start-date [%Y-%m-%d]  Start date for the image collection
   --end-date [%Y-%m-%d]    End date for the image collection
+  --resolution NUMBER      Spatial resolution
   --help                   Show this message and exit.
 ```
 
@@ -63,10 +64,11 @@ python 1_1_gee_export_S2.py \
   --library library/ \
   --region Poltava \
   --start-date 2022-04-01 \
-  --end-date 2022-05-01 
+  --end-date 2022-05-01 \
+  --resolution 20
 ```
 
-This looks for the file `library/Poltava.geojson` and uses its geometry to export Sentinel 2 rasters between 2022-04-01 and 2022-05-01 to the Google Drive top-level directory `Poltava/`, which will be create if it does not already exist. The files will be named `Poltava_2022-04-01.tif` or, if the files are too big, they will be split into parts such as `Poltava_2022-04-01-0000000000-0000000000.tif`, and so on.
+This looks for the file `library/Poltava.geojson` and uses its geometry to export Sentinel 2 rasters at a resolution of 20m between 2022-04-01 and 2022-05-01 to the Google Drive top-level directory `Poltava/`, which will be create if it does not already exist. The files will be named `Poltava_2022-04-01.tif` or, if the files are too big, they will be split into parts such as `Poltava_2022-04-01-0000000000-0000000000.tif`, and so on.
 
 ### Notes
 
@@ -153,6 +155,8 @@ Usage: 1_3_standardize_S2.py [OPTIONS] REGION IN_DIR VRT_DIR
     Directory of region geotiffs
   vrt_dir: str
     Directory to which vrts should be written
+  resolution: str
+    Spatial resolution. Used for matching rasters region_resolution*
 
 Options:
   --help  Show this message and exit.
@@ -164,10 +168,11 @@ Options:
 python 1_3_standardize_S2.py \
   Poltava \
   /path/to/download/S2/Poltava/ \
-  /path/to/save/VRT/Poltava/
+  /path/to/save/VRT/Poltava/ \
+  20
 ```
 
-This will look for all rasters that match `Poltava_*.tif` in `/path/to/download/S2/Poltava/` and mosaic tiles to create `Poltava_*.vrt` in `/path/to/save/VRT/Poltava/`
+This will look for all rasters that match `Poltava_20m_*.tif` in `/path/to/download/S2/Poltava/` and mosaic tiles to create `Poltava_20m_*.vrt` in `/path/to/save/VRT/Poltava/`
 
 ### Notes
 
@@ -197,14 +202,18 @@ Usage: 2_primary_LAI.py [OPTIONS] S2_DIR LAI_DIR
 
   Main LAI batch prediction function
 
-  S2_dir: Local Path to the Sentinel-2 images
+  S2_dir: Local Path to the .vrt Sentinel-2 images
 
   LAI_dir: Local Path to the LAI estimates
 
+  region: Name of the region. Used to match file names beginning with region_
+
+  resolution: Spatial resolution. Used to match file names beginning with region_resolution
+
   This pipeline does the following: 1. Looks for Sentinel-2 images in the
-  specified directory in the format {geometry_name}_{date}.vrt 2. Uses the
+  specified directory in the format {geometry_name}_{resolution}m_{date}.vrt 2. Uses the
   pytorch model to predict LAI 3. Exports the LAI estimate to the specified
-  directory in the format {geometry_name}_{date}_LAI.tif
+  directory in the format {geometry_name}_{resolution}m_{date}_LAI.tif
 
 Options:
   --model_weights PATH  Local Path to the model weights
@@ -283,8 +292,10 @@ Usage: 3_analysis_LAI.py [OPTIONS] LAI_DIR OUTDIR REGION GEOMETRY_PATH          
 
   region: Name of the primary region from which regions should be cropped
 
+  resolution: Resolution in meters of the LAI. Shoud match with the value used in export.
+
   This pipeline does the following: 1. For each date in the range start_date
-  to end_date 2. Find the primary LAI raster for the given region and date 3.
+  to end_date 2. Find the primary LAI raster for the given region, resolution and date 3.
   Apply the provided mask as specified by the mode 4. Calculate the
   appropriate LAI statistics for the CSV 5. Calculate a maximum LAI raster for
   the geometry and date range

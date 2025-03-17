@@ -4,6 +4,7 @@ import click
 import geopandas as gpd
 
 import logging
+import re
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,7 +37,8 @@ def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
     if gdf.empty:
         raise ValueError('The shapefile does not contain any polygons.')
     if gdf.crs.to_epsg() != 4326:
-        raise ValueError('The shapefile coordinate system is not WGS 84.')
+        print("Shapefile not in WGS84. Reprojecting.")
+        gdf = gdf.to_crs(epsg=4326)
     
     if verbose:
         logging.info('Processing %i %s regions.', len(gdf))
@@ -55,8 +57,11 @@ def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
 
         region_name = row['admin_name']
 
-        # Take out any apostrophes as these cause headaches down the line with scripting the filename processing
-        region_name = region_name.replace("'", "")
+        # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
+        region_name = region_name.replace("'", "").replace('"', "")
+        region_name = re.sub(r"[^\w.-]", "_", region_name)
+        region_name = region_name.lower()
+
 
         output_fpath = output_head_dir / Path(f'{region_name}.geojson')
 
