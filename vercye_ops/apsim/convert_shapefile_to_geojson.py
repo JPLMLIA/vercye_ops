@@ -75,7 +75,7 @@ def convert_shapefile_to_geojson(shp_fpath, projection_epsg, admin_name_col, out
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
         region_name = region_name.lower()
-        row['admin_name'] = region_name
+        row['cleaned_region_name_vercye'] = region_name
 
         output_dir = output_head_dir / Path(region_name)
         output_dir.mkdir(exist_ok=True)
