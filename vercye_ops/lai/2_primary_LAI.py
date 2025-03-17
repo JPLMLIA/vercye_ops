@@ -47,18 +47,24 @@ class LAI_CNN(nn.Module):
 @click.command()
 @click.argument('S2_dir', type=click.Path(exists=True))
 @click.argument('LAI_dir', type=click.Path(exists=True))
+@click.argument('region', type=str)
+@click.argument('resolution', type=int)
 @click.option('--model_weights', type=click.Path(exists=True), default='models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth', help='Local Path to the model weights')
-def main(s2_dir, lai_dir, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
+def main(s2_dir, lai_dir, region, resolution, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
     """ Main LAI batch prediction function
 
-    S2_dir: Local Path to the Sentinel-2 images
+    S2_dir: Local Path to the .vrt Sentinel-2 images
 
     LAI_dir: Local Path to the LAI estimates
 
+    region: Name of the region. Used to match file names beginning with region_
+
+    resolution: Spatial resolution. Used to match file names beginning with region_resolution
+
     This pipeline does the following:
-    1. Looks for Sentinel-2 images in the specified directory in the format {geometry_name}_{date}.vrt
+    1. Looks for Sentinel-2 images in the specified directory in the format {geometry_name}_{resolution}m_{date}.vrt
     2. Uses the pytorch model to predict LAI
-    3. Exports the LAI estimate to the specified directory in the format {geometry_name}_{date}_LAI.tif
+    3. Exports the LAI estimate to the specified directory in the format {geometry_name}_{resolution}m_{date}_LAI.tif
     """
 
     start = time.time()
@@ -69,8 +75,8 @@ def main(s2_dir, lai_dir, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Si
     model.eval()
 
     # Get all the VRT files
-    vrt_files = sorted(glob(f"{s2_dir}/*.vrt"))
-    print(f"Found {len(vrt_files)} VRT files in {s2_dir}")
+    vrt_files = sorted(glob(f"{s2_dir}/{region}_{resolution}m_*.vrt"))
+    print(f"Found {len(vrt_files)} VRT files for {region} at {resolution}m in {s2_dir}")
 
     for vf in vrt_files:
         # Load the image
