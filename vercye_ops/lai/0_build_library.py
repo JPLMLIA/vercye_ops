@@ -8,7 +8,7 @@ import re
 
 logging.basicConfig(level=logging.INFO)
 
-def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
+def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, verbose):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -16,6 +16,8 @@ def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
     -----------
     shp_fpath : str
         The path to the .shp file.
+    admin_name_col : str
+        Name of the column containing administrative division names.
     output_dir : str
         The directory where the GeoJSON files will be saved.
     verbose : bool
@@ -43,25 +45,20 @@ def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
     if verbose:
         logging.info('Processing %i %s regions.', len(gdf))
 
-    # Validate that only a single administrative division name column is present
-    if not 'admin_name' in gdf.columns:
-        raise ValueError(
-            '''The shapefile is missing the "admin_name" column. Ensure the column 
-            contains administrative division names. Use the "prepare_shapefile.py" 
-            script to standardize the shapefile with correct column names.'''
-        )
+    print("IMPORTANT: Ensure all geometries are at the same administrative level! \
+          Use the prepare_shapefile.py script to standardize the shapefile with correct column names")
 
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
 
-        region_name = row['admin_name']
+        region_name = row[admin_name_col]
 
         # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
         region_name = region_name.lower()
-
+        row['admin_name'] = region_name
 
         output_fpath = output_head_dir / Path(f'{region_name}.geojson')
 
@@ -80,11 +77,12 @@ def convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose):
 
 @click.command()
 @click.argument('shp_fpath', required=True, type=click.Path(exists=True))
+@click.option('--admin_name_col', type=str, help='Name of the column containing administrative division names. All geoemtries must be at the same administrative level!.')
 @click.option('--output_head_dir', type=click.Path(file_okay=False), default='library', help='Head directory where the region output dirs will be created.')
 @click.option('--verbose', is_flag=True, help='Print verbose output.')
-def cli(shp_fpath, output_head_dir, verbose):
+def cli(shp_fpath, admin_name_col, output_head_dir, verbose):
     """Wrapper around geojson generation func"""
-    convert_shapefile_to_geojson(shp_fpath, output_head_dir, verbose)
+    convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, verbose)
     
 if __name__ == '__main__':
     cli()

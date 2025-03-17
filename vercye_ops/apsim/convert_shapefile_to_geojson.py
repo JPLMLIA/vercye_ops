@@ -63,13 +63,8 @@ def convert_shapefile_to_geojson(shp_fpath, projection_epsg, admin_name_col, out
     
     logger.info('Processing %i %s regions.', len(gdf))
 
-    # Validate that only a single administrative division name column is present
-    if not 'admin_name' in gdf.columns:
-        raise ValueError(
-            '''The shapefile is missing the "admin_name" column. Ensure the column 
-            contains administrative division names. Use the "prepare_shapefile.py" 
-            script to standardize the shapefile with correct column names.'''
-        )
+    logger.warning('IMPORTANT: Ensure all geometries are at the same administrative level! \
+                   Use the prepare_shapefile.py script to standardize the shapefile if this is not the case.')
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
@@ -80,6 +75,7 @@ def convert_shapefile_to_geojson(shp_fpath, projection_epsg, admin_name_col, out
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
         region_name = region_name.lower()
+        row['admin_name'] = region_name
 
         output_dir = output_head_dir / Path(region_name)
         output_dir.mkdir(exist_ok=True)
