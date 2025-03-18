@@ -48,7 +48,6 @@ def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, ver
     print("IMPORTANT: Ensure all geometries are at the same administrative level! \
           Use the prepare_shapefile.py script to standardize the shapefile with correct column names")
 
-
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
 
