@@ -60,20 +60,20 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
     all_start = time.time()
 
     if shpfile is None and region is None:
-        raise ValueError("Either a shapefile or oblast should be specified.")
+        raise ValueError("Either a shapefile or administrative division (region) should be specified.")
     elif shpfile is not None and region is not None:
         raise ValueError("Only one of shapefile or crop mask should be specified.")
 
     # Get geometry 
     if region is not None:
         # Look for geojson in the library
-        oblast_geojsons = glob(f"{library}/{region}.geojson")
+        region_geojsons = glob(f"{library}/{region}.geojson")
 
-        if len(oblast_geojsons) == 0:
+        if len(region_geojsons) == 0:
             raise FileNotFoundError(f"{library}/{region}.geojson not found.")
         
-        shp = json_to_fc(oblast_geojsons[0])
-        print(f"Loaded geometry from {oblast_geojsons[0]}")
+        shp = json_to_fc(region_geojsons[0])
+        print(f"Loaded geometry from {region_geojsons[0]}")
     elif shpfile is not None:
         # Override with shp file
         shp = shp_to_fc(shpfile)

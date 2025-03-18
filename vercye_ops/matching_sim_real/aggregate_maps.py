@@ -164,10 +164,6 @@ def merge_shapefiles(shapefile_paths, region_names):
     logger.info('Merging shapefiles...')
     gdfs = [gpd.read_file(shp) for shp in shapefile_paths]
 
-    # Temporary fix for unmerged code. In the future 'cleaned_region_name' should be attribute in geojson
-    for gdf, region_name in zip(gdfs, region_names):
-        gdf['cleaned_region_name'] = region_name
-
     merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
 
     return merged_gdf
@@ -249,7 +245,7 @@ def cli(roi_base_dir, yield_estimates_fpath, val_fpath, output_lai_tif_fpath=Non
 
     if val_fpath:
         val_data = pd.read_csv(val_fpath)
-        merged_gdf = merged_gdf.merge(val_data, left_on='cleaned_region_name', right_on='region')
+        merged_gdf = merged_gdf.merge(val_data, left_on='cleaned_region_name_vercye', right_on='region')
 
     merged_gdf.to_file(output_fpaths['shapefile'], driver='GeoJSON')
 
