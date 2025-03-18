@@ -27,7 +27,7 @@ def input_admin_column_name(gdf):
 
     if admin_column_name not in gdf.columns:
         raise ValueError(
-            f'The column name "{admin_column_name}" is not valid. Please choose from the listed columns.'
+            f'The column name "{admin_column_name}" is not valid. Please choose from the listed columns. Ensure the caseing is correct.'
         )
 
     return admin_column_name
@@ -48,12 +48,10 @@ def input_admin_hierarchy_columns(gdf, admin_column_name):
             return present_columns
 
     logger.info(
-        "Please specify all columns for admin levels, ordered from largest to smallest level. \
-        Separate names with commas. Ensure the order of columns is correct."
+        "Please specify all columns for admin levels, ordered from largest to smallest level. Separate names with commas. Ensure the order of columns is correct."
     )
     logger.info(
-        'For example, if the columns are "Country", "State", "District", type: \
-        Country, State, District. As you can see, the order is from largest to smallest area.'
+        'For example, if the columns are "Country", "State", "District", type: Country, State, District. As you can see, the order is from largest to smallest area.'
     )
     admin_column_names = input().split(",")
     return [col.strip() for col in admin_column_names]
@@ -65,6 +63,8 @@ def filter_by_admin_level(gdf, admin_column_name, admin_column_names):
     # Drop all columns that have null at the admin_column_name, as these are from larger admin levels
     gdf = gdf.dropna(subset=[admin_column_name])
 
+    # check if there are duplicate values in the admin_column_name
+
     # Drop all column that have a value other than null in a admin level column deeper 
     # than the admin_column_name, as these are from smaller admin levels
     deeper_admin_columns = admin_column_names[
@@ -72,6 +72,11 @@ def filter_by_admin_level(gdf, admin_column_name, admin_column_names):
     ]
     for col in deeper_admin_columns:
         gdf = gdf[gdf[col].isnull()]
+
+    if gdf[admin_column_name].duplicated().any():
+        raise Exception(
+            f"Multiple entries with the same key found in the admin column {admin_column_name}. Cleaning of data unsuccesfull."
+        )
 
     return gdf
 
@@ -88,12 +93,10 @@ def standardize_shapefile(shp_fpath, output_dir):
         None
     """
     logger.info(
-        "This script allows you to create a new shapefile containing only the entries for your \
-        selected administrative division level."
+        "This script allows you to create a new shapefile containing only the entries for your selected administrative division level."
     )
     logger.info(
-        "The administrative division level specifies the administrative level of the region, \
-        e.g this could typically be a state or a district etc."
+        "The administrative division level specifies the administrative level of the region, e.g this could typically be a state or a district etc."
     )
 
     # Define paths

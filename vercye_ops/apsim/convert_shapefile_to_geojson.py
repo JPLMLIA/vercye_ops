@@ -63,8 +63,7 @@ def convert_shapefile_to_geojson(shp_fpath, projection_epsg, admin_name_col, out
     
     logger.info('Processing %i %s regions.', len(gdf))
 
-    logger.warning('IMPORTANT: Ensure all geometries are at the same administrative level! \
-                   Use the prepare_shapefile.py script to standardize the shapefile if this is not the case.')
+    logger.warning('Ensure all geometries are at the same administrative level! Use the prepare_shapefile.py script to standardize the shapefile if this is not the case.')
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
@@ -90,6 +89,7 @@ def convert_shapefile_to_geojson(shp_fpath, projection_epsg, admin_name_col, out
         logger.info('GeoJSON file written to %s', output_fpath)
 
     logger.info('Processing Complete')
+    logger.warning(f'Processed {len(gdf)} regions. Validate the output directory {output_head_dir} to check the GeoJSON files are from the correct geoemtries.')
 
 
 @click.command()
