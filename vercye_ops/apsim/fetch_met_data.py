@@ -75,6 +75,19 @@ def error_checking_function(df):
 
     return df
 
+def clean_nasa_power_data(df, nodata_value):
+    """
+    Cleans the NASA POWER data by replacing nodata values.
+    """
+    
+    # Replace nodata values with NaN
+    df_cleaned = df.replace(nodata_value, np.nan)
+
+    # useing simple linear interpolation to fill missing values
+    df_cleaned = df_cleaned.interpolate(method='linear', limit_direction='both')
+
+    return df_cleaned
+
 
 def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     """
@@ -101,6 +114,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     response = requests.get(url, params=params)
     response.raise_for_status()
     data = response.json()['properties']['parameter']
+    nodata_val = response.json()['header']['fill_value']
 
     logger.info("Data fetched successfully. Processing data.")
 
@@ -108,7 +122,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     df = pd.DataFrame(data)
     df.index = pd.to_datetime(df.index)
     
-    return df
+    return df, nodata_val
 
 
 def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite):
@@ -180,6 +194,7 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
     df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
+    df = clean_nasa_power_data(df)
 
     if precipitation_source.lower() == 'chirps':
         try:
