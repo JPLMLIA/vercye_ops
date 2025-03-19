@@ -440,19 +440,23 @@ Options:
 
 ### 0_reproj_mask.py
 
-This script reprojects a cropmask to match the CRS, resolution, and extent of a given LAI raster.
+This script reprojects a cropmask to match the CRS, resolution, and extent of a given LAI raster. It is reccomended
+to provide a LAI dir (and region), to let the script identify the maximum extent of all LAI files as these may vary.
 
 ```
 $ python 0_reproj_mask.py --help
-Usage: 0_reproj_mask.py [OPTIONS] MASK_PATH LAI_PATH OUT_PATH
+Usage: 0_reproj_mask.py [OPTIONS] MASK_PATH OUT_PATH --lai_dir --lai_region --lai_path
 
   Reprojects a crop mask to the LAI raster
 
   mask_path is reprojected to match the projection, extent, and resolution of
-  LAI_path. It is then saved as out_path.
+  LAI_path or the LAI file with the maximum extent in lai_dir matching the lai_region. It is then saved as out_path.
 
 Options:
-  --help  Show this message and exit.
+  --help          Show this message and exit.
+  --lai_dir       Base directory containing LAI files. If used, lai_region must be provided
+  --lai_region    Name of the region, used to match LAI file names. Must be used with lai_dir
+  --lai_path      Path to a specific reference LAI file. Mutually exclusive with lai_dir/region 
 ```
 
 **Example:**
