@@ -127,6 +127,7 @@ rule construct_plot_met_files:
         --lat ${{LAT}} \
         --sim_end_date {params.sim_end_date} \
         --precipitation_source {params.precipitation_source} \
+        --fallback_nasapower {params.nasapower_fallback} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region} \
         --verbose > {log}
         

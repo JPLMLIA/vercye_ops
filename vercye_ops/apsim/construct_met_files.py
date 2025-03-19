@@ -75,7 +75,7 @@ def parse_weather_filename(filename):
     return lat, lon, start, end
 
 
-def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src='NASA_POWER'):
+def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src='NASA_POWER', fallback_nasapower=False):
     """
     Load CSV data and prepare it by adding day of year and measurement type. Add
     weather projections if necessary
@@ -98,10 +98,12 @@ def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src='
     # Using CHIRPS data if specified, by simply replacing the PRECTOTCORR column
     if precipitation_src.lower() == 'chirps':
         if 'PRECTOTCORR_CHIRPS' not in df.columns:
-            raise KeyError('CHIRPS precipitation data not found in the input file.')
-
-        logger.info('Using CHIRPS data for precipitation.')
-        df['PRECTOTCORR'] = df['PRECTOTCORR_CHIRPS']
+            if not fallback_nasapower:
+                raise KeyError('CHIRPS data not found in the input file.')
+            logger.warning('CHIRPS data not found in the input file. Using NASA POWER fallback for precipitation.')
+        else:
+            logger.info('Using CHIRPS data for precipitation.')
+            df['PRECTOTCORR'] = df['PRECTOTCORR_CHIRPS']
 
     # Add year and day of year columns to prep for .met export
     df.insert(0, 'YEAR', df.index.year)
@@ -192,7 +194,7 @@ def get_tav_amp(df):
     return tav, amp
 
 
-def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, precipitation_src):
+def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_nasapower, output_dir, precipitation_src):
     """
     Processes weather data for APSIM simulations, integrating measured and forecasted data, and writing to a .met file.
     """
@@ -209,7 +211,7 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir,
     ###################################
     # Load, prep, project data and calc tav/amp
 
-    df = load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src)
+    df = load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, fallback_nasapower)
     tav, amp = get_tav_amp(df)
 
     logger.info('Loaded data from %s', weather_data_fpath)
@@ -252,15 +254,16 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir,
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
 @click.option('--sim_end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of the simulation period.")
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
+@click.option('--fallback_nasapower', help="Fallback to NASA POWER data if CHIRPS data is not available.", default=False)
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="File path for the .met output file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(weather_data_fpath, lon, lat, sim_end_date, precipitation_source, output_dir, verbose):
+def cli(weather_data_fpath, lon, lat, sim_end_date, precipitation_source, fallback_nasapower, output_dir, verbose):
     """Wrapper to processess weather data"""
     
     if verbose:
        logger.setLevel('INFO')
 
-    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, output_dir, precipitation_source)
+    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_nasapower, output_dir, precipitation_source)
     
     
 if __name__ == '__main__':
