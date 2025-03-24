@@ -34,8 +34,8 @@ rule construct_chirps_data:
         script_fpath = config['scripts']['construct_chirps_data'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
         regions_dir = lambda wildcards: op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint), # We choose a fixed one, since all year/timepoints should contain the same regions.
-        start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
-        end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+        start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
+        end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
     log:
         'logs_construct_chirps_data/{year}_{timepoint}_chirps.log',
     output:
@@ -51,16 +51,17 @@ rule construct_chirps_data:
         --output_file {output.csv} > {log}
         """
 
-# Rule to hit NASA POWER's API to get weather data and save as CSV
+# Rule to fetch weather data from NASAPower or ERA5 and save as CSV
 rule fetch_met_data:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
         chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else []
     params:
-        nasa_power_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
-        nasa_power_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
-        precipitation_source = config['apsim_params']['precipitation_source'],
-        fallback_nasapower = config['apsim_params']['fallback_on_nasa_power_centroid'],
+        met_source = lambda wildcards: config['apsim_params']['met_source']
+        met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
+        met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
+        use_chips_precipitation = config['apsim_params']['use_chips_precipitation'],
+        fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         chirps_dir = config['apsim_params']['chirps_dir'],
         script_fpath = config['scripts']['fetch_met_data'],
         head_dir = config['sim_study_head_dir'],
@@ -70,16 +71,17 @@ rule fetch_met_data:
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
-        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_nasapower.csv'),
-    threads: workflow.cores * 0.75  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
+    threads: workflow.cores * 0.75 if params.met_source.lower() == 'nasa_power' else 1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
     shell:
         """
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         python {params.script_fpath} \
-        --start_date {params.nasa_power_start_date} \
-        --end_date {params.nasa_power_end_date} \
+        --met_source {params.met_source} \ 
+        --start_date {params.met_start_date} \
+        --end_date {params.met_end_date} \
         --variables ALLSKY_SFC_SW_DWN \
         --variables T2M_MAX \
         --variables T2M_MIN \
@@ -88,9 +90,9 @@ rule fetch_met_data:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
-        --precipitation_source {params.precipitation_source} \
+        --use_chips_precipitation {params.use_chips_precipitation} \
         --chirps_column_name {params.region_name} \
-        --fallback_nasapower {params.fallback_nasapower} \
+        --fallback_precipitation {params.fallback_precipitation} \
         {params.chirps_file} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
@@ -100,7 +102,7 @@ rule fetch_met_data:
 # Rule to generate .met files from weather CSVs
 rule construct_plot_met_files:
     input:
-        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_nasapower.csv'),
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
         geojson = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
         met_gen_script_fpath = config['scripts']['construct_met_files'],
@@ -109,7 +111,7 @@ rule construct_plot_met_files:
         sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
         precipitation_source = config['apsim_params']['precipitation_source'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
-        nasapower_fallback = config['apsim_params']['fallback_on_nasa_power_centroid'],
+        fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
@@ -127,7 +129,7 @@ rule construct_plot_met_files:
         --lat ${{LAT}} \
         --sim_end_date {params.sim_end_date} \
         --precipitation_source {params.precipitation_source} \
-        --fallback_nasapower {params.nasapower_fallback} \
+        --fallback_precipitation {params.fallback_precipitation} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region} \
         --verbose > {log}
         
@@ -136,8 +138,8 @@ rule construct_plot_met_files:
         --output_fpath {output.plot_fpath} \
         --precipitation_source {params.precipitation_source} \
         --precipitation_agg {params.precipitation_agg_method} \
-        --nasapower_fallback {params.nasapower_fallback} \
-        --nasapower_fpath {input.csv} > {log}
+        --fallback_precipitation {params.fallback_precipitation} \
+        --met_fpath {input.csv} > {log}
         """
         
 

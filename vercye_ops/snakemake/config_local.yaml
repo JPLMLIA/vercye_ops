@@ -54,59 +54,60 @@ timepoints:  # Days relative to harvest
 # APSIM Parameters
 
 apsim_params:
+  met_source: 'NASA_POWER' # 'NASA_POWER' or 'ERA5'
   precipitation_source: 'NASA_POWER' # 'NASA_POWER' or 'CHIRPS'
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
-  fallback_on_nasa_power_centroid: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
+  fallback_precipitation: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
   chirps_dir: '/home/rohan/nasa-harvest/vercye/data/chirps' # Only required to set if precipitation_source is 'CHIRPS'
   time_bounds:
     2021:
       T-0:
         sim_start_date: '2020-08-20'
         sim_end_date: '2021-08-01'
-        nasa_power_start_date: '1991-07-01'
-        nasa_power_end_date: '2021-08-01'
+        met_start_date: '1991-07-01'
+        met_end_date: '2021-08-01'
       T-30:
         sim_start_date: '2020-08-20'
         sim_end_date: '2021-08-01'
-        nasa_power_start_date: '1991-07-01'
-        nasa_power_end_date: '2021-07-02'
+        met_start_date: '1991-07-01'
+        met_end_date: '2021-07-02'
       T-60:
         sim_start_date: '2020-08-20'
         sim_end_date: '2021-08-01'
-        nasa_power_start_date: '1991-07-01'
-        nasa_power_end_date: '2021-06-03'
+        met_start_date: '1991-07-01'
+        met_end_date: '2021-06-03'
     2022:
       T-0:
         sim_start_date: '2021-08-20'
         sim_end_date: '2022-07-27'
-        nasa_power_start_date: '1992-07-01'
-        nasa_power_end_date: '2022-07-27'
+        met_start_date: '1992-07-01'
+        met_end_date: '2022-07-27'
       T-30:
         sim_start_date: '2021-08-20'
         sim_end_date: '2022-07-27'
-        nasa_power_start_date: '1992-07-01'
-        nasa_power_end_date: '2022-06-28'
+        met_start_date: '1992-07-01'
+        met_end_date: '2022-06-28'
       T-60:
         sim_start_date: '2021-08-20'
         sim_end_date: '2022-07-27'
-        nasa_power_start_date: '1992-07-01'
-        nasa_power_end_date: '2022-05-29'
+        met_start_date: '1992-07-01'
+        met_end_date: '2022-05-29'
     2023:
       T-0:
         sim_start_date: '2022-08-20'
         sim_end_date: '2023-07-26'
-        nasa_power_start_date: '1993-07-01'
-        nasa_power_end_date: '2023-07-26'
+        met_start_date: '1993-07-01'
+        met_end_date: '2023-07-26'
       T-30:
         sim_start_date: '2022-08-20'
         sim_end_date: '2023-07-26'
-        nasa_power_start_date: '1993-07-01'
-        nasa_power_end_date: '2023-06-27'
+        met_start_date: '1993-07-01'
+        met_end_date: '2023-06-27'
       T-60:
         sim_start_date: '2022-08-20'
         sim_end_date: '2023-07-26'
-        nasa_power_start_date: '1993-07-01'
-        nasa_power_end_date: '2023-05-28'
+        met_start_date: '1993-07-01'
+        met_end_date: '2023-05-28'
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
