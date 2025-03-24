@@ -176,5 +176,8 @@ vercye_ops/snakemake/custom_configs/*
 # Packaged release
 *.tar.gz
 
+# Profiling
+*.lprof
+
 # Private matching script 
 vercye_ops/matching_sim_real/match_sim_rs_lai.py
