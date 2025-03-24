@@ -174,7 +174,7 @@ def get_era5_data(start_date, end_date, lon, lat, ee_project, output_fpath, over
 
 def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     """
-    Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower.
+    Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
     """
     logger.info('Fetching meteorological data from ERA5 trough google earth engine.')
     logger.info('Initializing google earth engine.')
@@ -281,7 +281,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
 @click.option('--met_source', type=click.Choice(['era5', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of meteorological data.")
 @click.option('--use_chips_precipitation', type=bool, default=False, show_default=True, help="Replace NasaPower or ERA5 precipitation data with CHIRPS precpitation data.")
 @click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
-@click.option('--fallback_precipitation', help="Fallback to NasaPower or ERA5 precipitation data if CHIRPS data is not available.", default=False)
+@click.option('--fallback_precipitation', type=bool, help="Fallback to NasaPower or ERA5 precipitation data if CHIRPS data is not available.", default=False)
 @click.option('--chirps_file', type=click.Path(file_okay=True, dir_okay=False), default=None, help="File where the CHIRPS extracted chirps-data is saved.")
 @click.option('--ee_project', type=str, required=False, help='Name of the Earth Engine Project in which to run the ERA5 processing. Only required when using --met_source era5.')
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
@@ -292,7 +292,7 @@ def cli(start_date, end_date, variables, lon, lat, met_source, use_chips_precipi
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
-    output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
+    output_fpath = op.join(output_dir, f'{region}_met.csv')
 
     if met_source.lower() == 'nasa_power':
         df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)

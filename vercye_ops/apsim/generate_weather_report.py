@@ -22,15 +22,15 @@ MET_FILE_DTYPES = {
 @click.option('--output_fpath', required=True, type=click.Path(writable=True), help='Path to save the output HTML plot.')
 @click.option('--precipitation_source', required=True, type=click.Choice(['NASA_POWER', 'CHIRPS']), help='Source of precipitation data. "NASA_Power" or "CHIRPS".')
 @click.option('--precipitation_agg', required=True, type=click.Choice(['centroid', 'mean']), help='Aggregation method for precipitation data. "centroid" or "mean".')
-@click.option('--nasapower_fallback', default=False, help='Boolean specifying wether to fallback on nasa power data if chirps data is not available.')
-@click.option('--nasapower_fpath', required=False, type=click.Path(exists=True), default=None, help='Path to the NASA Power CSV file.')
+@click.option('--fallback_precipitation', default=False, help='Boolean specifying whether to fallback on nasapower/era5 precipitation data if chirps data is not available.')
+@click.option('--met_fpath', required=False, type=click.Path(exists=True), default=None, help='Path to the met CSV file.')
 @click.option('--header_lines', default=8, show_default=True, help='Number of lines in the header.')
 @click.option('--column_line', default=6, show_default=True, help='Line number of the column headers (1-based index).')
-def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, nasapower_fallback, nasapower_fpath, header_lines, column_line):
+def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, fallback_precipitation, met_fpath, header_lines, column_line):
     """
     CLI wrapper to plot weather data from a .met file and save as an interactive HTML plot.
     """
-    data, metadata = plot_weather_data(input_fpath, precipitation_source, precipitation_agg, nasapower_fallback, nasapower_fpath, header_lines, column_line)
+    data, metadata = plot_weather_data(input_fpath, precipitation_source, precipitation_agg, fallback_precipitation, met_fpath, header_lines, column_line)
     
     metadata.update({'input_fpath': input_fpath,
                      'output_fpath': output_fpath})
@@ -38,7 +38,7 @@ def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, nasa
     fig.write_html(output_fpath)
 
 
-def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapower_fallback, nasapower_fpath, header_lines=8, column_line=6):
+def plot_weather_data(file_path, precipitation_source, precipitation_agg, fallback_precipitation, met_fpath, header_lines=8, column_line=6):
     """
     Plot weather data from a .met file and save as an interactive HTML plot.
 
@@ -50,8 +50,10 @@ def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapo
         Source of precipitation data. "NASA_POWER" or "CHIRPS".
     precipitation_agg : str
         Aggregation method for precipitation data. "centroid" or "mean".
-    nasapower_fpath : str
-        Path to the NASA Power CSV file.
+    met_fpath : str
+        Path to the met CSV file.
+    fallback_precipitation: bool
+        Flag if original precipitation is used if CHIRPS not available for ROI
     header_lines : int
         Number of lines in the header.
     column_line : int
@@ -94,19 +96,19 @@ def plot_weather_data(file_path, precipitation_source, precipitation_agg, nasapo
     metadata['precipitation_source'] = precipitation_source
     metadata['precipitation_agg'] = precipitation_agg
 
-    # If precipitation source is CHIRPS, add NASA Power data for comparison
+    # If precipitation source is CHIRPS, add original data for comparison
     if precipitation_source.lower() == 'chirps':
-        df_nasapower = pd.read_csv(nasapower_fpath)
+        df_met = pd.read_csv(met_fpath)
 
-        # Check if the NASA Power CSV file contains any CHIRPS data, if not NASAPower fallback was used
-        if not 'PRECTOTCORR_CHIRPS' in df_nasapower.columns:
-            if not nasapower_fallback:
-                raise ValueError('NASA Power CSV file does not contain the required column "NASA_POWER_PRECTOTCORR_UNUSED".')
-            metadata['precipitation_source'] = 'NASA Power fallback.'
+        # Check if the Met CSV file contains any CHIRPS data, if not fallback was used
+        if not 'PRECTOTCORR_CHIRPS' in df_met.columns:
+            if not fallback_precipitation:
+                raise ValueError('No Chirps data found. Met CSV file does not contain the required column "PRECTOTCORR_CHIRPS.')
+            metadata['precipitation_source'] = f'Precipitatio Fallback.'
             metadata['precipitation_agg'] = 'centroid'
         else:
-            # Add unused NASA Power precipitation data for comparisons
-            df['rain_nasapower_unused'] = df_nasapower['PRECTOTCORR']
+            # Add unused original precipitation data for comparisons
+            df['original_precipitation_data'] = df_met['PRECTOTCORR']
             metadata['precipitation_source'] = 'CHIRPS'
             
     
@@ -165,8 +167,8 @@ def create_plots(df, metadata):
                                  line=dict(color='goldenrod', dash=line_dash, width=1.5)), row=2, col=1)
 
         # Precipitation
-        if 'rain_nasapower_unused' in df.columns:
-            fig.add_trace(go.Scatter(x=df['date'], y=df['rain_nasapower_unused'], mode='lines', name=f'Unused NASA_Power Precipitation ({data_type})',
+        if 'original_precipitation_data' in df.columns:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['original_precipitation_data'], mode='lines', name=f'Original Precipitation (Unused)',
                                      line=dict(color='darkgreen', dash=line_dash, width=1.5)), row=3, col=1)
 
             fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Chirps Precipitation ({data_type})',
