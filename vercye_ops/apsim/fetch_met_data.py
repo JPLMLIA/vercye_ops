@@ -6,6 +6,9 @@ from pathlib import Path
 import click
 import requests
 import pandas as pd
+import ee
+import numpy as np
+from datetime import datetime, timedelta
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -110,6 +113,70 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir,
     df_cleaned.to_csv(output_fpath)
 
     logger.info("Data successfully written to %s", output_fpath)
+
+
+def get_era5_weather(lat, lon, start_date, end_date):
+    point = ee.Geometry.Point([lon, lat])
+    start_dt = datetime.strptime(start_date, '%d-%m-%Y')
+    end_dt = datetime.strptime(end_date, '%d-%m-%Y')
+
+    era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
+        .filterDate(start_dt, end_dt) \
+        .filterBounds(point) \
+        .select([
+            'total_precipitation_sum',
+            'temperature_2m_min',
+            'temperature_2m_max',
+            'surface_solar_radiation_downwards_sum',
+            'u_component_of_wind_10m',
+            'v_component_of_wind_10m'
+        ])
+
+    def extract(image):
+        date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd')
+        values = image.reduceRegion(ee.Reducer.first(), point, 1000)
+        return ee.Feature(None, values.set('date', date))
+
+    try:
+        features = era5.map(extract).getInfo()['features']
+    except Exception as e:
+        print(f"Failed to extract ERA5 data for lat={lat}, lon={lon}: {e}")
+        return pd.DataFrame()
+
+    records = [f['properties'] for f in features]
+    df = pd.DataFrame(records)
+
+    df['date'] = pd.to_datetime(df['date'])
+
+    df = df.rename(columns={
+        'total_precipitation_sum': 'rain',
+        'temperature_2m_max': 'maxt',
+        'temperature_2m_min': 'mint',
+        'surface_solar_radiation_downwards_sum': 'radn',
+        'u_component_of_wind_10m': 'u10',
+        'v_component_of_wind_10m': 'v10'
+    })
+
+    # Convert temperatures from Kelvin to Celsius
+    df['maxt'] = df['maxt'] - 273.15
+    df['mint'] = df['mint'] - 273.15
+
+    # Convert solar radiation from J/m² to MJ/m²
+    df['radn'] = df['radn'] / 1_000_000
+
+     # Convert rain from meters to millimeters
+    df['rain'] = df['rain'] * 1000
+
+    # Calculate wind speed from u and v components
+    df['wind'] = np.sqrt(df['u10']**2 + df['v10']**2)
+
+    # Add year and day-of-year columns
+    df['year'] = df['date'].dt.year
+    df['day'] = df['date'].dt.dayofyear
+
+    # Keep only required columns for APSIM
+    df = df[['date', 'year', 'day', 'radn', 'maxt', 'mint', 'rain', 'wind']]
+    return df
 
 
 @click.command()
