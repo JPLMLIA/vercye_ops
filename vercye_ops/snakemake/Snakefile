@@ -60,7 +60,7 @@ rule fetch_met_data:
         met_source = lambda wildcards: config['apsim_params']['met_source']
         met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
         met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
-        use_chips_precipitation = config['apsim_params']['use_chips_precipitation'],
+        precipitation_source = config['apsim_params']['precipitation_source'],
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         chirps_dir = config['apsim_params']['chirps_dir'],
         script_fpath = config['scripts']['fetch_met_data'],
@@ -90,7 +90,7 @@ rule fetch_met_data:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
-        --use_chips_precipitation {params.use_chips_precipitation} \
+        --precipitation_source {params.precipitation_source} \
         --chirps_column_name {params.region_name} \
         --fallback_precipitation {params.fallback_precipitation} \
         {params.chirps_file} \
