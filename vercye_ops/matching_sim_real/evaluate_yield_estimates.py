@@ -14,6 +14,8 @@ def load_csv(fpath):
     return pd.read_csv(fpath)
 
 def compute_metrics(preds, obs):
+    if len(preds) != len(obs):
+        raise ValueError("Length of the predictions and observations do not match.")
     errors_kg_ha = obs - preds
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
@@ -30,6 +32,7 @@ def compute_metrics(preds, obs):
     r2_scikit_bestfit = r2_score(preds, y_line)
 
     aggregated_metrics = {
+        'n_regions': len(obs),
         'mean_err_kg_ha': mean_err_kg_ha,
         'median_err_kg_ha': median_err_kg_ha,
         'mean_abs_err_kg_ha': mean_abs_err_kg_ha,

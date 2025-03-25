@@ -44,7 +44,7 @@ def main(region, in_dir, vrt_dir, resolution):
     for date in dates:
         print("Processing", date)
         # Get all the files for this date
-        this_date_files = list(glob(f"{in_dir}/*{date}*.tif"))
+        this_date_files = list(glob(f"{in_dir}/{region}_{resolution}m_{date}*.tif"))
         out_file = vrt_dir / Path(f"{region}_{resolution}m_{date}.vrt")
 
         # Build VRT
