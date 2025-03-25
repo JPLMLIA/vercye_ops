@@ -9,6 +9,7 @@ kaleido  # For static image plots in plotly
 matplotlib
 numpy
 pandas
+pathvalidate
 pillow
 plotly
 pulp==2.7.0  # Pinned for snakemake

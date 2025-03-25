@@ -8,8 +8,8 @@ platform: 'umd'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
 
-# Name that best describes the primary region of the simulation
-roi_name: 'Poltava'  
+# Id/Name that best describes the primary region of the simulation. Should be less than 20 characters.
+study_id: 'Poltava'  
 
 # Specify one or more simulations
 regions:
