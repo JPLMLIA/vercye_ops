@@ -13,6 +13,7 @@ from rasterio.transform import rowcol
 import requests
 import time
 import pyarrow.parquet as pq
+import time
 
 
 from vercye_ops.utils.init_logger import get_logger
@@ -79,6 +80,10 @@ def clean_nasa_power_data(df, nodata_value):
     """
     Cleans the NASA POWER data by replacing nodata values.
     """
+
+    if nodata_value is None:
+        # Data is loaded from a previously downloaded local file and should already be clean
+        return df
     
     # Replace nodata values with NaN
     df_cleaned = df.replace(nodata_value, np.nan)
@@ -101,6 +106,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     variables_str = ','.join(variables)
 
     # API endpoint and parameters
+    time.sleep(300)
     url = "https://power.larc.nasa.gov/api/temporal/daily/point"
     params = {'parameters': variables_str,
               'community': 'AG',
@@ -133,7 +139,7 @@ def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath,
 
     if Path(output_fpath).exists and not overwrite:
         logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
-        return pd.read_csv(output_fpath)
+        return pd.read_csv(output_fpath), None
     
     return fetch_nasa_power_data(start_date, end_date, variables, lon, lat)
 
@@ -193,8 +199,8 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
-    df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
-    df = clean_nasa_power_data(df)
+    df, nodata_value = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
+    df = clean_nasa_power_data(df, nodata_value)
 
     if precipitation_source.lower() == 'chirps':
         try:
