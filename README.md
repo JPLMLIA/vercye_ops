@@ -40,7 +40,8 @@ mkdir -p ~/Data/vercye_ops/Ukraine_Admin_Units/simstudy_20240607/2021/T-0
 # Set the `admin_level` to "oblast" or "raion" if there are two levels in the shapefile
 python ~/Builds/vercye_ops/vercye_ops/apsim/convert_shapefile_to_geojson.py \
 --shp_fpath /path/to/UKR_adm1.shp \
---admin_level oblast
+--admin_level oblast \
+----projection_crs "EPSG:6381" \
 --output_head_dir ~/Data/vercye_ops/Ukraine_Admin_Units/simstudy_20240607/2021/T-0 \
 --verbose
 ```
