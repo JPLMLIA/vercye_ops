@@ -13,6 +13,7 @@ from rasterio.transform import rowcol
 import requests
 import time
 import pyarrow.parquet as pq
+import time
 
 
 from vercye_ops.utils.init_logger import get_logger
@@ -75,6 +76,23 @@ def error_checking_function(df):
 
     return df
 
+def clean_nasa_power_data(df, nodata_value):
+    """
+    Cleans the NASA POWER data by replacing nodata values.
+    """
+
+    if nodata_value is None:
+        # Data is loaded from a previously downloaded local file and should already be clean
+        return df
+    
+    # Replace nodata values with NaN
+    df_cleaned = df.replace(nodata_value, np.nan)
+
+    # useing simple linear interpolation to fill missing values
+    df_cleaned = df_cleaned.interpolate(method='linear', limit_direction='both')
+
+    return df_cleaned
+
 
 def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     """
@@ -101,6 +119,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     response = requests.get(url, params=params)
     response.raise_for_status()
     data = response.json()['properties']['parameter']
+    nodata_val = response.json()['header']['fill_value']
 
     logger.info("Data fetched successfully. Processing data.")
 
@@ -108,7 +127,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     df = pd.DataFrame(data)
     df.index = pd.to_datetime(df.index)
     
-    return df
+    return df, nodata_val
 
 
 def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite):
@@ -119,7 +138,7 @@ def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath,
 
     if Path(output_fpath).exists and not overwrite:
         logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
-        return pd.read_csv(output_fpath)
+        return pd.read_csv(output_fpath), None
     
     return fetch_nasa_power_data(start_date, end_date, variables, lon, lat)
 
@@ -179,7 +198,8 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
-    df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
+    df, nodata_value = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
+    df = clean_nasa_power_data(df, nodata_value)
 
     if precipitation_source.lower() == 'chirps':
         try:
