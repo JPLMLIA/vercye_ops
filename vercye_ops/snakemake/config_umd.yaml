@@ -147,7 +147,7 @@ lai_params:
 # Sim/Real Matching Parameters
     
 matching_params:
-  target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
   
 ########################################
 # Local paths to the python/APSIM scripts

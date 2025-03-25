@@ -17,7 +17,7 @@ def generate_met_points(gdf_row):
     return centroid
 
 
-def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir):
+def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_crs, output_head_dir):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -27,6 +27,8 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         The path to the .shp file.
     admin_level : str
         `oblast` or `raion` specifying the administrative level to process in the shapefile.
+    projection_crs: str
+        Projection string for local accuracy of centroids.
     output_dir : str
         The directory where the GeoJSON files will be saved.
 
@@ -51,8 +53,8 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         gdf = gdf.to_crs(epsg=4326)
     
     # Add a new column for the centroid of each polygon
-    gdf_proj = gdf.to_crs(epsg=projection_epsg)  # Calculate this in flattened projection instead of geodesic space
-    raw_centroids = gdf_proj.apply(generate_met_points, axis=1).set_crs(epsg=projection_epsg)
+    gdf_proj = gdf.to_crs(projection_crs)  # Calculate this in flattened projection instead of geodesic space
+    raw_centroids = gdf_proj.apply(generate_met_points, axis=1).set_crs(projection_crs)
     
     # TODO: produce plot/report for transparency
 
@@ -93,15 +95,15 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
 @click.command()
 @click.option('--shp_fpath', type=click.Path(exists=True), help='Path to the .shp file.')
 @click.option('--admin_level', type=click.Choice(['oblast', 'raion']), default='oblast', help='Level of administration to process. `oblast` corresponds to Level 1, `raion` corresponds to Level 2')
-@click.option('--projection_epsg', type=int, default=6381, help='EPSG code to define projection. Default is for Ukraine.')
+@click.option('--projection_crs', type=str, help='CRS to define projection. Default is for Ukraine. Cane either be "EPSG:XXXX" or a "proj" string.')
 @click.option('--output_head_dir', type=click.Path(file_okay=False), help='Head directory where the region output dirs will be created.')
 @click.option('--verbose', is_flag=True, help="Print verbose output.")
-def cli(shp_fpath, admin_level, projection_epsg, output_head_dir, verbose):
+def cli(shp_fpath, admin_level, projection_crs, output_head_dir, verbose):
     """Wrapper around geojson generation func"""
     
     if verbose:
         logger.setLevel('INFO')
-    convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir)
+    convert_shapefile_to_geojson(shp_fpath, admin_level, projection_crs, output_head_dir)
     
     
 if __name__ == '__main__':
