@@ -12,6 +12,7 @@ import queue
 from threading import Lock
 import tempfile
 import os
+import shutil
 
 
 # Initialize logger
@@ -75,20 +76,23 @@ def download_file_ftp(file_name, output_fpath, ftp_connection):
     """
     temp_fpath = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.tif') as temp_file:
             temp_fpath = temp_file.name
             ftp_connection.retrbinary(f"RETR {file_name}", temp_file.write)
-            fsize = ftp_connection.size(file_name)
+            temp_file.flush()  # Ensure buffer is flushed
+            os.fsync(temp_file.fileno())  # Ensure data is written to disk
 
-            # Check if the downloaded file is complete. Not ideal, but no checksums provided.
-            if fsize != os.path.getsize(temp_fpath):
-                raise IOError("Downloaded file is incomplete.")
-        os.replace(temp_fpath, output_fpath)
+        # Now the file is closed, so you can safely check the file size
+        fsize = ftp_connection.size(file_name)
+        if fsize != os.path.getsize(temp_fpath):
+            os.remove(temp_fpath)
+            raise IOError("Downloaded file is incomplete.")
+
+        shutil.move(temp_fpath, output_fpath)
     except ftplib.all_errors as e:
         if temp_fpath and os.path.exists(temp_fpath):
             os.remove(temp_fpath)  # Ensure temp file is deleted on error
         raise IOError(f"Error downloading file {file_name}: {e}")
-
 
 def fetch_chirps_files(daterange, output_dir, connection_pool):
     """

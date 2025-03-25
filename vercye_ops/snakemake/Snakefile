@@ -71,7 +71,7 @@ rule fetch_met_data:
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_nasapower.csv'),
-    threads: workflow.cores * 0.75  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
+    threads: int(workflow.cores * 0.75)  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
     shell:
         """
         {params.jq_load_statement}
@@ -303,6 +303,7 @@ rule match_sim_real:
         crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
+    threads: 10
     output:
         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
         conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
@@ -314,6 +315,7 @@ rule match_sim_real:
         --sim_matches_output_fpath {output.sim_matches_output_fpath} \
         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
         --crop_name {params.crop_name} \
+        --n_jobs 10 \
         {params.adjustment} \
         --verbose > {log}
         """
