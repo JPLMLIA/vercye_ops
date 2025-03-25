@@ -68,7 +68,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     # Create figure with two subplots: one for LAI and one for Yield
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         vertical_spacing = 0.1,
-                        subplot_titles=("APSIM and RS LAI", "APSIM Yield"))
+                        subplot_titles=("APSIM and RS LAI", "APSIM Yield"),
+                        specs=[[{"secondary_y": True}], [{"secondary_y": False}]])
 
     ###################################
     logger.info("Plotting individual SimulationID series.")
@@ -102,7 +103,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
                              line=dict(color='black', width=3)), row=1, col=1)
     
     fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
-                             line=dict(color='gray', width=3), visible='legendonly'), row=1, col=1)
+                             line=dict(color='red', width=3)), row=1, col=1, secondary_y=True)
 
     ###################################
     logger.info("Calculating and plotting mean series for simulations not filtered out.")
@@ -117,9 +118,11 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     ###################################
     # Set hovermode to compare across all traces (this enables syncing between subplots)
+    
 
     # Add y-labels for both subplots
-    fig.update_yaxes(title_text="LAI", row=1, col=1)
+    fig.update_yaxes(title_text="LAI", row=1, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Cloud or Snow Coverage (%)", row=1, col=1, secondary_y=True)
     fig.update_yaxes(title_text="Yield Rate (kg/ha)", row=1, col=2)
     fig.update_xaxes(title_text="Date", row=1, col=1)
     fig.update_xaxes(title_text="Date", row=2, col=1)

@@ -19,24 +19,56 @@ rule all:
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_estimates_{}_{}_{}_{}.csv'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}_{}.tif'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
-        met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        # met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}_{}.pdf'.format(Path(config['sim_study_head_dir']).name, config['roi_name'], '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
 
 
 #######################################
 # APSIM Section of Snakemake pipeline
 
+rule construct_chirps_data:
+    priority: 1 # This is a longer running job without dependencies, want to start as early as possible
+    input:
+        chirps_dir = config['apsim_params']['chirps_dir'],
+        geometries = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
+    params:
+        script_fpath = config['scripts']['construct_chirps_data'],
+        precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
+        regions_dir = lambda wildcards: op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint), # We choose a fixed one, since all year/timepoints should contain the same regions.
+        start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
+        end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+    log:
+        'logs_construct_chirps_data/{year}_{timepoint}_chirps.log',
+    output:
+        csv = temp(op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')),
+    shell:
+        """
+        python {params.script_fpath} \
+        --chirps_dir {input.chirps_dir} \
+        --regions_base_dir {params.regions_dir} \
+        --aggregation_method {params.precipitation_agg_method} \
+        --start_date {params.start_date} \
+        --end_date {params.end_date} \
+        --output_file {output.csv} > {log}
+        """
+
 # Rule to hit NASA POWER's API to get weather data and save as CSV
 rule fetch_met_data:
     input:
-        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson')
+        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else []
     params:
-        nasa_power_start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
-        nasa_power_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+        nasa_power_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_start_date'],
+        nasa_power_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+        precipitation_source = config['apsim_params']['precipitation_source'],
+        fallback_nasapower = config['apsim_params']['fallback_on_nasa_power_centroid'],
+        chirps_dir = config['apsim_params']['chirps_dir'],
         script_fpath = config['scripts']['fetch_met_data'],
         head_dir = config['sim_study_head_dir'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else ''
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        region_name = lambda wildcards: wildcards.region,
+        chirps_file = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', f'{wildcards.year}_{wildcards.timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else ''
     log: 
-        'logs_match_sim_real/{year}_{timepoint}_{region}.log',
+        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_nasapower.csv'),
     threads: workflow.cores * 0.75  # Set this high as to limit parallelization here. Don't want to hit NASA servers too fast and be blacklisted
@@ -56,6 +88,10 @@ rule fetch_met_data:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
+        --precipitation_source {params.precipitation_source} \
+        --chirps_column_name {params.region_name} \
+        --fallback_nasapower {params.fallback_nasapower} \
+        {params.chirps_file} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
         --verbose > {log}
@@ -70,7 +106,11 @@ rule construct_plot_met_files:
         met_gen_script_fpath = config['scripts']['construct_met_files'],
         met_plot_script_fpath = config['scripts']['plot_met_files'],
         head_dir = config['sim_study_head_dir'],
-        sim_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+        sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+        precipitation_source = config['apsim_params']['precipitation_source'],
+        precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
+        nasapower_fallback = config['apsim_params']['fallback_on_nasa_power_centroid'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
@@ -78,6 +118,7 @@ rule construct_plot_met_files:
         plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
     shell:
         """
+        {params.jq_load_statement}
         read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         python {params.met_gen_script_fpath} \
@@ -85,12 +126,18 @@ rule construct_plot_met_files:
         --lon ${{LON}} \
         --lat ${{LAT}} \
         --sim_end_date {params.sim_end_date} \
+        --precipitation_source {params.precipitation_source} \
+        --fallback_nasapower {params.nasapower_fallback} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region} \
         --verbose > {log}
         
         python {params.met_plot_script_fpath} \
         --input_fpath {output.met_fpath} \
-        --output_fpath {output.plot_fpath} > {log}
+        --output_fpath {output.plot_fpath} \
+        --precipitation_source {params.precipitation_source} \
+        --precipitation_agg {params.precipitation_agg_method} \
+        --nasapower_fallback {params.nasapower_fallback} \
+        --nasapower_fpath {input.csv} > {log}
         """
         
 
@@ -102,7 +149,7 @@ rule update_apsimx_template:
     params:
         script_fpath = config['scripts']['update_apsimx_template'],
         head_dir = config['sim_study_head_dir'],
-        sim_end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date']
+        sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date']
     log:
         'logs_update_apsimx_template/{year}_{timepoint}_{region}.log',
     output:
@@ -133,6 +180,7 @@ rule execute_simulations:
             input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
+    threads: int(config['apsim_execution']['local']['n_jobs'])
     output:
         db_file = (
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
@@ -150,11 +198,31 @@ rule execute_simulations:
 #######################################
 # S2/LAI portion of Snakemake pipeline
 
+# Reproject orginal cropmask to match LAI resolution
+rule reproject_cropmask:
+    input:
+        original_cropmask = lambda wildcards: config['lai_params']['crop_mask'][int(wildcards.year)],
+    params:
+        executable_fpath = config['scripts']['reproject_cropmask'],
+        lai_dir = config['lai_params']['lai_dir'],
+        lai_region = config['lai_params']['lai_region'],
+    log:
+        'logs_reproject_cropmask/{year}.log'
+    output:
+        reproj_cropmask = op.join(config['sim_study_head_dir'], '{year}', 'reprojected_cropmask.tif')
+    shell:
+        """
+        python {params.executable_fpath} \
+        {input.original_cropmask} \
+        {output.reproj_cropmask} \
+        --lai_dir {params.lai_dir} \
+        --lai_region {params.lai_region} > {log}
+        """
 
 # Clip the original cropmask
 rule constrain_lai_cropmask:
     input:
-        original_lai_cropmask = lambda wildcards: config['lai_params']['crop_mask'][int(wildcards.year)],  # Will need to update to time period
+        original_lai_cropmask = op.join(config['sim_study_head_dir'], '{year}', 'reprojected_cropmask.tif'),  # Will need to update to time period
         geometry_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
         executable_fpath = config['scripts']['constrain_lai_cropmask'],
@@ -418,8 +486,8 @@ rule generate_final_report:
     params:
         executable_fpath = config['scripts']['generate_final_report'],
         regions_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
-        start_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
-        end_date = lambda wildcards: config['apsim_params'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
+        start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
+        end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
         evaluation_results_cmd = lambda _, input: f'--evaluation_results_path {input.evaluation_results}' if input.evaluation_results else '',
         validation_cmd = lambda wildcards, input: f"--val_fpath {op.join(config['sim_study_head_dir'], wildcards.year, 'groundtruth.csv')}" if input.evaluation_results else '',
         roi_name = config['roi_name'],
