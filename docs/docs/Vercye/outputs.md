@@ -77,7 +77,7 @@ This document details all output artifacts and their computation methods.
 
 
 ## 2. Aggregated Outputs
-The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as `yieldstudyname_totalROIname_year_timepoint`, to allow easier sharing of these results.
+The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as `studyID_year_timepoint`, to allow easier sharing of these results.
 
 - **`final_report_suffix.pdf`**: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.
 

@@ -115,7 +115,7 @@ This file defines the study parameters and links the **simulation head directory
 - `regions`: List of included regions. Must match folder names of regions.
 - `years`: List of included years (`int`). Must match year folder names.
 - `timepoints`: List of included timepoints. Must match timepoint folder names.
-- `roi_name`: Descriptive Name of the complete area of the yield study. Freely choosable.
+- `study_id`: Id/Name of that identifies the study. Freely choosable up to a length of 25 characters.
 - `keep_apsim_db_files`: Delete actual APSIM DB files after processing and reporting to free space.(`True`/`False`).
 
 #### APSIM Parameters (`apsim_params`)
