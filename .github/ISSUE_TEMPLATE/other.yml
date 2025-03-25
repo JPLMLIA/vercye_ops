@@ -28,8 +28,4 @@ body:
   - type: textarea
     attributes:
       label: Additional details or resources
-<<<<<<< HEAD
       description: Add any other details, screenshots, links, or resources related to your question or topic.
-=======
-      description: Add any other details, screenshots, links, or resources related to your question or topic.
->>>>>>> develop
