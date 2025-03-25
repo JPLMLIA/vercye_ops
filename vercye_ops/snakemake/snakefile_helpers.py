@@ -23,7 +23,7 @@ def get_evaluation_results_path_func(config):
         This allows the evaluation rule to be skipped if the evaluation results file does not exist.'''
     def get_evaluation_results_path(wildcards):
         
-        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'groundtruth.csv')):
+        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, 'groundtruth.csv')):
             return op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'evaluation.csv')
         else:
             return []

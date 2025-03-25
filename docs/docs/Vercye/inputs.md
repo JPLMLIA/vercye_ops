@@ -15,13 +15,12 @@ Your yield study is structured within a single directory, referred to as the **s
 head_dir/
 |   snakemake_config.yaml
 |---Year1/
+|   |   groundtruth.csv (optional)
 |   |---TimePoint-1/
-|   |   |   groundtruth.csv (optional)
 |   |   |---region1/
 |   |   |   |   region1.geojson
 |   |   |   |   region1_template.apsimx
 |   |---TimePoint-N/
-|       |   groundtruth.csv (optional)
 |       |---regionN/
 |           |   regionN.geojson
 |           |   regionN_template.apsimx
@@ -86,7 +85,7 @@ Adjustments for soil properties and simulation constraints must be manually conf
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth.csv` in the corresponding timepoint directory.
+If ground-truth yield data is available, it should be included as `groundtruth.csv` in the corresponding year directory.
 
 ### Refernece CSV Specification
 | Column Name               | Description |
@@ -99,8 +98,9 @@ If `reported_yield_kg` is provided, the mean yield is computed as:
 ```plaintext
 mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
 ```
+with cropland_area_ha being the computed cropland_area_ha from VeRCYe.
 
-Validation data is optional and only needed for timepoints where it is available.
+Validation data is optional and cen also be provided for a subset of years where it is available.
 
 ---
 
