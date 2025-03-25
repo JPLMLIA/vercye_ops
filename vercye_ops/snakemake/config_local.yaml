@@ -8,8 +8,8 @@ platform: 'local'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 
-# Name that best describes the primary region of interest of the simulation
-roi_name: 'Poltava'  
+# Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
+study_id: 'Poltava'  
 
 # Specify one or more simulations
 regions:
