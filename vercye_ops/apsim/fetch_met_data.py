@@ -2,24 +2,15 @@
 
 import os.path as op
 from pathlib import Path
-import threading
 
 import click
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 import ee
 import numpy as np
-from datetime import datetime, timedelta
-import rasterio
-from rasterio.mask import mask
-from rasterio.transform import rowcol
 import requests
-import time
 import pyarrow.parquet as pq
 from dateutil.relativedelta import relativedelta
-
-
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -28,7 +19,6 @@ logger = get_logger()
 # Valid climate variables for the NASA POWER API
 VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
-
 
 
 def error_checking_function(df):
@@ -123,7 +113,7 @@ def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath,
     start_date and end_date if not already present in the output_dir.
     """
 
-    if Path(output_fpath).exists and not overwrite:
+    if Path(output_fpath).exists() and not overwrite:
         logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
         return pd.read_csv(output_fpath)
     
@@ -164,8 +154,9 @@ def write_met_data_to_csv(df, output_fpath):
     logger.info("Data successfully written to %s", output_fpath)
     return output_fpath
 
+
 def get_era5_data(start_date, end_date, lon, lat, ee_project, output_fpath, overwrite):
-    if Path(output_fpath).exists and not overwrite:
+    if Path(output_fpath).exists() and not overwrite:
         logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
         return pd.read_csv(output_fpath)
     
@@ -278,6 +269,13 @@ def validate_precipitation_source(precipitation_source, met_source):
         return
     if precipitation_source != met_source:
         raise Exception('Currently precipitation_source and met_source must be the same if not using CHIPRS.')
+    
+
+def clean_era5(df):
+    # Clip precipitation to 0. Precipitation can never be below zero
+    df[df['PRECTOTCORR' < 0]] = 0 
+
+    return df
 
 
 @click.command()
@@ -287,7 +285,8 @@ def validate_precipitation_source(precipitation_source, met_source):
 @click.option('--lon', type=float, required=True, help="Longitude of the location.")
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
 @click.option('--met_source', type=click.Choice(['era5', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of meteorological data.")
-@click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power', 'era5'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")@click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
+@click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power', 'era5'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
+@click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
 @click.option('--fallback_precipitation', type=bool, help="Fallback to the original NasaPower or ERA5 precipitation data if CHIRPS data is not available.", default=False)
 @click.option('--chirps_file', type=click.Path(file_okay=True, dir_okay=False), default=None, help="File where the CHIRPS extracted chirps-data is saved.")
 @click.option('--ee_project', type=str, required=False, help='Name of the Earth Engine Project in which to run the ERA5 processing. Only required when using --met_source era5.')
@@ -299,18 +298,18 @@ def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_sou
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
-    output_fpath = op.join(output_dir, f'{region}_met.csv')
+    output_fpath = Path(output_dir) / f'{region}_met.csv'
 
     validate_precipitation_source(precipitation_source, met_source)
 
     if met_source.lower() == 'nasa_power':
-        df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
+        df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite)
     elif met_source.lower() == 'era5':
-
         if ee_project is None:
             raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
-
-        df = get_era5_data(start_date, end_date, lon, lat, ee_project, output_dir, overwrite)
+        df = get_era5_data(start_date, end_date, lon, lat, ee_project, output_fpath, overwrite)
+        error_checking_function(df)
+        df = clean_era5(df)
 
     if precipitation_source == 'CHIRPS':
         try:
