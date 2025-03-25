@@ -65,7 +65,7 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_crs):
 
 @click.command()
 @click.option('--converted_lai_tif_fpath', required=True, type=click.Path(exists=True), help='Filepath to the input converted LAI geotiff file.')
-@click.option('--target_epsg', required=True, help='EPSG code of the project target coordinate system (used for pixel area calculation).')
+@click.option('--target_crs', required=True, help='CRS string (proj4/authority e.g "EPSG:1234") of the project target coordinate system (used for pixel area calculation).')
 @click.option('--output_yield_csv_fpath', required=True, type=click.Path(), help='Filepath where the total yield will be saved as a CSV file.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
 def cli(converted_lai_tif_fpath, output_yield_csv_fpath, target_crs, verbose):

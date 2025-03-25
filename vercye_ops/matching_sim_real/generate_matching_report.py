@@ -132,8 +132,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     end_date = mean_data.index.max().strftime('%Y-%m-%d')
     n_simulations = len(good_sim_ids)
     n_days_with_rs_data = rs_df[rs_df['interpolated'] == 0].shape[0]
-    n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Coverage (%)'] < 100)].shape[0]
-    cloud_snow_percentage = rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Coverage (%)'] < 100)]['Cloud or Snow Percentage'].mean()
+    n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)].shape[0]
+    cloud_snow_percentage = rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)]['Cloud or Snow Percentage'].mean()
     
     title_text = (f"<b>Sim/Real (APSIM/S2-LAI) Matching</b><br>"
                   f"Input CSV: <i>{apsim_filtered_fpath}</i><br>"

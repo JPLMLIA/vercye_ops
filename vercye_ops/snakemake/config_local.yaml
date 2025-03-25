@@ -148,6 +148,8 @@ lai_params:
     2021: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
     2022: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
     2023: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+  do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
+
 ########################################
 # Sim/Real Matching Parameters
     

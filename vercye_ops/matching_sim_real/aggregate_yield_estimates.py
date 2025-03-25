@@ -90,14 +90,14 @@ def aggregate_yields(yield_dir):
             mean_cloud_snow_percentage = None
             if lai_stats_csv_path.exists():
                 rs_df = pd.read_csv(lai_stats_csv_path)
-                n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Coverage (%)'] < 100)].shape[0]
-                mean_cloud_snow_percentage = rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Coverage (%)'] < 100)]['Cloud or Snow Percentage'].mean()
+                n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)].shape[0]
+                mean_cloud_snow_percentage = rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)]['Cloud or Snow Percentage'].mean()
             
             extra_info_df = pd.DataFrame({
-                'region': region_name,
-                'precipitation_src': precipitation_src,
-                'n_days_with_rs_data_valid': n_days_with_rs_data_valid,
-                'mean_cloud_snow_percentage': mean_cloud_snow_percentage
+                'region': [region_name],
+                'precipitation_src': [precipitation_src],
+                'n_days_with_rs_data_valid': [n_days_with_rs_data_valid],
+                'mean_cloud_snow_percentage': [mean_cloud_snow_percentage]
             })
 
             combined_df = pd.merge(combined_df, extra_info_df, on='region', how='outer')

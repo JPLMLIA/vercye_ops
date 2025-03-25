@@ -106,7 +106,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     variables_str = ','.join(variables)
 
     # API endpoint and parameters
-    time.sleep(300)
+    time.sleep(60)
     url = "https://power.larc.nasa.gov/api/temporal/daily/point"
     params = {'parameters': variables_str,
               'community': 'AG',

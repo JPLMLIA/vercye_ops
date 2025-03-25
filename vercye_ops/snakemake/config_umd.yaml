@@ -147,6 +147,8 @@ lai_params:
     2021: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
     2022: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
     2023: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
+  do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
+
 ########################################
 # Sim/Real Matching Parameters
     

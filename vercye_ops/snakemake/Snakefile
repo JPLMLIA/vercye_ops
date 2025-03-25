@@ -218,7 +218,7 @@ rule reproject_cropmask:
         {output.reproj_cropmask} \
         --lai_dir {params.lai_dir} \
         --lai_region {params.lai_region} > {log}
-        """
+        """ if config['lai_params']['do_cropmask_reprojection'] else 'cp {input.original_cropmask} {output.reproj_cropmask}'
 
 # Clip the original cropmask
 rule constrain_lai_cropmask:
@@ -347,7 +347,7 @@ rule estimate_total_yield:
         converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
     params:
         executable_fpath = config['scripts']['estimate_total_yield'],
-        target_crsg = config['matching_params']['target_crsg'],
+        target_crs = config['matching_params']['target_crs'],
     log:
         'logs_estimate_total_yield/{year}_{timepoint}_{region}.log',
     output:
@@ -356,7 +356,7 @@ rule estimate_total_yield:
         """
         python {params.executable_fpath} \
         --converted_lai_tif_fpath {input.converted_lai_map} \
-        --target_crsg {params.target_crsg} \
+        --target_crs {params.target_crs} \
         --output_yield_csv_fpath {output.total_yield_csv} \
         --verbose > {log}
         """
@@ -501,7 +501,7 @@ rule generate_final_report:
         report_fpath = op.join(config['sim_study_head_dir'], 
                                '{year}',
                                '{timepoint}', 
-                               'final_report_{}_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), 
+                               'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), 
     shell:
         """
         python {params.executable_fpath} \
