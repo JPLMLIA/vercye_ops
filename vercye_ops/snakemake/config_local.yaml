@@ -6,102 +6,107 @@ platform: 'local'
 # Simulation Parameters
 
 # Directory containing each region. Update this for each new snakemake run
-sim_study_head_dir: '/Users/wronk/Data/vercye_ops/Rayon_District_Level_Yield/completed_simulations/yield_run_20241105'
+sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 
 # Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
 study_id: 'Poltava'  
 
 # Specify one or more simulations
 regions:
-  - 'Chornukhynskyi'
-  - 'Chutivskyi'
-  - 'Dykanskyi'
-  - 'Hadiatskyi'
-  - 'Hlobynskyi'
-  - 'Hrebinkivskyi'
-  - 'Karlivskyi'
-  - 'Khorolskyi'
-  - 'Kobeliatskyi'
-  - 'Komsomolska'
-  - 'Kotelevskyi'
-  - 'Kozelshchynskyi'
-  - 'Kremenchutskyi'
-  - 'Lokhvytskyi'
-  - 'Lubenskyi'
+  # - 'Chornukhynskyi'
+  # - 'Chutivskyi'
+  # - 'Dykanskyi'
+  # - 'Hadiatskyi'
+  # - 'Hlobynskyi'
+  # - 'Hrebinkivskyi'
+  # - 'Karlivskyi'
+  # - 'Khorolskyi'
+  # - 'Kobeliatskyi'
+  # - 'Komsomolska'
+  # - 'Kotelevskyi'
+  # - 'Kozelshchynskyi'
+  # - 'Kremenchutskyi'
+  # - 'Lokhvytskyi'
+  # - 'Lubenskyi'
   - 'Mashivskyi'
-  - 'Myrhorodskyi'
-  - 'Novosanzharskyi'
-  - 'Orzhytskyi'
-  - 'Poltavskyi'
-  - 'Pyriatynskyi'
-  - 'Reshetylivskyi'
-  - 'Semenivskyi'
-  - 'Shyshatskyi'
-  - 'Velykobahachanskyi'
-  - 'Zinkivskyi'
+  # - 'Myrhorodskyi'
+  # - 'Novosanzharskyi'
+  # - 'Orzhytskyi'
+  # - 'Poltavskyi'
+  # - 'Pyriatynskyi'
+  # - 'Reshetylivskyi'
+  # - 'Semenivskyi'
+  # - 'Shyshatskyi'
+  # - 'Velykobahachanskyi'
+  # - 'Zinkivskyi'
 
 years:
   - 2021
-  - 2022
-  - 2023
+  # - 2022
+  # - 2023
 
 timepoints:  # Days relative to harvest
-  - T-0
+  # - T-0
   - T-30
-  - T-60
+  # - T-60
 
 ########################################
 # APSIM Parameters
-#
+
 apsim_params:
-  2021:
-    T-0:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-08-01'
-    T-30:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-07-02'
-    T-60:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-06-03'
-  2022:
-    T-0:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-07-27'
-    T-30:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-06-28'
-    T-60:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-05-29'
-  2023:
-    T-0:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-07-26'
-    T-30:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-06-27'
-    T-60:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-05-28'
+  precipitation_source: 'NASA_POWER' # 'NASA_POWER' or 'CHIRPS'
+  precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
+  fallback_on_nasa_power_centroid: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
+  chirps_dir: '/home/rohan/nasa-harvest/vercye/data/chirps' # Only required to set if precipitation_source is 'CHIRPS'
+  time_bounds:
+    2021:
+      T-0:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-08-01'
+      T-30:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-07-02'
+      T-60:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-06-03'
+    2022:
+      T-0:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-07-27'
+      T-30:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-06-28'
+      T-60:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-05-29'
+    2023:
+      T-0:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-07-26'
+      T-30:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-06-27'
+      T-60:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-05-28'
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
@@ -140,14 +145,16 @@ lai_params:
       T-30: ['2022-08-20', '2023-06-27']
       T-60: ['2022-08-20', '2023-05-28']
   crop_mask:
-    2021: '/Users/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
-    2022: '/Users/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
-    2023: '/Users/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
+    2021: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+    2022: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+    2023: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+  do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
+
 ########################################
 # Sim/Real Matching Parameters
     
 matching_params:
-  target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
   
 ########################################
 # Local paths to the python/APSIM scripts
@@ -169,3 +176,5 @@ scripts:
   generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
   aggregate_met_stats: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/evaluate_yield_estimates.py'
+  construct_chirps_data: '~/Builds/vercye_ops/vercye_ops/apsim/construct_chirps_precipitation_files.py'
+  reproject_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_reproj_mask.py'

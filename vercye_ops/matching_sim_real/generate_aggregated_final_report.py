@@ -41,18 +41,19 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
             body {{
                 font-family: 'Open Sans', sans-serif;
+                font-size: 14px;
                 background-color: #f9f9f9;
-                padding: 20px;
+               
             }}
             h1 {{
                 text-align: center;
-                margin-bottom: 30px;
+               
             }}
             .content-container {{
                 max-width: 900px;
-                margin: 0 auto;
+              
                 background: #ffffff;
-                padding: 20px;
+               
                 border-radius: 8px;
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             }}
@@ -64,7 +65,6 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
             .margin-img {{
                 display: block;
-                margin: 20px auto;
                 max-width: 100%;
                 height: auto;
                 border: 1px solid #ddd;
@@ -72,7 +72,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
 
             .evaluation-image img {{
-                width: 400px; /* Makes sure the image takes full available width */
+                width: 360px; /* Makes sure the image takes full available width */
                 height: auto; /* Maintains aspect ratio */
                 object-fit: contain; /* Ensures the image doesn't get cropped */
             }}
@@ -84,7 +84,9 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
 
             <p><strong>Date Range:</strong> {start_date.date()} to {end_date.date()}</br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
-            <strong>Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
+            {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
+            <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
+            {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t</br>" if global_summary['reported_total_production_ton'] is not None else ''}
             <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
 
 
@@ -93,7 +95,8 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             <div class="evaluation-container">
                 <div class="evaluation-text">
                     <h4>Evaluation Metrics</h4>
-                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below)<br>
+                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
+                    <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}</br>
                     <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
                     <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
                     <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha</br>
@@ -102,7 +105,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
                     <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
                     <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
                     <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</br>
-                    <strong>R2 (Best Fit):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}</p>
+                    <strong>R2 Best Fit (Coefficient of Determination):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}</p>
                 </div>
             ''' if evaluation_results is not None else ''}
 
@@ -170,7 +173,28 @@ def compute_global_summary(regions_summary):
     total_yield_production_kg =  regions_summary['total_yield_production_kg'].sum()
     mean_yield_kg = total_yield_production_kg / total_area_ha
 
-    return {'total_area_ha': total_area_ha, 'total_yield_production_ton': total_yield_production_ton, 'mean_yield_kg': mean_yield_kg}
+    # need to get those entries where reported_mean_yield_kg_ha is not NaN
+    if 'reported_yield_kg' in regions_summary.columns:
+        reported_regions_data = regions_summary[~regions_summary['reported_yield_kg'].isna()]
+        reported_areas_ha = reported_regions_data['total_area_ha'].sum()
+        reported_total_production_kg = reported_regions_data['reported_yield_kg'].sum()
+        reported_total_production_ton = reported_total_production_kg / 1000
+        mean_reported_yield_kg = reported_total_production_kg / reported_areas_ha
+    elif 'reported_mean_yield_kg_ha' in regions_summary.columns:
+        reported_regions_data = regions_summary[~regions_summary['reported_mean_yield_kg_ha'].isna()]
+        reported_areas_ha = reported_regions_data['total_area_ha'].sum()
+        reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
+        reported_total_production_ton = reported_total_production_kg / 1000
+        mean_reported_yield_kg = reported_total_production_kg / reported_areas_ha
+    else:
+        reported_total_production_ton = None
+        mean_reported_yield_kg = None
+
+    return {'total_area_ha': total_area_ha,
+            'total_yield_production_ton': total_yield_production_ton,
+            'mean_yield_kg': mean_yield_kg,
+            'reported_total_production_ton': reported_total_production_ton,
+            'mean_reported_yield_kg': mean_reported_yield_kg}
 
 
 def get_regions_geometry_paths(regions_dir):
@@ -186,6 +210,8 @@ def get_contrasting_text_color(rgb):
 
 def create_map(regions_summary, combined_geojson):
     # Merge geometry with summary data
+    combined_geojson['region'] = combined_geojson['region'].astype(str)
+    regions_summary['region'] = regions_summary['region'].astype(str)
     merged = combined_geojson.merge(regions_summary, left_on='region', right_on='region')
 
     # Define colormap and normalization
@@ -318,6 +344,7 @@ def generate_final_report(regions_dir, start_date, end_date, aggregated_yield_ma
         scatter_plot_path = evaluation_results_path.replace('.csv', '.png')
     else:
         evaluation_results = None
+        scatter_plot_path = None
 
     return fill_report_template(yield_map_path, 
                                 regions_summary,

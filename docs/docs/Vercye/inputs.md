@@ -138,7 +138,7 @@ This file defines the study parameters and links the **simulation head directory
 - `crop_mask`: Path to crop mask files for each year.
 
 #### Matching Parameters (`matching_params`)
-- `target_epsg`: EPSG code for coordinate reference system used for area calculation. Should be choosen with care to minimize distortions.
+- `target_crs`: CRS string for coordinate reference system used for area calculation. Either a proj string (e.g `'"+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"'`) or authority string (e.g `'epsg:1234'`). Should be choosen with care to minimize distortions. If using a proj string ensure to encolose it with additional quotes as in the example.
 
 #### APSIM Execution (`apsim_execution`)
 - `use_docker`: Set `True` to run APSIM in Docker.

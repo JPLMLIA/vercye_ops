@@ -14,6 +14,8 @@ def load_csv(fpath):
     return pd.read_csv(fpath)
 
 def compute_metrics(preds, obs):
+    if len(preds) != len(obs):
+        raise ValueError("Length of the predictions and observations do not match.")
     errors_kg_ha = obs - preds
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
@@ -30,6 +32,7 @@ def compute_metrics(preds, obs):
     r2_scikit_bestfit = r2_score(preds, y_line)
 
     aggregated_metrics = {
+        'n_regions': len(obs),
         'mean_err_kg_ha': mean_err_kg_ha,
         'median_err_kg_ha': median_err_kg_ha,
         'mean_abs_err_kg_ha': mean_abs_err_kg_ha,
@@ -54,7 +57,14 @@ def create_scatter_plot(preds, obs):
 
     abs_max = max(obs.max(), preds.max())
     values = np.vstack([preds, obs])
-    kernel = scipy.stats.gaussian_kde(values)(values)
+
+    fallback_kernel = False
+    try:
+        kernel = scipy.stats.gaussian_kde(values)(values)
+    except:
+        print("KDE failed due to low-dimensional data — using uniform color instead.")
+        kernel = np.ones_like(preds)  # fallback uniform density
+        fallback_kernel = True
 
     theta = np.polyfit(preds, obs, 1)
     y_line = theta[1] + theta[0] * preds
@@ -70,14 +80,14 @@ def create_scatter_plot(preds, obs):
     rawr.set_axis_labels("Predicted (kg/ha)", "Observed (kg/ha)")
 
     # Add colormap for scatter plot (placing it outside the plot)
-    norm = plt.Normalize(kernel.min(), kernel.max())
-    sm = plt.cm.ScalarMappable(cmap='viridis', norm=norm)
-
-    fig = rawr.figure
-    cbar_ax = fig.add_axes([1, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
-    cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.set_label("Point Density")
-    cbar.ax.yaxis.get_offset_text().set_visible(False)
+    if not fallback_kernel:
+        norm = plt.Normalize(kernel.min(), kernel.max())
+        sm = plt.cm.ScalarMappable(cmap='viridis', norm=norm)
+        fig = rawr.figure
+        cbar_ax = fig.add_axes([1, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
+        cbar = fig.colorbar(sm, cax=cbar_ax)
+        cbar.set_label("Point Density")
+        cbar.ax.yaxis.get_offset_text().set_visible(False)
 
     return rawr
 

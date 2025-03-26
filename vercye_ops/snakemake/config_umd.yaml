@@ -52,56 +52,60 @@ timepoints:  # Days relative to harvest
 
 ########################################
 # APSIM Parameters
-
 apsim_params:
-  2021:
-    T-0:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-08-01'
-    T-30:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-07-02'
-    T-60:
-      sim_start_date: '2020-08-20'
-      sim_end_date: '2021-08-01'
-      nasa_power_start_date: '1991-07-01'
-      nasa_power_end_date: '2021-06-03'
-  2022:
-    T-0:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-07-27'
-    T-30:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-06-28'
-    T-60:
-      sim_start_date: '2021-08-20'
-      sim_end_date: '2022-07-27'
-      nasa_power_start_date: '1992-07-01'
-      nasa_power_end_date: '2022-05-29'
-  2023:
-    T-0:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-07-26'
-    T-30:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-06-27'
-    T-60:
-      sim_start_date: '2022-08-20'
-      sim_end_date: '2023-07-26'
-      nasa_power_start_date: '1993-07-01'
-      nasa_power_end_date: '2023-05-28'
+  precipitation_source: 'NASA_POWER' # 'NASA_POWER' or 'CHIRPS'
+  precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
+  fallback_on_nasa_power_centroid: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
+  chirps_dir: '' # Only required to set if precipitation_source is 'CHIRPS'
+  time_bounds:
+    2021:
+      T-0:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-08-01'
+      T-30:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-07-02'
+      T-60:
+        sim_start_date: '2020-08-20'
+        sim_end_date: '2021-08-01'
+        nasa_power_start_date: '1991-07-01'
+        nasa_power_end_date: '2021-06-03'
+    2022:
+      T-0:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-07-27'
+      T-30:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-06-28'
+      T-60:
+        sim_start_date: '2021-08-20'
+        sim_end_date: '2022-07-27'
+        nasa_power_start_date: '1992-07-01'
+        nasa_power_end_date: '2022-05-29'
+    2023:
+      T-0:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-07-26'
+      T-30:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-06-27'
+      T-60:
+        sim_start_date: '2022-08-20'
+        sim_end_date: '2023-07-26'
+        nasa_power_start_date: '1993-07-01'
+        nasa_power_end_date: '2023-05-28'
 
 # If using Docker, make sure to pull the docker image before executing this snakemake pipeline
 apsim_execution:
@@ -143,11 +147,13 @@ lai_params:
     2021: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
     2022: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
     2023: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
+  do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
+
 ########################################
 # Sim/Real Matching Parameters
     
 matching_params:
-  target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
   
 ########################################
 # Local paths to the python/APSIM scripts
@@ -169,3 +175,5 @@ scripts:
   generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'
   aggregate_met_stats: '../matching_sim_real/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'
+  construct_chirps_data: '../apsim/construct_chirps_precipitation_files.py'
+  reproject_cropmask: '../lai/0_reproj_mask.py'

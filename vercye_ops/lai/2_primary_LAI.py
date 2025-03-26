@@ -59,7 +59,7 @@ def main(s2_dir, lai_dir, region, resolution, model_weights="models/s2_sl2p_weis
 
     region: Name of the region. Used to match file names beginning with region_
 
-    resolution: Spatial resolution. Used to match file names beginning with region_resolution
+    resolution: Spatial resolution in meters. Used to match file names beginning with region_resolution
 
     This pipeline does the following:
     1. Looks for Sentinel-2 images in the specified directory in the format {geometry_name}_{resolution}m_{date}.vrt

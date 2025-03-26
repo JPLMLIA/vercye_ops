@@ -43,6 +43,7 @@ mkdir -p ~/Data/vercye_ops/Ukraine_Admin_Units/simstudy_20240607/2021/T-0
 
 python ~/Builds/vercye_ops/vercye_ops/apsim/convert_shapefile_to_geojson.py \
 --shp_fpath /path/to/UKR_adm1.shp \
+--projection_crs "EPSG:6381" \
 --admin_name_col NAME_3 \
 --output_head_dir ~/Data/vercye_ops/Ukraine_Admin_Units/simstudy_20240607/2021/T-0 \
 --verbose

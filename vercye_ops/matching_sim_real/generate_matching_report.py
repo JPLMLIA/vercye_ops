@@ -68,7 +68,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     # Create figure with two subplots: one for LAI and one for Yield
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         vertical_spacing = 0.1,
-                        subplot_titles=("APSIM and RS LAI", "APSIM Yield"))
+                        subplot_titles=("APSIM and RS LAI", "APSIM Yield"),
+                        specs=[[{"secondary_y": True}], [{"secondary_y": False}]])
 
     ###################################
     logger.info("Plotting individual SimulationID series.")
@@ -102,7 +103,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
                              line=dict(color='black', width=3)), row=1, col=1)
     
     fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
-                             line=dict(color='gray', width=3), visible='legendonly'), row=1, col=1)
+                             line=dict(color='red', width=3)), row=1, col=1, secondary_y=True)
 
     ###################################
     logger.info("Calculating and plotting mean series for simulations not filtered out.")
@@ -117,9 +118,11 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     ###################################
     # Set hovermode to compare across all traces (this enables syncing between subplots)
+    
 
     # Add y-labels for both subplots
-    fig.update_yaxes(title_text="LAI", row=1, col=1)
+    fig.update_yaxes(title_text="LAI", row=1, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Cloud or Snow Coverage (%)", row=1, col=1, secondary_y=True)
     fig.update_yaxes(title_text="Yield Rate (kg/ha)", row=1, col=2)
     fig.update_xaxes(title_text="Date", row=1, col=1)
     fig.update_xaxes(title_text="Date", row=2, col=1)
@@ -129,7 +132,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     end_date = mean_data.index.max().strftime('%Y-%m-%d')
     n_simulations = len(good_sim_ids)
     n_days_with_rs_data = rs_df[rs_df['interpolated'] == 0].shape[0]
-    cloud_snow_percentage = rs_df['Cloud or Snow Percentage'].mean()
+    n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)].shape[0]
+    cloud_snow_percentage = rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)]['Cloud or Snow Percentage'].mean()
     
     title_text = (f"<b>Sim/Real (APSIM/S2-LAI) Matching</b><br>"
                   f"Input CSV: <i>{apsim_filtered_fpath}</i><br>"
@@ -138,8 +142,9 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
                   f"Date range: {start_date} to {end_date}<br>"
                   f"Mean yield rate: {mean_yield_kg_ha:0.0f} kg/ha<br>"
                   f"Production: <b>{total_yield_metric_tons:0.0f} metric tons</b><br>"
-                  f"Days with RS data: {n_days_with_rs_data} days<br>"
-                  f"Average Cloud/Snow coverage per non-interpolated RS date: {cloud_snow_percentage:0.2f}%")
+                  f"Days with RS data (including 100% cloud coverage): {n_days_with_rs_data} days<br>"
+                  f"Valid Days with RS data (< 100% cloud coverage): {n_days_with_rs_data_valid} days<br>"
+                  f"Average Cloud/Snow coverage per non-interpolated valid RS date: {cloud_snow_percentage:0.2f}%")
 
     fig.update_layout(title=dict(text=title_text, font=dict(size=10)),
                       margin={'t': 275})  # Adjust the top margin to avoid overlap
