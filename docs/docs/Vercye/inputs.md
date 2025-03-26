@@ -37,12 +37,12 @@ The names in this structure are just descriptive placeholders and should be adju
 Each **Region of Interest (ROI)** is represented as a GeoJSON file within its respective **timepoint** directory.
 
 ### Converting Shapefiles to GeoJSON
-We expect you data ti initially be in **.shp (shapefile)** format. Use the provided scripts to convert it:
+We expect you data to initially be in **.shp (shapefile)** format. Use the provided scripts to convert it:
 - **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile contains a uniform administrative level.
 - **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion.
 
-[!CAUTION]
-Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
+> [!Warning]
+> Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
 
 ### File Naming Convention
 Each GeoJSON file must follow the format:

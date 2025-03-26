@@ -34,14 +34,17 @@ To manipulate json files via the command line, install https://jqlang.github.io/
 ## Convert Shapefile to GeoJSONs (one-time)
 If you have a shapefile, extract each of the geospatial polygons into an individual geojson. This also sets up a directory tree with each geospatial polygon as its own folder (prepping for parallel execution of all regions). You need to do this for each year and timepoint you want to run.
 
+First, ensure your shapefile only contains entries that specify geometries for your administrative level of interest. You can also use the `prepare_shapefile.py` script to preprocess your shapefile to adhere to this requirement. If using the script, ensure you use the newly created file from the script in the following steps. We recommend to additionally manually ensure that your shapefile does not mix entries from different administrative levels.
+
+Then run the `convert_shapefile_to_geojson.py` script. Specify the column that contains the administative division name (e.g NAME_3) with the `--admin_name_col` flag.
+
 ```
 mkdir -p ~/Data/vercye_ops/Ukraine_Admin_Units/simstudy_20240607/2021/T-0
 
-# Set the `admin_level` to "oblast" or "raion" if there are two levels in the shapefile
 python ~/Builds/vercye_ops/vercye_ops/apsim/convert_shapefile_to_geojson.py \
 --shp_fpath /path/to/UKR_adm1.shp \
---admin_level oblast \
-----projection_crs "EPSG:6381" \
+--projection_crs "EPSG:6381" \
+--admin_name_col NAME_3 \
 --output_head_dir ~/Data/vercye_ops/Ukraine_Admin_Units/simstudy_20240607/2021/T-0 \
 --verbose
 ```
