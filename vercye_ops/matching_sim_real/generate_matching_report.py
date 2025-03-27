@@ -103,7 +103,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
                              line=dict(color='black', width=3)), row=1, col=1)
     
     cloud_data = rs_df[rs_df['Cloud or Snow Percentage'] < 100]
-    fig.add_trace(go.Scatter(x=rs_df.index, y=cloud_data, mode='lines', name='RS Cloud Coverage %', 
+    fig.add_trace(go.Scatter(x=cloud_data.index, y=cloud_data['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
                              line=dict(color='red', width=3)), row=1, col=1, secondary_y=True)
 
     ###################################
