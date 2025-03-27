@@ -127,19 +127,73 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     # Convert to DataFrame
     df = pd.DataFrame(data)
     df.index = pd.to_datetime(df.index)
+
+    df = clean_nasa_power_data(df, nodata_val)
     
-    return df, nodata_val
+    return df
 
 
-def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite):
+def get_nasapower_pixel_id(lon, lat):
+    """
+    Get nearest nasa power gridcell centroid as str.
+    """
+
+    # TODO: Precipitation has Highest Resolution at 0.1x0.1 degrees.
+    # However other data has 0.5degree resolution. Need to discuss caching.
+
+    # grid_lon = round(lon * 2) / 2
+    # grid_lat = round(lat * 2) / 2
+    # return f'{grid_lon}_{grid_lat}'
+    pass
+
+
+def get_nasapower_cachefile_path(lon, lat, cache_dir):
+    nasapower_pixel_id = get_nasapower_pixel_id(lon, lat)
+    cachefile_path = Path(cache_dir) / f'{nasapower_pixel_id}.csv'
+    return cachefile_path
+
+
+def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite, cache_dir=None):
     """
     Fetches weather data from the NASA POWER API for a given latitude and longitude between 
     start_date and end_date if not already present in the output_dir.
     """
 
-    if Path(output_fpath).exists and not overwrite:
+    if Path(output_fpath).exists() and not overwrite:
         logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
         return pd.read_csv(output_fpath), None
+    
+    # Use cached data if available
+    if cache_dir and not overwrite:
+        cache_file_path = get_nasapower_cachefile_path(lon, lat, cache_dir)
+        if cache_file_path.exists():
+            logger.info('Nasapower data found in cache.')
+
+            # Load the data from the cache file
+            df = pd.read_csv(cache_file_path)
+            df.index = pd.to_datetime(df.index)
+
+            # Check if all the required dates are present in the cache file
+            required_dates = get_dates_range(start_date, end_date)
+            missing_dates = required_dates[~required_dates.isin(df.index)]
+
+            # Fetch missing data from NASA POWER and append to the cache file
+            if not missing_dates.empty:
+                logger.info('Missing dates in the cache file. Fetching missing data from NASA POWER.')
+                new_start_date = missing_dates.min()
+                new_end_date = missing_dates.max()
+                new_df, nodata_value = fetch_nasa_power_data(new_start_date, new_end_date, variables, lon, lat)
+                df = pd.concat([df, new_df])
+                df = df.sort_index()
+
+                # Clean the data
+                df = clean_nasa_power_data(df, nodata_value)
+
+                # Save the updated cache file
+                save_to_cache(df, lon, lat, cache_dir)
+
+            # return only the required dates
+            return df.loc[start_date:end_date], nodata_value
     
     return fetch_nasa_power_data(start_date, end_date, variables, lon, lat)
 
@@ -174,9 +228,14 @@ def write_met_data_to_csv(df, output_fpath):
     Write the meteorological data to a CSV file.
     """
     df.to_csv(output_fpath)
-
-    logger.info("Data successfully written to %s", output_fpath)
     return output_fpath
+
+
+def save_to_cache(df, lon, lat, cache_dir):
+    nasapower_pixel_id = get_nasapower_pixel_id(lon, lat)
+    cachefile_path = Path(cache_dir) / f'{nasapower_pixel_id}.csv'
+    write_met_data_to_csv(df, cachefile_path)
+    return cachefile_path
 
 
 @click.command()
@@ -190,17 +249,17 @@ def write_met_data_to_csv(df, output_fpath):
 @click.option('--fallback_nasapower', help="Fallback to NASA POWER data if CHIRPS data is not available.", default=False)
 @click.option('--chirps_file', type=click.Path(file_okay=True, dir_okay=False), default=None, help="File where the CHIRPS extracted chirps-data is saved.")
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
+@click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=False, help="Directory where nasapower data can be cached and will be indexed by nasapower pixelID.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_column_name, fallback_nasapower, chirps_file, output_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_column_name, fallback_nasapower, chirps_file, output_dir, cache_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
     output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
-    df, nodata_value = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
-    df = clean_nasa_power_data(df, nodata_value)
+    df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
 
     if precipitation_source.lower() == 'chirps':
         try:
@@ -225,6 +284,7 @@ def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_
     df_cleaned = error_checking_function(df)
 
     write_met_data_to_csv(df_cleaned, output_fpath)
+    logger.info("Data successfully written to %s", output_fpath)
 
 if __name__ == '__main__':
     cli()
