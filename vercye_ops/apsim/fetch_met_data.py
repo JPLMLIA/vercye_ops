@@ -153,7 +153,7 @@ def get_nasapower_cachefile_path(lon, lat, cache_dir):
     return cachefile_path
 
 
-def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite, cache_dir=None):
+def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, cache_dir, overwrite):
     """
     Fetches weather data from the NASA POWER API for a given latitude and longitude between 
     start_date and end_date if not already present in the output_dir.
@@ -248,18 +248,16 @@ def save_to_cache(df, lon, lat, cache_dir):
 @click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
 @click.option('--fallback_nasapower', help="Fallback to NASA POWER data if CHIRPS data is not available.", default=False)
 @click.option('--chirps_file', type=click.Path(file_okay=True, dir_okay=False), default=None, help="File where the CHIRPS extracted chirps-data is saved.")
-@click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
+@click.option('--output_fpath', type=click.Path(file_okay=True, dir_okay=False, writable=True), required=True, help="Path of the .csv file that will be saved.")
 @click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=False, help="Directory where nasapower data can be cached and will be indexed by nasapower pixelID.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_column_name, fallback_nasapower, chirps_file, output_dir, cache_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, precipitation_source, chirps_column_name, fallback_nasapower, chirps_file, output_fpath, cache_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
-    region = Path(output_dir).stem
-    output_fpath = op.join(output_dir, f'{region}_nasapower.csv')
 
-    df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_dir, overwrite)
+    df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, cache_dir, overwrite)
 
     if precipitation_source.lower() == 'chirps':
         try:

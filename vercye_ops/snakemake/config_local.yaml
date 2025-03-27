@@ -58,6 +58,7 @@ apsim_params:
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
   fallback_on_nasa_power_centroid: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
   chirps_dir: '/home/rohan/nasa-harvest/vercye/data/chirps' # Only required to set if precipitation_source is 'CHIRPS'
+  met_cache_dir: '' # Directory to store met data for multiple yield studies. If empty, will use a temp store for each study.
   time_bounds:
     2021:
       T-0:
