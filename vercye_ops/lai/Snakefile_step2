@@ -1,0 +1,79 @@
+# type: ignore  # Prevent issues with auto-linting snakefiles
+import os
+from pathlib import Path
+from glob import glob
+import os.path as op
+from itertools import product
+
+
+
+rule all:
+    input:
+        expand(
+            "logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt",
+            zip,
+            region_name=[
+                region
+                for _ in config["timepoints"]
+                for region in config["gdrive_folders"]
+            ],
+            start_date=[
+                config["timepoints"][year]["start_date"]
+                for year in config["timepoints"]
+                for _ in config["gdrive_folders"]
+            ],
+            end_date=[
+                config["timepoints"][year]["end_date"]
+                for year in config["timepoints"]
+                for _ in config["gdrive_folders"]
+            ],
+        )
+
+
+rule download_s2_gdrive:
+    input:
+        credentials_path = config['gdrive_credentials_path']
+    params:
+        gdrive_folder_id = lambda wildcards: config['gdrive_folders'][wildcards.region_name],
+        output_dir = op.join(config['output_base_dir'], 'gee_mosaics')
+    output:
+       'logs/download_s2_gdrive_{region_name}_done.txt'
+    shell:
+        """
+        mkdir -p {params.output_dir} \
+        && python 1_2_gdrive_dl_S2.py --folder-id {params.gdrive_folder_id} --outdir {params.output_dir} --secret-json {input.credentials_path} \
+        && touch {output}
+        """
+
+
+rule standardize_s2_gee:
+    input:
+        'logs/download_s2_gdrive_{region_name}_done.txt'
+    params:
+        resolution = config['resolution'],
+        input_dir = op.join(config['output_base_dir'], 'gee_mosaics'),
+        output_dir = op.join(config['output_base_dir'], 'standardized_mosaics'),
+    output:
+        'logs/standardize_s2_gee_{region_name}_done.txt'
+    shell:
+        """
+        mkdir -p {params.output_dir} \
+        && python 1_3_standardize_S2.py {wildcards.region_name} {params.input_dir} {params.output_dir} {params.resolution} \
+        && touch {output}
+        """
+
+
+rule estimate_lai:
+    input:
+        'logs/standardize_s2_gee_{region_name}_done.txt'
+    params:
+        resolution = config['resolution'],
+        input_dir = op.join(config['output_base_dir'], 'standardized_mosaics'),
+        lai_dir = lambda wildcards: os.path.join(config['output_base_dir'], 'lai'),
+    output:
+        'logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt'
+    script:
+        """
+        mkdir -p {params.lai_dir} \
+        && python 2_primary_lai.py {params.input_dr} {params.lai_dir} {params.resolution} --start_date "{wildcards.start_date}" --end_date "{wildcards.end_date}" \
+        && touch {output}"""
