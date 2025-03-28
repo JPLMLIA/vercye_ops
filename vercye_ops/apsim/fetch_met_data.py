@@ -264,27 +264,26 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     # Compute mean temperate
     df['T2M'] = (df['T2M_MAX'] + df['T2M_MIN']) / 2
 
-    # Add year and day-of-year columns
-    df['year'] = df['date'].dt.year
-    df['day'] = df['date'].dt.dayofyear
-
     # Keep only required columns for APSIM
-    df = df[['date', 'year', 'day', 'ALLSKY_SFC_SW_DWN', 'T2M', 'T2M_MAX', 'T2M_MIN', 'PRECTOTCORR', 'WS2M']]
+    df = df[['date', 'ALLSKY_SFC_SW_DWN', 'T2M', 'T2M_MAX', 'T2M_MIN', 'PRECTOTCORR', 'WS2M']]
 
     # Ensure that we have continous data for every day from start_date to end_date
     #end_date_extended = end_date + pd.DateOffset(days=365)
     expected_dates = pd.date_range(df['date'].min(), end_date, freq='D')
-
     missing_dates = expected_dates.difference(df['date'])
     if not missing_dates.empty:
         raise Exception('Missing dates found.')
+
+    # set date as index
+    df.set_index('date', inplace=True)
+    df.index = pd.to_datetime(df.index).date
 
     return df
 
 
 def validate_precipitation_source(precipitation_source, met_source):
     """Temporary helper to check that no unsupported combination is run"""
-    if precipitation_source == 'CHIRPS':
+    if precipitation_source.lower() == 'chirps':
         return
     if precipitation_source != met_source:
         raise Exception('Currently precipitation_source and met_source must be the same if not using CHIPRS.')
@@ -292,7 +291,7 @@ def validate_precipitation_source(precipitation_source, met_source):
 
 def clean_era5(df):
     # Clip precipitation to 0. Precipitation can never be below zero
-    df[df['PRECTOTCORR' < 0]] = 0 
+    df[df['PRECTOTCORR'] < 0] = 0 
 
     return df
 
@@ -331,7 +330,7 @@ def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_sou
         error_checking_function(df)
         df = clean_era5(df)
 
-    if precipitation_source == 'CHIRPS':
+    if precipitation_source.lower() == 'chirps':
         try:
             chirps_data = load_chirps_precipitation(start_date, end_date, chirps_file, chirps_column_name)
 
@@ -350,7 +349,7 @@ def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_sou
                 raise e
     
     error_checking_function(df)
-    write_met_data_to_csv(df_cleaned, output_fpath)
+    write_met_data_to_csv(df, output_fpath)
 
 if __name__ == '__main__':
     cli()

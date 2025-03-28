@@ -58,7 +58,7 @@ rule fetch_met_data:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
         chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else []
     params:
-        met_source = lambda wildcards: config['apsim_params']['met_source']
+        met_source = lambda wildcards: config['apsim_params']['met_source'],
         met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
         met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
         precipitation_source = config['apsim_params']['precipitation_source'],
@@ -74,14 +74,14 @@ rule fetch_met_data:
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
-    threads: workflow.cores * 0.75 if params.met_source.lower() == 'nasa_power' else 1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
+    threads: workflow.cores * 0.75 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
     shell:
         """
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         python {params.script_fpath} \
-        --met_source {params.met_source} \ 
+        --met_source {params.met_source} \
         --start_date {params.met_start_date} \
         --end_date {params.met_end_date} \
         --variables ALLSKY_SFC_SW_DWN \
@@ -501,7 +501,7 @@ rule generate_final_report:
         validation_cmd = lambda wildcards, input: f"--val_fpath {op.join(config['sim_study_head_dir'], wildcards.year, 'groundtruth.csv')}" if input.evaluation_results else '',
         study_id = sanitize_filename(config['study_id']),
         crop_name = config['lai_params']['crop_name'],
-        cutoff_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['nasa_power_end_date'],
+        cutoff_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
     log:
         'logs_generate_final_report/{year}_{timepoint}.log'
     output:
