@@ -236,7 +236,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                 masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
 
                 # replace zeros with NaN's
-                cropmask_array_bool = cropmask_array.astype(bool)
+                cropmask_array_bool = cropmask_array.copy().astype(bool)
                 cropmask_array = cropmask_array.astype(float)
 
                 # Computing the percentage of pixels that are clouds or snow (and thus are nan)
@@ -244,7 +244,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                 total_pixels_in_region = np.sum(cropmask_array_bool)
                 cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
                
-
+                print(np.unique(cropmask_array))
                 cropmask_array[cropmask_array==0] = np.nan
                 
                 # apply mask

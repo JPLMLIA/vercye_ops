@@ -15,13 +15,12 @@ Your yield study is structured within a single directory, referred to as the **s
 head_dir/
 |   snakemake_config.yaml
 |---Year1/
+|   |   groundtruth.csv (optional)
 |   |---TimePoint-1/
-|   |   |   groundtruth.csv (optional)
 |   |   |---region1/
 |   |   |   |   region1.geojson
 |   |   |   |   region1_template.apsimx
 |   |---TimePoint-N/
-|       |   groundtruth.csv (optional)
 |       |---regionN/
 |           |   regionN.geojson
 |           |   regionN_template.apsimx
@@ -38,12 +37,12 @@ The names in this structure are just descriptive placeholders and should be adju
 Each **Region of Interest (ROI)** is represented as a GeoJSON file within its respective **timepoint** directory.
 
 ### Converting Shapefiles to GeoJSON
-We expect you data ti initially be in **.shp (shapefile)** format. Use the provided scripts to convert it:
+We expect you data to initially be in **.shp (shapefile)** format. Use the provided scripts to convert it:
 - **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile contains a uniform administrative level.
 - **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion.
 
-[!CAUTION]
-Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
+> [!Warning]
+> Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
 
 ### File Naming Convention
 Each GeoJSON file must follow the format:
@@ -86,7 +85,7 @@ Adjustments for soil properties and simulation constraints must be manually conf
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth.csv` in the corresponding timepoint directory.
+If ground-truth yield data is available, it should be included as `groundtruth.csv` in the corresponding year directory.
 
 ### Refernece CSV Specification
 | Column Name               | Description |
@@ -99,8 +98,9 @@ If `reported_yield_kg` is provided, the mean yield is computed as:
 ```plaintext
 mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
 ```
+with cropland_area_ha being the computed cropland_area_ha from VeRCYe.
 
-Validation data is optional and only needed for timepoints where it is available.
+Validation data is optional and cen also be provided for a subset of years where it is available.
 
 ---
 
@@ -115,7 +115,7 @@ This file defines the study parameters and links the **simulation head directory
 - `regions`: List of included regions. Must match folder names of regions.
 - `years`: List of included years (`int`). Must match year folder names.
 - `timepoints`: List of included timepoints. Must match timepoint folder names.
-- `roi_name`: Descriptive Name of the complete area of the yield study. Freely choosable.
+- `study_id`: Id/Name of that identifies the study. Freely choosable up to a length of 25 characters.
 - `keep_apsim_db_files`: Delete actual APSIM DB files after processing and reporting to free space.(`True`/`False`).
 
 #### APSIM Parameters (`apsim_params`)
@@ -139,7 +139,7 @@ This file defines the study parameters and links the **simulation head directory
 - `crop_mask`: Path to crop mask files for each year.
 
 #### Matching Parameters (`matching_params`)
-- `target_epsg`: EPSG code for coordinate reference system used for area calculation. Should be choosen with care to minimize distortions.
+- `target_crs`: CRS string for coordinate reference system used for area calculation. Either a proj string (e.g `'"+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"'`) or authority string (e.g `'epsg:1234'`). Should be choosen with care to minimize distortions. If using a proj string ensure to encolose it with additional quotes as in the example.
 
 #### APSIM Execution (`apsim_execution`)
 - `use_docker`: Set `True` to run APSIM in Docker.

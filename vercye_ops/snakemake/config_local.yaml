@@ -8,8 +8,8 @@ platform: 'local'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 
-# Name that best describes the primary region of interest of the simulation
-roi_name: 'Poltava'  
+# Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
+study_id: 'Poltava'  
 
 # Specify one or more simulations
 regions:
@@ -149,11 +149,13 @@ lai_params:
     2021: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
     2022: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
     2023: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+  do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
+
 ########################################
 # Sim/Real Matching Parameters
     
 matching_params:
-  target_epsg: 9854  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+  target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
   
 ########################################
 # Local paths to the python/APSIM scripts

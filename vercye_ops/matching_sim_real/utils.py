@@ -46,11 +46,11 @@ def load_simulation_units(db_path):
     return df
 
 
-def compute_pixel_area(lon, lat, pixel_width_deg, pixel_height_deg, output_epsg, input_epsg=4326):
+def compute_pixel_area(lon, lat, pixel_width_deg, pixel_height_deg, output_crs, input_crs='EPSG:4326'):
     """Compute the area of a pixel in square meters given a latitude and pixel size in degrees"""
 
     # Create a transformer object
-    transformer = Transformer.from_crs(input_epsg, output_epsg, always_xy=True)
+    transformer = Transformer.from_crs(input_crs, output_crs, always_xy=True)
     
     # Convert the corners of the pixel to Web Mercator
     x1, y1 = transformer.transform(lon, lat)

@@ -4,13 +4,11 @@ import os.path as op
 import click
 import geopandas as gpd
 import matplotlib.colors as mcolors
-import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
 from matplotlib.colors import Normalize
-from PIL import Image
 from xhtml2pdf import pisa
 
 from vercye_ops.utils.init_logger import get_logger
@@ -41,18 +39,19 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
             body {{
                 font-family: 'Open Sans', sans-serif;
+                font-size: 14px;
                 background-color: #f9f9f9;
-                padding: 20px;
+               
             }}
             h1 {{
                 text-align: center;
-                margin-bottom: 30px;
+               
             }}
             .content-container {{
                 max-width: 900px;
-                margin: 0 auto;
+              
                 background: #ffffff;
-                padding: 20px;
+               
                 border-radius: 8px;
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             }}
@@ -64,7 +63,6 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
             .margin-img {{
                 display: block;
-                margin: 20px auto;
                 max-width: 100%;
                 height: auto;
                 border: 1px solid #ddd;
@@ -72,7 +70,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             }}
 
             .evaluation-image img {{
-                width: 400px; /* Makes sure the image takes full available width */
+                width: 360px; /* Makes sure the image takes full available width */
                 height: auto; /* Maintains aspect ratio */
                 object-fit: contain; /* Ensures the image doesn't get cropped */
             }}
@@ -95,7 +93,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
             <div class="evaluation-container">
                 <div class="evaluation-text">
                     <h4>Evaluation Metrics</h4>
-                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below)<br>
+                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
                     <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}</br>
                     <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
                     <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>

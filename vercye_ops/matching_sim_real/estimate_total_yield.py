@@ -11,7 +11,7 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def estimate_yield(tif_path, output_yield_csv_fpath, target_epsg):
+def estimate_yield(tif_path, output_yield_csv_fpath, target_crs):
     """
     Estimate total yield from a converted LAI geotiff file.
 
@@ -21,8 +21,8 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_epsg):
         Filepath to the input converted LAI geotiff file.
     output_yield_csv_fpath : str
         Filepath where the total yield will be saved as a CSV file.
-    target_epsg : int
-        EPSG code of the project target coordinate system.
+    target_crs : str
+        CRS string of the project target coordinate system.
     """
     logger.info(f"Opening geotiff file {tif_path}")
     with rasterio.open(tif_path) as src:
@@ -38,7 +38,7 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_epsg):
 
         pixel_width_deg, pixel_height_deg = src.transform[0], np.abs(src.transform[4])
 
-        pixel_area_m2 = compute_pixel_area(center_lon, center_lat, pixel_width_deg, pixel_height_deg, target_epsg)
+        pixel_area_m2 = compute_pixel_area(center_lon, center_lat, pixel_width_deg, pixel_height_deg, target_crs)
         pixel_area_ha = pixel_area_m2 / 10000
 
         # For debugging purposes
@@ -65,17 +65,17 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_epsg):
 
 @click.command()
 @click.option('--converted_lai_tif_fpath', required=True, type=click.Path(exists=True), help='Filepath to the input converted LAI geotiff file.')
-@click.option('--target_epsg', required=True, type=int, help='EPSG code of the project target coordinate system (used for pixel area calculation).')
+@click.option('--target_crs', required=True, help='CRS string (proj4/authority e.g "EPSG:1234") of the project target coordinate system (used for pixel area calculation).')
 @click.option('--output_yield_csv_fpath', required=True, type=click.Path(), help='Filepath where the total yield will be saved as a CSV file.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(converted_lai_tif_fpath, output_yield_csv_fpath, target_epsg, verbose):
+def cli(converted_lai_tif_fpath, output_yield_csv_fpath, target_crs, verbose):
     """CLI for estimating total yield from a converted LAI geotiff file."""
 
     # Configure logging
     logging_level = logging.INFO if verbose else logging.WARNING
     logger.setLevel(logging_level)
 
-    estimate_yield(converted_lai_tif_fpath, output_yield_csv_fpath, target_epsg)
+    estimate_yield(converted_lai_tif_fpath, output_yield_csv_fpath, target_crs)
 
 if __name__ == '__main__':
     cli()

@@ -21,6 +21,7 @@ VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PR
 DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 
 
+
 def error_checking_function(df):
     """
     Perform error checking and logging on a dataframe containing NASA POWER data.
@@ -71,6 +72,23 @@ def error_checking_function(df):
 
     return df
 
+def clean_nasa_power_data(df, nodata_value):
+    """
+    Cleans the NASA POWER data by replacing nodata values.
+    """
+
+    if nodata_value is None:
+        # Data is loaded from a previously downloaded local file and should already be clean
+        return df
+    
+    # Replace nodata values with NaN
+    df_cleaned = df.replace(nodata_value, np.nan)
+
+    # useing simple linear interpolation to fill missing values
+    df_cleaned = df_cleaned.interpolate(method='linear', limit_direction='both')
+
+    return df_cleaned
+
 
 def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     """
@@ -97,6 +115,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     response = requests.get(url, params=params)
     response.raise_for_status()
     data = response.json()['properties']['parameter']
+    nodata_val = response.json()['header']['fill_value']
 
     logger.info("Data fetched successfully. Processing data.")
 
@@ -104,7 +123,7 @@ def fetch_nasa_power_data(start_date, end_date, variables, lon, lat):
     df = pd.DataFrame(data)
     df.index = pd.to_datetime(df.index)
     
-    return df
+    return df, nodata_val
 
 
 def get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite):
@@ -303,7 +322,8 @@ def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_sou
     validate_precipitation_source(precipitation_source, met_source)
 
     if met_source.lower() == 'nasa_power':
-        df = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite)
+        df, nodata_val = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite)
+        df = clean_nasa_power_data(df, nodata_val)
     elif met_source.lower() == 'era5':
         if ee_project is None:
             raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
@@ -329,10 +349,7 @@ def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_sou
                 logger.error("You can set the --fallback_precipitation flag to use NASA POWER data as a fallback (Use with caution).")
                 raise e
     
-    # Error checking function
-    # TODO: Flesh out required checks
-    df_cleaned = error_checking_function(df)
-
+    error_checking_function(df)
     write_met_data_to_csv(df_cleaned, output_fpath)
 
 if __name__ == '__main__':

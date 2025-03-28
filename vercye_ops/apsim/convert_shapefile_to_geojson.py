@@ -17,7 +17,7 @@ def generate_met_points(gdf_row):
     return centroid
 
 
-def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir):
+def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, output_head_dir):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -25,8 +25,10 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
     -----------
     shp_fpath : str
         The path to the .shp file.
-    admin_level : str
-        `oblast` or `raion` specifying the administrative level to process in the shapefile.
+    projection_crs: str
+        Projection string for local accuracy of centroids.
+    admin_name_col : str
+        Name of the column containing administrative division names.
     output_dir : str
         The directory where the GeoJSON files will be saved.
 
@@ -45,35 +47,34 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
 
     
     if gdf.empty:
-        raise ValueError("The shapefile does not contain any polygons.")
+        raise ValueError('The shapefile does not contain any polygons.')
     if gdf.crs.to_epsg() != 4326:
         logger.warning("Shapefile not in WGS84. Reprojecting.")
         gdf = gdf.to_crs(epsg=4326)
     
     # Add a new column for the centroid of each polygon
-    gdf_proj = gdf.to_crs(epsg=projection_epsg)  # Calculate this in flattened projection instead of geodesic space
-    raw_centroids = gdf_proj.apply(generate_met_points, axis=1).set_crs(epsg=projection_epsg)
+    gdf_proj = gdf.to_crs(projection_crs)  # Calculate this in flattened projection instead of geodesic space
+    raw_centroids = gdf_proj.apply(generate_met_points, axis=1).set_crs(projection_crs)
     
     # TODO: produce plot/report for transparency
 
     # Convert back to geodesic, and then to WKT. WKT is needed since we can't save multiple geometries to geojson
     gdf['centroid'] = raw_centroids.to_crs(epsg=4326).to_wkt()
     
-    logger.info('Processing %i %s regions.', len(gdf), admin_level)
+    logger.info('Processing %i %s regions.', len(gdf))
+
+    logger.warning('Ensure all geometries are at the same administrative level! Use the prepare_shapefile.py script to standardize the shapefile if this is not the case.')
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():
 
-        # Generate the output fpath
-        if admin_level == 'oblast':
-            region_name = row["NAME_1"]
-        else:
-            region_name = row["NAME_2"]
+        region_name = row[admin_name_col]
 
         # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
         region_name = region_name.lower()
+        row['cleaned_region_name_vercye'] = region_name
 
         output_dir = output_head_dir / Path(region_name)
         output_dir.mkdir(exist_ok=True)
@@ -88,20 +89,21 @@ def convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output
         logger.info('GeoJSON file written to %s', output_fpath)
 
     logger.info('Processing Complete')
+    logger.warning(f'Processed {len(gdf)} regions. Validate the output directory {output_head_dir} to check the GeoJSON files are from the correct geoemtries.')
 
 
 @click.command()
 @click.option('--shp_fpath', type=click.Path(exists=True), help='Path to the .shp file.')
-@click.option('--admin_level', type=click.Choice(['oblast', 'raion']), default='oblast', help='Level of administration to process. `oblast` corresponds to Level 1, `raion` corresponds to Level 2')
-@click.option('--projection_epsg', type=int, default=6381, help='EPSG code to define projection. Default is for Ukraine.')
+@click.option('--projection_crs', type=str, help='CRS to define projection. Default is for Ukraine. Cane either be "EPSG:XXXX" or a "proj" string.')
+@click.option('--admin_name_col', type=str, help='Name of the column containing administrative division names. All geoemtries must be at the same administrative level!.')
 @click.option('--output_head_dir', type=click.Path(file_okay=False), help='Head directory where the region output dirs will be created.')
-@click.option('--verbose', is_flag=True, help="Print verbose output.")
-def cli(shp_fpath, admin_level, projection_epsg, output_head_dir, verbose):
+@click.option('--verbose', is_flag=True, help='Print verbose output.')
+def cli(shp_fpath, projection_crs, admin_name_col, output_head_dir, verbose):
     """Wrapper around geojson generation func"""
     
     if verbose:
         logger.setLevel('INFO')
-    convert_shapefile_to_geojson(shp_fpath, admin_level, projection_epsg, output_head_dir)
+    convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, output_head_dir)
     
     
 if __name__ == '__main__':
