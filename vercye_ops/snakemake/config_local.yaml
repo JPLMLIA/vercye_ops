@@ -59,6 +59,7 @@ apsim_params:
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
   chirps_dir: '/home/rohan/nasa-harvest/vercye/data/chirps' # Only required to set if precipitation_source is 'CHIRPS'
+  ee_project: '' # Earth Engine project name. Only required to set if met_source is 'ERA5'.
   time_bounds:
     2021:
       T-0:

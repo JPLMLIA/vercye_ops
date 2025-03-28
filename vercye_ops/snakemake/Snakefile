@@ -68,7 +68,8 @@ rule fetch_met_data:
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
-        chirps_file = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', f'{wildcards.year}_{wildcards.timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else ''
+        chirps_file = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', f'{wildcards.year}_{wildcards.timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else '',
+        ee_project = config['apsim_params']['ee_project'],
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -95,6 +96,7 @@ rule fetch_met_data:
         --chirps_column_name {params.region_name} \
         --fallback_precipitation {params.fallback_precipitation} \
         {params.chirps_file} \
+        --ee_project {params.ee_project} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
         --overwrite \
         --verbose > {log}
