@@ -74,7 +74,7 @@ rule fetch_met_data:
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
-    threads: workflow.cores * 0.75 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
+    threads: workflow.cores * 0.75 if config['apsim_params']['met_source'].lower() == 'nasa_power' else workflow.cores * 0.1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
     shell:
         """
         {params.jq_load_statement}
@@ -211,6 +211,7 @@ rule reproject_cropmask:
         executable_fpath = config['scripts']['reproject_cropmask'],
         lai_dir = config['lai_params']['lai_dir'],
         lai_region = config['lai_params']['lai_region'],
+        lai_resolution = config['lai_params']['lai_resolution'],
     log:
         'logs_reproject_cropmask/{year}.log'
     output:
@@ -221,7 +222,8 @@ rule reproject_cropmask:
         {input.original_cropmask} \
         {output.reproj_cropmask} \
         --lai_dir {params.lai_dir} \
-        --lai_region {params.lai_region} > {log}
+        --lai_region {params.lai_region} \
+        --lai_resolution {params.lai_resolution} > {log}
         """ if config['lai_params']['do_cropmask_reprojection'] else 'cp {input.original_cropmask} {output.reproj_cropmask}'
 
 # Clip the original cropmask

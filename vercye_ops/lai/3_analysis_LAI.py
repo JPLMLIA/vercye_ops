@@ -243,8 +243,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                 cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
                 total_pixels_in_region = np.sum(cropmask_array_bool)
                 cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
-               
-                print(np.unique(cropmask_array))
+
                 cropmask_array[cropmask_array==0] = np.nan
                 
                 # apply mask

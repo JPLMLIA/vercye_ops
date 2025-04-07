@@ -30,7 +30,7 @@ def aggregate_yields(yield_dir):
             region_name = region_dir.name
             yield_estimate_csv_path = region_dir / f"{region_name}_converted_map_yield_estimate.csv"
             conv_factor_csv_path = region_dir / f"{region_name}_conversion_factor.csv"
-            met_csv_path = region_dir /  f"{region_name}_nasapower.csv"
+            met_csv_path = region_dir /  f"{region_name}_met.csv"
             lai_stats_csv_path = region_dir / f"{region_name}_LAI_STATS.csv"
             
             if yield_estimate_csv_path.exists():

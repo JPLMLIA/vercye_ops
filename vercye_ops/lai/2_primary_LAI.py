@@ -1,3 +1,4 @@
+from datetime import datetime
 import os.path as op
 from pathlib import Path
 from glob import glob
@@ -43,14 +44,23 @@ class LAI_CNN(nn.Module):
         x = self.h2(x)
         x = self.output(x)
         return x
+    
+def is_within_date_range(vf, start_date, end_date):
+    # files have pattern f"{s2_dir}/{region}_{resolution}m_{date}.vrt"
+    date = Path(vf).stem.split("_")[-1]
+    date = datetime.strptime(date, "%Y-%m-%d")
+    return start_date <= date <= end_date
+
 
 @click.command()
 @click.argument('S2_dir', type=click.Path(exists=True))
 @click.argument('LAI_dir', type=click.Path(exists=True))
 @click.argument('region', type=str)
 @click.argument('resolution', type=int)
+@click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date', required=False, default=None)
+@click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date', required=False, default=None)
 @click.option('--model_weights', type=click.Path(exists=True), default='models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth', help='Local Path to the model weights')
-def main(s2_dir, lai_dir, region, resolution, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
+def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
     """ Main LAI batch prediction function
 
     S2_dir: Local Path to the .vrt Sentinel-2 images
@@ -76,6 +86,10 @@ def main(s2_dir, lai_dir, region, resolution, model_weights="models/s2_sl2p_weis
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/{region}_{resolution}m_*.vrt"))
+
+    if start_date is not None and end_date is not None:
+        vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
+
     print(f"Found {len(vrt_files)} VRT files for {region} at {resolution}m in {s2_dir}")
 
     for vf in vrt_files:
@@ -95,7 +109,6 @@ def main(s2_dir, lai_dir, region, resolution, model_weights="models/s2_sl2p_weis
         s2_array = s2_array * 0.0001
 
         # Input
-        #s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
         # Run model
         LAI_estimate = model(s2_tensor)

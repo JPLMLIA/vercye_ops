@@ -6,8 +6,8 @@ import rasterio as rio
 from rasterio.warp import reproject, Resampling
 
 
-def find_largest_extent_LAI_file(lai_dir: str, lai_region: str):
-    lai_files = sorted(glob(f"{lai_dir}/{lai_region}*.tif"))
+def find_largest_extent_LAI_file(lai_dir: str, lai_region: str, lai_resolution: int):
+    lai_files = sorted(glob(f"{lai_dir}/{lai_region}_{lai_resolution}*.tif"))
     max_extent = None
     max_extent_file = None
     extent_frequencies = defaultdict(int)
@@ -39,9 +39,10 @@ def find_largest_extent_LAI_file(lai_dir: str, lai_region: str):
 @click.argument('mask_path', type=click.Path(exists=True))
 @click.argument('out_path', type=click.Path())
 @click.option('--lai_dir', type=click.Path(exists=True), default=None, help='Directory where LAI data is saved. Needs to be used with --lai_region.')
-@click.option('--lai_region', type=str, default=None)
+@click.option('--lai_region', type=str, default=None, help='Region of LAI data to use. Needs to be used with --lai_dir.')
+@click.option('--lai_resolution', type=int, help='Resolution of LAI data to use. Needs to be used if providing --lai_dir')
 @click.option('--lai_path', type=click.Path(exists=True), default=None, help='Path to a specific LAI file. Mutually exclusive with --lai_dir/region.')
-def main(mask_path, out_path, lai_dir, lai_region, lai_path):
+def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_path):
     """Reprojects a crop mask to the LAI raster
     
     mask_path is reprojected to match the projection, extent, and resolution of
@@ -50,14 +51,14 @@ def main(mask_path, out_path, lai_dir, lai_region, lai_path):
     Since the extent of LAI files may vary, it is reccomended to use --lai_dir/region to identify the file with the largest extent.
     """
 
-    if not (lai_dir and lai_region) and not lai_path:
+    if not (lai_dir and lai_region and lai_resolution) and not lai_path:
         raise Exception("Please either specify lai_dir and lai_region or specify lai_path.")
 
     if (lai_dir or lai_region) and lai_path:
         raise Exception("Please either specify lai_dir and lai_region OR lai_path.")
 
     if lai_dir and lai_region:
-        lai_path = find_largest_extent_LAI_file(lai_dir, lai_region)
+        lai_path = find_largest_extent_LAI_file(lai_dir, lai_region, lai_resolution)
 
     with rio.open(mask_path) as mask_ds:
         # Mask's CRS
