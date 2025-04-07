@@ -69,11 +69,12 @@ rule estimate_lai:
     params:
         resolution = config['resolution'],
         input_dir = op.join(config['output_base_dir'], 'standardized_mosaics'),
-        lai_dir = lambda wildcards: os.path.join(config['output_base_dir'], 'lai'),
+        lai_dir = op.join(config['output_base_dir'], 'lai'),
     output:
         'logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt'
-    script:
+    shell:
         """
         mkdir -p {params.lai_dir} \
-        && python 2_primary_lai.py {params.input_dr} {params.lai_dir} {params.resolution} --start_date "{wildcards.start_date}" --end_date "{wildcards.end_date}" \
-        && touch {output}"""
+        && python 2_primary_LAI.py {params.input_dir} {params.lai_dir} {wildcards.region_name} {params.resolution} --start_date {wildcards.start_date} --end_date {wildcards.end_date} \
+        && touch {output}
+        """

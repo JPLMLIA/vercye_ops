@@ -145,10 +145,10 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
                         <td>{row['region']}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
                         <td>{int(row['median_yield_kg_ha'])}</td>
-                        {f'<td>{int(row["reported_mean_yield_kg_ha"])}</td>' if 'reported_mean_yield_kg_ha' in row and not np.isnan(row['reported_mean_yield_kg_ha']) else ''}
+                        {f'<td>{int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A" }</td>' if 'reported_mean_yield_kg_ha' in row else ''}
                         <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
-                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000))}</td>' if 'reported_yield_kg' in row and not np.isnan(row['reported_yield_kg']) else ''}
-                        {f'<td>{int(row["mean_err_kg_ha"])}</td>' if 'mean_err_kg_ha' in row  and not np.isnan(row['mean_err_kg_ha']) else ''}
+                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000)) if not pd.isna(row["reported_yield_kg"]) else "N/A"}</td>' if 'reported_yield_kg' in row else ''}
+                        {f'<td>{int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
                         <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
                     </tr>
         """

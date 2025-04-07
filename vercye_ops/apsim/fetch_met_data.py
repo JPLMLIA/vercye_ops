@@ -193,8 +193,6 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     logger.info('Querying data.')
     point = ee.Geometry.Point([lon, lat])
     all_records = []
-
-    era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
     
     def split_date_range(start_date, end_date, chunk_years=10):
         start = start_date
@@ -232,6 +230,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
 
         except Exception as e:
             logger.warning(f"Failed to fetch data from {chunk_start} to {chunk_end}: {e}")
+            raise e
 
     df = pd.DataFrame(all_records)
     
@@ -267,16 +266,40 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     # Keep only required columns for APSIM
     df = df[['date', 'ALLSKY_SFC_SW_DWN', 'T2M', 'T2M_MAX', 'T2M_MIN', 'PRECTOTCORR', 'WS2M']]
 
+    # end_date_extended = end_date + pd.DateOffset(days=365)
     # Ensure that we have continous data for every day from start_date to end_date
-    #end_date_extended = end_date + pd.DateOffset(days=365)
+
     expected_dates = pd.date_range(df['date'].min(), end_date, freq='D')
     missing_dates = expected_dates.difference(df['date'])
+
     if not missing_dates.empty:
-        raise Exception('Missing dates found.')
+        logger.warning(f"Missing dates in the data: {len(missing_dates)}")
+
+        # sort missing dates ascending
+        missing_dates = missing_dates.sort_values()
+        # check if it is the newest dates that are missing
+        if missing_dates[0] > df['date'].max():
+            logger.warning(f"Missing dates are at the end of the data. Not filling them.")
+        else:
+            # Fill missing dates with NaN
+            missing_df = pd.DataFrame({'date': missing_dates})
+            for col in df.columns:
+                if col != 'date':
+                    missing_df[col] = np.nan
+            # interpolate missing values from the previous and next days
+            df = pd.concat([df, missing_df], ignore_index=True)
+            df.sort_values('date', inplace=True)
+            df.reset_index(drop=True, inplace=True)
+            df = df.interpolate(method='linear', limit_direction='both')
 
     # set date as index
     df.set_index('date', inplace=True)
     df.index = pd.to_datetime(df.index).date
+    df = df.sort_index()
+
+    # check for duplicates
+    if df.index.duplicated().any():
+        raise ValueError("Duplicate dates found in the data.")
 
     return df
 
@@ -290,9 +313,11 @@ def validate_precipitation_source(precipitation_source, met_source):
     
 
 def clean_era5(df):
-    # Clip precipitation to 0. Precipitation can never be below zero
-    df[df['PRECTOTCORR'] < 0] = 0 
-
+    # Clip negative precipitation values, if any
+    neg_precip = df['PRECTOTCORR'] < 0
+    if neg_precip.any():
+        logger.warning(f'Clipping {neg_precip.sum()} negative precipitation values to 0.')
+        df.loc[neg_precip, 'PRECTOTCORR'] = 0
     return df
 
 

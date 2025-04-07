@@ -253,7 +253,7 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_pr
 @click.option('--lon', type=float, required=True, help="Longitude of the location.")
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
 @click.option('--sim_end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of the simulation period.")
-@click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
+@click.option('--precipitation_source', type=click.Choice(['chirps', 'ERA5', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--fallback_precipitation', help="Fallback to original precipitation data if CHIRPS data is not available.", default=False)
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="File path for the .met output file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")

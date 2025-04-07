@@ -1,25 +1,16 @@
 # Params for step1
-geojsons_dir: '/gpfs/data1/cmongp2/sawahnr/data/morocco/OfficialRegions/LAI'
+geojsons_dir: '/gpfs/data1/cmongp2/sawahnr/data/morocco/OfficialRegions/LAI_subset'
 ee_project: 'bsos-geog-harvest-raaps'
 timepoints:
-  2022:
-      start_date: '2022-10-10'
-      end_date: '2023-07-01'
-  # 2020:
-  #     start_date: '2020-10-10'
-  #     end_date: '2021-07-01'
-  # 2021:  
-  #     start_date: '2021-10-10'
-  #     end_date: '2022-07-01'
-  # 2022:
-  #     start_date: '2022-10-10'
-  #     end_date: '2023-07-01'
+  2024:
+    start_date: '2024-10-10'
+    end_date: '2025-04-03'
 resolution: 20
 
 # Params for step2
-output_base_dir: '/gpfs/data1/cmongp2/sawahnr/data/morocco/OLD/part2_lai'
+output_base_dir: '/gpfs/data1/cmongp2/sawahnr/data/morocco/OLD/lai_2024-25'
 gdrive_credentials_path: '/home/sawahnr/rohan-gdrive-client.json'
 gdrive_folders:
-  el_hajeb: '1zR9R4qcZZc7txgZzJv9LjBbiPBPIUXYm'
-  settat: '12BuF1nTDRu_qEufJBA3YInzDMpy0id5f'
-  taounate: '14uFSEOqYZysIKC8LfIFYwPBtABamqCK4'
+  el_hajeb: '1lbPzXFI1DyNSv0qJbQ-TfhN-kzUZnh7i'
+  taounate: '1wko0U2S4UEQPv-Ziz44tRx1MCkO4NqTz'
+  settat: '1jTmnZNf3Vw4EKIsxvxQy55JA0_aWfn6o'

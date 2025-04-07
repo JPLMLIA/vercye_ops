@@ -20,7 +20,7 @@ MET_FILE_DTYPES = {
 @click.command()
 @click.option('--input_fpath', required=True, type=click.Path(exists=True), help='Path to the input .met file.')
 @click.option('--output_fpath', required=True, type=click.Path(writable=True), help='Path to save the output HTML plot.')
-@click.option('--precipitation_source', required=True, type=click.Choice(['NASA_POWER', 'CHIRPS']), help='Source of precipitation data. "NASA_Power" or "CHIRPS".')
+@click.option('--precipitation_source', required=True, type=click.Choice(['NASA_POWER', 'CHIRPS', 'ERA5']), help='Source of precipitation data. "NASA_Power" or "CHIRPS".')
 @click.option('--precipitation_agg', required=True, type=click.Choice(['centroid', 'mean']), help='Aggregation method for precipitation data. "centroid" or "mean".')
 @click.option('--fallback_precipitation', default=False, help='Boolean specifying whether to fallback on nasapower/era5 precipitation data if chirps data is not available.')
 @click.option('--met_fpath', required=False, type=click.Path(exists=True), default=None, help='Path to the met CSV file.')

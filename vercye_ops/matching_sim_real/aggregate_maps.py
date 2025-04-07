@@ -164,6 +164,9 @@ def merge_shapefiles(shapefile_paths, region_names):
     logger.info('Merging shapefiles...')
     gdfs = [gpd.read_file(shp) for shp in shapefile_paths]
 
+    for gdf, region_name in zip(gdfs, region_names):
+        gdf['cleaned_region_name_vercye'] = region_name
+
     merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
 
     return merged_gdf

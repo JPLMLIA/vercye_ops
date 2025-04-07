@@ -94,8 +94,10 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
     for vf in vrt_files:
         # Load the image
+        print(f"Loading {vf}")
         s2_ds = rio.open(vf)
         s2_array = s2_ds.read()
+        print(f"Loaded {vf} with shape {s2_array.shape}")
 
         # If the last band of the image is all zeros, skip
         # The first three bands are geometry values
@@ -108,8 +110,12 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         # Built-in scaling
         s2_array = s2_array * 0.0001
 
+        # # apply scaling and offset by reading the metadata
+        # print(s2_ds)
+        # scales = np.array(s2_ds.scales)[:, np.newaxis, np.newaxis]  # Shape becomes (11, 1, 1)
+        # offsets = np.array(s2_ds.offsets)[:, np.newaxis, np.newaxis]  # Shape becomes (11, 1, 1)
+
         # Input
-        #s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
         # Run model
         LAI_estimate = model(s2_tensor)
