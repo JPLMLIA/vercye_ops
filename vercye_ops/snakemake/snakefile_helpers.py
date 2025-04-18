@@ -22,10 +22,20 @@ def get_evaluation_results_path_func(config):
     '''Returns a function with the config hardcoded. The function return the path to the evaluation results file if it exists or an empty list if it does not.
         This allows the evaluation rule to be skipped if the evaluation results file does not exist.'''
     def get_evaluation_results_path(wildcards):
+        output_paths = []
+        # Check if the evaluation results at simulation level file exists
+        # This file must always be called groundtruth_primary
+        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, 'groundtruth_primary.csv')):
+            primary_eval_file = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'evaluation_primary.csv')
+            output_paths.append(primary_eval_file)
         
-        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, 'groundtruth.csv')):
-            return op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'evaluation.csv')
-        else:
-            return []
+        # Get all other evaluation results files from the config (wildcards)
+        for agg_name in config['eval_params']['aggregation_levels']:
+            gt_file = op.join(config['sim_study_head_dir'], wildcards.year, f'groundtruth_{agg_name}.csv')
+            if op.exists(gt_file):
+                eval_file = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, f'evaluation_{agg_name}.csv')
+                output_paths.append(eval_file)
+
+        return output_paths
         
     return get_evaluation_results_path

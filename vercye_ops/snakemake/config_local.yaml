@@ -157,6 +157,17 @@ lai_params:
     
 matching_params:
   target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
+
+########################################
+# Evaluation Parameters
+eval_params:
+
+  # Specify additional level on which to aggregate the yield estimates for evaluation
+  # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
+  # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
+  aggregation_levels:
+    National: 'Name_0'
+    Oblast: 'Name_1'
   
 ########################################
 # Local paths to the python/APSIM scripts
@@ -178,5 +189,6 @@ scripts:
   generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
   aggregate_met_stats: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/evaluate_yield_estimates.py'
+  aggregate_yield_estimates_per_eval_lvl: '../matching_sim_real/aggregate_yield_estimates_per_eval_lvl.py'
   construct_chirps_data: '~/Builds/vercye_ops/vercye_ops/apsim/construct_chirps_precipitation_files.py'
   reproject_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_reproj_mask.py'
