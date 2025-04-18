@@ -1,7 +1,6 @@
 import os
 import os.path as op
 
-import click
 import geopandas as gpd
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -300,16 +299,11 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     return output_png_path
 
 
-def generate_final_report(regions_dir, start_date, end_date, cutoff_date,
-                          aggregated_yield_map_path, aggregated_yield_estimates_path,
-                          evaluation_results_path, gt_yield_path, roi_name, crop_name,
-                          met_config):
-    aggregated_data_fpath = op.join(regions_dir, aggregated_yield_estimates_path)
-    regions_summary = pd.read_csv(aggregated_data_fpath)
+def build_section_params(section_name, aggregated_yield_estimates_path, groundtruth_path, evaluation_results_path, regions_dir, admin_column_name):
+    regions_summary = pd.read_csv(aggregated_yield_estimates_path)
 
-    if gt_yield_path:
-        gt = pd.read_csv(gt_yield_path)
-
+    if groundtruth_path:
+        gt = pd.read_csv(groundtruth_path)
         cols = ['region']
         if 'reported_yield_kg' in gt.columns:
             cols.append('reported_yield_kg')
@@ -321,26 +315,19 @@ def generate_final_report(regions_dir, start_date, end_date, cutoff_date,
             how='left',
             on='region'
         )
-        
+
         if 'reported_mean_yield_kg_ha' in gt.columns:
             regions_summary['mean_err_kg_ha'] = regions_summary['reported_mean_yield_kg_ha'] - regions_summary['mean_yield_kg_ha']
 
-    global_summary = compute_global_summary(regions_summary)
-
     logger.info('Loading and combining region geometries...')
     regions_geometry_paths = get_regions_geometry_paths(regions_dir)
-    combined_geojson = combine_geojsons(regions_geometry_paths)
+    combined_geojson = combine_geojsons(regions_geometry_paths, admin_column_name)
 
     logger.info('Creating vector yield map...')
     yield_map = create_map(regions_summary, combined_geojson)
-    yield_map_fname = 'yield_map.png'
+    yield_map_fname = f'yield_map_{section_name}.png'
     yield_map_path = op.join(regions_dir, yield_map_fname)
     yield_map.figure.savefig(yield_map_path, dpi=600)
-
-    logger.info('Creating downsampled yieldmap preview...')
-    aggregated_yield_map_preview_fname = 'aggregated_yield_map_preview.png'
-    aggregated_yield_map_preview_path = op.join(regions_dir, aggregated_yield_map_preview_fname)
-    convert_geotiff_to_png_with_legend(aggregated_yield_map_path, aggregated_yield_map_preview_path)
 
     if evaluation_results_path:
         evaluation_results = pd.read_csv(evaluation_results_path)
@@ -349,18 +336,14 @@ def generate_final_report(regions_dir, start_date, end_date, cutoff_date,
         evaluation_results = None
         scatter_plot_path = None
 
-    return fill_report_template(yield_map_path, 
-                                regions_summary,
-                                global_summary,
-                                start_date,
-                                end_date,
-                                cutoff_date,
-                                aggregated_yield_map_preview_path,
-                                evaluation_results,
-                                roi_name,
-                                crop_name,
-                                met_config,
-                                scatter_plot_path=scatter_plot_path)
+    section_params = {
+        'regions_summary': regions_summary,
+        'vector_yield_map_path': yield_map_path,
+        'scatter_plot_path': scatter_plot_path,
+        'evaluation_results': evaluation_results,
+    }
+
+    return section_params
 
 
 def save_report(report, out_fpath):
@@ -374,44 +357,78 @@ def save_report(report, out_fpath):
         if pisa_status.err:
             print("An error occured!")
 
-@click.command()
-@click.option('--regions_dir', required=True, type=click.Path(exists=True), help='Path to the directory containing region subdirectories.')
-@click.option('--out_fpath', required=True, type=click.Path(), help='Path to save the aggregated final report (has to be .pdf).')
-@click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date of considered timespan in YYYY-MM-DD format.")
-@click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of considered timespan in YYYY-MM-DD format.")
-@click.option('--cutoff_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Cutoff date for meteorological data of considered timespan in YYYY-MM-DD format.")
-@click.option('--aggregated_yield_map_path', required=True, type=click.Path(), help='Path to the combined yield map of all regions.')
-@click.option('--aggregated_yield_estimates_path', required=True, type=click.Path(), help='Path to the combined yield estimates (.csv) of all regions.')
-@click.option('--evaluation_results_path', required=False, type=click.Path(), help='Path to the evaluation results csv.', default=None)
-@click.option('--met_source', required=True, type=click.STRING, help='Source of the meteorological data.', default=None)
-@click.option('--precipitation_source', required=True, type=click.STRING, help='Source of the precipitation data.', default=None)
-@click.option('--precipitation_agg_method', required=True, type=click.STRING, help='Aggregation method for precipitation data.', default=None)
-@click.option('--fallback_precipitation', required=True, type=click.STRING, help='Fallback precipitation data.', default=None)
-@click.option('--val_fpath', required=False, type=click.Path(), help='Filepath to the csv containing the validation data per region.')
-@click.option('--roi_name', required=True, type=click.STRING, help='Name of the primary region of interest.')
-@click.option('--crop_name', required=True, type=click.STRING, help='Name of the crop.')
-@click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(regions_dir, out_fpath, start_date, end_date, cutoff_date, aggregated_yield_map_path,
-        aggregated_yield_estimates_path, evaluation_results_path,
-        met_source, precipitation_source, precipitation_agg_method, fallback_precipitation,
-        val_fpath, roi_name, crop_name, verbose):
+
+def create_final_report(input, output, params, log, wildcards):
     """Generate an aggregated final report from multiple regions."""
 
-    if verbose:
+    if params['verbose']:
         logger.setLevel('INFO')
 
-    met_config = {
-        'met_source': met_source,
-        'precipitation_source': precipitation_source,
-        'precipitation_agg_method': precipitation_agg_method,
-        'fallback_precipitation': fallback_precipitation
+    out_fpath = output['out_fpath']
+
+    regions_dir = input['regions_dir']
+    pixel_level_yieldmap_path = input['aggregated_yield_map_path']
+    results_basedir = params['results_basedir']
+    aggregation_suffixes = params['aggregation_suffixes']
+    primary_suffix = params['primary_suffix'] # should be just primary
+
+    metadata = {
+        'roi_name': params['roi_name'],
+        'crop_name': params['crop_name'],
+        'start_date': params['start_date'],
+        'end_date': params['end_date'],
     }
 
+    met_config = {
+        'cutoff_date': params['cutoff_date'],
+        'met_source': params['met_source'],
+        'precipitation_source': params['precipitation_source'],
+        'precipitation_agg_method':  params['precipitation_agg_method'],
+        'fallback_precipitation': params['fallback_precipitation']
+    }
+
+    sections = {}
+    for suffix in aggregation_suffixes:
+        # Collect predictions
+        aggregated_yield_estimates_path = os.path.join(results_basedir, f'agg_yield_estimates_{suffix}.csv')
+
+        if not os.path.exists(aggregated_yield_estimates_path):
+           logger.warning(f"Aggregated yield estimates file not found: {aggregated_yield_estimates_path}. Skipping.")
+           continue
+
+        # Collect groundtruth and evaluation results
+        groundtruth_path = os.path.join(results_basedir, f'groundtruth_{suffix}.csv')
+        if not os.path.exists(groundtruth_path):
+            logger.warning(f"Groundtruth file not found: {groundtruth_path}. Skipping.")
+            continue
+
+        evaluation_results_path = os.path.join(results_basedir, f'evaluation_{suffix}.csv')
+        if not os.path.exists(evaluation_results_path):
+            logger.warning(f"Evaluation results file not found: {evaluation_results_path}. Skipping.")
+            continue
+        
+
+        section = build_section_params(
+            section_name=suffix,
+            aggregated_yield_estimates_path=aggregated_yield_estimates_path,
+            groundtruth_path=groundtruth_path,
+            evaluation_results_path=evaluation_results_path,
+            regions_dir=regions_dir,
+            admin_column_name=admin_column_name,
+        )
+
+        sections[suffix] = fill_section_template(section)
+
+        if suffix == primary_suffix:
+            global_summary = compute_global_summary(section['regions_summary'])
+
+    logger.info('Creating downsampled yieldmap preview...')
+    aggregated_yield_map_preview_fname = 'aggregated_yield_map_preview.png'
+    aggregated_yield_map_preview_path = op.join(regions_dir, aggregated_yield_map_preview_fname)
+    convert_geotiff_to_png_with_legend(pixel_level_yieldmap_path, aggregated_yield_map_preview_path)
+    
     logger.info(f'Generating final report for regions in: {regions_dir}')
-    report = generate_final_report(regions_dir, start_date, end_date, cutoff_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, crop_name, met_config)
+    report = generate_final_report(sections, metadata, met_config, aggregated_yield_map_preview_path)
     logger.info(f'Saving report to: {out_fpath}')
     save_report(report, out_fpath)
-
-
-if __name__ == '__main__':
-    cli()
+    logger.info('Report generation completed.')

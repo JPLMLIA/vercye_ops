@@ -3,13 +3,14 @@ from pathlib import Path
 
 import click
 import pandas as pd
+import geopandas as gpd
 
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
 
-def aggregate_yields(yield_dir):
+def aggregate_yields(yield_dir, columns_to_keep):
     """
     Aggregate yield estimates from multiple regions within a directory.
 
@@ -17,6 +18,8 @@ def aggregate_yields(yield_dir):
     ----------
     yield_dir : str
         Path to the yield directory (e.g., year, timepoint) containing region subdirectories.
+    columns_to_keep : str
+        Comma-separated list of features from the geojson to keep. If not provided, no additional columns from the geojsons will be kept.
 
     Returns
     -------
@@ -32,6 +35,7 @@ def aggregate_yields(yield_dir):
             conv_factor_csv_path = region_dir / f"{region_name}_conversion_factor.csv"
             met_csv_path = region_dir /  f"{region_name}_met.csv"
             lai_stats_csv_path = region_dir / f"{region_name}_LAI_STATS.csv"
+            geojson_path = region_dir / f"{region_name}.geojson"
             
             if yield_estimate_csv_path.exists():
                 yield_df = pd.read_csv(yield_estimate_csv_path)
@@ -101,6 +105,25 @@ def aggregate_yields(yield_dir):
             })
 
             combined_df = pd.merge(combined_df, extra_info_df, on='region', how='outer')
+
+            # Add columns from geojson if specified
+            if columns_to_keep and not combined_df.empty:
+                columns_to_keep_list = [col.strip() for col in columns_to_keep.split(',')]
+                if geojson_path.exists():
+                    gdf = gpd.read_file(geojson_path)
+
+                    # Check if the columns to keep exist in the geojson
+                    missing_columns = [col for col in columns_to_keep_list if col not in gdf.columns]
+                    if missing_columns:
+                        raise Exception(f"Columns {missing_columns} not found in the geojson file for region: {region_name}. Please ensure the columns are named correctly.")
+
+                    gdf = gdf[columns_to_keep_list]
+                    gdf['region'] = region_name
+                    combined_df = pd.merge(combined_df, gdf, on='region', how='outer')
+                else:
+                    logger.info(geojson_path)
+                    raise Exception(f"Geojson file not found for region: {region_name}. Please ensure the file exists.")
+
             all_yields.append(combined_df)
     
     aggregated_yields = pd.concat(all_yields, ignore_index=True)
@@ -114,8 +137,9 @@ def aggregate_yields(yield_dir):
 @click.command()
 @click.option('--yield_dir', required=True, type=click.Path(exists=True), help='Path to the yield directory (e.g., year, timepoint) containing region subdirectories.')
 @click.option('--output_csv', required=True, type=click.Path(), help='Path to save the aggregated yield estimates CSV.')
+@click.option('--columns_to_keep', required=False, type=str, help='Comma-separated list of geojsons-columns to keep in the output CSV. If not provided, no additional columns from the geojsons will be kept.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(yield_dir, output_csv, verbose):
+def cli(yield_dir, output_csv, columns_to_keep, verbose):
     """Aggregate yield estimates from multiple regions within a directory."""
     if verbose:
         logger.setLevel('INFO')
@@ -123,7 +147,7 @@ def cli(yield_dir, output_csv, verbose):
         logger.setLevel('WARNING')
 
     logger.info(f"Processing directory: {yield_dir}")
-    aggregated_yields = aggregate_yields(yield_dir)
+    aggregated_yields = aggregate_yields(yield_dir, columns_to_keep)
     
     if aggregated_yields is not None:
         aggregated_yields.to_csv(output_csv, index=False)
