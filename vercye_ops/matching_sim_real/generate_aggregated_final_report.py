@@ -18,7 +18,7 @@ logger = get_logger()
 
 def fill_report_template(yield_map_path, regions_summary, global_summary,
                          start_date, end_date, cutoff_date, aggregated_yield_map_preview_path,
-                         evaluation_results, roi_name, crop_name, scatter_plot_path=None):
+                         evaluation_results, roi_name, crop_name, met_config, scatter_plot_path=None):
     crop_name = crop_name.lower().capitalize()
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     bootstrap_css_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.css')
@@ -82,6 +82,7 @@ def fill_report_template(yield_map_path, regions_summary, global_summary,
 
             <p><strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
             <strong>Cutoff Date:</strong> {cutoff_date.date()}</br>
+            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}. <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
@@ -299,7 +300,10 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     return output_png_path
 
 
-def generate_final_report(regions_dir, start_date, end_date, cutoff_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, gt_yield_path, roi_name, crop_name):
+def generate_final_report(regions_dir, start_date, end_date, cutoff_date,
+                          aggregated_yield_map_path, aggregated_yield_estimates_path,
+                          evaluation_results_path, gt_yield_path, roi_name, crop_name,
+                          met_config):
     aggregated_data_fpath = op.join(regions_dir, aggregated_yield_estimates_path)
     regions_summary = pd.read_csv(aggregated_data_fpath)
 
@@ -355,6 +359,7 @@ def generate_final_report(regions_dir, start_date, end_date, cutoff_date, aggreg
                                 evaluation_results,
                                 roi_name,
                                 crop_name,
+                                met_config,
                                 scatter_plot_path=scatter_plot_path)
 
 
@@ -369,7 +374,6 @@ def save_report(report, out_fpath):
         if pisa_status.err:
             print("An error occured!")
 
-
 @click.command()
 @click.option('--regions_dir', required=True, type=click.Path(exists=True), help='Path to the directory containing region subdirectories.')
 @click.option('--out_fpath', required=True, type=click.Path(), help='Path to save the aggregated final report (has to be .pdf).')
@@ -379,18 +383,32 @@ def save_report(report, out_fpath):
 @click.option('--aggregated_yield_map_path', required=True, type=click.Path(), help='Path to the combined yield map of all regions.')
 @click.option('--aggregated_yield_estimates_path', required=True, type=click.Path(), help='Path to the combined yield estimates (.csv) of all regions.')
 @click.option('--evaluation_results_path', required=False, type=click.Path(), help='Path to the evaluation results csv.', default=None)
+@click.option('--met_source', required=True, type=click.STRING, help='Source of the meteorological data.', default=None)
+@click.option('--precipitation_source', required=True, type=click.STRING, help='Source of the precipitation data.', default=None)
+@click.option('--precipitation_agg_method', required=True, type=click.STRING, help='Aggregation method for precipitation data.', default=None)
+@click.option('--fallback_precipitation', required=True, type=click.STRING, help='Fallback precipitation data.', default=None)
 @click.option('--val_fpath', required=False, type=click.Path(), help='Filepath to the csv containing the validation data per region.')
 @click.option('--roi_name', required=True, type=click.STRING, help='Name of the primary region of interest.')
 @click.option('--crop_name', required=True, type=click.STRING, help='Name of the crop.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(regions_dir, out_fpath, start_date, end_date, cutoff_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, crop_name, verbose):
+def cli(regions_dir, out_fpath, start_date, end_date, cutoff_date, aggregated_yield_map_path,
+        aggregated_yield_estimates_path, evaluation_results_path,
+        met_source, precipitation_source, precipitation_agg_method, fallback_precipitation,
+        val_fpath, roi_name, crop_name, verbose):
     """Generate an aggregated final report from multiple regions."""
 
     if verbose:
         logger.setLevel('INFO')
 
+    met_config = {
+        'met_source': met_source,
+        'precipitation_source': precipitation_source,
+        'precipitation_agg_method': precipitation_agg_method,
+        'fallback_precipitation': fallback_precipitation
+    }
+
     logger.info(f'Generating final report for regions in: {regions_dir}')
-    report = generate_final_report(regions_dir, start_date, end_date, cutoff_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, crop_name)
+    report = generate_final_report(regions_dir, start_date, end_date, cutoff_date, aggregated_yield_map_path, aggregated_yield_estimates_path, evaluation_results_path, val_fpath, roi_name, crop_name, met_config)
     logger.info(f'Saving report to: {out_fpath}')
     save_report(report, out_fpath)
 

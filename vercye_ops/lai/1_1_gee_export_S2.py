@@ -51,7 +51,13 @@ def addGeometry(image):
 @click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end-date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
 @click.option('--resolution', type=int, default=20, help='Spatial resolution in meters per pixel.')
-def main(project, library=None, region=None, shpfile=None, start_date="2021-09-01", end_date="2021-10-01", resolution=20):
+@click.option('--export-mode', type=click.Choice(['gdrive', 'gcs']), default='drive', help='Export mode: drive or cloud')
+@click.option('--export-bucket', type=str, help='Google Cloud Storage bucket name', required=False)
+@click.option('--gcs-folder-path', type=str, help='Google Cloud Storage folder path in bucket', required=False)
+def main(project, library=None, region=None, shpfile=None, start_date="2021-09-01", end_date="2021-10-01", resolution=20, export_mode='drive', export_bucket=None, gcs_folder_path=None):
+
+    if export_mode == 'gcs' and (export_bucket is None or gcs_folder_path is None):
+        raise ValueError("Export bucket must be specified for GCS export mode.")
 
     # Initialize Earth Engine
     ee.Initialize(project=project)
@@ -126,18 +132,34 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         S2_mosaic = S2_mosaic.select(ee.List(BAND_NAMES))
         S2_mosaic = S2_mosaic.toInt16()
 
-        # Export to Google Drive
-        print(f"Exporting {current_datestr} to Google Drive...")
+        if export_mode == 'drive':
+            print(f"Exporting {current_datestr} to Google Drive...")
+            task = ee.batch.Export.image.toDrive(
+                image=S2_mosaic,
+                description=f"{geometry_name}_{str(resolution)}m_{current_datestr}",
+                folder=f"{geometry_name}_{str(resolution)}m",
+                scale=resolution,
+                fileFormat='GeoTIFF',
+                maxPixels=1e13,
+                region=geometry,
+                #fileDimensions=6144,
+                skipEmptyTiles=True)
 
-        task = ee.batch.Export.image.toDrive(image=S2_mosaic,
-                    description=f"{geometry_name}_{str(resolution)}m_{current_datestr}",
-                    folder=f"{geometry_name}_{str(resolution)}m",
-                    scale=resolution,
-                    fileFormat='GeoTIFF',
-                    maxPixels=1e13,
-                    region=geometry,
-                    #fileDimensions=6144,
-                    skipEmptyTiles=True)
+        elif export_mode == 'gcs':
+            print(f"Exporting {current_datestr} to Google Cloud Storage...")
+            task = ee.batch.Export.image.toCloudStorage(image=S2_mosaic,
+                        description=f"{geometry_name}_{str(resolution)}m_{current_datestr}",
+                        fileNamePrefix=f"{gcs_folder_path}/{geometry_name}_{str(resolution)}m/{geometry_name}_{str(resolution)}m_{current_datestr}",
+                        bucket='harvest-raaps-gee',
+                        scale=resolution,
+                        fileFormat='GeoTIFF',
+                        maxPixels=1e13,
+                        region=geometry,
+                        #fileDimensions=6144,
+                        skipEmptyTiles=True)
+        else:
+            raise ValueError("Invalid export mode. Choose either 'drive' or 'gcs'.")
+
         start = time.time()
         task.start()
         

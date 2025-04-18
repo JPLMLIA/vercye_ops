@@ -110,6 +110,7 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
         # Input
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
+        
         # Run model
         LAI_estimate = model(s2_tensor)
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).detach().numpy()

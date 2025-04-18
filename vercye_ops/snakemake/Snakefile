@@ -193,8 +193,8 @@ rule execute_simulations:
             else temp(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'))
         )
     retries: 2 if not config['apsim_execution']['use_docker'] else 5  # Docker image has habit of failing sometimes
-    benchmark:
-        "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
+    # benchmark:
+    #     "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
         """
         {params.execution_command} --verbose > {log}
@@ -310,7 +310,7 @@ rule match_sim_real:
         crop_name = config['lai_params']['crop_name'],
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
-    threads: 10
+    threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
     output:
         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
         conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
@@ -504,6 +504,10 @@ rule generate_final_report:
         study_id = sanitize_filename(config['study_id']),
         crop_name = config['lai_params']['crop_name'],
         cutoff_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
+        met_source = config['apsim_params']['met_source'],
+        precipitation_source = config['apsim_params']['precipitation_source'],
+        precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
+        fallback_precipitation = config['apsim_params']['fallback_precipitation'],
     log:
         'logs_generate_final_report/{year}_{timepoint}.log'
     output:
@@ -525,5 +529,9 @@ rule generate_final_report:
         {params.validation_cmd} \
         --roi_name {params.study_id} \
         --crop_name {params.crop_name} \
+        --met_source {params.met_source} \
+        --precipitation_source {params.precipitation_source} \
+        --precipitation_agg_method {params.precipitation_agg_method} \
+        --fallback_precipitation {params.fallback_precipitation} \
         --verbose > {log}
         """
