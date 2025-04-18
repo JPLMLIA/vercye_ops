@@ -172,6 +172,8 @@ vercye_ops/snakemake/logs*
 vercye_ops/snakemake/benchmarks*
 vercye_ops/snakemake/custom_configs/*
 !vercye_ops/snakemake/custom_configs/.gitkeep
+vercye_ops/lai/logs*
+
 
 # Packaged release
 *.tar.gz

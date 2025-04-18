@@ -136,7 +136,7 @@ This file defines the study parameters and links the **simulation head directory
 - `use_crop_adjusted_lai`: Adjust LAI data for the crop specified (`True`/`False`).
 - `lai_analysis_mode`: Set to `'raster'`.
 - `time_bounds`: LAI start and end dates for each year.
-- `crop_mask`: Path to crop mask files for each year.
+- `crop_mask`: Path to crop mask files for each year. The cropmask **must** be binary, with 1 indicating the crop and 0 otherwise.
 
 #### Matching Parameters (`matching_params`)
 - `target_crs`: CRS string for coordinate reference system used for area calculation. Either a proj string (e.g `'"+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"'`) or authority string (e.g `'epsg:1234'`). Should be choosen with care to minimize distortions. If using a proj string ensure to encolose it with additional quotes as in the example.
