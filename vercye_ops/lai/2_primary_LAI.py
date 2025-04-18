@@ -10,6 +10,19 @@ import torch
 import torch.nn as nn
 import rasterio as rio
 
+default_model_weights = {
+    'S2': {
+        10: {
+            'weights_path': 'models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth',
+            'in_ch': 7
+        },
+        20: {
+            'weights_path': 'models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth',
+            'in_ch': 11
+        }
+    }
+}
+
 class Scale2d(nn.Module):
     def __init__(self, n_ch):
         super(Scale2d, self).__init__()
@@ -46,7 +59,7 @@ class LAI_CNN(nn.Module):
         return x
     
 def is_within_date_range(vf, start_date, end_date):
-    # files have pattern f"{s2_dir}/{region}_{resolution}m_{date}.vrt"
+    # files are expected to have the pattern f"{s2_dir}/{region}_{resolution}m_{date}.vrt"
     date = Path(vf).stem.split("_")[-1]
     date = datetime.strptime(date, "%Y-%m-%d")
     return start_date <= date <= end_date
@@ -59,8 +72,9 @@ def is_within_date_range(vf, start_date, end_date):
 @click.argument('resolution', type=int)
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date', required=False, default=None)
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date', required=False, default=None)
-@click.option('--model_weights', type=click.Path(exists=True), default='models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth', help='Local Path to the model weights')
-def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
+@click.option('--model_weights', type=click.Path(exists=True), required=False, default=None)
+@click.option('--in_ch', type=int, default=None, help='Number of input channels', required=False)
+def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights, in_ch):
     """ Main LAI batch prediction function
 
     S2_dir: Local Path to the .vrt Sentinel-2 images
@@ -79,8 +93,22 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
     start = time.time()
 
+    if model_weights is not None and not in_ch:
+        raise ValueError("in_ch must be specified if model_weights is provided.")
+
+    if model_weights is None:
+        sateillite = 'S2' # Currently only S2 is supported
+        model_resolution = resolution
+        if resolution not in default_model_weights[sateillite]:
+            print('Warning: No model weights found for this resolution. Using model trained at a resolution of 20m.')
+            model_resolution = 20
+                                                            
+        model_options = default_model_weights[sateillite][model_resolution]
+        model_weights = model_options['weights_path']
+        in_ch = model_options['in_ch']
+
     # Load the pytorch model
-    model = LAI_CNN(11, 5, 1)
+    model = LAI_CNN(in_ch, 5, 1)
     model.load_state_dict(torch.load(model_weights))
     model.eval()
 
@@ -110,7 +138,7 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
         # Input
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
-        
+
         # Run model
         LAI_estimate = model(s2_tensor)
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).detach().numpy()

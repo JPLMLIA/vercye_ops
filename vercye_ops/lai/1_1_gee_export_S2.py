@@ -146,6 +146,7 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
                 skipEmptyTiles=True)
 
         elif export_mode == 'gcs':
+            # Use to avoid hitting storage limitations from GDrive
             print(f"Exporting {current_datestr} to Google Cloud Storage...")
             task = ee.batch.Export.image.toCloudStorage(image=S2_mosaic,
                         description=f"{geometry_name}_{str(resolution)}m_{current_datestr}",

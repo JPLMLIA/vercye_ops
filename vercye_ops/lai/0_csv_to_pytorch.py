@@ -27,6 +27,9 @@ def csv_to_weight_dict(csvpath, product):
     # See https://code.earthengine.google.com/28faa7482764331cf427924ed36d1529?accept_repo=users%2Frfernand387%2FLEAFToolboxModules
     # for original EE implementation
 
+    # Extract the number of input channels
+    n_ch_input = int(w[5])
+
     # Start at tabledata6
     w_dict = {}
     pointer = 5 # zero indexed
@@ -82,7 +85,7 @@ def csv_to_weight_dict(csvpath, product):
     # Read output biases
     w_dict['output']['biases'] = w[pointer:pointer + n]
 
-    return w_dict
+    return w_dict, n_ch_input
 
 class Scale2d(nn.Module):
     def __init__(self, n_ch):
@@ -120,12 +123,12 @@ class LAI_CNN(nn.Module):
         return x
 
 
-def weight_dict_to_torch(w_dict, outpath):
-    model = LAI_CNN(11, 5, 1)
+def weight_dict_to_torch(w_dict, n_ch_in, outpath):
+    model = LAI_CNN(n_ch_in, 5, 1)
     with torch.no_grad():
-        model.input.weight = nn.Parameter(torch.tensor(w_dict['input']['weights']).reshape(1, 11, 1, 1))
-        model.input.bias = nn.Parameter(torch.tensor(w_dict['input']['biases']).reshape(1, 11, 1, 1))
-        model.h1.weight = nn.Parameter(torch.tensor(w_dict['h1']['weights']).reshape(5, 11, 1, 1))
+        model.input.weight = nn.Parameter(torch.tensor(w_dict['input']['weights']).reshape(1, n_ch_in, 1, 1))
+        model.input.bias = nn.Parameter(torch.tensor(w_dict['input']['biases']).reshape(1, n_ch_in, 1, 1))
+        model.h1.weight = nn.Parameter(torch.tensor(w_dict['h1']['weights']).reshape(5, n_ch_in, 1, 1))
         model.h1.bias = nn.Parameter(torch.tensor(w_dict['h1']['biases']).reshape(5))
         model.h2.weight = nn.Parameter(torch.tensor(w_dict['h2']['weights']).reshape(1, 5, 1, 1))
         model.h2.bias = nn.Parameter(torch.tensor(w_dict['h2']['biases']).reshape(1))
@@ -145,10 +148,10 @@ def main(csv_path, model):
     """
 
     # Convert CSV to dictionary
-    w_dict = csv_to_weight_dict(csv_path, model)
+    w_dict, n_ch_in = csv_to_weight_dict(csv_path, model)
 
     weights_filename = Path(csv_path).stem + '_LAI' + '.pth'
-    weight_dict_to_torch(w_dict, weights_filename)
+    weight_dict_to_torch(w_dict, n_ch_in, weights_filename)
 
     print(f"Model weights saved to {weights_filename}")
 
