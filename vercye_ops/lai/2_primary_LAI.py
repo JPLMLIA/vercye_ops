@@ -108,6 +108,7 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         in_ch = model_options['in_ch']
 
     # Load the pytorch model
+    print(f"Loading model weights from {model_weights} with {in_ch} input channels")
     model = LAI_CNN(in_ch, 5, 1)
     model.load_state_dict(torch.load(model_weights))
     model.eval()
