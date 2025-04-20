@@ -15,157 +15,6 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def fill_report_template(yield_map_path, regions_summary, global_summary,
-                         start_date, end_date, cutoff_date, aggregated_yield_map_preview_path,
-                         evaluation_results, roi_name, crop_name, met_config, scatter_plot_path=None):
-    crop_name = crop_name.lower().capitalize()
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    bootstrap_css_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.css')
-    bootstrap_js_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.bundle.min.js')
-    font_path = os.path.join(BASE_DIR, 'assets', 'OpenSans-Regular.ttf')
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset=\"UTF-8\">
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-        <title>Yield Report {roi_name} - {crop_name}</title>
-        <link href=\"{bootstrap_css_path}\" rel=\"stylesheet\">
-        <style>
-            @font-face {{
-                font-family: Open Sans;
-                src: url('{font_path}');
-            }}
-            body {{
-                font-family: 'Open Sans', sans-serif;
-                font-size: 14px;
-                background-color: #f9f9f9;
-               
-            }}
-            h1 {{
-                text-align: center;
-               
-            }}
-            .content-container {{
-                max-width: 900px;
-              
-                background: #ffffff;
-               
-                border-radius: 8px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }}
-            table {{
-                margin-top: 20px;
-            }}
-            th {{
-                background-color: #f2f2f2;
-            }}
-            .margin-img {{
-                display: block;
-                max-width: 100%;
-                height: auto;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-            }}
-
-            .evaluation-image img {{
-                width: 360px; /* Makes sure the image takes full available width */
-                height: auto; /* Maintains aspect ratio */
-                object-fit: contain; /* Ensures the image doesn't get cropped */
-            }}
-        </style>
-    </head>
-    <body>
-        <div class=\"content-container\">
-            <h1><strong>Yield Report {roi_name} - {crop_name}</strong></h1>
-
-            <p><strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
-            <strong>Cutoff Date:</strong> {cutoff_date.date()}</br>
-            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}. <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
-            <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
-            {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
-            <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
-            {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t</br>" if global_summary['reported_total_production_ton'] is not None else ''}
-            <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
-
-
-            {f'''
-            <hr>
-            <div class="evaluation-container">
-                <div class="evaluation-text">
-                    <h4>Evaluation Metrics</h4>
-                    <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
-                    <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}</br>
-                    <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
-                    <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
-                    <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha</br>
-                    <strong>Median Absolute Error:</strong> {int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha</br>
-                    <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
-                    <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
-                    <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
-                    <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</br>
-                    <strong>R2 Best Fit (Coefficient of Determination):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}</p>
-                </div>
-            ''' if evaluation_results is not None else ''}
-
-            {f'''
-                <div class="evaluation-image">
-                    <img src="{scatter_plot_path}" alt="Scatter Plot">
-                </div>
-            ''' if scatter_plot_path else ''}
-
-            {'</div>' if evaluation_results is not None else ''}
-
-            <img src="{aggregated_yield_map_preview_path}" class="margin-img" alt="Estimated Yield per Pixel Map"> 
-            
-            <hr>
-            <h4 style='-pdf-keep-with-next: true; '>Yield Per Region</h4>
-
-            <img src="{yield_map_path}" class="margin-img" alt="Estimated Yield per Region Map">
-
-            <table class="table table-striped table-bordered">
-                <thead>
-                    <tr>
-                        <th>Region</th>
-                        <th>Estimated Mean Yield (kg/ha)</th>
-                        <th>Estimated Median Yield (kg/ha)</th>
-                        {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
-                        <th>Estimated Total Production (t)</th>
-                        {'<th>Reported Total Production (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
-                        {'<th>Estimation Error (kg/ha)</th>' if evaluation_results is not None else ''}
-                        <th>{crop_name} Area (ha)</th>
-                    </tr>
-                </thead>
-                <tbody>
-    """
-
-    for _, row in regions_summary.iterrows():
-        html_content += f"""
-                    <tr>
-                        <td>{row['region']}</td>
-                        <td>{int(row['mean_yield_kg_ha'])}</td>
-                        <td>{int(row['median_yield_kg_ha'])}</td>
-                        {f'<td>{int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A" }</td>' if 'reported_mean_yield_kg_ha' in row else ''}
-                        <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
-                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000)) if not pd.isna(row["reported_yield_kg"]) else "N/A"}</td>' if 'reported_yield_kg' in row else ''}
-                        {f'<td>{int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
-                        <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
-                    </tr>
-        """
-
-    html_content += f"""
-                    </tbody>
-                </table>
-            </div>
-
-            <script src=\"{bootstrap_js_path}\"></script>
-        </body>
-        </html>
-        """
-
-    return html_content
-
-
 def compute_global_summary(regions_summary):
     total_area_ha = regions_summary['total_area_ha'].sum()
     total_yield_production_ton = regions_summary['total_yield_production_ton'].sum()
@@ -248,9 +97,11 @@ def create_map(regions_summary, combined_geojson):
     return ax
 
 
-def combine_geojsons(regions_geometry_paths):
+def combine_geojsons(regions_geometry_paths, admin_column_name):
     geo_dfs = []
     crs = None
+
+    # Case 1: This is the simulation level geojsons - no aggregation admin column needed
     for region, path in regions_geometry_paths.items():
         if op.exists(path):
             gdf = gpd.read_file(path)
@@ -261,7 +112,14 @@ def combine_geojsons(regions_geometry_paths):
                     raise Exception(f"CRS mismatch between regions: {crs} != {gdf.crs}")
             gdf['region'] = region
             geo_dfs.append(gdf)
-    return gpd.GeoDataFrame(pd.concat(geo_dfs, ignore_index=True), crs=geo_dfs[0].crs)
+
+    combined_gdf = gpd.GeoDataFrame(pd.concat(geo_dfs, ignore_index=True), crs=geo_dfs[0].crs)
+
+    # case 2: This is the aggregated geojsons - we need to merge them based on the admin column
+    if admin_column_name:
+        combined_gdf = combined_gdf.dissolve(by=admin_column_name).reset_index()
+
+    return combined_gdf
 
 
 def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840, height=2160):
@@ -318,7 +176,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
 
         if 'reported_mean_yield_kg_ha' in gt.columns:
             regions_summary['mean_err_kg_ha'] = regions_summary['reported_mean_yield_kg_ha'] - regions_summary['mean_yield_kg_ha']
-
+    
     logger.info('Loading and combining region geometries...')
     regions_geometry_paths = get_regions_geometry_paths(regions_dir)
     combined_geojson = combine_geojsons(regions_geometry_paths, admin_column_name)
@@ -337,6 +195,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
         scatter_plot_path = None
 
     section_params = {
+        'section_name': section_name,
         'regions_summary': regions_summary,
         'vector_yield_map_path': yield_map_path,
         'scatter_plot_path': scatter_plot_path,
@@ -358,6 +217,176 @@ def save_report(report, out_fpath):
             print("An error occured!")
 
 
+def fill_section_template(section_name, regions_summary, scatter_plot_path, evaluation_results, vector_yield_map_path, crop_name):
+    crop_name = crop_name.lower().capitalize()
+    html_content = f"""
+        <hr>
+        <h3 style='-pdf-keep-with-next: true; '>{section_name}</h3>
+        <div class="evaluation-container">
+            <div class="evaluation-text">
+                <h4>Evaluation Metrics</h4>
+                <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
+                <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}</br>
+                <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>Median Absolute Error:</strong> {int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
+                <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
+                <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
+                <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</br>
+                <strong>R2 Best Fit (Coefficient of Determination):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}</p>
+            </div>
+    """ if evaluation_results is not None else ""
+
+    html_content +=  f"""
+        <div class="evaluation-image">
+            <img src="{scatter_plot_path}" alt="Scatter Plot">
+        </div>
+    """ if scatter_plot_path else ""
+
+    html_content +=  "</div>" if evaluation_results is not None else ""
+
+    html_content += "<h4>stimated Yield per Simulation Region Map</h4>"
+    html_content +=  f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield per Simulation Region Map">'
+
+    html_content += f"""
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Region</th>
+                    <th>Estimated Mean Yield (kg/ha)</th>
+                    <th>Estimated Median Yield (kg/ha)</th>
+                    {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
+                    <th>Estimated Total Production (t)</th>
+                    {'<th>Reported Total Production (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
+                    {'<th>Estimation Error (kg/ha)</th>' if evaluation_results is not None else ''}
+                    <th>{crop_name} Area (ha)</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+
+    for _, row in regions_summary.iterrows():
+        html_content += f"""
+                    <tr>
+                        <td>{row['region']}</td>
+                        <td>{int(row['mean_yield_kg_ha'])}</td>
+                        <td>{int(row['median_yield_kg_ha'])}</td>
+                        {f'<td>{int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A" }</td>' if 'reported_mean_yield_kg_ha' in row else ''}
+                        <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
+                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000)) if not pd.isna(row["reported_yield_kg"]) else "N/A"}</td>' if 'reported_yield_kg' in row else ''}
+                        {f'<td>{int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
+                        <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
+                    </tr>
+        """
+
+    html_content += f"""
+                    </tbody>
+                </table>
+            </div>
+    """
+
+    return html_content
+
+def generate_final_report(sections, global_summary, metadata, met_config, aggregated_yield_map_preview_path):
+    study_id = metadata['study_id']
+    crop_name = metadata['crop_name'].lower().capitalize()
+
+    start_date = metadata['start_date']
+    end_date = metadata['end_date']
+    cutoff_date = met_config['cutoff_date']
+
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    bootstrap_css_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.css')
+    bootstrap_js_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.bundle.min.js')
+    font_path = os.path.join(BASE_DIR, 'assets', 'OpenSans-Regular.ttf')
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset=\"UTF-8\">
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+        <title>Yield Report {study_id} - {crop_name}</title>
+        <link href=\"{bootstrap_css_path}\" rel=\"stylesheet\">
+        <style>
+            @font-face {{
+                font-family: Open Sans;
+                src: url('{font_path}');
+            }}
+            body {{
+                font-family: 'Open Sans', sans-serif;
+                font-size: 14px;
+                background-color: #f9f9f9;
+               
+            }}
+            h1 {{
+                text-align: center;
+               
+            }}
+            .content-container {{
+                max-width: 900px;
+              
+                background: #ffffff;
+               
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }}
+            table {{
+                margin-top: 20px;
+            }}
+            th {{
+                background-color: #f2f2f2;
+            }}
+            .margin-img {{
+                display: block;
+                max-width: 100%;
+                height: auto;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+            }}
+
+            .evaluation-image img {{
+                width: 360px; /* Makes sure the image takes full available width */
+                height: auto; /* Maintains aspect ratio */
+                object-fit: contain; /* Ensures the image doesn't get cropped */
+            }}
+        </style>
+    </head>
+    <body>
+        <div class=\"content-container\">
+            <h1><strong>Yield Report {study_id} - {crop_name}</strong></h1>
+
+            <p><strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
+            <strong>Cutoff Date:</strong> {cutoff_date.date()}</br>
+            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}. <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
+            <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
+            {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
+            <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
+            {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t</br>" if global_summary['reported_total_production_ton'] is not None else ''}
+            <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
+
+            <img src="{aggregated_yield_map_preview_path}" class="margin-img" alt="Estimated Yield per Pixel Map"> 
+            
+    """
+
+    for section in sections:
+        html_content =+ section
+    
+    html_content += f"""
+                    </tbody>
+                </table>
+            </div>
+
+            <script src=\"{bootstrap_js_path}\"></script>
+        </body>
+        </html>
+    """
+
+    return html_content
+
+
 def create_final_report(input, output, params, log, wildcards):
     """Generate an aggregated final report from multiple regions."""
 
@@ -371,6 +400,7 @@ def create_final_report(input, output, params, log, wildcards):
     results_basedir = params['results_basedir']
     aggregation_suffixes = params['aggregation_suffixes']
     primary_suffix = params['primary_suffix'] # should be just primary
+    admin_column_names = params['admin_column_names']
 
     metadata = {
         'roi_name': params['roi_name'],
@@ -388,6 +418,7 @@ def create_final_report(input, output, params, log, wildcards):
     }
 
     sections = {}
+    global_summary = None
     for suffix in aggregation_suffixes:
         # Collect predictions
         aggregated_yield_estimates_path = os.path.join(results_basedir, f'agg_yield_estimates_{suffix}.csv')
@@ -407,7 +438,7 @@ def create_final_report(input, output, params, log, wildcards):
             logger.warning(f"Evaluation results file not found: {evaluation_results_path}. Skipping.")
             continue
         
-
+        admin_column_name = admin_column_names[suffix]
         section = build_section_params(
             section_name=suffix,
             aggregated_yield_estimates_path=aggregated_yield_estimates_path,
@@ -417,7 +448,7 @@ def create_final_report(input, output, params, log, wildcards):
             admin_column_name=admin_column_name,
         )
 
-        sections[suffix] = fill_section_template(section)
+        sections[suffix] = fill_section_template(*section, crop_name=metadata['crop_name'])
 
         if suffix == primary_suffix:
             global_summary = compute_global_summary(section['regions_summary'])
@@ -428,7 +459,7 @@ def create_final_report(input, output, params, log, wildcards):
     convert_geotiff_to_png_with_legend(pixel_level_yieldmap_path, aggregated_yield_map_preview_path)
     
     logger.info(f'Generating final report for regions in: {regions_dir}')
-    report = generate_final_report(sections, metadata, met_config, aggregated_yield_map_preview_path)
+    report = generate_final_report(sections, global_summary, metadata, met_config, aggregated_yield_map_preview_path)
     logger.info(f'Saving report to: {out_fpath}')
     save_report(report, out_fpath)
     logger.info('Report generation completed.')
