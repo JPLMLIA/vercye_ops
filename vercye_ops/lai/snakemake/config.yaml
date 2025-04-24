@@ -1,6 +1,6 @@
 # Params for step1
-geojsons_dir: '/gpfs/data1/cmongp2/sawahnr/data/morocco/OfficialRegions/LAI_subset'
-ee_project: 'bsos-geog-harvest-raaps'
+geojsons_dir: 'lai/regions/'
+ee_project: 'ee-project-id'
 timepoints:
   2024:
     start_date: '2024-10-10'
@@ -8,9 +8,9 @@ timepoints:
 resolution: 20
 
 # Params for step2
-output_base_dir: '/gpfs/data1/cmongp2/sawahnr/data/morocco/OLD/lai_2024-25'
-gdrive_credentials_path: '/home/sawahnr/rohan-gdrive-client.json'
+output_base_dir: 'outputdir'
+gdrive_credentials_path: '/path/to/credentials.json'
 gdrive_folders:
-  el_hajeb: '1lbPzXFI1DyNSv0qJbQ-TfhN-kzUZnh7i'
-  taounate: '1wko0U2S4UEQPv-Ziz44tRx1MCkO4NqTz'
-  settat: '1jTmnZNf3Vw4EKIsxvxQy55JA0_aWfn6o'
+  el_hajeb: 'abcde'
+  taounate: 'cdefgh
+  settat: 'ijklmnop'

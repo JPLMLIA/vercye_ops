@@ -249,7 +249,7 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
         print(f"Processing {Path(vf).name}")
 
     left, bottom, right, top = rio.warp.transform_bounds(original_crs, target_crs, *s2_ds.bounds)
-        
+
     x_res, y_res = target_resolution
     width = int((right - left) / x_res)
     height = int((top - bottom) / y_res)

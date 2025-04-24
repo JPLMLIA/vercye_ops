@@ -107,7 +107,7 @@ def aggregate_yields(yield_dir, columns_to_keep):
             combined_df = pd.merge(combined_df, extra_info_df, on='region', how='outer')
 
             # Add columns from geojson if specified
-            if columns_to_keep and not combined_df.empty:
+            if columns_to_keep is not None and not combined_df.empty:
                 columns_to_keep_list = [col.strip() for col in columns_to_keep.split(',')]
                 if geojson_path.exists():
                     gdf = gpd.read_file(geojson_path)
@@ -137,7 +137,7 @@ def aggregate_yields(yield_dir, columns_to_keep):
 @click.command()
 @click.option('--yield_dir', required=True, type=click.Path(exists=True), help='Path to the yield directory (e.g., year, timepoint) containing region subdirectories.')
 @click.option('--output_csv', required=True, type=click.Path(), help='Path to save the aggregated yield estimates CSV.')
-@click.option('--columns_to_keep', required=False, type=str, help='Comma-separated list of geojsons-columns to keep in the output CSV. If not provided, no additional columns from the geojsons will be kept.')
+@click.option('--columns_to_keep', required=False, default=None, type=str, help='Comma-separated list of geojsons-columns to keep in the output CSV. If not provided, no additional columns from the geojsons will be kept.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
 def cli(yield_dir, output_csv, columns_to_keep, verbose):
     """Aggregate yield estimates from multiple regions within a directory."""

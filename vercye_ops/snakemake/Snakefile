@@ -6,6 +6,7 @@ from pathlib import Path
 from pathvalidate import sanitize_filename
 
 from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func
+from generate_aggregated_final_report import create_final_report
 
 rule all:
     params:
@@ -63,6 +64,7 @@ rule fetch_met_data:
         met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
         precipitation_source = config['apsim_params']['precipitation_source'],
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
+        precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
         chirps_dir = config['apsim_params']['chirps_dir'],
         script_fpath = config['scripts']['fetch_met_data'],
         head_dir = config['sim_study_head_dir'],
@@ -93,6 +95,7 @@ rule fetch_met_data:
         --lon ${{LON}} \
         --lat ${{LAT}} \
         --precipitation_source {params.precipitation_source} \
+        --precipitation_agg_method {params.precipitation_agg_method} \
         --chirps_column_name {params.region_name} \
         --fallback_precipitation {params.fallback_precipitation} \
         {params.chirps_file} \
@@ -403,7 +406,7 @@ rule aggregate_yield_estimates:
     params:
         executable_fpath = config['scripts']['aggregate_yield_estimates'],
         yield_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
-        columns_to_keep = ','.join(config['eval_params']['aggregation_levels'].values()),
+        columns_to_keep_cmd = ' --columns_to_keep ' + ','.join(config['eval_params']['aggregation_levels'].values()) if config['eval_params']['aggregation_levels'] else '',
     log:
         'logs_aggregate_yield_estimates/{year}_{timepoint}.log'
     output:
@@ -412,7 +415,7 @@ rule aggregate_yield_estimates:
         """
         python {params.executable_fpath} \
         --yield_dir {params.yield_dir} \
-        --columns_to_keep {params.columns_to_keep} \
+        {params.columns_to_keep_cmd} \
         --output_csv {output.aggregated_csv} \
         --verbose > {log}
         """
@@ -513,17 +516,22 @@ rule evaluate_yield_estimates:
 
 rule generate_final_report:
     input:
-        region_geojsons = expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}.geojson'), region=config['regions']),
-        aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}')), agg_level_name=list(config['eval_params']['aggregation_levels'].keys()).append('primary')),
-        aggregated_yield_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        region_geojsons = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'), 
+                                 region=config['regions'],
+                                 year='{year}',
+                                 timepoint='{timepoint}'),
+        aggregated_yield_estimates = lambda wildcards: expand(
+            op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'agg_yield_estimates_{}_{}_{}_{}.csv'
+            .format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), wildcards.year, wildcards.timepoint)), 
+            agg_level_name=list(config['eval_params']['aggregation_levels'].keys()) + ['primary']),
+        pixel_level_yieldmap = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 
+                                      'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         evaluation_results = lambda wildcards: get_evaluation_results_path_func(config)(wildcards)
     params:
         executable_fpath = config['scripts']['generate_final_report'],
         regions_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
         start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
         end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
-        evaluation_results_cmd = lambda _, input: f'--evaluation_results_path {input.evaluation_results}' if input.evaluation_results else '',
-        validation_cmd = lambda wildcards, input: f"--val_fpath {op.join(config['sim_study_head_dir'], wildcards.year, 'groundtruth.csv')}" if input.evaluation_results else '',
         study_id = sanitize_filename(config['study_id']),
         crop_name = config['lai_params']['crop_name'],
         cutoff_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
@@ -531,30 +539,14 @@ rule generate_final_report:
         precipitation_source = config['apsim_params']['precipitation_source'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
+        primary_suffix = 'primary', # Simulation level
+        suffix_admincols = config['eval_params']['aggregation_levels'],
     log:
-        'logs_generate_final_report/{year}_{timepoint}.log'
+        op.join('logs_generate_final_report', '{year}_{timepoint}.log')
     output:
         report_fpath = op.join(config['sim_study_head_dir'], 
-                               '{year}',
-                               '{timepoint}', 
-                               'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), 
-    shell:
-        """
-        python {params.executable_fpath} \
-        --regions_dir {params.regions_dir} \
-        --out_fpath {output.report_fpath} \
-        --start_date {params.start_date} \
-        --end_date {params.end_date} \
-        --cutoff_date {params.cutoff_date} \
-        --aggregated_yield_map_path {input.aggregated_yield_map} \
-        --aggregated_yield_estimates_path {input.aggregated_yield_estimates} \
-        {params.evaluation_results_cmd} \
-        {params.validation_cmd} \
-        --roi_name {params.study_id} \
-        --crop_name {params.crop_name} \
-        --met_source {params.met_source} \
-        --precipitation_source {params.precipitation_source} \
-        --precipitation_agg_method {params.precipitation_agg_method} \
-        --fallback_precipitation {params.fallback_precipitation} \
-        --verbose > {log}
-        """
+                              '{year}',
+                              '{timepoint}', 
+                              'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    run:       
+        create_final_report(input, output, params, log, wildcards)

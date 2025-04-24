@@ -5,8 +5,11 @@ from pathlib import Path
 import time
 from datetime import datetime, timedelta
 from glob import glob
+import unicodedata
+
 
 import geopandas as gpd
+
 
 def json_to_fc(json_path):
     with open(json_path, 'r') as f:
@@ -37,11 +40,17 @@ def maskSnow(image):
     mask = image.select(snowBand).lt(snowThreshold)
     return image.updateMask(mask)
 
-
 def addGeometry(image):
     return (image.addBands(image.metadata("MEAN_INCIDENCE_ZENITH_ANGLE_B8A").multiply(3.1415).divide(180).cos().multiply(10000).toUint16().rename(['cosVZA']))
                 .addBands(image.metadata("MEAN_SOLAR_ZENITH_ANGLE").multiply(3.1415).divide(180).cos().multiply(10000).toUint16().rename(['cosSZA']))
                 .addBands(image.metadata("MEAN_SOLAR_AZIMUTH_ANGLE").subtract(image.metadata("MEAN_INCIDENCE_AZIMUTH_ANGLE_B8A")).multiply(3.1415).divide(180).cos().multiply(10000).toInt16().rename(['cosRAA'])))
+
+def clean_name(name):
+    # Remove special characters to avoid GEE export issues
+    return ''.join(
+        c for c in unicodedata.normalize('NFKD', name)
+        if not unicodedata.combining(c)
+    )
 
 @click.command()
 @click.option('--project', help='GEE Project Name')
@@ -51,13 +60,16 @@ def addGeometry(image):
 @click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end-date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
 @click.option('--resolution', type=int, default=20, help='Spatial resolution in meters per pixel.')
-@click.option('--export-mode', type=click.Choice(['gdrive', 'gcs']), default='drive', help='Export mode: drive or cloud')
+@click.option('--export-mode', type=click.Choice(['drive', 'gcs']), default='drive', help='Export mode: Google Drive or Google Cloud Storage. Attention: GCS will come with egress costs!')
 @click.option('--export-bucket', type=str, help='Google Cloud Storage bucket name', required=False)
 @click.option('--gcs-folder-path', type=str, help='Google Cloud Storage folder path in bucket', required=False)
 def main(project, library=None, region=None, shpfile=None, start_date="2021-09-01", end_date="2021-10-01", resolution=20, export_mode='drive', export_bucket=None, gcs_folder_path=None):
 
     if export_mode == 'gcs' and (export_bucket is None or gcs_folder_path is None):
         raise ValueError("Export bucket must be specified for GCS export mode.")
+
+    if export_mode == 'gcs':
+        print("GCS export mode is selected. This may incur egress costs. Please check the GCS documentation for pricing details.")
 
     # Initialize Earth Engine
     ee.Initialize(project=project)
@@ -132,6 +144,8 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         S2_mosaic = S2_mosaic.select(ee.List(BAND_NAMES))
         S2_mosaic = S2_mosaic.toInt16()
 
+        geometry_name = clean_name(geometry_name)
+
         if export_mode == 'drive':
             print(f"Exporting {current_datestr} to Google Drive...")
             task = ee.batch.Export.image.toDrive(
@@ -146,7 +160,7 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
                 skipEmptyTiles=True)
 
         elif export_mode == 'gcs':
-            print(f"Exporting {current_datestr} to Google Cloud Storage...")
+            print(f"Exporting {current_datestr} to Googles Cloud Storage...")
             task = ee.batch.Export.image.toCloudStorage(image=S2_mosaic,
                         description=f"{geometry_name}_{str(resolution)}m_{current_datestr}",
                         fileNamePrefix=f"{gcs_folder_path}/{geometry_name}_{str(resolution)}m/{geometry_name}_{str(resolution)}m_{current_datestr}",

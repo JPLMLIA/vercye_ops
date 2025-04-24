@@ -304,8 +304,13 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     return df
 
 
-def validate_precipitation_source(precipitation_source, met_source):
+def validate_precipitation_source(precipitation_source, met_source, agg_method):
     """Temporary helper to check that no unsupported combination is run"""
+
+    if precipitation_source.lower() == 'era5' or precipitation_source.lower() == 'nasa_power':
+        if agg_method.lower() != 'centroid':
+            raise Exception('Currently only centroid aggregation method is supported for NasaPower and ERA5.')
+
     if precipitation_source.lower() == 'chirps':
         return
     if precipitation_source != met_source:
@@ -331,19 +336,21 @@ def clean_era5(df):
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power', 'era5'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
 @click.option('--fallback_precipitation', type=bool, help="Fallback to the original NasaPower or ERA5 precipitation data if CHIRPS data is not available.", default=False)
+@click.option('--precipitation_agg_method', type=click.Choice(['mean', 'centroid'], case_sensitive=False), help="Method to aggregate precipitation data in a ROI.")
 @click.option('--chirps_file', type=click.Path(file_okay=True, dir_okay=False), default=None, help="File where the CHIRPS extracted chirps-data is saved.")
 @click.option('--ee_project', type=str, required=False, help='Name of the Earth Engine Project in which to run the ERA5 processing. Only required when using --met_source era5.')
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_source, chirps_column_name, fallback_precipitation, chirps_file, ee_project, output_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_source, chirps_column_name, fallback_precipitation, precipitation_agg_method, chirps_file, ee_project, output_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
     output_fpath = Path(output_dir) / f'{region}_met.csv'
 
-    validate_precipitation_source(precipitation_source, met_source)
+
+    validate_precipitation_source(precipitation_source, met_source, precipitation_agg_method)
 
     if met_source.lower() == 'nasa_power':
         df, nodata_val = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite)
