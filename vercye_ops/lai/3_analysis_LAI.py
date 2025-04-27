@@ -11,8 +11,11 @@ import numpy as np
 from scipy.interpolate import Akima1DInterpolator
 import rasterio as rio
 from rasterio.mask import mask
+from rasterio.windows import bounds
+
 
 import geopandas as gpd
+from shapely import box
 
 def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
@@ -38,16 +41,16 @@ def pad_to_polygon(src, geometry, masked_src):
         print("ERROR: The polygon and the source raster do not overlap.")
         sys.exit(1)
 
-def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
+def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
     
-    if not rio.coords.disjoint_bounds(src.bounds, cropmask_bounds):
-        left_pad = int(np.round((src.bounds.left - cropmask_bounds[0]) / src.res[0]))
+    if not rio.coords.disjoint_bounds(src_bounds, cropmask_bounds):
+        left_pad = int(np.round((src_bounds[0] - cropmask_bounds[0]) / src_res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.round((src.bounds.bottom - cropmask_bounds[1]) / src.res[1]))
+        bottom_pad = int(np.round((src_bounds[1] - cropmask_bounds[1]) / src_res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.round((cropmask_bounds[2] - src.bounds.right) / src.res[0]))
+        right_pad = int(np.round((cropmask_bounds[2] - src_bounds[2]) / src_res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(np.round((cropmask_bounds[3] - src.bounds.top) / src.res[1]))
+        top_pad = int(np.round((cropmask_bounds[3] - src_bounds[3]) / src_res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
@@ -75,7 +78,8 @@ def pad_to_raster(src, src_array, cropmask, cropmask_bounds):
 @click.option('--adjustment', type=click.Choice(["none", "wheat", "maize"]), default="none", help='Adjustment to apply to the LAI estimate')
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
-def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date):
+@click.option('--LAI_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files', default='tif')
+def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext):
     """ LAI Analysis function
 
     LAI_dir: Local path to the directory containing regional primary LAI rasters
@@ -158,7 +162,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             d_slash = datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y")
 
             # See if the LAI raster exists
-            LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.tif")
+            LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.{lai_file_ext}")
             if not op.exists(LAI_path):
                 print(f"{Path(LAI_path).name} [DOES NOT EXIST]")
                 
@@ -219,8 +223,6 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
 
             elif mode == "raster":
                 # Mask the raster with the raster
-                masked_src = src.read(1)
-
                 cropmask_array = geometry['array']
                 cropmask_res = geometry['res']
                 cropmask_bounds = geometry['bounds']
@@ -229,25 +231,67 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                     print(f"Preprocessing to project the cropmask to the primary region LAI is required.")
                     print(f"See the README and use 0_reproj_mask.py")
                     sys.exit(1)
-                
-                # 0_reproj_mask.py should've ensured that the cropmask is the same size as a complete LAI raster
-                # Sometimes, however, an LAI raster is partial because of coverage.
-                # Pad the LAI raster to match the extent of the cropmask 
-                masked_src, is_padded = pad_to_raster(src, masked_src, cropmask_array, cropmask_bounds)
+
+                bbox_lai = box(*src.bounds)
+                bbox_cropmask = box(*cropmask_bounds)
+
+                intersection = bbox_lai.intersection(bbox_cropmask)
+                if intersection.is_empty:
+                    print(f"{Path(LAI_path).name} [NO INTERSECTION OF CROPMASK AND LAI]")
+                    stat = {
+                        "Date": d_slash,
+                        "n_pixels": 0,
+                        "interpolated": 0,
+                        "LAI Mean": None,
+                        "LAI Stddev": None,
+                        "LAI Mean Adjusted": None,
+                        "LAI Stddev Adjusted": None,
+                        "Cloud or Snow Percentage": None
+                    }
+                    statistics.append(stat)
+                    continue
+
+                # Read the intersection from the cropmask and LAI
+                window_lai = rio.windows.from_bounds(*intersection.bounds, transform=src.transform)
+                window_cropmask = rio.windows.from_bounds(*intersection.bounds, transform=geometry['transform'])
+
+                # Read the LAI window
+                lai_window_array = src.read(1, window=window_lai)
+                lai_window_bounds = bounds(window_lai, transform=src.transform)
+                lai_window_res = src.res
+
+
+                # This can be removed in production as it is causing overheads
+                # Currently keeping this to ensure the windowing logic does not have a missed edge case
+                with rio.open(geometry_path) as src_cropmask:
+                    # Read the cropmask windowcropmask_bounds
+                    cropmask_window_array_debug = src_cropmask.read(1, window=window_cropmask)
+
+                # Check if the cropmask and LAI windows are the same size
+                if cropmask_window_array_debug.shape != lai_window_array.shape:
+                    print(f"ERROR: cropmask window shape {cropmask_window_array_debug.shape} != LAI window shape {lai_window_array.shape}")
+                    print(f"Preprocessing to project the cropmask to the primary region LAI is required.")
+                    print(f"See the README and use 0_reproj_mask.py")
+                    sys.exit(1)
+
+                # Pad the LAI window to the cropmask
+                # This is necessary because some LAI rasters might have partial coverages
+                lai_window_array_padded, is_padded = pad_to_raster(lai_window_bounds, lai_window_res, lai_window_array, cropmask_array, cropmask_bounds)
 
                 # replace zeros with NaN's
                 cropmask_array_bool = cropmask_array.copy().astype(bool)
                 cropmask_array = cropmask_array.astype(float)
 
                 # Computing the percentage of pixels that are clouds or snow (and thus are nan)
-                cloud_snow_pixels = np.sum(np.isnan(masked_src) & cropmask_array_bool)
+                cloud_snow_pixels = np.sum(np.isnan(lai_window_array_padded) & cropmask_array_bool)
                 total_pixels_in_region = np.sum(cropmask_array_bool)
                 cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
 
+                # Set the cropmask to NaN where it is 0
                 cropmask_array[cropmask_array==0] = np.nan
                 
-                # apply mask
-                masked_src *= cropmask_array
+                # apply binary mask
+                masked_src = lai_window_array_padded * cropmask_array
 
                 if not is_padded and src_meta is None:
                     src_meta = src.meta
@@ -256,7 +300,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                         "width": masked_src.shape[1],
                         "transform": geometry['transform'],
                         "count": 2,
-                        "compress": "lzw"})
+                        "compress": "lzw",
+                        "driver": "GTiff"})
 
             # If the raster after masking is all nan, skip
             if np.all(np.isnan(masked_src)):
@@ -274,11 +319,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                 statistics.append(stat)
                 continue
 
-            # Rasters get read as (1, height, width)
-            #LAI_estimate = masked_src[0]
-            LAI_estimate = masked_src
-
             # clip all negative values to zero
+            LAI_estimate = masked_src
             LAI_estimate[LAI_estimate < 0] = 0
 
             # Wheat and Maize calibrations

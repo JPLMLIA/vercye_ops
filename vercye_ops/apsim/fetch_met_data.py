@@ -207,7 +207,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         values = image.reduceRegion(ee.Reducer.first(), point, 1000)
         return ee.Feature(None, values.set('date', date))
     
-    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=10):
+    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=5):
         logger.info(f'Fetching data from {chunk_start} to {chunk_end}')
         try:
             era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
@@ -258,6 +258,8 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     df['PRECTOTCORR'] = df['PRECTOTCORR'] * 1000
 
     # Calculate wind speed from u and v components
+    df['u10'] = df['u10'].astype(float)
+    df['v10'] = df['v10'].astype(float)
     df['WS2M'] = np.sqrt(df['u10']**2 + df['v10']**2)
 
     # Compute mean temperate
@@ -265,6 +267,9 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
 
     # Keep only required columns for APSIM
     df = df[['date', 'ALLSKY_SFC_SW_DWN', 'T2M', 'T2M_MAX', 'T2M_MIN', 'PRECTOTCORR', 'WS2M']]
+    df.fillna({'ALLSKY_SFC_SW_DWN': 0, 'T2M': 0, 'T2M_MAX': 0, 'T2M_MIN': 0, 'PRECTOTCORR': 0, 'WS2M': 0}, inplace=True)
+
+
 
     # end_date_extended = end_date + pd.DateOffset(days=365)
     # Ensure that we have continous data for every day from start_date to end_date
@@ -281,6 +286,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         if missing_dates[0] > df['date'].max():
             logger.warning(f"Missing dates are at the end of the data. Not filling them.")
         else:
+            raise Exception('Missing dates')
             # Fill missing dates with NaN
             missing_df = pd.DataFrame({'date': missing_dates})
             for col in df.columns:

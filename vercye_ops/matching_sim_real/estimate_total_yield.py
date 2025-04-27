@@ -51,6 +51,7 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_crs):
     total_area_ha = np.sum(~np.isnan(data)) * pixel_area_ha
     total_yield = int(np.nansum(data * pixel_area_ha))  # Use nansum as there are likely nodata values in the input data
     total_yield_tons = total_yield / 1000
+    total_yield_tons = round(total_yield_tons, 3)
     logger.info(f"Total yield: {total_yield} kg (mean of {mean_yield} and median of {median_yield} kg/ha) for {total_area_ha:0.2f} hectares)")
 
     # Save total yield to CSV
