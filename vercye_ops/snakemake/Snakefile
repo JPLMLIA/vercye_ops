@@ -553,5 +553,6 @@ rule generate_final_report:
                               '{year}',
                               '{timepoint}', 
                               'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-    run:       
-        create_final_report(input, output, params, log, wildcards)
+    run:
+        with open(log[0], 'w') as logfile:
+            create_final_report(input, output, params, log=logfile, wildcards=wildcards)

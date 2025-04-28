@@ -11,6 +11,7 @@ from matplotlib.colors import Normalize
 from xhtml2pdf import pisa
 from datetime import datetime
 import glob
+from logging import StreamHandler
 
 
 from vercye_ops.utils.init_logger import get_logger
@@ -30,6 +31,8 @@ def compute_global_summary(regions_summary):
 
         if regions_summary['reported_yield_kg'].isna().any():
             logger.warning('Some regions have NaN reported yield. Not reporting.')
+            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_yield_kg'].isna()]['region'].values}")
+
             reported_total_production_ton = None
             mean_reported_yield_kg = None
         else:
@@ -42,6 +45,8 @@ def compute_global_summary(regions_summary):
 
         if regions_summary['reported_mean_yield_kg_ha'].isna().any():
             logger.warning('Some regions have NaN reported yield. Not reporting.')
+            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_yield_kg'].isna()]['region'].values}")
+
             reported_total_production_ton = None
             mean_reported_yield_kg = None
         else:
@@ -253,7 +258,7 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
             <table width="100%" border="0" cellspacing="0" cellpadding="5">
                 <tr>
                     <!-- Left column: Evaluation metrics -->
-                    <td width="40%" style="vertical-align: top; font-size: 0.9em;">
+                    <td width="40%" style="vertical-align: top; font-size: 0.9em; padding-top: 40px">
                         <p>
                             <strong>Note:</strong> The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
                             <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}<br>
@@ -366,6 +371,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             }}
             table {{
                 margin-top: 20px;
+                font-size: 11px;
             }}
             th {{
                 background-color: #f2f2f2;
@@ -391,7 +397,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
 
             <p><strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
             <strong>Met-data Cutoff Date:</strong> {cutoff_date.date()}</br>
-            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}. <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
+            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}.<br/> <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
@@ -418,7 +424,9 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
 def create_final_report(input, output, params, log, wildcards):
     """Generate an aggregated final report from multiple regions."""
 
-    logger.setLevel('INFO')
+    temp_log_handler = StreamHandler(log)
+    temp_log_handler.setLevel('INFO')
+    logger.addHandler(temp_log_handler)
 
     out_fpath = output['report_fpath']
 
@@ -426,6 +434,7 @@ def create_final_report(input, output, params, log, wildcards):
     pixel_level_yieldmap_path = input['pixel_level_yieldmap']
     aggregationsuffix_admincol = params['suffix_admincols'] # dict of aggregation level suffixes and admin column names
     primary_suffix = params['primary_suffix'] # should be just primary - is the simulation level suffix
+    year = wildcards['year']
 
     metadata = {
         'study_id': params['study_id'],
@@ -460,7 +469,7 @@ def create_final_report(input, output, params, log, wildcards):
 
         # Collect groundtruth and evaluation results
         gt_dir = os.path.os.path.dirname(regions_dir)
-        groundtruth_path = os.path.join(gt_dir, f'groundtruth_{suffix}.csv')
+        groundtruth_path = os.path.join(gt_dir, f'groundtruth_{suffix}-{year}.csv')
         if not os.path.exists(groundtruth_path):
             logger.warning(f"Groundtruth file not found: {groundtruth_path}. Skipping.")
             groundtruth_path = None
