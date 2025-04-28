@@ -121,6 +121,7 @@ def combine_geojsons(regions_geometry_paths, admin_column_name):
     # case 2: This is the aggregated geojsons - we need to merge them based on the admin column
     if admin_column_name is not None:
         combined_gdf = combined_gdf.dissolve(by=admin_column_name).reset_index()
+        combined_gdf['region'] = combined_gdf[admin_column_name]
 
     return combined_gdf
 
@@ -133,7 +134,10 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     data = np.where(data == src.nodata, np.nan, data)
     
     # Normalize the data for color mapping
-    norm = Normalize(vmin=np.nanmin(data), vmax=np.nanmax(data))
+    # Using percentiles to avoid outliers affecting the color mapping. Outliers will have the same color.
+    vmin = np.nanpercentile(data, 2)
+    vmax = np.nanpercentile(data, 98)
+    norm = Normalize(vmin=vmin, vmax=vmax)
     colormap = plt.cm.viridis
     
     colored_data = colormap(norm(data))
@@ -155,12 +159,13 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     cbar.set_label('Yield kg/ha')
 
     ax.set_title("Crop Productivity Pixel-Level - Estimated Yield in kg/ha", fontsize=16)
-    fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=600)
+    fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=450)
     plt.close(fig)
     return output_png_path
 
 
 def build_section_params(section_name, aggregated_yield_estimates_path, groundtruth_path, evaluation_results_path, regions_dir, admin_column_name):
+    logger.info(f'Building section parameters for {section_name}...')
     regions_summary = pd.read_csv(aggregated_yield_estimates_path)
 
     if groundtruth_path is not None:
@@ -184,6 +189,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
     logger.info('Loading and combining region geometries...')
     regions_geometry_paths = get_regions_geometry_paths(regions_dir)
     combined_geojson = combine_geojsons(regions_geometry_paths, admin_column_name)
+    logger.info(f'Combined geojson shape: {combined_geojson.shape}. Num regions: {len(regions_geometry_paths)}')
 
     logger.info('Creating vector yield map...')
     yield_map = create_map(regions_summary, combined_geojson)
@@ -225,11 +231,13 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
     crop_name = crop_name.lower().capitalize()
     section_name = section_name if section_name != primary_suffix else 'Simulation'
     section_name = section_name.lower().capitalize()
+    html_content = f"""
+        <hr>
+        <h2 style='-pdf-keep-with-next: true;'>{section_name.lower().capitalize()}-level Evaluation</h2>
+    """
+
     if evaluation_results is not None:
-        html_content = f"""
-            <hr>
-            <h2 style='-pdf-keep-with-next: true;'>{section_name.lower().capitalize()}-level Evaluation</h2>
-            
+        html_content += f"""
             <table width="100%" border="0" cellspacing="0" cellpadding="5">
                 <tr>
                     <!-- Left column: Evaluation metrics -->
@@ -256,8 +264,6 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
                 </tr>
             </table>
         """
-    else:
-        html_content = ""
 
     html_content +=  "</div>" if evaluation_results is not None else ""
 

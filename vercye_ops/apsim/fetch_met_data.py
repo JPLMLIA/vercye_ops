@@ -21,7 +21,6 @@ VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PR
 DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 
 
-
 def error_checking_function(df):
     """
     Perform error checking and logging on a dataframe containing NASA POWER data.
@@ -207,7 +206,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         values = image.reduceRegion(ee.Reducer.first(), point, 1000)
         return ee.Feature(None, values.set('date', date))
     
-    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=10):
+    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=5):
         logger.info(f'Fetching data from {chunk_start} to {chunk_end}')
         try:
             era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
@@ -258,6 +257,8 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     df['PRECTOTCORR'] = df['PRECTOTCORR'] * 1000
 
     # Calculate wind speed from u and v components
+    df['u10'] = df['u10'].astype(float)
+    df['v10'] = df['v10'].astype(float)
     df['WS2M'] = np.sqrt(df['u10']**2 + df['v10']**2)
 
     # Compute mean temperate
@@ -265,10 +266,9 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
 
     # Keep only required columns for APSIM
     df = df[['date', 'ALLSKY_SFC_SW_DWN', 'T2M', 'T2M_MAX', 'T2M_MIN', 'PRECTOTCORR', 'WS2M']]
+    df.fillna({'ALLSKY_SFC_SW_DWN': 0, 'T2M': 0, 'T2M_MAX': 0, 'T2M_MIN': 0, 'PRECTOTCORR': 0, 'WS2M': 0}, inplace=True)
 
-    # end_date_extended = end_date + pd.DateOffset(days=365)
     # Ensure that we have continous data for every day from start_date to end_date
-
     expected_dates = pd.date_range(df['date'].min(), end_date, freq='D')
     missing_dates = expected_dates.difference(df['date'])
 
@@ -281,16 +281,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         if missing_dates[0] > df['date'].max():
             logger.warning(f"Missing dates are at the end of the data. Not filling them.")
         else:
-            # Fill missing dates with NaN
-            missing_df = pd.DataFrame({'date': missing_dates})
-            for col in df.columns:
-                if col != 'date':
-                    missing_df[col] = np.nan
-            # interpolate missing values from the previous and next days
-            df = pd.concat([df, missing_df], ignore_index=True)
-            df.sort_values('date', inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            df = df.interpolate(method='linear', limit_direction='both')
+            raise Exception('Missing dates - Not yet handled, this shouldnt occur.')
 
     # set date as index
     df.set_index('date', inplace=True)

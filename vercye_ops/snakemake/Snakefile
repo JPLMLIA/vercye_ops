@@ -77,6 +77,7 @@ rule fetch_met_data:
     output:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
     threads: workflow.cores * 0.75 if config['apsim_params']['met_source'].lower() == 'nasa_power' else workflow.cores * 0.1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
+    retries: 3
     shell:
         """
         {params.jq_load_statement}
@@ -215,6 +216,7 @@ rule reproject_cropmask:
         lai_dir = config['lai_params']['lai_dir'],
         lai_region = config['lai_params']['lai_region'],
         lai_resolution = config['lai_params']['lai_resolution'],
+        lai_file_ext = config['lai_params']['file_ext'],
     log:
         'logs_reproject_cropmask/{year}.log'
     output:
@@ -226,6 +228,7 @@ rule reproject_cropmask:
         {output.reproj_cropmask} \
         --lai_dir {params.lai_dir} \
         --lai_region {params.lai_region} \
+        --lai_file_ext {params.lai_file_ext} \
         --lai_resolution {params.lai_resolution} > {log}
         """ if config['lai_params']['do_cropmask_reprojection'] else 'cp {input.original_cropmask} {output.reproj_cropmask}'
 
@@ -261,6 +264,7 @@ rule lai_analysis:
         adjustment = config['lai_params']['crop_name'] if config['lai_params']['use_crop_adjusted_lai'] else "none",
         start_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][0],
         end_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][1],
+        lai_file_ext = config['lai_params']['file_ext'],
     benchmark:
         "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
     log:
@@ -280,6 +284,7 @@ rule lai_analysis:
         --mode {params.mode} \
         --adjustment {params.adjustment} \
         --start_date {params.start_date} \
+        --LAI_file_ext {params.lai_file_ext} \
         --end_date {params.end_date} > {log}
         """
 
