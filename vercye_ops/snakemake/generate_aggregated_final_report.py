@@ -24,19 +24,31 @@ def compute_global_summary(regions_summary):
     total_yield_production_kg =  regions_summary['total_yield_production_kg'].sum()
     mean_yield_kg = total_yield_production_kg / total_area_ha
 
-    # need to get those entries where reported_mean_yield_kg_ha is not NaN
+    # Add total reported production and mean reported yield if all regions have reported data
     if 'reported_yield_kg' in regions_summary.columns:
         reported_regions_data = regions_summary[~regions_summary['reported_yield_kg'].isna()]
-        reported_areas_ha = reported_regions_data['total_area_ha'].sum()
-        reported_total_production_kg = reported_regions_data['reported_yield_kg'].sum()
-        reported_total_production_ton = reported_total_production_kg / 1000
-        mean_reported_yield_kg = reported_total_production_kg / reported_areas_ha
+
+        if regions_summary['reported_yield_kg'].isna().any():
+            logger.warning('Some regions have NaN reported yield. Not reporting.')
+            reported_total_production_ton = None
+            mean_reported_yield_kg = None
+        else:
+            reported_total_production_kg = reported_regions_data['reported_yield_kg'].sum()
+            reported_total_production_ton = reported_total_production_kg / 1000
+            cropmap_areas_ha = reported_regions_data['total_area_ha'].sum()
+            mean_reported_yield_kg = reported_total_production_kg / cropmap_areas_ha
     elif 'reported_mean_yield_kg_ha' in regions_summary.columns:
         reported_regions_data = regions_summary[~regions_summary['reported_mean_yield_kg_ha'].isna()]
-        reported_areas_ha = reported_regions_data['total_area_ha'].sum()
-        reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
-        reported_total_production_ton = reported_total_production_kg / 1000
-        mean_reported_yield_kg = reported_total_production_kg / reported_areas_ha
+
+        if regions_summary['reported_mean_yield_kg_ha'].isna().any():
+            logger.warning('Some regions have NaN reported yield. Not reporting.')
+            reported_total_production_ton = None
+            mean_reported_yield_kg = None
+        else:
+            cropmask_areas_ha = reported_regions_data['total_area_ha'].sum()
+            reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
+            reported_total_production_ton = reported_total_production_kg / 1000
+            mean_reported_yield_kg = reported_total_production_kg / cropmask_areas_ha
     else:
         reported_total_production_ton = None
         mean_reported_yield_kg = None
