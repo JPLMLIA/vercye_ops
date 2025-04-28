@@ -242,10 +242,10 @@ def get_geometry_data(metadata_xml_url):
         raise Exception(f"zenith_angle_units must be 'deg', but it is {zenith_angle_units}.")
     zenith_angle = float(zenith_angle_el.text)
 
-    b8a_incidence_angle_el = xml_root.findall(".//Mean_Viewing_Incidence_Angle_List/Mean_Viewing_Incidence_Angle[@bandId='9']")
+    b8a_incidence_angle_el = xml_root.findall(".//Mean_Viewing_Incidence_Angle_List/Mean_Viewing_Incidence_Angle[@bandId='8']")
 
     if not b8a_incidence_angle_el:
-        raise Exception("Could not find Mean_Viewing_Incidence_Angle for band 9.")
+        raise Exception("Could not find Mean_Viewing_Incidence_Angle for band 8.")
 
     b8a_incidence_angle_el = b8a_incidence_angle_el[0]  
     
@@ -445,7 +445,7 @@ def main():
     
     # Set paths
     geojson_path = '/gpfs/data1/cmongp2/sawahnr/nasa-harvest/vercye/playground/maroc_adm_0_demo_data/mar_admbnda_adm0_hcp_20230925.shp'
-    output_folder = '/gpfs/data1/cmongp2/sawahnr/data/misc/vercye_dl_tiles_moroc_test'
+    output_folder = '/gpfs/data1/cmongp2/sawahnr/data/misc/compare_vals_2'
     os.makedirs(output_folder, exist_ok=True)
     
     # Set up parallel processing
@@ -466,9 +466,10 @@ def main():
     t0 = time.time()
     search = catalog.search(
         collections=["sentinel-2-c1-l2a"],
-        intersects=gdf.geometry.values[0],
-        datetime=f"{start_date}/{end_date}",
-        query={"eo:cloud_cover": {"lt": 70}},
+        # intersects=gdf.geometry.values[0],
+        # datetime=f"{start_date}/{end_date}",
+        # query={"eo:cloud_cover": {"lt": 70}},
+        ids=["S2A_T29SPR_20240106T111439_L2A"]
     )
 
     # Get items from search

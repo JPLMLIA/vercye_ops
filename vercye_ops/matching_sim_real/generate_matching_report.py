@@ -157,6 +157,12 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     if png_fpath:
         logger.info(f"Saving PNG report to {png_fpath}")
+
+        # Hide cloud coverage in png as it becomes to crowded
+        for trace in fig.data:
+            if trace.name == 'RS Cloud Coverage %':
+                trace.visible = False 
+
         fig.update_layout(width=1000, height=1200)  # Adjust the top margin to avoid overlap
         fig.write_image(png_fpath)
 

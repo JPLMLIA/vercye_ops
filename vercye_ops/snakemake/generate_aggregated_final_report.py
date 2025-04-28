@@ -9,6 +9,10 @@ import pandas as pd
 import rasterio
 from matplotlib.colors import Normalize
 from xhtml2pdf import pisa
+from datetime import datetime
+import glob
+from logging import StreamHandler
+
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -21,19 +25,35 @@ def compute_global_summary(regions_summary):
     total_yield_production_kg =  regions_summary['total_yield_production_kg'].sum()
     mean_yield_kg = total_yield_production_kg / total_area_ha
 
-    # need to get those entries where reported_mean_yield_kg_ha is not NaN
+    # Add total reported production and mean reported yield if all regions have reported data
     if 'reported_yield_kg' in regions_summary.columns:
         reported_regions_data = regions_summary[~regions_summary['reported_yield_kg'].isna()]
-        reported_areas_ha = reported_regions_data['total_area_ha'].sum()
-        reported_total_production_kg = reported_regions_data['reported_yield_kg'].sum()
-        reported_total_production_ton = reported_total_production_kg / 1000
-        mean_reported_yield_kg = reported_total_production_kg / reported_areas_ha
+
+        if regions_summary['reported_yield_kg'].isna().any():
+            logger.warning('Some regions have NaN reported yield. Not reporting.')
+            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_yield_kg'].isna()]['region'].values}")
+
+            reported_total_production_ton = None
+            mean_reported_yield_kg = None
+        else:
+            reported_total_production_kg = reported_regions_data['reported_yield_kg'].sum()
+            reported_total_production_ton = reported_total_production_kg / 1000
+            cropmap_areas_ha = reported_regions_data['total_area_ha'].sum()
+            mean_reported_yield_kg = reported_total_production_kg / cropmap_areas_ha
     elif 'reported_mean_yield_kg_ha' in regions_summary.columns:
         reported_regions_data = regions_summary[~regions_summary['reported_mean_yield_kg_ha'].isna()]
-        reported_areas_ha = reported_regions_data['total_area_ha'].sum()
-        reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
-        reported_total_production_ton = reported_total_production_kg / 1000
-        mean_reported_yield_kg = reported_total_production_kg / reported_areas_ha
+
+        if regions_summary['reported_mean_yield_kg_ha'].isna().any():
+            logger.warning('Some regions have NaN reported yield. Not reporting.')
+            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_yield_kg'].isna()]['region'].values}")
+
+            reported_total_production_ton = None
+            mean_reported_yield_kg = None
+        else:
+            cropmask_areas_ha = reported_regions_data['total_area_ha'].sum()
+            reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
+            reported_total_production_ton = reported_total_production_kg / 1000
+            mean_reported_yield_kg = reported_total_production_kg / cropmask_areas_ha
     else:
         reported_total_production_ton = None
         mean_reported_yield_kg = None
@@ -116,8 +136,9 @@ def combine_geojsons(regions_geometry_paths, admin_column_name):
     combined_gdf = gpd.GeoDataFrame(pd.concat(geo_dfs, ignore_index=True), crs=geo_dfs[0].crs)
 
     # case 2: This is the aggregated geojsons - we need to merge them based on the admin column
-    if admin_column_name:
+    if admin_column_name is not None:
         combined_gdf = combined_gdf.dissolve(by=admin_column_name).reset_index()
+        combined_gdf['region'] = combined_gdf[admin_column_name]
 
     return combined_gdf
 
@@ -130,7 +151,10 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     data = np.where(data == src.nodata, np.nan, data)
     
     # Normalize the data for color mapping
-    norm = Normalize(vmin=np.nanmin(data), vmax=np.nanmax(data))
+    # Using percentiles to avoid outliers affecting the color mapping. Outliers will have the same color.
+    vmin = np.nanpercentile(data, 2)
+    vmax = np.nanpercentile(data, 98)
+    norm = Normalize(vmin=vmin, vmax=vmax)
     colormap = plt.cm.viridis
     
     colored_data = colormap(norm(data))
@@ -152,15 +176,17 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     cbar.set_label('Yield kg/ha')
 
     ax.set_title("Crop Productivity Pixel-Level - Estimated Yield in kg/ha", fontsize=16)
-    fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=600)
+    fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=450)
     plt.close(fig)
     return output_png_path
 
 
 def build_section_params(section_name, aggregated_yield_estimates_path, groundtruth_path, evaluation_results_path, regions_dir, admin_column_name):
+    logger.info(f'Building section parameters for {section_name}...')
     regions_summary = pd.read_csv(aggregated_yield_estimates_path)
 
-    if groundtruth_path:
+    if groundtruth_path is not None:
+        logger.info('Loading groundtruth data...')
         gt = pd.read_csv(groundtruth_path)
         cols = ['region']
         if 'reported_yield_kg' in gt.columns:
@@ -180,6 +206,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
     logger.info('Loading and combining region geometries...')
     regions_geometry_paths = get_regions_geometry_paths(regions_dir)
     combined_geojson = combine_geojsons(regions_geometry_paths, admin_column_name)
+    logger.info(f'Combined geojson shape: {combined_geojson.shape}. Num regions: {len(regions_geometry_paths)}')
 
     logger.info('Creating vector yield map...')
     yield_map = create_map(regions_summary, combined_geojson)
@@ -187,7 +214,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
     yield_map_path = op.join(regions_dir, yield_map_fname)
     yield_map.figure.savefig(yield_map_path, dpi=600)
 
-    if evaluation_results_path:
+    if evaluation_results_path is not None:
         evaluation_results = pd.read_csv(evaluation_results_path)
         scatter_plot_path = evaluation_results_path.replace('.csv', '.png')
     else:
@@ -217,38 +244,47 @@ def save_report(report, out_fpath):
             print("An error occured!")
 
 
-def fill_section_template(section_name, regions_summary, scatter_plot_path, evaluation_results, vector_yield_map_path, crop_name):
+def fill_section_template(section_name, regions_summary, scatter_plot_path, evaluation_results, vector_yield_map_path, crop_name, primary_suffix):
     crop_name = crop_name.lower().capitalize()
+    section_name = section_name if section_name != primary_suffix else 'Simulation'
+    section_name = section_name.lower().capitalize()
     html_content = f"""
         <hr>
-        <h3 style='-pdf-keep-with-next: true; '>{section_name}</h3>
-        <div class="evaluation-container">
-            <div class="evaluation-text">
-                <h4>Evaluation Metrics</h4>
-                <p>Note: The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
-                <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}</br>
-                <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>Median Absolute Error:</strong> {int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha</br>
-                <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %</br>
-                <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}</br>
-                <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}</br>
-                <strong>R2 Best Fit (Coefficient of Determination):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}</p>
-            </div>
-    """ if evaluation_results is not None else ""
+        <h2 style='-pdf-keep-with-next: true;'>{section_name.lower().capitalize()}-level Evaluation</h2>
+    """
 
-    html_content +=  f"""
-        <div class="evaluation-image">
-            <img src="{scatter_plot_path}" alt="Scatter Plot">
-        </div>
-    """ if scatter_plot_path else ""
+    if evaluation_results is not None:
+        html_content += f"""
+            <table width="100%" border="0" cellspacing="0" cellpadding="5">
+                <tr>
+                    <!-- Left column: Evaluation metrics -->
+                    <td width="40%" style="vertical-align: top; font-size: 0.9em; padding-top: 40px">
+                        <p>
+                            <strong>Note:</strong> The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
+                            <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}<br>
+                            <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Median Absolute Error:</strong> {int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %<br>
+                            <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}<br>
+                            <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}<br>
+                            <strong>R2 Best Fit (Coefficient of Determination):</strong> {evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}
+                        </p>
+                    </td>
+                    
+                    <!-- Right column: Scatter plot -->
+                    <td width="60%" style="vertical-align: top; text-align: center;">
+                        {f'<img src="{scatter_plot_path}" alt="Scatter Plot" style="max-width: 100%; height: auto;">' if scatter_plot_path else ''}
+                    </td>
+                </tr>
+            </table>
+        """
 
     html_content +=  "</div>" if evaluation_results is not None else ""
 
-    html_content += "<h4>stimated Yield per Simulation Region Map</h4>"
-    html_content +=  f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield per Simulation Region Map">'
+    html_content +=  f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield Map">'
 
     html_content += f"""
         <table class="table table-striped table-bordered">
@@ -335,6 +371,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             }}
             table {{
                 margin-top: 20px;
+                font-size: 11px;
             }}
             th {{
                 background-color: #f2f2f2;
@@ -359,8 +396,8 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <h1><strong>Yield Report {study_id} - {crop_name}</strong></h1>
 
             <p><strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
-            <strong>Cutoff Date:</strong> {cutoff_date.date()}</br>
-            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}. <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
+            <strong>Met-data Cutoff Date:</strong> {cutoff_date.date()}</br>
+            <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}.<br/> <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
@@ -371,14 +408,11 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             
     """
 
-    for section in sections:
-        html_content =+ section
+    for section_name, section in sections.items():
+        html_content += section
     
     html_content += f"""
-                    </tbody>
-                </table>
             </div>
-
             <script src=\"{bootstrap_js_path}\"></script>
         </body>
         </html>
@@ -390,55 +424,61 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
 def create_final_report(input, output, params, log, wildcards):
     """Generate an aggregated final report from multiple regions."""
 
-    if params['verbose']:
-        logger.setLevel('INFO')
+    temp_log_handler = StreamHandler(log)
+    temp_log_handler.setLevel('INFO')
+    logger.addHandler(temp_log_handler)
 
-    out_fpath = output['out_fpath']
+    out_fpath = output['report_fpath']
 
-    regions_dir = input['regions_dir']
-    pixel_level_yieldmap_path = input['aggregated_yield_map_path']
-    results_basedir = params['results_basedir']
-    aggregation_suffixes = params['aggregation_suffixes']
-    primary_suffix = params['primary_suffix'] # should be just primary
-    admin_column_names = params['admin_column_names']
+    regions_dir = params['regions_dir']
+    pixel_level_yieldmap_path = input['pixel_level_yieldmap']
+    aggregationsuffix_admincol = params['suffix_admincols'] # dict of aggregation level suffixes and admin column names
+    primary_suffix = params['primary_suffix'] # should be just primary - is the simulation level suffix
+    year = wildcards['year']
 
     metadata = {
-        'roi_name': params['roi_name'],
+        'study_id': params['study_id'],
         'crop_name': params['crop_name'],
-        'start_date': params['start_date'],
-        'end_date': params['end_date'],
+        'start_date': datetime.strptime(params['start_date'], "%Y-%m-%d"),
+        'end_date': datetime.strptime(params['end_date'], "%Y-%m-%d"),
     }
 
     met_config = {
-        'cutoff_date': params['cutoff_date'],
+        'cutoff_date': datetime.strptime(params['cutoff_date'], "%Y-%m-%d"),
         'met_source': params['met_source'],
         'precipitation_source': params['precipitation_source'],
         'precipitation_agg_method':  params['precipitation_agg_method'],
         'fallback_precipitation': params['fallback_precipitation']
     }
 
+    if primary_suffix not in aggregationsuffix_admincol:
+        aggregationsuffix_admincol[primary_suffix] = None
+
     sections = {}
     global_summary = None
-    for suffix in aggregation_suffixes:
+    for suffix, admin_column_name in aggregationsuffix_admincol.items():
         # Collect predictions
-        aggregated_yield_estimates_path = os.path.join(results_basedir, f'agg_yield_estimates_{suffix}.csv')
+        # The aggregated yield estimates files have the additional suffix of sudy id year, timepoint so we use wildcards to match
+        aggregated_yield_estimates_patttern = os.path.join(regions_dir, f'agg_yield_estimates_{suffix}_*.csv')
+        matching_files = glob.glob(aggregated_yield_estimates_patttern)
+        aggregated_yield_estimates_path = matching_files[0] if matching_files else None
 
-        if not os.path.exists(aggregated_yield_estimates_path):
-           logger.warning(f"Aggregated yield estimates file not found: {aggregated_yield_estimates_path}. Skipping.")
+        if aggregated_yield_estimates_path is None:
+           logger.warning(f"Aggregated yield estimates file not found: {aggregated_yield_estimates_patttern}. Skipping.")
            continue
 
         # Collect groundtruth and evaluation results
-        groundtruth_path = os.path.join(results_basedir, f'groundtruth_{suffix}.csv')
+        gt_dir = os.path.os.path.dirname(regions_dir)
+        groundtruth_path = os.path.join(gt_dir, f'groundtruth_{suffix}-{year}.csv')
         if not os.path.exists(groundtruth_path):
             logger.warning(f"Groundtruth file not found: {groundtruth_path}. Skipping.")
-            continue
+            groundtruth_path = None
 
-        evaluation_results_path = os.path.join(results_basedir, f'evaluation_{suffix}.csv')
+        evaluation_results_path = os.path.join(regions_dir, f'evaluation_{suffix}.csv')
         if not os.path.exists(evaluation_results_path):
             logger.warning(f"Evaluation results file not found: {evaluation_results_path}. Skipping.")
-            continue
+            evaluation_results_path = None
         
-        admin_column_name = admin_column_names[suffix]
         section = build_section_params(
             section_name=suffix,
             aggregated_yield_estimates_path=aggregated_yield_estimates_path,
@@ -448,7 +488,7 @@ def create_final_report(input, output, params, log, wildcards):
             admin_column_name=admin_column_name,
         )
 
-        sections[suffix] = fill_section_template(*section, crop_name=metadata['crop_name'])
+        sections[suffix] = fill_section_template(**section, crop_name=metadata['crop_name'], primary_suffix=primary_suffix)
 
         if suffix == primary_suffix:
             global_summary = compute_global_summary(section['regions_summary'])

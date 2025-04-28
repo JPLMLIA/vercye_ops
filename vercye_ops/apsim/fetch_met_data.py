@@ -21,7 +21,6 @@ VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PR
 DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 
 
-
 def error_checking_function(df):
     """
     Perform error checking and logging on a dataframe containing NASA POWER data.
@@ -207,7 +206,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         values = image.reduceRegion(ee.Reducer.first(), point, 1000)
         return ee.Feature(None, values.set('date', date))
     
-    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=10):
+    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=5):
         logger.info(f'Fetching data from {chunk_start} to {chunk_end}')
         try:
             era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
@@ -258,6 +257,8 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     df['PRECTOTCORR'] = df['PRECTOTCORR'] * 1000
 
     # Calculate wind speed from u and v components
+    df['u10'] = df['u10'].astype(float)
+    df['v10'] = df['v10'].astype(float)
     df['WS2M'] = np.sqrt(df['u10']**2 + df['v10']**2)
 
     # Compute mean temperate
@@ -265,10 +266,9 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
 
     # Keep only required columns for APSIM
     df = df[['date', 'ALLSKY_SFC_SW_DWN', 'T2M', 'T2M_MAX', 'T2M_MIN', 'PRECTOTCORR', 'WS2M']]
+    df.fillna({'ALLSKY_SFC_SW_DWN': 0, 'T2M': 0, 'T2M_MAX': 0, 'T2M_MIN': 0, 'PRECTOTCORR': 0, 'WS2M': 0}, inplace=True)
 
-    # end_date_extended = end_date + pd.DateOffset(days=365)
     # Ensure that we have continous data for every day from start_date to end_date
-
     expected_dates = pd.date_range(df['date'].min(), end_date, freq='D')
     missing_dates = expected_dates.difference(df['date'])
 
@@ -281,16 +281,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         if missing_dates[0] > df['date'].max():
             logger.warning(f"Missing dates are at the end of the data. Not filling them.")
         else:
-            # Fill missing dates with NaN
-            missing_df = pd.DataFrame({'date': missing_dates})
-            for col in df.columns:
-                if col != 'date':
-                    missing_df[col] = np.nan
-            # interpolate missing values from the previous and next days
-            df = pd.concat([df, missing_df], ignore_index=True)
-            df.sort_values('date', inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            df = df.interpolate(method='linear', limit_direction='both')
+            raise Exception('Missing dates - Not yet handled, this shouldnt occur.')
 
     # set date as index
     df.set_index('date', inplace=True)
@@ -304,8 +295,13 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     return df
 
 
-def validate_precipitation_source(precipitation_source, met_source):
+def validate_precipitation_source(precipitation_source, met_source, agg_method):
     """Temporary helper to check that no unsupported combination is run"""
+
+    if precipitation_source.lower() == 'era5' or precipitation_source.lower() == 'nasa_power':
+        if agg_method.lower() != 'centroid':
+            raise Exception('Currently only centroid aggregation method is supported for NasaPower and ERA5.')
+
     if precipitation_source.lower() == 'chirps':
         return
     if precipitation_source != met_source:
@@ -331,19 +327,21 @@ def clean_era5(df):
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power', 'era5'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
 @click.option('--fallback_precipitation', type=bool, help="Fallback to the original NasaPower or ERA5 precipitation data if CHIRPS data is not available.", default=False)
+@click.option('--precipitation_agg_method', type=click.Choice(['mean', 'centroid'], case_sensitive=False), help="Method to aggregate precipitation data in a ROI.")
 @click.option('--chirps_file', type=click.Path(file_okay=True, dir_okay=False), default=None, help="File where the CHIRPS extracted chirps-data is saved.")
 @click.option('--ee_project', type=str, required=False, help='Name of the Earth Engine Project in which to run the ERA5 processing. Only required when using --met_source era5.')
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_source, chirps_column_name, fallback_precipitation, chirps_file, ee_project, output_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_source, chirps_column_name, fallback_precipitation, precipitation_agg_method, chirps_file, ee_project, output_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
     output_fpath = Path(output_dir) / f'{region}_met.csv'
 
-    validate_precipitation_source(precipitation_source, met_source)
+
+    validate_precipitation_source(precipitation_source, met_source, precipitation_agg_method)
 
     if met_source.lower() == 'nasa_power':
         df, nodata_val = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite)

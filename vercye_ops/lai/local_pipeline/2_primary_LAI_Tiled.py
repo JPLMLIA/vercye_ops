@@ -236,7 +236,6 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
     s2_ds = rio.open(vf)
     print('Opened')
     s2_array = s2_ds.read()
-    print(f"Loaded {vf} in {time.time()-t0:.2f} seconds")
     original_crs = s2_ds.crs
     print(f"Dataload for {Path(vf).name} in {time.time()-t0:.2f} seconds")
 
@@ -249,7 +248,7 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
         print(f"Processing {Path(vf).name}")
 
     left, bottom, right, top = rio.warp.transform_bounds(original_crs, target_crs, *s2_ds.bounds)
-        
+
     x_res, y_res = target_resolution
     width = int((right - left) / x_res)
     height = int((top - bottom) / y_res)
@@ -260,21 +259,21 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
     # Built-in scaling
     s2_array = (s2_array * 0.0001)
     
-    # subtract 0.1 where the array is not nodata
-    s2_array[s2_array != s2_ds.nodata] -= 0.1
+    # subtract 0.1 where the array is not nodata (Due to baseline >= 5 and need t match GEE harmonized collection)
+    nodata_val = s2_ds.nodata
+    s2_array[s2_array != nodata_val] -= 0.1
 
     # Input
     t1 = time.time()
     s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
 
     # Run model
-    with torch.no_grad():  # Add no_grad for inference efficiency
+    with torch.no_grad():
         LAI_estimate = model(s2_tensor)
     LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
     print(f"Model prediction for {Path(vf).name} in {time.time()-t1:.2f} seconds")
 
     # set NODATA to nan
-    nodata_val = s2_ds.nodata
     LAI_estimate[s2_array[-1] == nodata_val] = np.nan
 
     profile = {
@@ -290,9 +289,8 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
         }
         
     # Create in-memory array for reprojection
-    t2 = time.time()
     dst_array = np.zeros((height, width), dtype=np.float32)
-    dst_array.fill(np.nan)  # Fill with NaN initially
+    dst_array.fill(np.nan)
     
     # Reproject the LAI estimate to the target CRS with consistent resolution
     reproject(
@@ -306,17 +304,14 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
         src_nodata=np.nan,
         dst_nodata=np.nan
     )
-    print(f"Reprojection for {Path(vf).name} in {time.time()-t2:.2f} seconds")
     
     # Write the reprojected data
-    t3 = time.time()
     filename = op.join(lai_dir, Path(vf).stem + "_LAI_tile.tif")
     with rio.open(filename, 'w', **profile) as dst:
         dst.write(dst_array, 1)
         # Set band description to estimateLAI
         dst.set_band_description(1, "estimateLAI")
 
-    print(f"Exported {filename} in {time.time()-t3:.2f} seconds")
     s2_ds.close()
     return filename
 
@@ -396,19 +391,9 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
                     all_results.append(result)
             except Exception as e:
                 print(f"Error in worker {i}: {e}")
-
-    # with mp.Pool(processes=num_processes) as pool:
-    #     # Each worker gets a batch of files, worker_id, and the common parameters
-    #     worker_args = [
-    #         (i, file_batches[i], model_weights, lai_dir, target_resolution, target_crs)
-    #         for i in range(num_processes)
-    #     ]
-    #     # Start the workers and collect all output files
-    #     all_results = pool.starmap(worker_process_files, worker_args)
     
     # Flatten list of lists to get all output files
     output_files = [file for batch_result in all_results for file in batch_result if file is not None]
-
     print(f"Processed {len(output_files)} files successfully")
 
     # Group output_files by date
@@ -419,7 +404,6 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
             output_files_by_date[date] = []
         output_files_by_date[date].append(file)
 
-    print(f"Beofre vrting {time.time()-start:.2f} seconds")
     # Create daily mosaics (VRT)
     for date, files in output_files_by_date.items():
         mosaic_filename = op.join(lai_dir, f"{region}_{resolution}m_{date}_LAI.vrt")

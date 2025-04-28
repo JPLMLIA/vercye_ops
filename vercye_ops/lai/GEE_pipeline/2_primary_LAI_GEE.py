@@ -72,9 +72,9 @@ def is_within_date_range(vf, start_date, end_date):
 @click.argument('resolution', type=int)
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date', required=False, default=None)
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date', required=False, default=None)
-@click.option('--model_weights', type=click.Path(exists=True), required=False, default=None)
+@click.option('--model_weights', type=click.Path(exists=True), default=None, help='Local Path to the model weights. Default values for 10 and 20m resolution available.')
 @click.option('--in_ch', type=int, default=None, help='Number of input channels', required=False)
-def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights, in_ch):
+def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
     """ Main LAI batch prediction function
 
     S2_dir: Local Path to the .vrt Sentinel-2 images
@@ -102,7 +102,7 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         if resolution not in default_model_weights[sateillite]:
             print('Warning: No model weights found for this resolution. Using model trained at a resolution of 20m.')
             model_resolution = 20
-                                                            
+
         model_options = default_model_weights[sateillite][model_resolution]
         model_weights = model_options['weights_path']
         in_ch = model_options['in_ch']
@@ -139,7 +139,7 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
         # Input
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
-
+        
         # Run model
         LAI_estimate = model(s2_tensor)
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).detach().numpy()
