@@ -75,7 +75,7 @@ def is_within_date_range(vf, start_date, end_date):
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date', required=False, default=None)
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date', required=False, default=None)
 @click.option('--model_weights', type=click.Path(exists=True), default=None, help='Local Path to the model weights. Default values for 10 and 20m resolution available.')
-@click.option('--channels', type=int, default=None, help='Input channels to use. string with comma separetes band names e.g cosVZA,cosRZA,cosSZA,B3,B4....', required=False)
+@click.option('--channels', type=str, default=None, help='Input channels to use. String with comma separetes band names e.g cosVZA,cosRZA,cosSZA,B3,B4....', required=False)
 def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth", channels=None):
     """ Main LAI batch prediction function
 
@@ -97,6 +97,10 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
     if model_weights is not None and not channels:
         raise ValueError("channels must be specified if model_weights is provided.")
+
+    if channels is not None:
+        channels = [ch.strip() for ch in channels.split(",")]
+        num_in_ch = len(channels)
 
     if model_weights is None:
         sateillite = 'S2' # Currently only S2 is supported

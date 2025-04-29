@@ -28,13 +28,14 @@ def csv_to_weight_dict(csvpath, product):
     # for original EE implementation
 
     # Extract the number of input channels
-    n_ch_input = int(w[5])
+   
 
     # Start at tabledata6
     w_dict = {}
     pointer = 5 # zero indexed
     # Number of input weights
     n = int(w[pointer])
+    n_ch_input = n
     pointer += 1
     # Read input weights
     w_dict['input'] = {}
