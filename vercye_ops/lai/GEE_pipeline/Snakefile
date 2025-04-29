@@ -1,54 +1,59 @@
 # type: ignore  # Prevent issues with auto-linting snakefiles
+
 import os
 from pathlib import Path
-from glob import glob
-import os.path as op
-from itertools import product
 
+# Get list of region names from geojson files
+def get_regions():
+    geojsons_dir = config['geojsons_dir']
+    return [Path(f).stem for f in os.listdir(geojsons_dir) if f.endswith('.geojson')]
 
-
+# Define final output targets
 rule all:
     input:
         expand(
-            "logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt",
+            "logs/s2_export_{region_name}_{start_date}__{end_date}_done.txt",
             zip,
             region_name=[
                 region
                 for _ in config["timepoints"]
-                for region in config["gdrive_folders"]
+                for region in get_regions()
             ],
             start_date=[
                 config["timepoints"][year]["start_date"]
                 for year in config["timepoints"]
-                for _ in config["gdrive_folders"]
+                for _ in get_regions()
             ],
             end_date=[
                 config["timepoints"][year]["end_date"]
                 for year in config["timepoints"]
-                for _ in config["gdrive_folders"]
+                for _ in get_regions()
             ],
         )
 
 
-rule download_s2_gdrive:
+rule export_s2_gdrive:
     input:
-        credentials_path = config['gdrive_credentials_path']
+        lambda wildcards: os.path.join(config['geojsons_dir'], f"{wildcards.region_name}.geojson")
     params:
-        gdrive_folder_id = lambda wildcards: config['gdrive_folders'][wildcards.region_name],
-        output_dir = op.join(config['output_base_dir'], 'gee_mosaics')
+        library = config['geojsons_dir'],
+        resolution = config['resolution'],
+        ee_project = config['ee_project'],
+        gdrive_credentials_path = config['gdrive_credentials_path'],
+        local_storage_dir = os.path.join(config['output_base_dir'], 'gee_mosaics'),
     output:
-       'logs/download_s2_gdrive_{region_name}_done.txt'
+        "logs/s2_export_{region_name}_{start_date}__{end_date}_done.txt"
     shell:
         """
-        mkdir -p {params.output_dir} \
-        && python 1_2_gdrive_dl_S2.py --folder-id {params.gdrive_folder_id} --outdir {params.output_dir} --secret-json {input.credentials_path} \
-        && touch {output}
+        mkdir -p {params.local_storage_dir} \
+        && python 1_1_gee_export_S2.py --project {params.ee_project} --library {params.library} --region {wildcards.region_name} \
+        --start-date "{wildcards.start_date}" --end-date "{wildcards.end_date}" --resolution {params.resolution} \
+        --gdrive-credentials {params.gdrive_credentials_path} ---download-folder {params.local_storage_dir} && touch {output}
         """
-
 
 rule standardize_s2_gee:
     input:
-        'logs/download_s2_gdrive_{region_name}_done.txt'
+        'logs/s2_export_{region_name}_{start_date}__{end_date}_done.txt'
     params:
         resolution = config['resolution'],
         input_dir = op.join(config['output_base_dir'], 'gee_mosaics'),
@@ -61,7 +66,6 @@ rule standardize_s2_gee:
         && python 1_3_standardize_S2.py {wildcards.region_name} {params.input_dir} {params.output_dir} {params.resolution} \
         && touch {output}
         """
-
 
 rule estimate_lai:
     input:
@@ -78,3 +82,5 @@ rule estimate_lai:
         && python 2_primary_LAI.py {params.input_dir} {params.lai_dir} {wildcards.region_name} {params.resolution} --start_date {wildcards.start_date} --end_date {wildcards.end_date} \
         && touch {output}
         """
+
+# TODO add rule (conditioanl run based on config flag) to create vrt per date
