@@ -9,7 +9,11 @@ platform: 'umd'
 sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
 
 # Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
-study_id: 'Poltava'  
+study_id: 'Poltava'
+
+# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
+# after the pipeline finishes, set this to False.
+keep_apsim_db_files: True
 
 # Specify one or more simulations
 regions:
@@ -117,11 +121,7 @@ apsim_execution:
     platform: 'linux/amd64'
   local: 
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
-    n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
-
-# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
-# after the pipeline finishes, set this to False.
-keep_apsim_db_files: True
+    n_jobs: 7  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
 ########################################
 # LAI parameters
@@ -179,6 +179,7 @@ scripts:
   fetch_met_data: '../apsim/fetch_met_data.py'
   update_apsimx_template: '../apsim/update_apsimx_template.py'
   constrain_lai_cropmask: '../lai/0_mask_cropmask.py'
+  check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'
   lai_analysis: '../lai/3_analysis_LAI.py'
   lai_quicklook: '../lai/4_quicklook.py'
   match_sim_real: '../matching_sim_real/match_sim_rs_lai.py'

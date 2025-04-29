@@ -1,4 +1,5 @@
 import os.path as op
+from pathlib import Path
 
 def build_apsim_execution_command(head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file):
     '''Builds the APSIM execution command depending on whether we are using APSIM in Docker or not'''

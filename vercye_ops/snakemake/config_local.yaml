@@ -11,6 +11,10 @@ sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 # Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
 study_id: 'Poltava'  
 
+# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
+# after the pipeline finishes, set this to False.
+keep_apsim_db_files: True
+
 # Specify one or more simulations
 regions:
   # - 'Chornukhynskyi'
@@ -118,11 +122,7 @@ apsim_execution:
     platform: 'linux/amd64'
   local: 
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
-    n_jobs: -1  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
-
-# For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
-# after the pipeline finishes, set this to False.
-keep_apsim_db_files: True
+    n_jobs: 7  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
 
 ########################################
 # LAI parameters
@@ -178,6 +178,7 @@ scripts:
   fetch_met_data: '~/Builds/vercye_ops/vercye_ops/apsim/fetch_met_data.py'
   update_apsimx_template: '~/Builds/vercye_ops/vercye_ops/apsim/update_apsimx_template.py'
   constrain_lai_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_mask_cropmask.py'
+  check_region_has_cropland: '~/Builds/vercye_ops/vercye_ops/lai/0_validate_constrained_cropmask.py'
   lai_analysis: '~/Builds/vercye_ops/vercye_ops/lai/3_analysis_LAI.py'
   lai_quicklook: '~/Builds/vercye_ops/vercye_ops/lai/4_quicklook.py'
   match_sim_real: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/match_sim_rs_lai.py'
