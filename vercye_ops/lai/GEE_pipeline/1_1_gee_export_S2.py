@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 import os
+=======
+>>>>>>> d0e3a5a4169b688f641a7a9d7f03b93eaab4d9c8
 import ee
 import json
 import click
@@ -10,7 +13,10 @@ import unicodedata
 
 
 import geopandas as gpd
+<<<<<<< HEAD
 from gdrive_download_helpers import get_drive_service, download_files_from_drive, delete_files_from_drive, find_files_in_drive
+=======
+>>>>>>> d0e3a5a4169b688f641a7a9d7f03b93eaab4d9c8
 
 
 def json_to_fc(json_path):
