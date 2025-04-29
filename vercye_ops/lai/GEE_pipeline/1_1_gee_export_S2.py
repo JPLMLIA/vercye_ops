@@ -157,7 +157,11 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         S2_mosaic = ee.Image(S2_filtered.mosaic())
         
         # Select bands
-        BAND_NAMES = ['cosVZA', 'cosSZA', 'cosRAA', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']
+        if resolution == 10:
+            BAND_NAMES = ['cosVZA', 'cosSZA', 'cosRAA', 'B2', 'B3', 'B4', 'B8']
+        else:
+            BAND_NAMES = ['cosVZA', 'cosSZA', 'cosRAA', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']
+
         S2_mosaic = S2_mosaic.select(ee.List(BAND_NAMES))
         S2_mosaic = S2_mosaic.toInt16()
 

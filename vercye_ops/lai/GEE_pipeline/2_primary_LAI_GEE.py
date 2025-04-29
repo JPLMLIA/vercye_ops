@@ -10,15 +10,17 @@ import torch
 import torch.nn as nn
 import rasterio as rio
 
+
+# See https://code.earthengine.google.com/?accept_repo=users/rfernand387/LEAFToolboxModules for details
 default_model_weights = {
     'S2': {
         10: {
-            'weights_path': 'models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth',
-            'in_ch': 7
+            'weights_path': '../models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth',
+            'channels': ['cosVZA', 'cosSZA', 'cosRAA', 'B2', 'B3', 'B4', 'B8']
         },
         20: {
-            'weights_path': 'models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth',
-            'in_ch': 11
+            'weights_path': '../models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth',
+            'channels': ['cosVZA', 'cosSZA', 'cosRAA', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']
         }
     }
 }
@@ -73,8 +75,8 @@ def is_within_date_range(vf, start_date, end_date):
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date', required=False, default=None)
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date', required=False, default=None)
 @click.option('--model_weights', type=click.Path(exists=True), default=None, help='Local Path to the model weights. Default values for 10 and 20m resolution available.')
-@click.option('--in_ch', type=int, default=None, help='Number of input channels', required=False)
-def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
+@click.option('--channels', type=int, default=None, help='Input channels to use. string with comma separetes band names e.g cosVZA,cosRZA,cosSZA,B3,B4....', required=False)
+def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth", channels=None):
     """ Main LAI batch prediction function
 
     S2_dir: Local Path to the .vrt Sentinel-2 images
@@ -93,8 +95,8 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
     start = time.time()
 
-    if model_weights is not None and not in_ch:
-        raise ValueError("in_ch must be specified if model_weights is provided.")
+    if model_weights is not None and not channels:
+        raise ValueError("channels must be specified if model_weights is provided.")
 
     if model_weights is None:
         sateillite = 'S2' # Currently only S2 is supported
@@ -105,11 +107,13 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
         model_options = default_model_weights[sateillite][model_resolution]
         model_weights = model_options['weights_path']
-        in_ch = model_options['in_ch']
+        channels = model_options['channels']
+
 
     # Load the pytorch model
-    print(f"Loading model weights from {model_weights} with {in_ch} input channels")
-    model = LAI_CNN(in_ch, 5, 1)
+    num_in_ch = len(channels)
+    print(f"Loading model weights from {model_weights} with {num_in_ch} input channels")
+    model = LAI_CNN(num_in_ch, 5, 1)
     model.load_state_dict(torch.load(model_weights))
     model.eval()
 
@@ -125,6 +129,9 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         # Load the image
         s2_ds = rio.open(vf)
         s2_array = s2_ds.read()
+
+        if not s2_array.shape[0] == num_in_ch:
+            raise ValueError(f"Number of bands in {vf} does not match the number of input channels. Expected {num_in_ch} but got {s2_array.shape[0]}")
 
         # If the last band of the image is all zeros, skip
         # The first three bands are geometry values
