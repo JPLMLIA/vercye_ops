@@ -187,6 +187,7 @@ scripts:
   aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
   aggregate_maps : '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_maps.py'
   generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
+  generate_aggregated_lai_curves_plot: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_lai_plot.py'
   aggregate_met_stats: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/evaluate_yield_estimates.py'
   aggregate_yield_estimates_per_eval_lvl: '../matching_sim_real/aggregate_yield_estimates_per_eval_lvl.py'
