@@ -164,6 +164,11 @@ def merge_shapefiles(shapefile_paths, region_names):
     logger.info('Merging shapefiles...')
     gdfs = [gpd.read_file(shp) for shp in shapefile_paths]
 
+    # Temporary fix for backward compatibility
+    if not 'cleaned_region_name_vercye' in gdfs[0].columns:
+        for gdf, region_name in zip(gdfs, region_names):
+            gdf['cleaned_region_name_vercye'] = region_name
+
     merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
 
     return merged_gdf
@@ -242,7 +247,7 @@ def cli(roi_base_dir, yield_estimates_fpath, val_fpath, output_lai_tif_fpath=Non
     yield_estimates.rename(columns={'mean_yield_kg_ha': 'estimated_mean_yield_kg_ha',
                                     'total_yield_production_kg': 'estimated_yield_kg',
                                     'median_yield_kg_ha': 'estimated_median_yield_kg_ha'}, inplace=True)
-    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='cleaned_region_name', right_on='region')
+    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='cleaned_region_name_vercye', right_on='region')
 
     if val_fpath:
         val_data = pd.read_csv(val_fpath)

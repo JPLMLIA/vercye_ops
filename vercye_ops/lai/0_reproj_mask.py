@@ -4,44 +4,81 @@ from glob import glob
 
 import rasterio as rio
 from rasterio.warp import reproject, Resampling
+from rasterio.transform import from_origin
 
 
-def find_largest_extent_LAI_file(lai_dir: str, lai_region: str):
-    lai_files = sorted(glob(f"{lai_dir}/{lai_region}*.tif"))
-    max_extent = None
-    max_extent_file = None
-    extent_frequencies = defaultdict(int)
+def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: int, lai_file_ext: rio.coords.BoundingBox):
+    lai_files = sorted(glob(f"{lai_dir}/{lai_region}_{lai_resolution}*.{lai_file_ext}"))
+
+    if not lai_files:
+        raise Exception(f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution}")
+
+    union_bounds = None
+    lai_crs = None
+    resolution = None
+
     for lai_file in lai_files:
-        with rio.open(lai_file) as lai_ds:
-            lai_width = lai_ds.width
-            lai_height = lai_ds.height
+        with rio.open(lai_file) as ds:
+            if union_bounds is None:
+                union_bounds = ds.bounds
+                lai_crs = ds.crs
+                res_x, res_y = ds.res
+            else:
+                b = ds.bounds
+                union_bounds = rio.coords.BoundingBox(
+                    left=min(union_bounds.left, b.left),
+                    bottom=min(union_bounds.bottom, b.bottom),
+                    right=max(union_bounds.right, b.right),
+                    top=max(union_bounds.top, b.top),
+                )
 
-            if max_extent is None:
-                max_extent = (lai_width, lai_height)
-                max_extent_file = lai_file
-            elif lai_width * lai_height > max_extent[0] * max_extent[1]:
-                max_extent = (lai_width, lai_height)
-                max_extent_file = lai_file
+    return union_bounds, lai_crs, (res_x, res_y)
 
-            extent_frequencies[(lai_width, lai_height)] += 1
 
-    most_frequent_extent = max(extent_frequencies, key=extent_frequencies.get)
-    if most_frequent_extent != max_extent:
-        raise Exception(
-            f"LAI file with the largest extent ({max_extent_file}) is not the most frequent one. "
-            "Please manually identify which LAI file to use as a reference for resolution and extent."
-        )
+def handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path):
+    union_bounds, lai_crs, (res_x, res_y) = find_union_extent_LAI_info(lai_dir, lai_region, lai_resolution, lai_file_ext)
 
-    return max_extent_file
+    # Calculate transform and dimensions
+    width = int((union_bounds.right - union_bounds.left) / res_x)
+    height = int((union_bounds.top - union_bounds.bottom) / abs(res_y))
+    transform = from_origin(union_bounds.left, union_bounds.top, res_x, abs(res_y))
+
+    with rio.open(mask_path) as mask_ds:
+        mask_crs = mask_ds.crs
+        mask_transform = mask_ds.transform
+
+        with rio.open(
+            out_path,
+            'w',
+            driver='GTiff',
+            height=height,
+            width=width,
+            count=1,
+            dtype=rio.uint8,
+            crs=lai_crs,
+            transform=transform
+        ) as dst_ds:
+            reproject(
+                source=rio.band(mask_ds, 1),
+                destination=rio.band(dst_ds, 1),
+                src_transform=mask_transform,
+                src_crs=mask_crs,
+                dst_transform=transform,
+                dst_crs=lai_crs,
+                resampling=Resampling.nearest
+            )
+    return
 
 
 @click.command()
 @click.argument('mask_path', type=click.Path(exists=True))
 @click.argument('out_path', type=click.Path())
 @click.option('--lai_dir', type=click.Path(exists=True), default=None, help='Directory where LAI data is saved. Needs to be used with --lai_region.')
-@click.option('--lai_region', type=str, default=None)
+@click.option('--lai_region', type=str, default=None, help='Region of LAI data to use. Needs to be used with --lai_dir.')
+@click.option('--lai_resolution', type=int, help='Resolution of LAI data to use. Needs to be used if providing --lai_dir')
+@click.option('--lai_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files. Usage with --lai_dir', default='tif')
 @click.option('--lai_path', type=click.Path(exists=True), default=None, help='Path to a specific LAI file. Mutually exclusive with --lai_dir/region.')
-def main(mask_path, out_path, lai_dir, lai_region, lai_path):
+def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext, lai_path):
     """Reprojects a crop mask to the LAI raster
     
     mask_path is reprojected to match the projection, extent, and resolution of
@@ -50,14 +87,15 @@ def main(mask_path, out_path, lai_dir, lai_region, lai_path):
     Since the extent of LAI files may vary, it is reccomended to use --lai_dir/region to identify the file with the largest extent.
     """
 
-    if not (lai_dir and lai_region) and not lai_path:
+    if not (lai_dir and lai_region and lai_resolution) and not lai_path:
         raise Exception("Please either specify lai_dir and lai_region or specify lai_path.")
 
     if (lai_dir or lai_region) and lai_path:
         raise Exception("Please either specify lai_dir and lai_region OR lai_path.")
 
     if lai_dir and lai_region:
-        lai_path = find_largest_extent_LAI_file(lai_dir, lai_region)
+        handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path)
+        return
 
     with rio.open(mask_path) as mask_ds:
         # Mask's CRS

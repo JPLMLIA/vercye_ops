@@ -119,9 +119,10 @@ This file defines the study parameters and links the **simulation head directory
 - `keep_apsim_db_files`: Delete actual APSIM DB files after processing and reporting to free space.(`True`/`False`).
 
 #### APSIM Parameters (`apsim_params`)
+- `met_source`: `'NASA_POWER'` or `'ERA5'`. If using `ERA5` ensure you call `earthengine authenticate` from your terminal before starting the pipeline.
 - `precipitation_source`: Choose between `'NASA_POWER'` or `'CHIRPS'`. If you are using CHIRPS, you will have to manually download the precipitation data before starting the pipeline (apsim/download_chirps_data.py).
 - `precipitation_agg_method`: Aggregation method for precipitation data (`mean` or `centroid`). `'NASA_POWER'` only supporting `centroid` currently.
-- `fallback_on_nasa_power_centroid`: Set `True` to use `NASA_POWER` data if `CHIRPS` is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.
+- `fallback_precipitation`: Set `True` to use the original precipitation data (`NASAPower or ERA5`) if `CHIRPS` is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.
 - `chirps_dir`: Directory containing CHIRPS data.
 - `time_bounds`: Defines timepoint parameters:
   - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
@@ -135,7 +136,7 @@ This file defines the study parameters and links the **simulation head directory
 - `use_crop_adjusted_lai`: Adjust LAI data for the crop specified (`True`/`False`).
 - `lai_analysis_mode`: Set to `'raster'`.
 - `time_bounds`: LAI start and end dates for each year.
-- `crop_mask`: Path to crop mask files for each year.
+- `crop_mask`: Path to crop mask files for each year. The cropmask **must** be binary, with 1 indicating the crop and 0 otherwise.
 
 #### Matching Parameters (`matching_params`)
 - `target_crs`: CRS string for coordinate reference system used for area calculation. Either a proj string (e.g `'"+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"'`) or authority string (e.g `'epsg:1234'`). Should be choosen with care to minimize distortions. If using a proj string ensure to encolose it with additional quotes as in the example.

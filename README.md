@@ -71,6 +71,7 @@ Other config parameters should rarely (if ever) need updates.
 Please refer to [Vercye/Inputs](https://jplmlia.github.io/vercye_ops/Vercye/inputs/#snakemake-configuration-file-parameters) in the documentation for more information on how to include validation in the pipeline.
 
 ## Full Snakemake Pipeline
+0. If you are using `ERA5` meteorological data (see documentation/inputs) run `earthengine authenticate` and loginto you earth engine account before running the pipeline.
 1. Run `snakemake -c 4` to execute the pipeline with 4 cores. Some other useful command line flags are `--configfile <filename>` to use an alternative config or `-F` to force rerunning the pipeline.
 
   Other helpful command line args are documented on the [snakemake CLI page](https://snakemake.readthedocs.io/en/stable/executing/cli.html).

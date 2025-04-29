@@ -1,0 +1,25 @@
+# Example Configuration to create LAI from GEE Exported Sentinel-2 data
+
+# Folder where geojson for which to create LAI are stored
+geojsons_dir: 'lai/regions/'
+
+# Optional List of regions to process to filter geojsons_dir. Filename prefixes in geojsons_dir.
+regions: [] 
+
+# Earth Engine project ID
+ee_project: 'ee-project-id'
+
+# Output directory for the LAI data and intermediate files
+output_base_dir: 'outputdir'
+
+# Path to the Google Earth Engine service account credentials
+gdrive_credentials_path: '/path/to/credentials.json'
+
+# Timepoint for which to create LAI
+timepoints:
+  2024:
+    start_date: '2024-10-10'
+    end_date: '2025-04-03'
+
+# Spatial resolution in meters. Should typically be 10 or 20.
+resolution: 20

@@ -59,6 +59,7 @@ def create_scatter_plot(preds, obs):
     values = np.vstack([preds, obs])
 
     fallback_kernel = False
+
     try:
         kernel = scipy.stats.gaussian_kde(values)(values)
     except:
@@ -122,9 +123,10 @@ def get_preds_obs(estimation_fpath, val_fpath):
 @click.command()
 @click.option('--val_fpath', required=True, type=click.Path(exists=True), help='Filepath to the csv containing the refernece data per region.')
 @click.option('--estimation_fpath', required=True, type=click.Path(exists=True), help='Filepath to the estimations per region csv.')
-@click.option('--out_fpath', required=True, type=click.Path(), help='Filepath where the resulting metrics csv should be saved.')
+@click.option('--out_csv_fpath', required=True, type=click.Path(), help='Filepath where the resulting metrics should be saved (.csv).')
+@click.option('--out_plot_fpath', required=True, type=click.Path(), help='Filepath where the resulting scatterplot should be saved (.png).')
 @click.option('--verbose', is_flag=True, help='Set the logging level to DEBUG.')
-def cli(val_fpath, estimation_fpath, out_fpath, verbose):
+def cli(val_fpath, estimation_fpath, out_csv_fpath, out_plot_fpath, verbose):
     """Wrapper for validation cli"""
 
     if verbose:
@@ -135,14 +137,13 @@ def cli(val_fpath, estimation_fpath, out_fpath, verbose):
 
     logger.info("Computing metrics...")
     metrics = compute_metrics(preds=preds_obs['preds'], obs=preds_obs['obs'])
-    write_metrics(metrics, out_fpath)
+    write_metrics(metrics, out_csv_fpath)
 
     logger.info("Creating scatter plot...")
-    scatter_out_fpath = out_fpath.replace('.csv', '.png')
     scatter_plot = create_scatter_plot(preds=preds_obs['preds'], obs=preds_obs['obs'])
-    save_scatter_plot(scatter_plot, scatter_out_fpath)
+    save_scatter_plot(scatter_plot, out_plot_fpath)
 
-    logger.info("Done! Metrics and scatter plot saved to: %s", out_fpath)
+    logger.info("Done! Metrics and scatter plot saved successfully.")
 
 
 if __name__ == '__main__':

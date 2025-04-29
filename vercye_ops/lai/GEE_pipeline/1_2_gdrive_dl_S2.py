@@ -1,6 +1,10 @@
 # Based on https://stackoverflow.com/a/76736234
 # CC BY-SA 4.0
 
+# This script is only required in the GEE S2 extraction pipeline, if 
+# 1_1_gee_export was not used in auto-download mode with the --download-folder
+# parameter being set.
+
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google.auth.transport.requests import Request

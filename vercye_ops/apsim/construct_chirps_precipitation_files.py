@@ -151,7 +151,6 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
         region_names = [region_names[i] for i in valid_indices]
 
         logger.info('Rasterizing regions of interest.')
-        logger.info(region_names[0])
         geometry_masks = None
         with read_chirps_file(chirps_dir, dates[0]) as ds:
             geometry_masks = rasterize_geometries(ds, region_gdfs)
