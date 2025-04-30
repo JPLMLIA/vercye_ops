@@ -408,6 +408,7 @@ rule generate_aggregated_lai_curves_plot:
     params:
         executable_fpath = config['scripts']['generate_aggregated_lai_curves_plot'],
         head_dir = config['sim_study_head_dir'],
+        lai_agg_type = config['lai_params']['lai_aggregation']
     output:
         aggregated_lai_curves_plot = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     log:
@@ -416,7 +417,8 @@ rule generate_aggregated_lai_curves_plot:
         """
         python {params.executable_fpath} \
         --input-dir {params.head_dir} \
-        --output-fpath {output.aggregated_lai_curves_plot} > {log}
+        --output-fpath {output.aggregated_lai_curves_plot} \
+        --lai_agg_type {params.lai_agg_type} > {log}
         """
 
 
@@ -450,6 +452,7 @@ rule match_sim_real_quicklook:
         executable_fpath = config['scripts']['match_sim_real_quicklook'],
         crop_name = config['lai_params']['crop_name'],
         adjustment = "--use_adjusted_lai" if config['lai_params']['use_crop_adjusted_lai'] else "",
+        lai_agg_type = config['lai_params']['lai_aggregation'],
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
     output:
@@ -465,6 +468,7 @@ rule match_sim_real_quicklook:
         --total_yield_csv_fpath {input.total_yield_csv_fpath} \
         --html_fpath {output.html_fpath} \
         {params.adjustment} \
+        --lai_agg_type {params.lai_agg_type} \
         --png_fpath {output.png_fpath} > {log}
         """
 
