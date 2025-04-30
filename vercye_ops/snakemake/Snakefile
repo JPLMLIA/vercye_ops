@@ -95,7 +95,9 @@ rule fetch_met_data:
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
-    threads: workflow.cores * 0.75 if config['apsim_params']['met_source'].lower() == 'nasa_power' else workflow.cores * 0.1 # Set this high to limit parallelization and avoid hitting NASA servers too fast and being blacklisted
+    resources:
+        nasa_power_calls = 1 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 0,
+        era5_calls = 1 if config['apsim_params']['met_source'].lower() == 'era5' else 0,
     retries: 3
     shell:
         """
