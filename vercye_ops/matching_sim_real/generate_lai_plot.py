@@ -7,7 +7,7 @@ import click
 @click.command()
 @click.option('--input-dir', type=click.Path(exists=True), help='Directory containing the input files.')
 @click.option('--output-fpath', type=click.Path(), help='Path to the output file (.html).')
-@click.option('--lai_agg_type', type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
+@click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
 def cli(input_dir, output_fpath, lai_agg_type):
     all_lai_files = glob(os.path.join(input_dir, '*', '*_LAI_STATS.csv'))
     fig = go.Figure()

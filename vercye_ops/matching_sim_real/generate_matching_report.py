@@ -174,7 +174,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 @click.option('--apsim_db_fpath', required=True, type=click.Path(exists=True), help='Filepath to the APSIM SQLite database.')
 @click.option('--crop_name', required=True, type=click.Choice(['wheat', 'maize']), help='Crop name to use for LAI lookup in APSIM')
 @click.option('--use_adjusted_lai', is_flag=True, help='Whether or not to used the adjusted LAI values')
-@click.option('--lai_agg_type', type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
+@click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
 @click.option('--total_yield_csv_fpath', required=True, type=click.Path(exists=True), help='Filepath to CSV with the conversion factor and total yield.')
 @click.option('--html_fpath', type=click.Path(), help='Optional filepath to save the HTML report.')
 @click.option('--png_fpath', type=click.Path(), help='Optional filepath to save the PNG report.')
