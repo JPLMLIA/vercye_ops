@@ -327,6 +327,10 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
 
 def generate_final_report(sections, global_summary, metadata, met_config, aggregated_yield_map_preview_path):
     study_id = metadata['study_id']
+    description = metadata['description']
+    title = metadata['title'].capitalize()
+    original_lai_shp = metadata['original_lai_shp']
+    original_regions_shp = metadata['original_regions_shp']
     crop_name = metadata['crop_name'].lower().capitalize()
 
     start_date = metadata['start_date']
@@ -344,7 +348,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
     <head>
         <meta charset=\"UTF-8\">
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-        <title>Yield Report {study_id} - {crop_name}</title>
+        <title>Yield Report {title} - {crop_name}</title>
         <link href=\"{bootstrap_css_path}\" rel=\"stylesheet\">
         <style>
             @font-face {{
@@ -393,11 +397,17 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
     </head>
     <body>
         <div class=\"content-container\">
-            <h1><strong>Yield Report {study_id} - {crop_name}</strong></h1>
+            <h1><strong>Yield Report {title}</strong></h1>
 
-            <p><strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
+            <p>
+            <strong>Study ID:</strong> {study_id}</br>
+            <strong>Crop:</strong> {crop_name} </br>
+            <strong>Date Range (YY-MM-DD):</strong> {start_date.date()} to {end_date.date()}</br>
             <strong>Met-data Cutoff Date:</strong> {cutoff_date.date()}</br>
             <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}.<br/> <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
+            <strong>Description:</strong> {description}</br>
+            <strong>LAI Shapefile:</strong> {original_lai_shp}</br>
+            <strong>Regions Shapefile:</strong> {original_regions_shp}</br></br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
@@ -438,6 +448,10 @@ def create_final_report(input, output, params, log, wildcards):
 
     metadata = {
         'study_id': params['study_id'],
+        'title': params['title'],
+        'description': params['description'],
+        'original_lai_shp': params['original_lai_shp'],
+        'original_regions_shp': params['original_regions_shp'],
         'crop_name': params['crop_name'],
         'start_date': datetime.strptime(params['start_date'], "%Y-%m-%d"),
         'end_date': datetime.strptime(params['end_date'], "%Y-%m-%d"),

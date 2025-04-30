@@ -11,6 +11,15 @@ sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_202411
 # Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
 study_id: 'Poltava'
 
+# More detailed description of the simulation.
+description: 'Poltava Oblast, Ukraine for 2021-2023. Yield study created using the internal APSIM file from march 2025.'
+
+# LAI Shapefile name. Not used for processing, but useful to keep all metadata contained
+lai_shp_name: 'ukraine_adm1.shp'
+
+# Simulation Regions shapefile name. Not used for processing, but useful to keep all metadata contained
+regions_shp_name: 'ukraine_adm2.shp'
+
 # For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
 # after the pipeline finishes, set this to False.
 keep_apsim_db_files: True
@@ -58,10 +67,10 @@ timepoints:  # Days relative to harvest
 # APSIM Parameters
 apsim_params:
   met_source: 'NASA_POWER' # 'NASA_POWER' or 'ERA5'
-  precipitation_source: 'NASA_POWER' # 'NASA_POWER' or 'CHIRPS'
+  precipitation_source: 'NASA_POWER' # 'NASA_POWER', 'CHIRPS' or 'ERA5'
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
-  fallback_precipitation: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
-  chirps_dir: '' # Only required to set if precipitation_source is 'CHIRPS'
+  fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
+  chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'
   ee_project: '' # Earth Engine project name. Only required to set if met_source is 'ERA5'.
   time_bounds:
     2021:
