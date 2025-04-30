@@ -112,9 +112,11 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
         print("NOTE: Preprocessing to project the raster mask to the primary LAI raster is required.")
         print("      Read the README and use 0_reproj_mask.py.")
         with rio.open(geometry_path) as ds:
-            # mask_array = ds.read(1)
-            # mask_res = ds.res[0]
-            # mask_bounds = [ds.bounds.left, ds.bounds.bottom, ds.bounds.right, ds.bounds.top]
+
+            # Validate that the cropmask raster is binary
+            if not np.array_equal(np.unique(ds.read(1)), [0, 1]):
+                raise Exception(f"Cropmask {geometry_name} is not binary.")
+
             geometries.append({
                 'array': ds.read(1), 
                 'res': ds.res[0],
@@ -265,7 +267,6 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                 lai_window_array = src.read(1, window=window_lai)
                 lai_window_bounds = bounds(window_lai, transform=src.transform)
                 lai_window_res = src.res
-
 
                 # This can be removed in production as it is causing overheads
                 # Currently keeping this to ensure the windowing logic does not have a missed edge case
