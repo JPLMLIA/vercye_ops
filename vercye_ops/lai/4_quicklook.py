@@ -52,25 +52,37 @@ def main(csv_path, max_path):
 
     obs_dates = [datetime.strptime(r['Date'], '%d/%m/%Y') for r in lai_stats if not int(r['interpolated'])]
     obs_lai_mean = np.array([float(r['LAI Mean']) for r in lai_stats if not int(r['interpolated'])])
-    obs_lai_adjusted = np.array([float(r['LAI Mean Adjusted']) for r in lai_stats if not int(r['interpolated'])])
+    obs_lai_mean_adjusted = np.array([float(r['LAI Mean Adjusted']) for r in lai_stats if not int(r['interpolated'])])
+    obs_lai_median = np.array([float(r['LAI Median']) for r in lai_stats if not int(r['interpolated'])])
+    obs_lai_median_adjusted = np.array([float(r['LAI Median Adjusted']) for r in lai_stats if not int(r['interpolated'])])
 
     all_dates = [datetime.strptime(r['Date'], '%d/%m/%Y') for r in lai_stats]
     all_lai_mean = np.array([float(r['LAI Mean']) for r in lai_stats])
-    all_lai_adjusted = np.array([float(r['LAI Mean Adjusted']) for r in lai_stats])
+    all_lai_mean_adjusted = np.array([float(r['LAI Mean Adjusted']) for r in lai_stats])
+    all_lai_median = np.array([float(r['LAI Median']) for r in lai_stats])
+    all_lai_median_adjusted = np.array([float(r['LAI Median Adjusted']) for r in lai_stats])
+
 
     # Plot LAI mean
-    ax3.scatter(obs_dates, obs_lai_mean, label="LAI", color='tab:orange', s=4, zorder=2)
+    ax3.scatter(obs_dates, obs_lai_mean, label="LAI MEAN", color='tab:orange', s=4, zorder=2)
     ax3.plot(all_dates, all_lai_mean, color='tab:orange', zorder=1)
 
-    ax3.scatter(obs_dates, obs_lai_adjusted, label="LAI Adjusted", color='tab:blue', s=4, zorder=2)
-    ax3.plot(all_dates, all_lai_adjusted, color='tab:blue', zorder=1)
+    ax3.scatter(obs_dates, obs_lai_mean_adjusted, label="LAI MEAN Adjusted", color='tab:blue', s=4, zorder=2)
+    ax3.plot(all_dates, all_lai_mean_adjusted, color='tab:blue', zorder=1)
+
+    # Plot LAI median
+    ax3.scatter(obs_dates, obs_lai_median, label="LAI MEDIAN", color='darkorange', s=4, zorder=2)
+    ax3.plot(all_dates, all_lai_median, color='darkorange', zorder=1)
+
+    ax3.scatter(obs_dates, obs_lai_median_adjusted, label="LAI MEDIAN Adjusted", color='royalblue', s=4, zorder=2)
+    ax3.plot(all_dates, all_lai_median_adjusted, color='royalblue', zorder=1)
 
     ax3.legend()
     ax3.set_axisbelow(True)
     ax3.grid(linestyle='dashed')
     ax3.set_xlabel('Date')
     ax3.set_ylabel('LAI')
-    ax3.set_title('Mean LAI Timeseries')
+    ax3.set_title('LAI Timeseries')
 
     fig.suptitle(suptitle)
 

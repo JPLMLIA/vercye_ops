@@ -451,7 +451,7 @@ def create_final_report(input, output, params, log, wildcards):
         'title': params['title'],
         'description': params['description'],
         'original_lai_shp': params['original_lai_shp'],
-        'original_regions_shp': params['original_regions_shp'],
+        'original_regions_shp': params['original_simregions_shp'],
         'crop_name': params['crop_name'],
         'start_date': datetime.strptime(params['start_date'], "%Y-%m-%d"),
         'end_date': datetime.strptime(params['end_date'], "%Y-%m-%d"),

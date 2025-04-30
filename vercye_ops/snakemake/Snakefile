@@ -25,23 +25,35 @@ def get_valid_regions(wildcards):
             regions.append(vf_file.replace("_VALID", ""))
     return regions
 
+def get_all_valid_region_outputs(wildcards, suffix):
+    valid_regions = get_valid_regions(wildcards)
+    return [op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, region, f"{region}_{suffix}") for region in valid_regions]
+
 rule all:
     params:
         roi_name = sanitize_filename(config['study_id'])
     input:
         valid_cropmasks = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        sim_match_report_workaround = expand(op.join('logs_expand_sim_match_report_region', '{year}_{timepoint}.log'), year=config['years'], timepoint=config['timepoints']),
         # sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        # sim_match_report_html_fpath = lambda wildcards: get_sim_match_reports(wildcards),
-        #sim_match_report_png_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),  year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        #converted_lai_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        #sim_match_report_logs = expand('logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log', year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        #total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
+        # converted_lai_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
+        # total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_laicurves = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
 
+# Workaround to expand outputs for individual regions with checkpointing as expand and wildcards don't work well together
+rule expand_sim_match_report_region:
+    input:
+        sim_match_report_html_fpath = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix='yield_report.html')),
+    output:
+        'logs_expand_sim_match_report_region/{year}_{timepoint}.log',
+    shell:
+        """
+        touch {output}
+        """
 
 #######################################
 # APSIM Section of Snakemake pipeline
@@ -362,6 +374,7 @@ rule match_sim_real:
         executable_fpath = config['scripts']['match_sim_real'],
         adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",
         crop_name = config['lai_params']['crop_name'],
+        lai_agg_type = config['lai_params']['lai_aggregation'],
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
@@ -378,6 +391,7 @@ rule match_sim_real:
         --crop_name {params.crop_name} \
         --n_jobs 10 \
         {params.adjustment} \
+        --lai_agg_type {params.lai_agg_type} \
         --verbose > {log}
         """
 
@@ -408,6 +422,7 @@ rule generate_aggregated_lai_curves_plot:
     params:
         executable_fpath = config['scripts']['generate_aggregated_lai_curves_plot'],
         head_dir = config['sim_study_head_dir'],
+        lai_agg_type = config['lai_params']['lai_aggregation']
     output:
         aggregated_lai_curves_plot = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     log:
@@ -416,7 +431,8 @@ rule generate_aggregated_lai_curves_plot:
         """
         python {params.executable_fpath} \
         --input-dir {params.head_dir} \
-        --output-fpath {output.aggregated_lai_curves_plot} > {log}
+        --output-fpath {output.aggregated_lai_curves_plot} \
+        --lai_agg_type {params.lai_agg_type} > {log}
         """
 
 
@@ -450,6 +466,7 @@ rule match_sim_real_quicklook:
         executable_fpath = config['scripts']['match_sim_real_quicklook'],
         crop_name = config['lai_params']['crop_name'],
         adjustment = "--use_adjusted_lai" if config['lai_params']['use_crop_adjusted_lai'] else "",
+        lai_agg_type = config['lai_params']['lai_aggregation'],
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
     output:
@@ -465,6 +482,7 @@ rule match_sim_real_quicklook:
         --total_yield_csv_fpath {input.total_yield_csv_fpath} \
         --html_fpath {output.html_fpath} \
         {params.adjustment} \
+        --lai_agg_type {params.lai_agg_type} \
         --png_fpath {output.png_fpath} > {log}
         """
 

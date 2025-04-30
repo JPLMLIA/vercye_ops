@@ -171,8 +171,10 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                     "n_pixels": 0,
                     "interpolated": 0,
                     "LAI Mean": None,
+                    "LAI Median": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
+                    "LAI Median Adjusted": None,
                     "LAI Stddev Adjusted": None,
                     "Cloud or Snow Percentage": None
                 }
@@ -196,8 +198,10 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                         "n_pixels": 0,
                         "interpolated": 0,
                         "LAI Mean": None,
+                        "LAI Median": None,
                         "LAI Stddev": None,
                         "LAI Mean Adjusted": None,
+                        "LAI Median Adjusted": None,
                         "LAI Stddev Adjusted": None,
                         "Cloud or Snow Percentage": None
                     }
@@ -243,8 +247,10 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                         "n_pixels": 0,
                         "interpolated": 0,
                         "LAI Mean": None,
+                        "LAI Median": None,
                         "LAI Stddev": None,
                         "LAI Mean Adjusted": None,
+                        "LAI Median Adjusted": None,
                         "LAI Stddev Adjusted": None,
                         "Cloud or Snow Percentage": None
                     }
@@ -311,8 +317,10 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                     "n_pixels": 0,
                     "interpolated": 0,
                     "LAI Mean": None,
+                    "LAI Median": None,
                     "LAI Stddev": None,
                     "LAI Mean Adjusted": None,
+                    "LAI Median Adjusted": None,
                     "LAI Stddev Adjusted": None,
                     "Cloud or Snow Percentage": cloud_snow_percentage
                 }
@@ -343,8 +351,10 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                     "n_pixels": np.sum(~np.isnan(masked_src)),
                     "interpolated": 0,
                     "LAI Mean": np.nanmean(LAI_estimate),
+                    "LAI Median": np.nanmedian(LAI_estimate),
                     "LAI Stddev": np.nanstd(LAI_estimate),
                     "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
+                    "LAI Median Adjusted": np.nanmedian(LAI_adjusted),
                     "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
                     "Cloud or Snow Percentage": cloud_snow_percentage,
                 })
@@ -366,7 +376,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
         end_date_str = end_date.strftime("%Y-%m-%d")
 
         # Akima spline interpolation
-        for col in ["LAI Mean", "LAI Mean Adjusted"]:
+        for col in ["LAI Mean", "LAI Mean Adjusted", "LAI Median", "LAI Median Adjusted"]:
             real_X = []
             real_Y = []
             nan_X = []

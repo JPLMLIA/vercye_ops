@@ -10,7 +10,7 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, html_fpath=None, png_fpath=None):
+def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath=None, png_fpath=None):
     """
     Generate a plot report from APSIM and database time series data.
 
@@ -99,8 +99,9 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     ###################################
     logger.info("Plotting RS data.")
-    lai_column = 'LAI Mean' if not use_adjusted_lai else 'LAI Mean Adjusted'
-    fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column], mode='lines', name='RS Mean LAI', 
+    lai_agg_type_name = 'Mean' if lai_agg_type.lower() == 'mean' else 'Median'
+    lai_column = f'LAI {lai_agg_type_name}' if not use_adjusted_lai else f'LAI {lai_agg_type_name} Adjusted'
+    fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column], mode='lines', name=f'RS {lai_agg_type_name} LAI', 
                              line=dict(color='black', width=3)), row=1, col=1)
     
     cloud_data = rs_df[rs_df['Cloud or Snow Percentage'] < 100]
@@ -173,11 +174,12 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 @click.option('--apsim_db_fpath', required=True, type=click.Path(exists=True), help='Filepath to the APSIM SQLite database.')
 @click.option('--crop_name', required=True, type=click.Choice(['wheat', 'maize']), help='Crop name to use for LAI lookup in APSIM')
 @click.option('--use_adjusted_lai', is_flag=True, help='Whether or not to used the adjusted LAI values')
+@click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
 @click.option('--total_yield_csv_fpath', required=True, type=click.Path(exists=True), help='Filepath to CSV with the conversion factor and total yield.')
 @click.option('--html_fpath', type=click.Path(), help='Optional filepath to save the HTML report.')
 @click.option('--png_fpath', type=click.Path(), help='Optional filepath to save the PNG report.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, html_fpath, png_fpath, verbose):
+def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath, png_fpath, verbose):
     """
     CLI wrapper for generating the APSIM report from a CSV and SQLite database.
 
@@ -187,7 +189,7 @@ def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_
     if verbose:
         logger.setLevel('INFO')
 
-    generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, html_fpath, png_fpath)
+    generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath, png_fpath)
 
 
 if __name__ == "__main__":

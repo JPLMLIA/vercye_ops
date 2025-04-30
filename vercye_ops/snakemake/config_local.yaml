@@ -139,6 +139,7 @@ apsim_execution:
 ########################################
 # LAI parameters
 lai_params:
+  lai_aggregation: 'median' # 'median' or 'mean'
   lai_dir: '/Volumes/red/NASA_Ag/LAI'
   lai_region: 'Poltava'
   lai_resolution: 20 # meters/pixel

@@ -7,11 +7,14 @@ import click
 @click.command()
 @click.option('--input-dir', type=click.Path(exists=True), help='Directory containing the input files.')
 @click.option('--output-fpath', type=click.Path(), help='Path to the output file (.html).')
-def cli(input_dir, output_fpath):
+@click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
+def cli(input_dir, output_fpath, lai_agg_type):
     all_lai_files = glob(os.path.join(input_dir, '*', '*_LAI_STATS.csv'))
     fig = go.Figure()
     adjusted_color = 'blue'
     non_adjusted_color = 'orange'
+
+    lai_type_col = 'Mean' if lai_agg_type.lower() == 'mean' else 'Median'
     
     adjusted_traces = []
     non_adjusted_traces = []
@@ -23,7 +26,7 @@ def cli(input_dir, output_fpath):
         region_name = "_".join(filename.split('_')[:-2])
         
         adjusted_trace = go.Scatter(
-            y=df['LAI Mean Adjusted'],
+            y=df[f'LAI {lai_type_col} Adjusted'],
             mode='lines',
             name=f'{region_name} (adjusted)',
             line=dict(color=adjusted_color),
@@ -34,7 +37,7 @@ def cli(input_dir, output_fpath):
         adjusted_traces.append(len(fig.data) - 1)
         
         non_adjusted_trace = go.Scatter(
-            y=df['LAI Mean'],
+            y=df[f'LAI {lai_type_col}'],
             mode='lines',
             name=f'{region_name} (non-adjusted)',
             line=dict(color=non_adjusted_color),
@@ -45,7 +48,7 @@ def cli(input_dir, output_fpath):
         non_adjusted_traces.append(len(fig.data) - 1)
     
     fig.update_layout(
-        title='LAI Adjusted vs Non-Adjusted',
+        title=f'LAI Adjusted vs Non-Adjusted {lai_type_col}',
         xaxis_title='Time Index',
         yaxis_title='LAI',
         legend_title='Click to Toggle Traces',
