@@ -135,7 +135,7 @@ apsim_execution:
 ########################################
 # LAI parameters
 lai_params:
-  lai_aggregation: 'median' # 'median' pr 'mean'
+  lai_aggregation: 'median' # 'median' or 'mean'
   lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI'
   lai_region: 'Poltava'
   lai_resolution: 20 # meters/pixel
