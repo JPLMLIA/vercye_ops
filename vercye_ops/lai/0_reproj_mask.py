@@ -11,7 +11,7 @@ def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: in
     lai_files = sorted(glob(f"{lai_dir}/{lai_region}_{lai_resolution}*.{lai_file_ext}"))
 
     if not lai_files:
-        raise Exception(f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution}")
+        raise Exception(f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution} and extension {lai_file_ext}")
 
     union_bounds = None
     lai_crs = None

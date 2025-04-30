@@ -4,32 +4,35 @@
 import os.path as op
 from pathlib import Path
 from pathvalidate import sanitize_filename
+import glob
 
 from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func
 from generate_aggregated_final_report import create_final_report
 
 def get_valid_regions(wildcards):
-    # After all the cropmasks have been constrained this will evaluate, which regions are actually valid
-    # All subsequent steps will only be run on these
-    checkpoint_output = checkpoints.validate_constrained_cropmask.get(**wildcards).output
+    """Get list of valid regions after checkpoint completion"""
+    # Force dependency on the checkpoint
+    checkpoints.all_regions_validated.get(**wildcards)
+    
     base_dir = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint)
-    valid_flags = base_dir.glob("/*/*_VALID")
+    valid_flags = glob.glob(os.path.join(base_dir, "*", "*_VALID"))
     regions = []
     for vf in valid_flags:
         with open(vf, 'r') as f:
             content = f.read().strip()
         if content == "valid":
-            regions.append(vf.stem.replace("_VALID", ""))
+            vf_file = Path(vf).stem
+            regions.append(vf_file.replace("_VALID", ""))
     return regions
 
 rule all:
     params:
         roi_name = sanitize_filename(config['study_id'])
     input:
-        contrained_cropmasks = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_cropmask_constrained.tif'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
-        #sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        sim_match_report_html_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        sim_match_report_png_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),  year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
+        valid_cropmasks = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        # sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
+        # sim_match_report_html_fpath = lambda wildcards: get_sim_match_reports(wildcards),
+        #sim_match_report_png_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),  year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
         #converted_lai_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
         #sim_match_report_logs = expand('logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log', year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
         #total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
@@ -267,7 +270,7 @@ rule constrain_lai_cropmask:
         {output.constrained_cropmask} > {log}
         """
 
-checkpoint validate_region_has_cropland:
+rule validate_region_has_cropland:
     input:
         constrained_cropmask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_cropmask_constrained.tif')
     output:
@@ -279,9 +282,18 @@ checkpoint validate_region_has_cropland:
     shell:
         """
         python {params.executable_fpath} \
-        {input.constrained_cropmask} \
-        {output.valid_flag_path}
+        --input-path {input.constrained_cropmask} \
+        --output-path {output.valid_flag_path}
         """
+
+checkpoint all_regions_validated:
+    input:
+        # This ensures ALL regions have completed validation
+        valid_flags = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID'), 
+                           year="{year}", timepoint="{timepoint}", region=config['regions'])
+    output:
+        # Create a simple flag file marking completion of this checkpoint
+        touch(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '.all_regions_validated'))
 
 # Run LAI analysis to extract LAI stats and max image
 rule lai_analysis:
@@ -390,7 +402,7 @@ rule generate_converted_lai_map:
 
 rule generate_aggregated_lai_curves_plot:
     input:
-        stats_csv = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'), region=get_valid_regions(wildcards))
+        stats_csv = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_LAI_STATS.csv'), region=get_valid_regions(wildcards))
     params:
         executable_fpath = config['scripts']['generate_aggregated_lai_curves_plot'],
         head_dir = config['sim_study_head_dir'],
