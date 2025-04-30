@@ -610,6 +610,10 @@ rule generate_final_report:
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         primary_suffix = 'primary', # Simulation level
         suffix_admincols = config['eval_params']['aggregation_levels'],
+        description = config['description'],
+        original_lai_shp = config['lai_shp_name'],
+        original_simregions_shp = config['regions_shp_name'],
+        title = config['title'],
     log:
         op.join('logs_generate_final_report', '{year}_{timepoint}.log')
     output:

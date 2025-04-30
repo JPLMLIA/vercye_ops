@@ -8,8 +8,20 @@ platform: 'local'
 # Directory containing each region. Update this for each new snakemake run
 sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 
-# Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
-study_id: 'Poltava'  
+# Unique Id/name for indexing. Should not exceed 25 characters and avoid special characters.
+study_id: 'Poltava'
+
+# Title used for reporting
+title: 'Poltava Oblast, Ukraine Yield for 2021-2023'
+
+# More detailed description of the simulation.
+description: 'Poltava Oblast, Ukraine for 2021-2023. Yield study created using the internal APSIM file from march 2025.'
+
+# LAI Shapefile name. Not used for processing, but useful to keep all metadata contained
+lai_shp_name: 'ukraine_adm1.shp'
+
+# Simulation Regions shapefile name. Not used for processing, but useful to keep all metadata contained
+regions_shp_name: 'ukraine_adm2.shp'
 
 # For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
 # after the pipeline finishes, set this to False.
@@ -59,10 +71,10 @@ timepoints:  # Days relative to harvest
 
 apsim_params:
   met_source: 'NASA_POWER' # 'NASA_POWER' or 'ERA5'
-  precipitation_source: 'NASA_POWER' # 'NASA_POWER' or 'CHIRPS'
+  precipitation_source: 'NASA_POWER' # 'NASA_POWER', 'CHIRPS' or 'ERA5'
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
-  fallback_precipitation: False # If True, will use NASA POWER precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
-  chirps_dir: '/home/rohan/nasa-harvest/vercye/data/chirps' # Only required to set if precipitation_source is 'CHIRPS'
+  fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
+  chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'
   ee_project: '' # Earth Engine project name. Only required to set if met_source is 'ERA5'.
   time_bounds:
     2021:
@@ -133,7 +145,7 @@ lai_params:
   crop_name: 'wheat'  # "wheat", "maize"
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'
-  file_extension: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'
+  file_extension: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'.
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']
