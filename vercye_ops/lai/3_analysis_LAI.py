@@ -391,7 +391,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
 
             # Apply Savitzky–Golay Smoothing
             window_length = 5
-            polyorder     = 2
+            polyorder = 2
 
             for col in lai_cols:
                 valid_idxs = []
