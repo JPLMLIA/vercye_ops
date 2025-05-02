@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta
 from glob import glob
 import unicodedata
-
+import concurrent.futures
 
 import geopandas as gpd
 from gdrive_download_helpers import get_drive_service, download_files_from_drive, delete_files_from_drive, find_files_in_drive
@@ -54,6 +54,32 @@ def clean_name(name):
         if not unicodedata.combining(c)
     )
 
+def process_gdrive_download(drive_service, folder_name, file_description, download_folder):
+    time.sleep(30)
+            
+    drive_files = find_files_in_drive(drive_service, folder_name, file_description)
+    
+    if drive_files:
+        print(f"Found {len(drive_files)} files for export task")
+        
+        # Download all the files
+        downloaded = download_files_from_drive(
+            drive_service, 
+            drive_files, 
+            os.path.join(download_folder, folder_name),
+            file_description
+        )
+        
+        # Delete the files from Drive if downloads were successful
+        if downloaded:
+            file_ids = [file_id for file_id, _ in downloaded]
+            delete_files_from_drive(drive_service, file_ids)
+        else:
+            file_ids = [file_id for file_id, _ in downloaded]
+            raise RuntimeError(f"Failed to download files: {file_ids}")
+    else:
+        raise RuntimeError(f"Could not find exported file in Google Drive.")
+
 @click.command()
 @click.option('--project', help='GEE Project Name')
 @click.option('--library', default="library/", type=click.Path(file_okay=False), help='Local Path to the library folder')
@@ -79,14 +105,13 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
     ee.Initialize(project=project)
 
     drive_service = None
+    download_executor = None
     if export_mode == 'gdrive' and gdrive_credentials is not None:
-        try:
-            drive_service = get_drive_service(gdrive_credentials)
-            print("Successfully connected to Google Drive API")
-        except Exception as e:
-            print(f"Failed to connect to Google Drive API: {e}")
-            print("Make sure you have provided the credentials.json")
-            return
+        drive_service = get_drive_service(gdrive_credentials)
+        print("Successfully connected to Google Drive API")
+        
+        max_workers = 4
+        download_executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
 
     # Start timing run
     all_start = time.time()
@@ -200,7 +225,7 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         start = time.time()
         task.start()
         
-        # Wait for the task to complete
+        # Wait for the task to complete - only want to have one task running at a time per region
         while(task.active()):
             print(f"Task {task.id} is {task.status()['state']} ({time.time()-start:.2f}s elapsed)")
             time.sleep(3)
@@ -212,38 +237,20 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         # While this will prevent the next task from starting, this is a good way to avoid running out of space in GDrive
         # If this is too slow, we can do the downloading with a seperate background process
         if task_status['state'] == 'COMPLETED' and drive_service is not None:
-            print(f"Task completed successfully, looking for file in Google Drive...")
-            time.sleep(5)
-            
-            drive_files = find_files_in_drive(drive_service, folder_name, file_description)
-            
-            if drive_files:
-                print(f"Found {len(drive_files)} files for export task")
-                
-                # Download all the files
-                downloaded = download_files_from_drive(
-                    drive_service, 
-                    drive_files, 
-                    os.path.join(download_folder, folder_name),
-                    file_description
-                )
-                
-                # Delete the files from Drive if downloads were successful
-                if downloaded:
-                    file_ids = [file_id for file_id, _ in downloaded]
-                    delete_files_from_drive(drive_service, file_ids)
-                else:
-                    file_ids = [file_id for file_id, _ in downloaded]
-                    raise RuntimeError(f"Failed to download files: {file_ids}")
-            else:
-                raise RuntimeError(f"Could not find exported file in Google Drive.")
+            print(f"Task completed successfully, launching download task from Google Drive...")
+            download_executor.submit(
+                process_gdrive_download,
+                drive_service,
+                folder_name,
+                file_description,
+                download_folder
+            )
 
         current_date = next_date
     
     print(f"Completed in {time.time()-all_start:.2f}s")
 
 if __name__ == "__main__":
-
     # Authenticate to Earth Engine
     ee.Authenticate()
 

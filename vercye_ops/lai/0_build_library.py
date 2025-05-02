@@ -1,4 +1,5 @@
 from pathlib import Path
+import unicodedata
 
 import click
 import geopandas as gpd
@@ -7,6 +8,13 @@ import logging
 import re
 
 logging.basicConfig(level=logging.INFO)
+
+def clean_name(name):
+    # Remove special characters to avoid GEE export issues
+    return ''.join(
+        c for c in unicodedata.normalize('NFKD', name)
+        if not unicodedata.combining(c)
+    )
 
 def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, verbose):
     """
@@ -57,6 +65,7 @@ def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, ver
         region_name = region_name.replace("'", "").replace('"', "")
         region_name = re.sub(r"[^\w.-]", "_", region_name)
         region_name = region_name.lower()
+        region_name = clean_name(region_name)
         row['cleaned_region_name_vercye'] = region_name
 
         output_fpath = output_head_dir / Path(f'{region_name}.geojson')

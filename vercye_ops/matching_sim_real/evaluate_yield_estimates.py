@@ -100,6 +100,9 @@ def get_preds_obs(estimation_fpath, val_fpath):
     gt = load_csv(val_fpath)
     pred = load_csv(estimation_fpath)
 
+    gt["region"]   = gt["region"].astype(str)
+    pred["region"] = pred["region"].astype(str)
+
     # Merging to ensure that the regions are in the same order
     combined = pd.merge(gt, pred, on='region')
 
