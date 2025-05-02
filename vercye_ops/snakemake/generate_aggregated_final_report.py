@@ -44,8 +44,8 @@ def compute_global_summary(regions_summary):
         reported_regions_data = regions_summary[~regions_summary['reported_mean_yield_kg_ha'].isna()]
 
         if regions_summary['reported_mean_yield_kg_ha'].isna().any():
-            logger.warning('Some regions have NaN reported yield. Not reporting.')
-            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_yield_kg'].isna()]['region'].values}")
+            logger.warning('Some regions have NaN reported yield. Not reporting global aggregated reference.')
+            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_mean_yield_kg_ha'].isna()]['region'].values}")
 
             reported_total_production_ton = None
             mean_reported_yield_kg = None

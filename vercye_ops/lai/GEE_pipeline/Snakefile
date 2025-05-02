@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import os.path as op
 
 # Get list of region names from geojson files
 def get_regions():
@@ -48,7 +49,7 @@ rule export_s2_gdrive:
         mkdir -p {params.local_storage_dir} \
         && python 1_1_gee_export_S2.py --project {params.ee_project} --library {params.library} --region {wildcards.region_name} \
         --start-date "{wildcards.start_date}" --end-date "{wildcards.end_date}" --resolution {params.resolution} \
-        --gdrive-credentials {params.gdrive_credentials_path} ---download-folder {params.local_storage_dir} && touch {output}
+        --gdrive-credentials {params.gdrive_credentials_path} --download-folder {params.local_storage_dir} && touch {output}
         """
 
 rule standardize_s2_gee:
