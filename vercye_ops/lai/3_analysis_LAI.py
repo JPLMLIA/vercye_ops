@@ -9,6 +9,7 @@ import warnings
 
 import numpy as np
 from scipy.interpolate import Akima1DInterpolator
+from scipy.signal import savgol_filter
 import rasterio as rio
 from rasterio.mask import mask
 from rasterio.windows import bounds
@@ -79,7 +80,8 @@ def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
 @click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
 @click.option('--LAI_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files', default='tif')
-def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext):
+@click.option('--smoothed', is_flag=True, help='Whether the LAI curve should be smoothed (savgol), before interpolation.')
+def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext, smoothed):
     """ LAI Analysis function
 
     LAI_dir: Local path to the directory containing regional primary LAI rasters
@@ -112,9 +114,11 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
         print("NOTE: Preprocessing to project the raster mask to the primary LAI raster is required.")
         print("      Read the README and use 0_reproj_mask.py.")
         with rio.open(geometry_path) as ds:
-            # mask_array = ds.read(1)
-            # mask_res = ds.res[0]
-            # mask_bounds = [ds.bounds.left, ds.bounds.bottom, ds.bounds.right, ds.bounds.top]
+
+            # Validate that the cropmask raster is binary
+            if not np.array_equal(np.unique(ds.read(1)), [0, 1]):
+                raise Exception(f"Cropmask {geometry_name} is not binary.")
+
             geometries.append({
                 'array': ds.read(1), 
                 'res': ds.res[0],
@@ -266,7 +270,6 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                 lai_window_bounds = bounds(window_lai, transform=src.transform)
                 lai_window_res = src.res
 
-
                 # This can be removed in production as it is causing overheads
                 # Currently keeping this to ensure the windowing logic does not have a missed edge case
                 with rio.open(geometry_path) as src_cropmask:
@@ -372,8 +375,38 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             
             print(f"{Path(LAI_path).name} [SUCCESS]")
 
-        start_date_str = start_date.strftime("%Y-%m-%d")
-        end_date_str = end_date.strftime("%Y-%m-%d")
+        if smoothed:
+            lai_cols = [
+                "LAI Mean",
+                "LAI Median",
+                "LAI Stddev",
+                "LAI Mean Adjusted",
+                "LAI Median Adjusted",
+                "LAI Stddev Adjusted"
+            ]
+
+            for rec in statistics:
+                for col in lai_cols:
+                    rec[col + " Unsmoothed"] = rec[col]
+
+            # Apply Savitzky–Golay Smoothing
+            window_length = 5
+            polyorder = 2
+
+            for col in lai_cols:
+                valid_idxs = []
+                valid_values = []
+
+                for idx, row in enumerate(statistics):
+                   if row[col] is not None:
+                       valid_idxs.append(idx)
+                       valid_values.append(row[col])
+
+                smooth_vals = savgol_filter(valid_values, window_length, polyorder)
+
+                for idx, stats_row_idx in enumerate(valid_idxs):
+                    statistics[stats_row_idx][col] = smooth_vals[idx]
+
 
         # Akima spline interpolation
         for col in ["LAI Mean", "LAI Mean Adjusted", "LAI Median", "LAI Median Adjusted"]:

@@ -323,6 +323,7 @@ rule lai_analysis:
         start_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][0],
         end_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][1],
         lai_file_ext = config['lai_params']['file_ext'],
+        smoothed_flag = '--smoothed' if config['lai_params']['smoothed'] is True else ''
     benchmark:
         "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
     log:
@@ -343,7 +344,8 @@ rule lai_analysis:
         --adjustment {params.adjustment} \
         --start_date {params.start_date} \
         --LAI_file_ext {params.lai_file_ext} \
-        --end_date {params.end_date} > {log}
+        --end_date {params.end_date} \
+        {params.smoothed_flag} > {log}
         """
 
 rule lai_quicklook:
