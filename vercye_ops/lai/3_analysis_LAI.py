@@ -376,7 +376,6 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             print(f"{Path(LAI_path).name} [SUCCESS]")
 
         if smoothed:
-            print('Using smoothed!')
             lai_cols = [
                 "LAI Mean",
                 "LAI Median",
