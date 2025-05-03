@@ -176,8 +176,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 @click.option('--use_adjusted_lai', is_flag=True, help='Whether or not to used the adjusted LAI values')
 @click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
 @click.option('--total_yield_csv_fpath', required=True, type=click.Path(exists=True), help='Filepath to CSV with the conversion factor and total yield.')
-@click.option('--html_fpath', type=click.Path(), help='Optional filepath to save the HTML report.')
-@click.option('--png_fpath', type=click.Path(), help='Optional filepath to save the PNG report.')
+@click.option('--html_fpath', required=False, type=click.Path(), help='Optional filepath to save the HTML report.', default=None)
+@click.option('--png_fpath', required=False, type=click.Path(), help='Optional filepath to save the PNG report.', default=None)
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
 def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath, png_fpath, verbose):
     """
