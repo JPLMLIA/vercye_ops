@@ -13,7 +13,7 @@ def get_regions():
 rule all:
     input:
         expand(
-            "logs/s2_export_{region_name}_{start_date}__{end_date}_done.txt",
+            "logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt",
             zip,
             region_name=[
                 region
@@ -57,10 +57,10 @@ rule standardize_s2_gee:
         'logs/s2_export_{region_name}_{start_date}__{end_date}_done.txt'
     params:
         resolution = config['resolution'],
-        input_dir = op.join(config['output_base_dir'], 'gee_mosaics'),
+        input_dir = lambda wildcards: op.join(config['output_base_dir'], 'gee_mosaics', f'{wildcards.region_name}_{config["resolution"]}m'),
         output_dir = op.join(config['output_base_dir'], 'standardized_mosaics'),
     output:
-        'logs/standardize_s2_gee_{region_name}_done.txt'
+        'logs/standardize_s2_gee_{region_name}_{start_date}__{end_date}_done.txt'
     shell:
         """
         mkdir -p {params.output_dir} \
@@ -70,7 +70,7 @@ rule standardize_s2_gee:
 
 rule estimate_lai:
     input:
-        'logs/standardize_s2_gee_{region_name}_done.txt'
+        'logs/standardize_s2_gee_{region_name}_{start_date}__{end_date}_done.txt'
     params:
         resolution = config['resolution'],
         input_dir = op.join(config['output_base_dir'], 'standardized_mosaics'),
@@ -80,7 +80,7 @@ rule estimate_lai:
     shell:
         """
         mkdir -p {params.lai_dir} \
-        && python 2_primary_LAI.py {params.input_dir} {params.lai_dir} {wildcards.region_name} {params.resolution} --start_date {wildcards.start_date} --end_date {wildcards.end_date} \
+        && python 2_primary_LAI_GEE.py {params.input_dir} {params.lai_dir} {wildcards.region_name} {params.resolution} --start_date {wildcards.start_date} --end_date {wildcards.end_date} \
         && touch {output}
         """
 
