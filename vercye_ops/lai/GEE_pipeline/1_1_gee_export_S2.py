@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from glob import glob
 import unicodedata
 import concurrent.futures
+import uuid
 
 import geopandas as gpd
-from gdrive_download_helpers import get_drive_service, download_files_from_drive, delete_files_from_drive, find_files_in_drive
+from gdrive_download_helpers import get_drive_service, download_files_from_drive, delete_files_from_drive, find_files_in_drive, delete_folder_from_drive
 
 
 def json_to_fc(json_path):
@@ -57,7 +58,7 @@ def clean_name(name):
 def process_gdrive_download(drive_service, folder_name, file_description, download_folder):
     time.sleep(30)
             
-    drive_files = find_files_in_drive(drive_service, folder_name, file_description)
+    drive_files, drive_folder_id = find_files_in_drive(drive_service, folder_name, file_description)
     
     if drive_files:
         print(f"Found {len(drive_files)} files for export task")
@@ -70,10 +71,11 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
             file_description
         )
         
-        # Delete the files from Drive if downloads were successful
+        # Delete the files + folder from GDrive if downloads were successful
         if downloaded:
             file_ids = [file_id for file_id, _ in downloaded]
             delete_files_from_drive(drive_service, file_ids)
+            delete_folder_from_drive(drive_service, drive_folder_id)
         else:
             file_ids = [file_id for file_id, _ in downloaded]
             raise RuntimeError(f"Failed to download files: {file_ids}")
@@ -191,10 +193,20 @@ def main(project, library=None, region=None, shpfile=None, start_date="2021-09-0
         S2_mosaic = S2_mosaic.toInt16()
 
         file_description = f"{geometry_name}_{str(resolution)}m_{current_datestr}"
+
+       
         folder_name = f"{geometry_name}_{str(resolution)}m"            
 
         if export_mode == 'gdrive':
             print(f"Exporting {current_datestr} to Google Drive...")
+
+            if drive_service is not None:
+                # If using the automatically download and deletion of files from GDrive, this causes
+                # Problems with GEE new file creation, resulting in every image creating a new folder
+                # with the same name. To mitigate this, give each folder a unique ID, which can be
+                # searched and deleted safely.
+                unique_id = uuid.uuid4()
+                folder_name = f'vercye_export_imagery_{unique_id}'
 
             task = ee.batch.Export.image.toDrive(
                 image=S2_mosaic,
