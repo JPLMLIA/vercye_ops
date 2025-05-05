@@ -112,6 +112,8 @@ rule fetch_met_data:
         region_name = lambda wildcards: wildcards.region,
         chirps_file = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', f'{wildcards.year}_{wildcards.timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else '',
         ee_project = config['apsim_params']['ee_project'],
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        polygon_path_cmd = lambda wildcards: f"--polygon_path {op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, wildcards.region, f'{wildcards.region}.geojson')}" if config['apsim_params']['met_agg_method'].lower() == 'mean' else '',
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -127,6 +129,8 @@ rule fetch_met_data:
 
         python {params.script_fpath} \
         --met_source {params.met_source} \
+        --met_agg_method {params.met_agg_method} \
+        {params.polygon_path_cmd} \
         --start_date {params.met_start_date} \
         --end_date {params.met_end_date} \
         --variables ALLSKY_SFC_SW_DWN \
