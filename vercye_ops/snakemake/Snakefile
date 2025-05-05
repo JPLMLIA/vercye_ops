@@ -301,12 +301,14 @@ rule validate_region_has_cropland:
     log:
         'logs_validate_constrained_cropmask/{year}_{timepoint}_{region}.log'
     params:
-        executable_fpath = config['scripts']['check_region_has_cropland']
+        executable_fpath = config['scripts']['check_region_has_cropland'],
+        min_cropland_px = config['lai_params']['min_cropland_pixel_threshold']
     shell:
         """
         python {params.executable_fpath} \
         --input-path {input.constrained_cropmask} \
-        --output-path {output.valid_flag_path}
+        --output-path {output.valid_flag_path} \
+        --px-threshold {params.min_cropland_px}
         """
 
 checkpoint all_regions_validated:
