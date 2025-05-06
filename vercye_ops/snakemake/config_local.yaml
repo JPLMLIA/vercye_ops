@@ -27,6 +27,10 @@ regions_shp_name: 'ukraine_adm2.shp'
 # after the pipeline finishes, set this to False.
 keep_apsim_db_files: True
 
+# Disactivate the per region html reporting if you want to reduce storage for predictions on manny regions
+# The per region html reports are currently the largest output artefacts
+create_per_region_html_report: True
+
 # Specify one or more simulations
 regions:
   # - 'Chornukhynskyi'
@@ -148,6 +152,7 @@ lai_params:
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'
   file_extension: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'.
+  min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at scale of lai_resolution
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']

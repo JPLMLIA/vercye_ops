@@ -60,7 +60,7 @@ def find_files_in_drive(service, folder_name, file_description):
         print(f"No files containing '{file_description}' found in folder '{folder_name}'")
         return []
     
-    return file_items  # Return all matching files
+    return file_items, folder_id  # Return all matching files and folder_id
 
 def download_files_from_drive(service, files, download_dir, base_filename):
     """Download multiple files from Google Drive"""
@@ -92,3 +92,8 @@ def delete_files_from_drive(service, file_ids):
     for file_id in file_ids:
         service.files().delete(fileId=file_id).execute()
         print(f"File with ID {file_id} deleted from Google Drive")
+
+def delete_folder_from_drive(service, folder_id):
+    """Delete a folder from Google Drive"""
+    service.files().delete(fileId=folder_id).execute()
+    print(f"Folder with ID {folder_id} deleted from Google Drive")

@@ -29,6 +29,15 @@ def get_all_valid_region_outputs(wildcards, suffix):
     valid_regions = get_valid_regions(wildcards)
     return [op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, region, f"{region}_{suffix}") for region in valid_regions]
 
+def get_required_yield_report_suffix():
+    """Get the required suffix for the yield report based on the configuration"""
+
+    # Will alwayscreate a lightweight downsampled png, but html report is only created if specifieds
+    if config["create_per_region_html_report"]:
+        return "html"
+    else:
+        return "png"
+
 rule all:
     params:
         roi_name = sanitize_filename(config['study_id'])
@@ -47,7 +56,7 @@ rule all:
 # Workaround to expand outputs for individual regions with checkpointing as expand and wildcards don't work well together
 rule expand_sim_match_report_region:
     input:
-        sim_match_report_html_fpath = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix='yield_report.html')),
+        sim_match_report_html_fpath = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix=f'yield_report.{get_required_yield_report_suffix()}')),
     output:
         'logs_expand_sim_match_report_region/{year}_{timepoint}.log',
     shell:
@@ -103,6 +112,8 @@ rule fetch_met_data:
         region_name = lambda wildcards: wildcards.region,
         chirps_file = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', f'{wildcards.year}_{wildcards.timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else '',
         ee_project = config['apsim_params']['ee_project'],
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        polygon_path_cmd = lambda wildcards: f"--polygon_path {op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, wildcards.region, f'{wildcards.region}.geojson')}" if config['apsim_params']['met_agg_method'].lower() == 'mean' else '',
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -118,6 +129,8 @@ rule fetch_met_data:
 
         python {params.script_fpath} \
         --met_source {params.met_source} \
+        --met_agg_method {params.met_agg_method} \
+        {params.polygon_path_cmd} \
         --start_date {params.met_start_date} \
         --end_date {params.met_end_date} \
         --variables ALLSKY_SFC_SW_DWN \
@@ -292,12 +305,14 @@ rule validate_region_has_cropland:
     log:
         'logs_validate_constrained_cropmask/{year}_{timepoint}_{region}.log'
     params:
-        executable_fpath = config['scripts']['check_region_has_cropland']
+        executable_fpath = config['scripts']['check_region_has_cropland'],
+        min_cropland_px = config['lai_params']['min_cropland_pixel_threshold']
     shell:
         """
         python {params.executable_fpath} \
         --input-path {input.constrained_cropmask} \
-        --output-path {output.valid_flag_path}
+        --output-path {output.valid_flag_path} \
+        --px-threshold {params.min_cropland_px}
         """
 
 checkpoint all_regions_validated:
@@ -423,8 +438,8 @@ rule generate_aggregated_lai_curves_plot:
         stats_csv = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_LAI_STATS.csv'), region=get_valid_regions(wildcards))
     params:
         executable_fpath = config['scripts']['generate_aggregated_lai_curves_plot'],
-        head_dir = config['sim_study_head_dir'],
-        lai_agg_type = config['lai_params']['lai_aggregation']
+        head_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        lai_agg_type = config['lai_params']['lai_aggregation'],
     output:
         aggregated_lai_curves_plot = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     log:
@@ -469,10 +484,11 @@ rule match_sim_real_quicklook:
         crop_name = config['lai_params']['crop_name'],
         adjustment = "--use_adjusted_lai" if config['lai_params']['use_crop_adjusted_lai'] else "",
         lai_agg_type = config['lai_params']['lai_aggregation'],
+        html_param = lambda wildcards, output: "--html_fpath " + output.html_fpath if config['create_per_region_html_report'] is True else "",
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
     output:
-        html_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html'),
+        html_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html') if config['create_per_region_html_report'] is True else [],
         png_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),
     shell:
         """
@@ -482,7 +498,7 @@ rule match_sim_real_quicklook:
         --apsim_db_fpath {input.apsim_db_fpath} \
         --crop_name {params.crop_name} \
         --total_yield_csv_fpath {input.total_yield_csv_fpath} \
-        --html_fpath {output.html_fpath} \
+        {params.html_param} \
         {params.adjustment} \
         --lai_agg_type {params.lai_agg_type} \
         --png_fpath {output.png_fpath} > {log}

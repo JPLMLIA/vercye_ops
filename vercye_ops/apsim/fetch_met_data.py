@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import ee
 import numpy as np
 import requests
@@ -173,15 +174,15 @@ def write_met_data_to_csv(df, output_fpath):
     return output_fpath
 
 
-def get_era5_data(start_date, end_date, lon, lat, ee_project, output_fpath, overwrite):
+def get_era5_data(start_date, end_date, lon, lat, polygon_path, ee_project, output_fpath, overwrite):
     if Path(output_fpath).exists() and not overwrite:
         logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
         return pd.read_csv(output_fpath)
     
-    return fetch_era5_data(start_date, end_date, lon, lat, ee_project)
+    return fetch_era5_data(start_date, end_date, ee_project, lon, lat, polygon_path)
 
 
-def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
+def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygon_path=None) :
     """
     Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
     """
@@ -190,7 +191,25 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     ee.Initialize(project=ee_project)
 
     logger.info('Querying data.')
-    point = ee.Geometry.Point([lon, lat])
+
+    if polygon_path is None:
+        if lat is None or lon is None:
+            raise ValueError("Must provide either lat/lon or a polygon.")
+        geometry = ee.Geometry.Point([lon, lat])
+        geo_type = 'point'
+    else:
+        gdf = gpd.read_file(polygon_path)
+        gdf = gdf.to_crs(epsg=4326)
+
+        # Ensure only a single geometry is present in the file
+        if len(gdf.geometry) != 1:
+            raise Exception("Polygon File must contain a single geometry.")
+
+        polygon_geom = gdf.geometry.iloc[0]
+        geojson_dict = polygon_geom.__geo_interface__
+        geometry = ee.Geometry(geojson_dict)
+        geo_type = 'polygon'
+
     all_records = []
     
     def split_date_range(start_date, end_date, chunk_years=10):
@@ -203,7 +222,8 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
 
     def extract(image):
         date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd')
-        values = image.reduceRegion(ee.Reducer.first(), point, 1000)
+        reducer = ee.Reducer.first() if geo_type == 'point' else ee.Reducer.mean()
+        values = image.reduceRegion(reducer, geometry, 1000)
         return ee.Feature(None, values.set('date', date))
     
     for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=5):
@@ -211,7 +231,7 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
         try:
             era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
                 .filterDate(chunk_start, chunk_end) \
-                .filterBounds(point) \
+                .filterBounds(geometry) \
                 .select([
                     'total_precipitation_sum',
                     'temperature_2m_min',
@@ -295,19 +315,22 @@ def fetch_era5_data(start_date, end_date, lon, lat, ee_project) :
     return df
 
 
-def validate_precipitation_source(precipitation_source, met_source, agg_method):
-    """Temporary helper to check that no unsupported combination is run"""
+def validate_aggregation_options(precipitation_source, met_source, precipitation_agg_method, met_agg_method):
+    """Helper to check that no unsupported combination is run"""
 
-    if precipitation_source.lower() == 'era5' or precipitation_source.lower() == 'nasa_power':
-        if agg_method.lower() != 'centroid':
-            raise Exception('Currently only centroid aggregation method is supported for NasaPower and ERA5.')
-
-    if precipitation_source.lower() == 'chirps':
-        return
-    if precipitation_source != met_source:
+    if precipitation_source.lower() != met_source.lower()  and not precipitation_source.lower() == 'chirps':
         raise Exception('Currently precipitation_source and met_source must be the same if not using CHIPRS.')
-    
 
+    if precipitation_source.lower() == met_source.lower() and not precipitation_agg_method.lower() == met_agg_method.lower():
+        raise Exception('Precipitation and Meteorological Aggregation Method must be the same if not using CHIRPS for precipitation data.')
+
+    if met_source.lower() == 'nasa_power' and met_agg_method.lower() == 'mean':
+        raise Exception('NasaPower only supports centroid as the met_aggregation option.')
+    
+    if  precipitation_source.lower() == 'nasa_power' and precipitation_agg_method.lower() != 'centroid':
+        raise Exception('Currently only centroid aggregation method is supported for NasaPower.')
+
+    
 def clean_era5(df):
     # Clip negative precipitation values, if any
     neg_precip = df['PRECTOTCORR'] < 0
@@ -323,7 +346,9 @@ def clean_era5(df):
 @click.option('--variables', type=click.Choice(VALID_CLIMATE_VARIABLES, case_sensitive=False), multiple=True, default=DEFAULT_CLIMATE_VARIABLES, show_default=True, help="Meteorological variables to fetch for NasaPower. Unused if met source is ERA5")
 @click.option('--lon', type=float, required=True, help="Longitude of the location.")
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
+@click.option('--polygon_path', type=click.Path(file_okay=True, dir_okay=False), required=False, help="Path to the regions polygon if using mean aggregation method.", default=None)
 @click.option('--met_source', type=click.Choice(['era5', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of meteorological data.")
+@click.option('--met_agg_method', type=click.Choice(['mean', 'centroid'], case_sensitive=False), help="Method to aggregate meteorological data in a ROI.")
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'nasa_power', 'era5'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--chirps_column_name', default=None, help="Name of the region (ROI) must match a column in the CHIRPS file if used.")
 @click.option('--fallback_precipitation', type=bool, help="Fallback to the original NasaPower or ERA5 precipitation data if CHIRPS data is not available.", default=False)
@@ -333,15 +358,14 @@ def clean_era5(df):
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_source, chirps_column_name, fallback_precipitation, precipitation_agg_method, chirps_file, ee_project, output_dir, overwrite, verbose):
+def cli(start_date, end_date, variables, lon, lat, polygon_path, met_source, met_agg_method, precipitation_source, chirps_column_name, fallback_precipitation, precipitation_agg_method, chirps_file, ee_project, output_dir, overwrite, verbose):
     """Wrapper to fetch_met_data"""
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
     output_fpath = Path(output_dir) / f'{region}_met.csv'
 
-
-    validate_precipitation_source(precipitation_source, met_source, precipitation_agg_method)
+    validate_aggregation_options(precipitation_source, met_source, precipitation_agg_method, met_agg_method)
 
     if met_source.lower() == 'nasa_power':
         df, nodata_val = get_nasa_power_data(start_date, end_date, variables, lon, lat, output_fpath, overwrite)
@@ -349,7 +373,14 @@ def cli(start_date, end_date, variables, lon, lat, met_source, precipitation_sou
     elif met_source.lower() == 'era5':
         if ee_project is None:
             raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
-        df = get_era5_data(start_date, end_date, lon, lat, ee_project, output_fpath, overwrite)
+
+        # Get mean or centroid data
+        if met_agg_method.lower() == 'mean':
+            df = get_era5_data(start_date, end_date, None, None, polygon_path, ee_project, output_fpath, overwrite)
+        else:
+            df = get_era5_data(start_date, end_date, lon, lat, None, ee_project, output_fpath, overwrite)
+
+        
         error_checking_function(df)
         df = clean_era5(df)
 

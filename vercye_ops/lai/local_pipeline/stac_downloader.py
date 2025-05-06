@@ -1,8 +1,12 @@
 import concurrent.futures
 import multiprocessing
 import os
+import signal
 import subprocess
+import sys
 import time
+from tqdm import tqdm
+
 
 import click
 import geopandas as gpd
@@ -12,6 +16,10 @@ import rasterio as rio
 import requests
 from pystac.extensions.eo import EOExtension
 from rasterio.warp import Resampling, reproject, calculate_default_transform
+
+# Set GDAL environment variables to enable multi-threaded downloads
+os.environ["GDAL_ENABLE_CURL_MULTI"] = "YES"
+os.environ["GDAL_HTTP_MULTIRANGE"] = "YES"
 
 
 def save_band(metadata, data, item, band_name, resolution, output_folder):
@@ -75,8 +83,9 @@ def load_resample(tile_path, resolution, mask=None):
             transform = src.transform
 
         # Apply mask if provided. Using original nodata value for less confusion
+        # Expects a binary mask!
         if mask is not None:
-            data = np.where(mask, data, src.nodata)
+            data = mask * data
 
         # Save the band
         profile = src.profile
@@ -110,47 +119,61 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
     # Use order of band_names to create the VRT
     band_paths_ordered = [band_paths[band_name] for band_name in band_names]
 
-    # TODO use blocksize also for vrt if gdal is newer than (not sure which one need to check)
-    vrt_build_command = [
-        "gdalbuildvrt",
-        "-separate",
-        "-overwrite",
-        output_file_path,
-        *band_paths_ordered,
-    ]
-    result = subprocess.run(vrt_build_command, shell=True, check=True)
-    print(result.stdout)
-    print(result.stderr)
-
-    if create_gtiff:
-        # Create a GTiff from the VRT for easier exporting.
-        output_file_path_gtiff = output_file_path.replace(".vrt", ".tif")
-        geotiff_build_command = [
-            "gdal_translate",
-            "-of",
-            "GTiff",
-            "-co",
-            "TILED=YES",
-            "-co",
-            "compress=LZW",
-            "-co",
-            f"blocksize={blocksize}",
+    try:
+        # TODO use blocksize also for vrt if gdal is newer than (not sure which one need to check)
+        vrt_build_command = [
+            "gdalbuildvrt",
+            "-separate",
+            "-overwrite",
             output_file_path,
-            output_file_path_gtiff,
+            *band_paths_ordered,
         ]
-        subprocess.run(geotiff_build_command, shell=True, check=True)
+        subprocess.run(vrt_build_command, shell=False, check=True)
+
+        if create_gtiff:
+            # Create a GTiff from the VRT for easier exporting.
+            output_file_path_gtiff = output_file_path.replace(".vrt", ".tif")
+            geotiff_build_command = [
+                "gdal_translate",
+                "-of",
+                "GTiff",
+                "-co",
+                "TILED=YES",
+                "-co",
+                "compress=LZW",
+                "-co",
+                f"blocksize={blocksize}",
+                output_file_path,
+                output_file_path_gtiff,
+            ]
+            subprocess.run(geotiff_build_command, shell=False, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Subprocess error: {e}")
+        print(f"Command output: {e.stdout}")
+        print(f"Command error: {e.stderr}")
+        if os.path.exists(output_file_path):
+            try:
+                os.remove(output_file_path)
+            except:
+                pass
+        raise
 
     return output_file_path
 
 
 def download_file(url, output_path):
-    with open(output_path, "wb") as f:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(
-                f"Failed to download file from {url}. Status code: {response.status_code}"
-            )
-        f.write(response.content)
+    try:
+        with requests.get(url, stream=True) as response:
+            response.raise_for_status()
+            with open(output_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        return True
+    except (requests.RequestException, IOError) as e:
+        print(f"Error downloading {url}: {e}")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return False
 
 
 def process_scene(
@@ -192,6 +215,7 @@ def process_scene(
             meta_and_mask = load_resample(mask_band_path, resolution)
             maskbands[mask_band_name] = meta_and_mask
 
+        # The band contains 1 for pixels to keep and 0 for pixels to mask
         if not mask_band_processor and len(mask_bands) == 1:
             mask_metadata, mask = maskbands[mask_bands.keys()[0]]
         else:
@@ -199,6 +223,10 @@ def process_scene(
             mask_metadata, mask = mask_band_processor(
                 maskbands, resolution, item, output_folder
             )
+        
+        # Validate that the mask is binary
+        if not np.array_equal(np.unique(mask), [0, 1]):
+            raise ValueError(f"Mask must be binary (0 and 1 values only). Values found: {np.unique(mask)}")
 
     # Step 3: Download and resample bands of interest
     print("Downloading band data and resampling...")
@@ -214,6 +242,7 @@ def process_scene(
     if save_mask:
         mask_band_path = save_band(mask_metadata, mask, item, "mask", resolution, output_folder)
         band_paths["mask"] = mask_band_path
+        band_names.append("mask")
 
     # Step 4: If custom band processing is provided, apply it
     # To bandorder will be specified by the names provided in band_names
@@ -232,6 +261,12 @@ def process_scene(
 
     return vrt_path
 
+def execution_wrapper(args):
+    try:
+        return process_scene(*args)
+    except Exception as e:
+        print(f"Error during processing: {e}")
+        return None
 
 def download_process_parallel(
     items,
@@ -247,28 +282,34 @@ def download_process_parallel(
 ):
     output_paths = []
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = []
+    task_args = [
+        (
+            item,
+            bands,
+            resolution,
+            metadata_asset_names,
+            mask_bands,
+            mask_band_processor,
+            save_mask,
+            custom_band_processor,
+            output_folder,
+        )
+        for item in items
+    ]
 
-        for item in items:
-            future = executor.submit(
-                process_scene,
-                item,
-                bands,
-                resolution,
-                metadata_asset_names,
-                mask_bands,
-                mask_band_processor,
-                save_mask,
-                custom_band_processor,
-                output_folder,
-            )
-            futures.append(future)
+    output_paths = []
+    pool = multiprocessing.Pool(processes=num_workers)
 
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
+    try:
+        for result in tqdm(pool.imap_unordered(execution_wrapper, task_args), total=len(task_args), desc="Processing scenes"):
             if result:
                 output_paths.append(result)
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        print("Interrupted by user. Terminating pool...")
+        pool.terminate()
+        pool.join()
 
     return output_paths
 
@@ -353,7 +394,7 @@ def run_pipeline(
 @click.option(
     "--bands",
     type=str,
-    default="green,red,rededge1,rededge2,rededge3,nir08,swir16,swir22",
+    default="green,red,rededge1,rededge2,rededge3,nir08,swir16,swir22,scl,cloud,snow",
     help="Comma-separated list of bands to download and resample. If you want to download mask bands without applying them, specify them here.",
 )
 @click.option(
@@ -427,7 +468,8 @@ def main(
     # TODOs
     # - Only fetch data within geometry if COGs are available using rasterio windowed read
     # - Add standard mask processors for some collections we know
-    # - Allow only downloading without resampling
+    # - Also allow only downloading without resampling
+    # - Handle download failures, retries
 
     bands = bands.split(",")
     metadata_asset_names = metadata_asset_names.split(",") if metadata_asset_names else None
@@ -437,7 +479,9 @@ def main(
     os.makedirs(output_folder, exist_ok=True)
 
     # Set up parallel processing
-    num_workers = max(1, int(multiprocessing.cpu_count() - 1))
+    if num_workers is None:
+        num_workers = max(1, int(multiprocessing.cpu_count() - 1))
+    multiprocessing.set_start_method("spawn")
     print(f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores")
 
     # Read area of interest

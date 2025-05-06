@@ -119,7 +119,7 @@ def add_geometry_bands(item, band_paths, band_names, resolution, mask, metadata_
 
     # Get the reference metadata from the first band
     # Expects all bands to have the same dimensions
-    first_band_path = band_paths[0]
+    first_band_path = band_paths[band_names[0]]
     with rio.open(first_band_path) as src:
         reference_metadata = {
             'transform': src.transform,
@@ -135,37 +135,40 @@ def add_geometry_bands(item, band_paths, band_names, resolution, mask, metadata_
     geometry_band_paths = create_geometry_bands(item, cos_angles, reference_metadata, output_folder)
 
     # Ensure correct bandorder for output
-    band_paths = [geometry_band_paths['cos_vza'], geometry_band_paths['cos_sza'], geometry_band_paths['cos_raa']] + band_paths
+    band_paths['cos_vza'] = geometry_band_paths['cos_vza']
+    band_paths['cos_sza'] = geometry_band_paths['cos_sza']
+    band_paths['cos_raa'] = geometry_band_paths['cos_raa']
     band_names = ['cos_vza', 'cos_sza', 'cos_raa'] + band_names
     
     return band_paths, band_names
 
 def s2_mask_processor(maskbands, resolution, item, output_folder, scl_keep_classes, cloud_thresh, snowprob_thresh):
-        # SCL default keep vegetation (4), non-vegetated (5), unclassified (7)
         mask = None
 
         scl_band_meta, scl_band = maskbands['scl']
         s2cloudless_band_meta, s2cloudless_band = maskbands['cloud']
         snowprob_band_meta, snowprob_band = maskbands['snow']
-        mask = np.ones_like(scl_band)
+        mask = np.ones_like(scl_band)  # Start with all valid (1)
 
-        # SCL process
-        mask = np.where(np.isin(scl_band, scl_keep_classes), 0, mask)
+        # Invalidate pixels based on SCL
+        mask = np.where(np.isin(scl_band, scl_keep_classes), mask, 0)
 
-        # S2 Cloudless process
-        mask = np.where(s2cloudless_band > cloud_thresh, 0, mask)
+        # Invalidate pixels based on S2Cloudless
+        mask = np.where(s2cloudless_band >= cloud_thresh, 0, mask)
 
-        # Snowprob process
-        mask = np.where(snowprob_band > snowprob_thresh, 0, mask)
+        # Invalidate pixels based on Snowprob
+        mask = np.where(snowprob_band >= snowprob_thresh, 0, mask)
 
         new_metadata = {}
 
         return new_metadata, mask
 
-def build_s2_mask_processor(cloud_thresh, snowprob_thresh, scl_keep_classes=[4, 5, 7],):
+def build_s2_mask_processor(cloud_thresh, snowprob_thresh, scl_keep_classes=[4, 5],):
     # Factory function that returns a Sentinel-2 mask processing function.
     # The returned function applies masking based on SCL classes, cloud probability, and snow probability thresholds.
     # Parameters like scl_keep_classes, cloud_thresh, and snowprob_thresh are fixed at creation time.
+
+    # SCL default classes to keep are [4, 5] (vegetation and non-vegetation)
 
     return partial(s2_mask_processor, scl_keep_classes=scl_keep_classes, cloud_thresh=cloud_thresh, snowprob_thresh=snowprob_thresh)
 
@@ -259,7 +262,8 @@ def main(
     os.makedirs(output_folder, exist_ok=True)
 
     # Set up parallel processing
-    num_workers = max(1, int(multiprocessing.cpu_count() - 1))
+    if num_workers is None:
+        num_workers = max(1, int(multiprocessing.cpu_count() - 1))
     print(f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores")
 
     # Read area of interest

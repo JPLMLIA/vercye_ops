@@ -403,6 +403,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                        valid_values.append(row[col])
 
                 smooth_vals = savgol_filter(valid_values, window_length, polyorder)
+                smooth_vals = np.clip(smooth_vals, 0, None)
 
                 for idx, stats_row_idx in enumerate(valid_idxs):
                     statistics[stats_row_idx][col] = smooth_vals[idx]
