@@ -12,27 +12,18 @@ def get_regions():
 # Define final output targets
 rule all:
     input:
-        expand(
-            "logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt",
-            zip,
-            region_name=[
-                region
-                for _ in config["timepoints"]
+        lai_outputs = [
+                f"logs/estimate_lai_{region}_{config['timepoints'][year]['start_date']}__{config['timepoints'][year]['end_date']}_done.txt"
+                for year in config["timepoints"]
                 for region in get_regions()
             ],
-            start_date=[
-                config["timepoints"][year]["start_date"]
-                for year in config["timepoints"]
-                for _ in get_regions()
-            ],
-            end_date=[
-                config["timepoints"][year]["end_date"]
-                for year in config["timepoints"]
-                for _ in get_regions()
-            ],
-        )
+        merged_lai_outputs = [
+            f"logs/merge_lai_{config['timepoints'][year]['start_date']}__{config['timepoints'][year]['end_date']}_done.txt"
+            for year in config["timepoints"]
+        ] if config.get("merge_lai", False) else []
 
 
+# Rule to export Sentinel-2 data from GEE to Google Drive and download it automatically
 rule export_s2_gdrive:
     input:
         lambda wildcards: os.path.join(config['geojsons_dir'], f"{wildcards.region_name}.geojson")
@@ -52,6 +43,7 @@ rule export_s2_gdrive:
         --gdrive-credentials {params.gdrive_credentials_path} --download-folder {params.local_storage_dir} && touch {output}
         """
 
+# Rule to standardize the exported Sentinel-2 data as VRTS if it was split in multiple files
 rule standardize_s2_gee:
     input:
         'logs/s2_export_{region_name}_{start_date}__{end_date}_done.txt'
@@ -68,6 +60,7 @@ rule standardize_s2_gee:
         && touch {output}
         """
 
+# Rule to estimate LAI from the standardized Sentinel-2 data
 rule estimate_lai:
     input:
         'logs/standardize_s2_gee_{region_name}_{start_date}__{end_date}_done.txt'
@@ -84,4 +77,26 @@ rule estimate_lai:
         && touch {output}
         """
 
-# TODO add rule (conditioanl run based on config flag) to create vrt per date
+# Rule to merge LAI estimates for all regions into daily VRTs
+rule merge_lai:
+    input:
+        all_regions = expand('logs/estimate_lai_{region_name}_{start_date}__{end_date}_done.txt', 
+            region_name=[
+                region
+                for _ in config["timepoints"]
+                for region in get_regions()
+            ],
+        )
+    params:
+        lai_dir = op.join(config['output_base_dir'], 'lai'),
+        output_dir = op.join(config['output_base_dir'], 'merged_lai'),
+        resolution = config['resolution'],
+        region_out_prefix = config['combined_region_name'],  
+    output:
+        'logs/merge_lai_{start_date}__{end_date}_done.txt'
+    shell:
+        """
+        mkdir -p {params.output_dir} \
+        && python 3_merge_LAI.py {params.lai_dir} {params.output_dir} {params.resoluton} --start-date {wildcards.start_date} --end-date {wildcards.end_date} --region-out-prefix region_out_prefix \
+        && touch {output}
+        """

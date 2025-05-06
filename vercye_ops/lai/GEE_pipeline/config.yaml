@@ -23,3 +23,7 @@ timepoints:
 
 # Spatial resolution in meters. Should typically be 10 or 20.
 resolution: 20
+
+# Set to True to merge the LAI produced for each region into single regions daily VRT files
+merge_regions_lai: true
+combined_region_name: 'merged_regions'
