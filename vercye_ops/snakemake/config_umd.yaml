@@ -176,6 +176,7 @@ eval_params:
   # Specify additional level on which to aggregate the yield estimates for evaluation
   # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
   # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
+  # If you do not want additional aggregation level, set aggregation_levels: {}
   aggregation_levels:
     National: 'Name_0'
     Oblast: 'Name_1'
