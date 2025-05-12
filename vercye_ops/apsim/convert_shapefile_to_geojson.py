@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import unicodedata
 
 import click
 import geopandas as gpd
@@ -15,6 +16,16 @@ def generate_met_points(gdf_row):
     """Helper to create point(s) from a polygon"""
     centroid = gdf_row.geometry.centroid
     return centroid
+
+def clean_region_name(region_name):
+    region_name = region_name.replace("'", "").replace('"', "")
+    region_name = re.sub(r"[^\w.-]", "_", region_name)
+    region_name = region_name.lower()
+    region_name = ''.join(
+        c for c in unicodedata.normalize('NFKD', region_name)
+        if not unicodedata.combining(c)
+    )
+    return region_name
 
 
 def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, output_head_dir):
@@ -69,11 +80,10 @@ def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, outp
     for _, row in gdf.iterrows():
 
         region_name = row[admin_name_col]
+        region_name = clean_region_name(region_name)
 
         # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
-        region_name = region_name.replace("'", "").replace('"', "")
-        region_name = re.sub(r"[^\w.-]", "_", region_name)
-        region_name = region_name.lower()
+      
         row['cleaned_region_name_vercye'] = region_name
 
         output_dir = output_head_dir / Path(region_name)
