@@ -51,37 +51,22 @@ def write_metrics(metrics, out_fpath):
     pd.DataFrame(metrics, index=[0]).to_csv(out_fpath, index=False)
     return out_fpath
 
-def create_scatter_plot(preds, obs):
-    if len(preds) != len(obs):
-        raise ValueError("Length of the predictions and observations do not match.")
 
-    abs_max = max(obs.max(), preds.max())
-    values = np.vstack([preds, obs])
-
-    fallback_kernel = False
+def colorize_plot_by_density(rawr, values, preds):
+    fallback_kernel_used = False
 
     try:
         kernel = scipy.stats.gaussian_kde(values)(values)
     except:
         print("KDE failed due to low-dimensional data — using uniform color instead.")
         kernel = np.ones_like(preds)  # fallback uniform density
-        fallback_kernel = True
+        fallback_kernel_used = True
 
-    theta = np.polyfit(preds, obs, 1)
-    y_line = theta[1] + theta[0] * preds
-
-    rawr = sns.JointGrid(xlim=(-5, abs_max + 100), ylim=(-5, abs_max + 100), x=preds, y=obs)
     rawr.plot_joint(sns.scatterplot, c=kernel, cmap='viridis')
     rawr.plot_marginals(sns.kdeplot, fill=True)
 
-
-    rawr.ax_joint.plot(np.arange(0, abs_max), np.arange(0, abs_max), label='1:1', color='gray')
-    rawr.ax_joint.plot(preds, y_line, color='magenta', label=f"y = {theta[0]:.2f} x + {theta[1]:.2f}")
-    rawr.ax_joint.legend()
-    rawr.set_axis_labels("Predicted (kg/ha)", "Observed (kg/ha)")
-
     # Add colormap for scatter plot (placing it outside the plot)
-    if not fallback_kernel:
+    if not fallback_kernel_used:
         norm = plt.Normalize(kernel.min(), kernel.max())
         sm = plt.cm.ScalarMappable(cmap='viridis', norm=norm)
         fig = rawr.figure
@@ -89,6 +74,49 @@ def create_scatter_plot(preds, obs):
         cbar = fig.colorbar(sm, cax=cbar_ax)
         cbar.set_label("Point Density")
         cbar.ax.yaxis.get_offset_text().set_visible(False)
+
+
+def colorize_plot_by_years(rawr, obs_years, preds, obs):
+    # Create a color map based on the years
+    unique_years = np.unique(obs_years)
+    colors = sns.color_palette("hsv", len(unique_years))
+
+    # Create a mapping from year to color
+    year_to_color = {year: colors[i] for i, year in enumerate(unique_years)}
+
+    # Map the colors to the observations
+    obs_colors = [year_to_color[year] for year in obs_years]
+
+    rawr.plot_joint(sns.scatterplot, c=obs_colors)
+    rawr.plot_marginals(sns.kdeplot, fill=True)
+
+
+def create_scatter_plot(preds, obs, obs_years=None):
+    # Pass obs_years if you want to use it for coloring the points
+    # obs_years should be the year of each observation
+
+    if len(preds) != len(obs):
+        raise ValueError("Length of the predictions and observations do not match.")
+    
+    if obs_years is not None and len(obs_years) != len(obs):
+        raise ValueError("Length of the years and observations do not match.")
+
+    abs_max = max(obs.max(), preds.max())
+    values = np.vstack([preds, obs])
+
+    rawr = sns.JointGrid(xlim=(-5, abs_max + 100), ylim=(-5, abs_max + 100), x=preds, y=obs)
+    theta = np.polyfit(preds, obs, 1)
+    y_line = theta[1] + theta[0] * preds
+
+    if obs_years is None:
+        colorize_plot_by_density(rawr, values, preds)
+    else:
+        colorize_plot_by_years(rawr, obs_years, preds, obs)
+
+    rawr.ax_joint.plot(np.arange(0, abs_max), np.arange(0, abs_max), label='1:1', color='gray')
+    rawr.ax_joint.plot(preds, y_line, color='magenta', label=f"y = {theta[0]:.2f} x + {theta[1]:.2f}")
+    rawr.ax_joint.legend()
+    rawr.set_axis_labels("Predicted (kg/ha)", "Observed (kg/ha)")
 
     return rawr
 
