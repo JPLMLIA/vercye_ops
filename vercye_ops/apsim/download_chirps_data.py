@@ -19,7 +19,7 @@ import shutil
 logger = get_logger()
 
 # Constant to adapt depending on the CHIRPS data version
-CHIRPS_BASEDIR = '/pub/org/chg/products/CHIRPS-2.0/global_daily/cogs/p05'
+CHIRPS_BASEDIR = '/pub/org/chc/products/CHIRPS-2.0/global_daily/cogs/p05'
 CHIRPS_FILE_FORMAT = 'chirps-v2.0.{date}.cog'
 
 # Constants
