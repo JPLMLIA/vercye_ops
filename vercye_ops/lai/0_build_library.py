@@ -9,12 +9,16 @@ import re
 
 logging.basicConfig(level=logging.INFO)
 
-def clean_name(name):
-    # Remove special characters to avoid GEE export issues
-    return ''.join(
-        c for c in unicodedata.normalize('NFKD', name)
+def clean_region_name(region_name):
+    region_name = region_name.replace("'", "").replace('"', "")
+    region_name = re.sub(r"[^\w.-]", "_", region_name)
+    region_name = region_name.lower()
+    region_name = ''.join(
+        c for c in unicodedata.normalize('NFKD', region_name)
         if not unicodedata.combining(c)
     )
+    return region_name
+
 
 def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, verbose):
     """
@@ -62,10 +66,7 @@ def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, ver
         region_name = row[admin_name_col]
 
         # Take out any apostrophes and other special chars as these cause headaches down the line with scripting the filename processing
-        region_name = region_name.replace("'", "").replace('"', "")
-        region_name = re.sub(r"[^\w.-]", "_", region_name)
-        region_name = region_name.lower()
-        region_name = clean_name(region_name)
+        region_name = clean_region_name(region_name)
         row['cleaned_region_name_vercye'] = region_name
 
         output_fpath = output_head_dir / Path(f'{region_name}.geojson')
