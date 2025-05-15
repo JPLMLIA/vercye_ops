@@ -212,7 +212,7 @@ def build_s2_mask_processor(
     help="Path to the GeoJSON/shapefile defining the area of interest",
 )
 @click.option(
-    "--output-folder",
+    "--output-dir",
     type=click.Path(),
     required=True,
     help="Folder where output files will be saved",
@@ -253,7 +253,7 @@ def main(
     end_date,
     resolution,
     geojson_path,
-    output_folder,
+    output_dir,
     max_cloud_cover,
     cloudprob_thresh,
     snowprob_thresh,
@@ -295,7 +295,7 @@ def main(
         raise Exception("Currently only supporting S2 download.")
 
     # Ensure output folder exists
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     # Set up parallel processing
     if num_workers is None:
@@ -313,7 +313,7 @@ def main(
         resolution=resolution,
         roi_gdf=gdf,
         bands=bands,
-        output_folder=output_folder,
+        output_folder=output_dir,
         stack_catalog_url=stack_catalog_url,
         stac_collection_name=stac_collection_name,
         max_cloud_cover=max_cloud_cover,

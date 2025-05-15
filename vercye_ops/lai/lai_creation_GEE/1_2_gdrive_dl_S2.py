@@ -1,30 +1,32 @@
 # Based on https://stackoverflow.com/a/76736234
 # CC BY-SA 4.0
 
-# This script is only required in the GEE S2 extraction pipeline, if 
+# This script is only required in the GEE S2 extraction pipeline, if
 # 1_1_gee_export was not used in auto-download mode with the --download-folder
 # parameter being set.
 
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-import click
 import io
 import os
 from pathlib import Path
+
+import click
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from tqdm import tqdm
 
 # Define the scopes
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
 
 @click.command()
-@click.option('--secret-json', type=click.Path(exists=True))
-@click.option('--folder-id', type=str)
-@click.option('--outdir', type=click.Path(file_okay=False))
+@click.option("--secret-json", type=click.Path(exists=True))
+@click.option("--folder-id", type=str)
+@click.option("--outdir", type=click.Path(file_okay=False))
 def main(secret_json, folder_id, outdir):
-    """ Download files from a Google Drive Folder
+    """Download files from a Google Drive Folder
 
     Parameters
     ----------
@@ -39,7 +41,7 @@ def main(secret_json, folder_id, outdir):
 
     # Obtain your Google credentials
     def get_credentials(secret_json):
-        token_path = os.path.join(Path(secret_json).parent, 'token.json')
+        token_path = os.path.join(Path(secret_json).parent, "token.json")
         creds = None
         if os.path.exists(token_path):
             creds = Credentials.from_authorized_user_file(token_path, SCOPES)
@@ -49,28 +51,30 @@ def main(secret_json, folder_id, outdir):
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(secret_json, SCOPES)
                 creds = flow.run_local_server(port=0)
-            with open(token_path, 'w') as token:
+            with open(token_path, "w") as token:
                 token.write(creds.to_json())
-            
+
         return creds
 
     # Build the downloader
     creds = get_credentials(secret_json)
-    drive_downloader = build('drive', 'v3', credentials=creds)
+    drive_downloader = build("drive", "v3", credentials=creds)
 
     # query = f"Folder ID '{folder_id}'"  # you may get error for this line
-    query = f"'{folder_id}' in parents"  # this works  ref https://stackoverflow.com/q/73119251/248616
+    query = (
+        f"'{folder_id}' in parents"  # this works  ref https://stackoverflow.com/q/73119251/248616
+    )
 
     results = drive_downloader.files().list(q=query, pageSize=1000).execute()
-    items = results.get('files', [])
+    items = results.get("files", [])
 
     print(f"Found {len(items)} files to download.")
     print(f"Downloading to {outdir}")
 
     # Download the files
     for item in (pbar := tqdm(items)):
-        request = drive_downloader.files().get_media(fileId=item['id'])
-        f = io.FileIO(os.path.join(outdir, item['name']), 'wb')
+        request = drive_downloader.files().get_media(fileId=item["id"])
+        f = io.FileIO(os.path.join(outdir, item["name"]), "wb")
         downloader = MediaIoBaseDownload(f, request)
         done = False
         while done is False:
@@ -78,6 +82,7 @@ def main(secret_json, folder_id, outdir):
             pbar.set_description(f"f: {int(status.progress()*100)}%")
 
     print("Done!")
+
 
 if __name__ == "__main__":
     main()

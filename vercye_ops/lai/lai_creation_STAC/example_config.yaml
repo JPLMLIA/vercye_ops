@@ -1,0 +1,21 @@
+# Example Configuration to create LAI from a STAC catalog
+
+# Folder where geojson for which to create LAI are stored
+geojsons_dir: 'lai/regions/'
+
+# Output directory for the LAI data and intermediate files
+output_base_dir: 'outputdir'
+
+# Timepoint for which to create LAI
+timepoints:
+  2024:
+    start_date: '2024-10-10'
+    end_date: '2025-04-03'
+
+# Spatial resolution in meters. Should typically be 10 or 20.
+resolution: 20
+
+# Set to True to delete the original satellite data after creating LAI
+delete_tiles: False
+merge_regions_lai: True
+combined_region_name: 'merged_regions'

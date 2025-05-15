@@ -30,7 +30,7 @@ def save_band(metadata, data, item, band_name, resolution, output_folder):
     metadata.update(
         {
             "driver": "GTiff",
-            "comress": "LZW",
+            "compress": "LZW",
             "tiled": True,
             "blockxsize": 256,
             "blockysize": 256,
@@ -244,7 +244,7 @@ def process_scene(
             mask_metadata, mask = mask_band_processor(maskbands, resolution, item, output_folder)
 
         # Validate that the mask is binary
-        if not np.array_equal(np.unique(mask), [0, 1]):
+        if not np.isin(np.unique(mask), [0, 1]).all():
             raise ValueError(
                 f"Mask must be binary (0 and 1 values only). Values found: {np.unique(mask)}"
             )

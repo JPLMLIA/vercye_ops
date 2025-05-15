@@ -8,11 +8,12 @@ theme:
 
 nav:
   - 'Home': 'index.md'
+  - 'LAI':
+    - 'Introduction': 'LAI/intro.md'
+    - 'Generating LAI Data': 'LAI/running.md'
   - 'Vercye':
     - 'Introduction': 'Vercye/intro.md'
-    - 'Quickstart': 'Vercye/quickstart.md'
+    - 'Running a Yield Study': 'Vercye/running.md'
     - 'Inputs': 'Vercye/inputs.md'
     - 'Outputs': 'Vercye/outputs.md'
     - 'Architecture': 'Vercye/architecture.md'
-  - 'LAI':
-    - 'Introduction': 'LAI/intro.md'

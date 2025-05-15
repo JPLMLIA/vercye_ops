@@ -13,6 +13,10 @@ import torch
 import torch.nn as nn
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
 
 class Scale2d(nn.Module):
     def __init__(self, n_ch):
@@ -102,127 +106,26 @@ def determine_target_resolution(vrt_file, target_crs="EPSG:4326"):
         x_res_target = (right - left) / dst_width
         y_res_target = (top - bottom) / dst_height
 
-        print(f"Sample file: {Path(vrt_file).name}")
-        print(f"Original resolution: {x_res:.8f}, {y_res:.8f} in {src.crs}")
-        print(f"Target resolution: {x_res_target:.8f}, {y_res_target:.8f} in {target_crs}")
+        logger.info(f"Sample file: {Path(vrt_file).name}")
+        logger.info(f"Original resolution: {x_res:.8f}, {y_res:.8f} in {src.crs}")
+        logger.info(f"Target resolution: {x_res_target:.8f}, {y_res_target:.8f} in {target_crs}")
         src = None  # Explicitely Close the file
     src = None  # Explicitely Close the file
     return (x_res_target, y_res_target)
-
-
-# OLD
-def process_vrt_file(vf, model_weights, lai_dir, target_resolution, target_crs):
-    """Process a single VRT file with the model and return the output filename"""
-    # Load the pytorch model
-    model = LAI_CNN(11, 5, 1)
-    model.load_state_dict(torch.load(model_weights))
-    model.eval()
-
-    try:
-        # Load the image
-        t0 = time.time()
-        s2_ds = rio.open(vf)
-        s2_array = s2_ds.read()
-        original_crs = s2_ds.crs
-        print(f"Dataload in {time.time()-t0:.2f} seconds")
-
-        # If the last band of the image is all zeros, skip
-        if np.all(s2_array[-1] == 0):
-            print(f"Skipping {Path(vf).name} because it is all zeros")
-            s2_ds.close()
-            return None, None
-        else:
-            print(f"Processing {Path(vf).name}")
-
-        left, bottom, right, top = rio.warp.transform_bounds(
-            original_crs, target_crs, *s2_ds.bounds
-        )
-
-        x_res, y_res = target_resolution
-        width = int((right - left) / x_res)
-        height = int((top - bottom) / y_res)
-
-        # Create the transformation for output
-        dst_transform = rio.transform.from_bounds(left, bottom, right, top, width, height)
-
-        # Built-in scaling
-        s2_array = s2_array * 0.0001
-
-        # subtract 0.1 where the array is not nodata
-        s2_array[s2_array != s2_ds.nodata] -= 0.1
-
-        # Input
-        t1 = time.time()
-        s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
-
-        # Run model
-        LAI_estimate = model(s2_tensor)
-        LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).detach().numpy()
-        print(f"Model prediction in {time.time()-t1:.2f} seconds")
-
-        # set NODATA to nan
-        nodata_val = s2_ds.nodata
-        LAI_estimate[s2_array[-1] == nodata_val] = np.nan
-
-        profile = {
-            "driver": "GTiff",
-            "height": height,
-            "width": width,
-            "count": 1,
-            "dtype": "float32",
-            "crs": target_crs,
-            "transform": dst_transform,
-            "compress": "lzw",
-            "nodata": np.nan,
-        }
-
-        # Create in-memory array for reprojection
-        t2 = time.time()
-        dst_array = np.zeros((height, width), dtype=np.float32)
-        dst_array.fill(np.nan)  # Fill with NaN initially
-
-        # Reproject the LAI estimate to the target CRS with consistent resolution
-        reproject(
-            LAI_estimate,
-            dst_array,
-            src_transform=s2_ds.transform,
-            src_crs=original_crs,
-            dst_transform=dst_transform,
-            dst_crs=target_crs,
-            resampling=Resampling.bilinear,
-            src_nodata=np.nan,
-            dst_nodata=np.nan,
-        )
-        print(f"Reprojection in {time.time()-t2:.2f} seconds")
-
-        # Write the reprojected data
-        filename = op.join(lai_dir, Path(vf).stem + "_LAI_tile.tif")
-        with rio.open(filename, "w", **profile) as dst:
-            dst.write(dst_array, 1)
-            # Set band description to estimateLAI
-            dst.set_band_description(1, "estimateLAI")
-
-        print(f"Exported {filename}")
-        s2_ds.close()
-        return filename
-
-    except Exception as e:
-        print(f"Error processing {vf}: {e}")
-        return None, None
 
 
 def worker_process_files(
     worker_id, file_batch, model_weights, lai_dir, target_resolution, target_crs
 ):
     """Worker function that processes a batch of files with a single model instance"""
-    print(f"Worker {worker_id} starting, processing {len(file_batch)} files")
+    logger.info(f"Worker {worker_id} starting, processing {len(file_batch)} files")
 
     # Load the model once per worker
     model = LAI_CNN(11, 5, 1)
     model.load_state_dict(torch.load(model_weights))
     model.eval()
 
-    print("Model loaded")
+    logger.info("Model loaded")
 
     output_files = []
 
@@ -231,29 +134,27 @@ def worker_process_files(
         if output_file:
             output_files.append(output_file)
 
-    print(f"Worker {worker_id} finished processing {len(file_batch)} files")
+    logger.info(f"Worker {worker_id} finished processing {len(file_batch)} files")
     return output_files
 
 
 def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
     """Process a single VRT file with the provided model and return the output filename"""
-    print(f"Processing ... {vf}")
+    logger.info(f"Processing ... {vf}")
     # Load the image
     t0 = time.time()
-    print(f"Loading {vf}")
     s2_ds = rio.open(vf)
-    print("Opened")
+    logger.info("Opened")
     s2_array = s2_ds.read()
     original_crs = s2_ds.crs
-    print(f"Dataload for {Path(vf).name} in {time.time()-t0:.2f} seconds")
 
     # If the last band of the image is all zeros, skip
     if np.all(s2_array[-1] == 0):
-        print(f"Skipping {Path(vf).name} because it is all zeros")
+        logger.info(f"Skipping {Path(vf).name} because it is all zeros")
         s2_ds.close()
         return None
     else:
-        print(f"Processing {Path(vf).name}")
+        logger.info(f"Processing {Path(vf).name}")
 
     left, bottom, right, top = rio.warp.transform_bounds(original_crs, target_crs, *s2_ds.bounds)
 
@@ -279,7 +180,7 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
     with torch.no_grad():
         LAI_estimate = model(s2_tensor)
     LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
-    print(f"Model prediction for {Path(vf).name} in {time.time()-t1:.2f} seconds")
+    logger.info(f"Model prediction for {Path(vf).name} in {time.time()-t1:.2f} seconds")
 
     # set NODATA to nan
     LAI_estimate[s2_array[-1] == nodata_val] = np.nan
@@ -329,47 +230,38 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
 
 
 @click.command()
-@click.argument("S2_dir", type=click.Path(exists=True))
-@click.argument("LAI_dir", type=click.Path(exists=True))
+@click.argument("S2-dir", type=click.Path(exists=True))
+@click.argument("LAI-dir", type=click.Path(exists=True))
 @click.argument("resolution", type=int)
 @click.option(
-    "--start_date",
+    "--start-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
     help="Start date",
     required=False,
     default=None,
 )
 @click.option(
-    "--end_date",
+    "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
     help="End date",
     required=False,
     default=None,
 )
 @click.option(
-    "--model_weights",
+    "--model-weights",
     type=click.Path(exists=True),
     default="../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
     help="Local Path to the model weights",
 )
 def main(s2_dir, lai_dir, resolution, start_date, end_date, model_weights):
-    """Main LAI batch prediction function
-
-    S2_dir: Local Path to the .vrt Sentinel-2 images
-
-    LAI_dir: Local Path to the LAI estimates
-
-    resolution: Spatial resolution in meters. Used to match file names beginning with region_resolution
-
-    This pipeline does the following:
-    1. Looks for Sentinel-2 images in the specified directory in the format {geometry_name}_{resolution}m_{date}.vrt
-    2. Uses the pytorch model to predict LAI
-    3. Exports the LAI estimate to the specified directory in the format {geometry_name}_{resolution}m_{date}_LAI.tif
+    """
+    Main function to process Sentinel-2 VRT files and generate LAI estimates.
+    
     """
 
     start = time.time()
     num_processes = 32
-    print(f"Using {num_processes} parallel workers")
+    logger.info(f"Using {num_processes} parallel workers")
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
@@ -377,19 +269,19 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, model_weights):
     if start_date is not None and end_date is not None:
         vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
 
-    print(f"Found {len(vrt_files)} VRT files at {resolution}m in {s2_dir}")
+    logger.info(f"Found {len(vrt_files)} VRT files at {resolution}m in {s2_dir}")
 
     t0 = time.time()
-    print("Identifying most common CRS...")
+    logger.info("Identifying most common CRS...")
     target_crs = "EPSG:4326"
     most_common_crs, most_common_crs_file = get_most_common_crs(vrt_files)
-    print(f"Most common CRS: {most_common_crs}")
-    print(f"Target CRS: {target_crs}")
+    logger.info(f"Most common CRS: {most_common_crs}")
+    logger.info(f"Target CRS: {target_crs}")
 
-    print("Determining target resolution...")
+    logger.info("Determining target resolution...")
     target_resolution = determine_target_resolution(most_common_crs_file, "EPSG:4326")
-    print(f"Using target resolution: {target_resolution[0]:.8f}, {target_resolution[1]:.8f}")
-    print(f"Time taken to identify most common CRS: {time.time()-t0:.2f} seconds")
+    logger.info(f"Using target resolution: {target_resolution[0]:.8f}, {target_resolution[1]:.8f}")
+    logger.info(f"Time taken to identify most common CRS: {time.time()-t0:.2f} seconds")
 
     # Divide files into batches for each worker
     batch_size = len(vrt_files) // num_processes
@@ -401,7 +293,6 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, model_weights):
         file_batches.append(vrt_files[start_idx:end_idx])
 
     # Create a process pool with fixed number of workers
-
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
         futures = []
 
@@ -424,18 +315,18 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, model_weights):
             try:
                 result = future.result()
                 if result:
-                    print(f"Worker {i} processed {len(result)} files successfully")
+                    logger.info(f"Worker {i} processed {len(result)} files successfully")
                     all_results.append(result)
             except Exception as e:
-                print(f"Error in worker {i}: {e}")
+                logger.info(f"Error in worker {i}: {e}")
 
     # Flatten list of lists to get all output files
     output_files = [
         file for batch_result in all_results for file in batch_result if file is not None
     ]
-    print(f"Processed {len(output_files)} files successfully")
+    logger.info(f"Processed {len(output_files)} files successfully")
 
-    print(f"Finished in {time.time()-start:.2f} seconds")
+    logger.info(f"Finished in {time.time()-start:.2f} seconds")
 
 
 if __name__ == "__main__":

@@ -1,47 +1,61 @@
-from datetime import datetime
 import os.path as op
-from pathlib import Path
-from glob import glob
 import time
-import click
+from datetime import datetime
+from glob import glob
+from pathlib import Path
 
+import click
 import numpy as np
+import rasterio as rio
 import torch
 import torch.nn as nn
-import rasterio as rio
-
 
 # See https://code.earthengine.google.com/?accept_repo=users/rfernand387/LEAFToolboxModules for details
 default_model_weights = {
-    'S2': {
+    "S2": {
         10: {
-            'weights_path': '../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth',
-            'channels': ['cosVZA', 'cosSZA', 'cosRAA', 'B2', 'B3', 'B4', 'B8']
+            "weights_path": "../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth",
+            "channels": ["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"],
         },
         20: {
-            'weights_path': '../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth',
-            'channels': ['cosVZA', 'cosSZA', 'cosRAA', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']
-        }
+            "weights_path": "../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
+            "channels": [
+                "cosVZA",
+                "cosSZA",
+                "cosRAA",
+                "B3",
+                "B4",
+                "B5",
+                "B6",
+                "B7",
+                "B8A",
+                "B11",
+                "B12",
+            ],
+        },
     }
 }
+
 
 class Scale2d(nn.Module):
     def __init__(self, n_ch):
         super(Scale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1,n_ch,1,1))
-        self.bias = nn.Parameter(torch.Tensor(1,n_ch,1,1))
+        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
+        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
 
     def forward(self, x):
         return x * self.weight + self.bias
 
+
 class UnScale2d(nn.Module):
     def __init__(self, n_ch):
         super(UnScale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1,n_ch,1,1))
-        self.bias = nn.Parameter(torch.Tensor(1,n_ch,1,1))
+        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
+        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
 
     def forward(self, x):
         return (x - self.bias) / self.weight
+
 
 class LAI_CNN(nn.Module):
     def __init__(self, in_ch, h1_dim, out_ch):
@@ -59,7 +73,8 @@ class LAI_CNN(nn.Module):
         x = self.h2(x)
         x = self.output(x)
         return x
-    
+
+
 def is_within_date_range(vf, start_date, end_date):
     # files are expected to have the pattern f"{s2_dir}/{region}_{resolution}m_{date}.vrt"
     date = Path(vf).stem.split("_")[-1]
@@ -68,16 +83,48 @@ def is_within_date_range(vf, start_date, end_date):
 
 
 @click.command()
-@click.argument('S2_dir', type=click.Path(exists=True))
-@click.argument('LAI_dir', type=click.Path(exists=True))
-@click.argument('region', type=str)
-@click.argument('resolution', type=int)
-@click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date', required=False, default=None)
-@click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date', required=False, default=None)
-@click.option('--model_weights', type=click.Path(exists=True), default=None, help='Local Path to the model weights. Default values for 10 and 20m resolution available.')
-@click.option('--channels', type=str, default=None, help='Input channels to use. String with comma separetes band names e.g cosVZA,cosRZA,cosSZA,B3,B4....', required=False)
-def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weights="../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth", channels=None):
-    """ Main LAI batch prediction function
+@click.argument("S2_dir", type=click.Path(exists=True))
+@click.argument("LAI_dir", type=click.Path(exists=True))
+@click.argument("region", type=str)
+@click.argument("resolution", type=int)
+@click.option(
+    "--start_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="Start date",
+    required=False,
+    default=None,
+)
+@click.option(
+    "--end_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="End date",
+    required=False,
+    default=None,
+)
+@click.option(
+    "--model_weights",
+    type=click.Path(exists=True),
+    default=None,
+    help="Local Path to the model weights. Default values for 10 and 20m resolution available.",
+)
+@click.option(
+    "--channels",
+    type=str,
+    default=None,
+    help="Input channels to use. String with comma separetes band names e.g cosVZA,cosRZA,cosSZA,B3,B4....",
+    required=False,
+)
+def main(
+    s2_dir,
+    lai_dir,
+    region,
+    resolution,
+    start_date,
+    end_date,
+    model_weights="../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
+    channels=None,
+):
+    """Main LAI batch prediction function
 
     S2_dir: Local Path to the .vrt Sentinel-2 images
 
@@ -103,16 +150,17 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         num_in_ch = len(channels)
 
     if model_weights is None:
-        sateillite = 'S2' # Currently only S2 is supported
+        sateillite = "S2"  # Currently only S2 is supported
         model_resolution = resolution
         if resolution not in default_model_weights[sateillite]:
-            print('Warning: No model weights found for this resolution. Using model trained at a resolution of 20m.')
+            print(
+                "Warning: No model weights found for this resolution. Using model trained at a resolution of 20m."
+            )
             model_resolution = 20
 
         model_options = default_model_weights[sateillite][model_resolution]
-        model_weights = model_options['weights_path']
-        channels = model_options['channels']
-
+        model_weights = model_options["weights_path"]
+        channels = model_options["channels"]
 
     # Load the pytorch model
     num_in_ch = len(channels)
@@ -135,7 +183,9 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         s2_array = s2_ds.read()
 
         if not s2_array.shape[0] == num_in_ch:
-            raise ValueError(f"Number of bands in {vf} does not match the number of input channels. Expected {num_in_ch} but got {s2_array.shape[0]}")
+            raise ValueError(
+                f"Number of bands in {vf} does not match the number of input channels. Expected {num_in_ch} but got {s2_array.shape[0]}"
+            )
 
         # If the last band of the image is all zeros, skip
         # The first three bands are geometry values
@@ -150,7 +200,7 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
 
         # Input
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
-        
+
         # Run model
         LAI_estimate = model(s2_tensor)
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).detach().numpy()
@@ -160,14 +210,15 @@ def main(s2_dir, lai_dir, region, resolution, start_date, end_date, model_weight
         # Export as GeoTIFF
         filename = op.join(lai_dir, Path(vf).stem + "_LAI.tif")
         profile = s2_ds.profile
-        profile.update(count=1, dtype='float32', compress='lzw', nodata=np.nan, driver='GTiff')
-        with rio.open(filename, 'w', **profile) as dst:
+        profile.update(count=1, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff")
+        with rio.open(filename, "w", **profile) as dst:
             dst.write(LAI_estimate, 1)
             dst.set_band_description(1, "estimateLAI")
         print(f"Exported {filename}")
         s2_ds.close()
-        
+
     print(f"Finished in {time.time()-start:.2f} seconds")
+
 
 if __name__ == "__main__":
     main()
