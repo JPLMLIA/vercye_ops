@@ -96,21 +96,22 @@ def create_map(regions_summary, combined_geojson):
         ax=ax
     )
 
-    # Add region labels with dynamic contrast adjustment
-    for idx, row in merged.iterrows():
-        centroid = row['geometry'].centroid
-        color_rgb = cmap(norm(row['mean_yield_kg_ha']))
-        text_color = get_contrasting_text_color(color_rgb)
-        
-        ax.text(
-            x=centroid.x,
-            y=centroid.y,
-            s=f"{row['region']} \n {int(row['mean_yield_kg_ha'])}",  
-            horizontalalignment='center',
-            fontsize=7,
-            weight='bold',                                                                                                            
-            color=text_color,
-        )
+    # Add region labels with dynamic contrast adjustment if not too many regions
+    if len(merged) < 70:
+        for idx, row in merged.iterrows():
+            centroid = row['geometry'].centroid
+            color_rgb = cmap(norm(row['mean_yield_kg_ha']))
+            text_color = get_contrasting_text_color(color_rgb)
+            
+            ax.text(
+                x=centroid.x,
+                y=centroid.y,
+                s=f"{row['region']} \n {int(row['mean_yield_kg_ha'])}",  
+                horizontalalignment='center',
+                fontsize=7,
+                weight='bold',                                                                                                            
+                color=text_color,
+            )
 
     ax.set_title("Crop Productivity Overview - Estimated Mean Yield (kg/ha) per Region", fontsize=16)
     ax.axis('off')

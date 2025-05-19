@@ -1,6 +1,7 @@
 import os
 from glob import glob
 import click
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -23,7 +24,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Multiyear Interactive Summary</title>
+    <title>{title}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
@@ -35,7 +36,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1 class="my-4 text-center">Multiyear Interactive Summary</h1>
+        <h1 class="my-4 text-center">{title}</h1>
         {content}
     </div>
 </body>
@@ -62,6 +63,10 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
             df['Year']   = int(year)
             df['Region'] = region
             combined.append(df)
+    
+    if not combined:
+        return None
+
     full_df = pd.concat(combined, ignore_index=True)
 
     col = 'LAI ' + ('Mean' if lai_agg_type=='mean' else 'Median')
@@ -122,12 +127,12 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         updatemenus=[
             dict(
                 type='buttons',
-                direction='down',
+                direction='left',
                 buttons=year_buttons,
                 x=1.1, y=1.1,
                 showactive=False,
                 bgcolor='white',
-                bordercolor='black',
+                bordercolor='LightSkyBlue',
                 borderwidth=1,
                 font=dict(size=12)
             )
@@ -146,20 +151,34 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
 def load_obs_preds(input_dir, timepoint, years, agg_levels):
     results = {}
     for lvl in agg_levels:
-        all_obs, all_preds, yrs = [], [], []
+        all_preds = []
+        all_preds_years = []
+        preds_for_obs = []
+        all_obs = []
+        all_obs_years = []
+
         for year in years:
             base = os.path.join(input_dir, year, timepoint)
             est = glob(os.path.join(base, f'agg_yield_estimates_{lvl}*.csv'))
+
             if not est:
                 continue
+
             preds_df = load_csv(est[0])
             all_preds.extend(preds_df['mean_yield_kg_ha'])
-            yrs.extend([year]*len(preds_df))
-            val = glob(os.path.join(input_dir, year, f'groundtruth-{lvl}*.csv'))
+            all_preds_years.extend([year]*len(preds_df))
+            
+            val = glob(os.path.join(input_dir, year, f'groundtruth_{lvl}*.csv'))
             if val:
                 data = get_preds_obs(est[0], val[0])
                 all_obs.extend(data['obs'])
-        results[lvl] = (all_obs, all_preds, yrs)
+                preds_for_obs.extend(data['preds'])
+                all_obs_years.extend([year]*len(data['obs']))
+    
+        results[lvl] = {
+            'only_preds': (all_preds, all_preds_years),
+            'obs_preds': (all_obs, preds_for_obs, all_obs_years)
+        }
     return results
 
 
@@ -187,7 +206,8 @@ def identify_eval_levels(input_dir, years):
     for y in years:
         files = glob(os.path.join(input_dir, y, 'groundtruth*.csv'))
         for f in files:
-            lvl = os.path.basename(f).split('-')[1]
+            lvl = os.path.basename(f).split('_')[1]
+            lvl = lvl.split('-')[0] # remove year and file extension suffix
             lvls.add(lvl)
     return sorted(lvls)
 
@@ -196,8 +216,9 @@ def identify_eval_levels(input_dir, years):
 @click.option('--input-dir', type=click.Path(exists=True), required=True)
 @click.option('--lai-agg-type', type=click.Choice(['mean', 'median']), default='mean')
 @click.option('--adjusted', is_flag=True)
+@click.option('--title', type=str, default='Multiyear Interactive Summary', help='Title for the HTML report. Enclose in quotes if it contains spaces.')
 @click.option('--output-file', type=click.Path(), required=True)
-def main(input_dir, lai_agg_type, adjusted, output_file):
+def main(input_dir, lai_agg_type, adjusted, title, output_file):
     years = get_available_years(input_dir)
     reference = os.path.join(input_dir, years[0])
     timepoints = get_available_timepoints(reference)
@@ -207,30 +228,57 @@ def main(input_dir, lai_agg_type, adjusted, output_file):
     for tp in timepoints:
         # LAI Plot
         lai_fig = plot_lai_figure(input_dir, tp, years, lai_agg_type, adjusted)
-        lai_html = pio.to_html(lai_fig, include_plotlyjs='cdn', full_html=False)
-        content.append(
-            f"""
-            <div class='card mb-4'>
-              <div class='card-header'><h2>{tp} - LAI</h2></div>
-              <div class='card-body plot-container'>
-                {lai_html}
-                <p><em>Click on the 'year' buttons (top right) to toggle visibility of all individual LAI traces from that year (this might take a few seconds to load).</br>
-                Notice: You might have to click twice.</em></p>
-            </div>
-            </div>
-            """
-        )
+        if lai_fig is not None:
+            lai_html = pio.to_html(lai_fig, include_plotlyjs='cdn', full_html=False)
+            content.append(
+                f"""
+                <div class='card mb-4'>
+                <div class='card-header'><h2>{tp} - LAI</h2></div>
+                <div class='card-body plot-container'>
+                    {lai_html}
+                    <p><em>Click on the 'year' buttons (top right) to toggle visibility of all individual LAI traces from that year (this might take a few seconds to load).</br>
+                    Notice: You might have to click twice.</em></p>
+                </div>
+                </div>
+                """
+            )
+
         # Predictions + Metrics per aggregation level
         obs_preds = load_obs_preds(input_dir, tp, years, agg_levels)
-        for lvl, (obs, preds, yrs) in obs_preds.items():
-            pred_fig = create_predictions_plot(preds, yrs)
+        for lvl, data in obs_preds.items():
+            all_preds, preds_years = data['only_preds']
+
+            if len(all_preds) == 0:
+                continue
+
+            pred_fig = create_predictions_plot(all_preds, preds_years)
             pred_html = pio.to_html(pred_fig, include_plotlyjs='cdn', full_html=False)
             metrics_html = "<p><em>No ground-truth available for metrics.</em></p>"
+
+            obs, preds, yrs = data['obs_preds']
             if obs:
                 scatter = create_scatter_plot(preds, obs, yrs)
                 scatter_html = pio.to_html(scatter, include_plotlyjs='cdn', full_html=False)
-                metrics = compute_metrics(preds, obs)
-                metrics_html = f"""<pre><strong>Metrics ({lvl}):</strong>\n{metrics}</pre>{scatter_html}"""
+                metrics = compute_metrics(np.array(preds), np.array(obs))
+                metrics_rows = "".join(
+                    f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>"
+                    for k, v in metrics.items()
+                )
+
+                metrics_html = f"""
+                <div class='metrics-table mb-3'>
+                    <strong>Metrics ({lvl}):</strong>
+                    <table class='table table-sm table-bordered mt-2'>
+                    <thead class='thead-light'>
+                        <tr><th>Metric</th><th>Value</th></tr>
+                    </thead>
+                    <tbody>
+                        {metrics_rows}
+                    </tbody>
+                    </table>
+                </div>
+                {scatter_html}
+                """
 
             content.append(
                 f"""
@@ -242,7 +290,7 @@ def main(input_dir, lai_agg_type, adjusted, output_file):
             )
 
     # Render full HTML and write
-    full_html = HTML_TEMPLATE.format(content=''.join(content))
+    full_html = HTML_TEMPLATE.format(content=''.join(content), title=title)
     with open(output_file, 'w') as f:
         f.write(full_html)
 

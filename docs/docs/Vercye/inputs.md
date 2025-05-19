@@ -101,7 +101,7 @@ Adjustments for soil properties and simulation constraints must be manually conf
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth-{AggregationLevel}-{Year}.csv` in the corresponding year directory.
+If ground-truth yield data is available, it should be included as `groundtruth_{AggregationLevel}-{Year}.csv` in the corresponding year directory.
 Hereby, `aggregation level`, specifies how the simulation level regions should be aggregated and must be aliged with the `eval_params.aggregation_levels` in your `snakemake_config.yaml`. The `year` must match the corresponding year directory.
 
 ### Reference CSV Specification

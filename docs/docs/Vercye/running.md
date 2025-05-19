@@ -114,10 +114,10 @@ Validation data can be provided at different geographic scales. It may be availa
 
 Define aggregation levels in your config file under eval_params.aggregation_levels. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify State: ADMIN_1. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.
 
-For each year and aggregation level, create a CSV file named: `{year}/groundtruth-{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive).
+For each year and aggregation level, create a CSV file named: `{year}/groundtruth_{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive).
 
-Example: For 2024 state-level data, the file should be: `basedirectory/2024/groundtruth-State-2024.csv`
-For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/groundtruth-primary-2024.csv`
+Example: For 2024 state-level data, the file should be: `basedirectory/2024/groundtruth_State-2024.csv`
+For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/groundtruth_primary-2024.csv`
 
 Each CSV must include:
 
