@@ -94,9 +94,6 @@ def colorize_plot_by_years(rawr, obs_years, preds, obs):
 def create_scatter_plot(preds, obs, obs_years=None):
     # Pass obs_years if you want to use it for coloring the points
     # obs_years should be the year of each observation
-
-    if len(preds) != len(obs):
-        raise ValueError("Length of the predictions and observations do not match.")
     
     if obs_years is not None and len(obs_years) != len(obs):
         raise ValueError("Length of the years and observations do not match.")
