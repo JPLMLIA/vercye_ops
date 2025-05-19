@@ -23,7 +23,7 @@ def is_within_date_range(file_path: str, start_date: datetime.date, end_date: da
         basename = os.path.basename(file_path)
         # Expecting format: prefix_YYYYMMDD_suffix
         date_str = basename.split("_")[-3]
-        file_date = datetime.strptime(date_str, "%Y%m%d").date()
+        file_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         return start_date <= file_date <= end_date
     except Exception as e:
         logger.warning(f"Skipping file '{file_path}' due to date parsing error: {e}")

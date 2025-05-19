@@ -16,4 +16,5 @@ nav:
     - 'Running a Yield Study': 'Vercye/running.md'
     - 'Inputs': 'Vercye/inputs.md'
     - 'Outputs': 'Vercye/outputs.md'
+    - 'Meteorological Data': 'Vercye/metdata.md'
     - 'Architecture': 'Vercye/architecture.md'

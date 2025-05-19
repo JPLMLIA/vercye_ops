@@ -339,6 +339,7 @@ rule lai_analysis:
         end_date = lambda wildcards: config['lai_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint][1],
         lai_file_ext = config['lai_params']['file_ext'],
         smoothed_flag = '--smoothed' if config['lai_params']['smoothed'] is True else ''
+        cloudcov_threshold = config['lai_params']['cloudcov_threshold'],
     benchmark:
         "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
     log:
@@ -360,6 +361,7 @@ rule lai_analysis:
         --start_date {params.start_date} \
         --LAI_file_ext {params.lai_file_ext} \
         --end_date {params.end_date} \
+        --cloudcov_threshold {params.cloudcov_threshold} \
         {params.smoothed_flag} > {log}
         """
 

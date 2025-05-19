@@ -53,6 +53,8 @@ def cli(input_dir, output_fpath, lai_agg_type):
         legend_title='Click to Toggle Traces',
         template='plotly_white'
     )
+
+    fig.update_traces(opacity=0.5)
     
     # Create visibility lists for the toggles
     all_visible = [True] * len(fig.data)

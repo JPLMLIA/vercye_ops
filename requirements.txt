@@ -16,7 +16,7 @@ pulp==2.7.0  # Pinned for snakemake
 pystac_client
 pytest
 pyarrow
-rasterio
+rasterio[s3]
 requests
 scipy>=1.14  # For Akima interpolator
 scikit-learn

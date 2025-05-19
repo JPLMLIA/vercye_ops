@@ -11,8 +11,8 @@ import rasterio as rio
 
 
 def is_within_date_range(vf, start_date, end_date):
-    # files are expected to have the pattern f"{s2_dir}/{region}_{resolution}m_{date}_LAI.tif"
-    date = Path(vf).stem.split("_")[-2]
+    # files are expected to have the pattern f"{s2_dir}/{region}_{resolution}m_{date}_LAI_tile.tif"
+    date = Path(vf).stem.split("_")[-3]
     date = datetime.strptime(date, "%Y-%m-%d")
     return start_date <= date <= end_date
 

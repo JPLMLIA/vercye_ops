@@ -156,6 +156,7 @@ This file defines the study parameters and links the **simulation head directory
 - `smoothed`: Whether to smoth the original remotely sensed LAI curve using Sav-Gol Method. (`True`/`False`).
 - `file_ext`: LAI files extension. If produced with GEE pipeline and regions are not merged, use `tif`. Else use `vrt`. (`tif`/`vrt`).
 - `min_cropland_pixel_threshold`: Minimum number of cropland pixels each simulation ROI must contain. If region has less it is skipped. Cropmask pixels are counted at the resolution of the LAI data.
+- `cloudcov_threshold`: Maximum cloud coverage percentage of a region for LAI of a date to be considered valid. E.g if set to 0.9, 90% of the pixels in the LAI data of a specific date must not be clouds/snow, otherwise this date will be ignored in the LAI curve.
 - `crop_mask`: `Dict[year, cropmaskpath]`. Path to crop mask files for each year. The cropmask **must** be binary, with 1 indicating the crop and 0 otherwise.
 - `do_cropmask_reprojection`: The cropmask must match the resolution and CRS of the LAI data. If set to `True` it will be automatically reprojected to match the LAI data. (`True`/`False`).
 

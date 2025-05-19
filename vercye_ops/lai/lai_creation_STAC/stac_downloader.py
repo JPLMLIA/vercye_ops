@@ -12,16 +12,14 @@ import rasterio as rio
 import requests
 from pystac.extensions.eo import EOExtension
 from rasterio.warp import Resampling, calculate_default_transform, reproject
-from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
-                      wait_exponential)
+from rasterio.env import Env
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+
 from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
-# Set GDAL environment variables to enable multi-threaded downloads
-os.environ["GDAL_ENABLE_CURL_MULTI"] = "YES"
-os.environ["GDAL_HTTP_MULTIRANGE"] = "YES"
 
 
 def save_band(metadata, data, item, band_name, resolution, output_folder):
@@ -48,67 +46,72 @@ def save_band(metadata, data, item, band_name, resolution, output_folder):
 
     return output_path
 
-
 @retry(
-    retry=retry_if_exception_type(Exception),
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
 )
 def load_resample(tile_path, resolution, mask=None):
-    with rio.open(tile_path) as src:
-        crs = src.crs
-        bounds = src.bounds
+    logger.info(f"Loading and resampling tile {tile_path} to {resolution}m resolution...")
+    with Env(AWS_NO_SIGN_REQUEST="YES",
+             GDAL_DISABLE_READDIR_ON_OPEN="YES",
+             GDAL_NUM_THREADS=8,
+             GDAL_HTTP_MULTIRANGE="YES",
+             GDAL_ENABLE_CURL_MULTI="YES",
+            ):
+        with rio.open(tile_path) as src:
+            crs = src.crs
+            bounds = src.bounds
 
-        if src.count > 1:
-            raise ValueError(
-                "The input tile has more than one band. Currently only handling single band rasters."
+            if src.count > 1:
+                raise ValueError(
+                    "The input tile has more than one band. Currently only handling single band rasters."
+                )
+
+            # TODO: Might have to use np.allclose for floating point precision in CRS
+            # Might instead want to only allow resampling to the dimensions (resolution) of another band of the tile
+
+            # Resample if not already at target resolution
+            if src.res != (resolution, resolution):
+                dst_transform, dst_width, dst_height = calculate_default_transform(
+                    src.crs, src.crs, src.width, src.height, *src.bounds, resolution=resolution
+                )
+
+                resampled = np.empty((dst_height, dst_width), dtype=src.dtypes[0])
+                reproject(
+                    source=rio.band(src, 1),
+                    destination=resampled,
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=dst_transform,
+                    dst_crs=crs,
+                    resampling=Resampling.nearest,
+                    num_threads=4,
+                )
+                data = resampled
+                transform = dst_transform
+            else:
+                data = src.read(1)
+                transform = src.transform
+
+            # Apply mask if provided. Using original nodata value for less confusion
+            # Expects a binary mask!
+            if mask is not None:
+                data = mask * data
+
+            # Save the band
+            profile = src.profile
+            profile.update(
+                {
+                    "height": data.shape[0],
+                    "width": data.shape[1],
+                    "transform": transform,
+                    "dtype": src.dtypes[0],
+                    "nodata": src.nodata,
+                    "crs": crs,
+                }
             )
 
-        # TODO: Might have to use np.allclose for floating point precision in CRS
-        # Might instead want to only allow resampling to the dimensions (resolution) of another band of the tile
-
-        # Resample if not already at target resolution
-        if src.res != (resolution, resolution):
-            dst_transform, dst_width, dst_height = calculate_default_transform(
-                src.crs, src.crs, src.width, src.height, *src.bounds, resolution=resolution
-            )
-
-            resampled = np.empty((dst_height, dst_width), dtype=src.dtypes[0])
-            reproject(
-                source=rio.band(src, 1),
-                destination=resampled,
-                src_transform=src.transform,
-                src_crs=src.crs,
-                dst_transform=dst_transform,
-                dst_crs=crs,
-                resampling=Resampling.nearest,
-                num_threads=4,
-            )
-            data = resampled
-            transform = dst_transform
-        else:
-            data = src.read(1)
-            transform = src.transform
-
-        # Apply mask if provided. Using original nodata value for less confusion
-        # Expects a binary mask!
-        if mask is not None:
-            data = mask * data
-
-        # Save the band
-        profile = src.profile
-        profile.update(
-            {
-                "height": data.shape[0],
-                "width": data.shape[1],
-                "transform": transform,
-                "dtype": src.dtypes[0],
-                "nodata": src.nodata,
-                "crs": crs,
-            }
-        )
-
-        return profile, data
+            return profile, data
 
 
 def download_resample(tile_path, resolution, item, band_name, mask=None, output_folder=None):
@@ -178,9 +181,9 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
 
 
 @retry(
-    retry=retry_if_exception_type(Exception),
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((requests.RequestException, IOError)),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
 )
 def download_file(url, output_path):
     try:

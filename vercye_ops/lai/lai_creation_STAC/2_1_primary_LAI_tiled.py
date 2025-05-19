@@ -248,20 +248,25 @@ def process_single_file(vf, model, lai_dir, target_resolution, target_crs):
     default=None,
 )
 @click.option(
+    "--num-cores",
+    type=int,
+    default=64,
+    help="Number of workers (cores) to use.",
+)
+@click.option(
     "--model-weights",
     type=click.Path(exists=True),
     default="../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
     help="Local Path to the model weights",
 )
-def main(s2_dir, lai_dir, resolution, start_date, end_date, model_weights):
+def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_weights):
     """
     Main function to process Sentinel-2 VRT files and generate LAI estimates.
     
     """
 
     start = time.time()
-    num_processes = 32
-    logger.info(f"Using {num_processes} parallel workers")
+    logger.info(f"Using {num_cores} parallel workers")
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
@@ -284,16 +289,16 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, model_weights):
     logger.info(f"Time taken to identify most common CRS: {time.time()-t0:.2f} seconds")
 
     # Divide files into batches for each worker
-    batch_size = len(vrt_files) // num_processes
+    batch_size = len(vrt_files) // num_cores
     file_batches = []
 
-    for i in range(num_processes):
+    for i in range(num_cores):
         start_idx = i * batch_size
-        end_idx = start_idx + batch_size if i < num_processes - 1 else len(vrt_files)
+        end_idx = start_idx + batch_size if i < num_cores - 1 else len(vrt_files)
         file_batches.append(vrt_files[start_idx:end_idx])
 
     # Create a process pool with fixed number of workers
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cores) as executor:
         futures = []
 
         for i, file_batch in enumerate(file_batches):
