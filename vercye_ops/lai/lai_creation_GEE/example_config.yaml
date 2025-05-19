@@ -1,10 +1,7 @@
-# Example Configuration to create LAI from GEE Exported Sentinel-2 data
+# Example Configuration to create LAI from GEE Exported Remotely Sensed data
 
 # Folder where geojson for which to create LAI are stored
 geojsons_dir: 'lai/regions/'
-
-# Optional List of regions to process to filter geojsons_dir. Filename prefixes in geojsons_dir.
-regions: [] 
 
 # Earth Engine project ID
 ee_project: 'ee-project-id'
@@ -23,3 +20,7 @@ timepoints:
 
 # Spatial resolution in meters. Should typically be 10 or 20.
 resolution: 20
+
+# Set to True to merge the LAI produced for each region into single regions daily VRT files
+merge_regions_lai: True
+combined_region_name: 'merged_regions'

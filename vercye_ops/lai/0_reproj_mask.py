@@ -16,6 +16,8 @@ def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: in
     union_bounds = None
     lai_crs = None
     resolution = None
+    res_x = None
+    res_y = None
 
     for lai_file in lai_files:
         with rio.open(lai_file) as ds:
@@ -24,6 +26,9 @@ def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: in
                 lai_crs = ds.crs
                 res_x, res_y = ds.res
             else:
+                if ds.res != (res_x, res_y):
+                    raise Exception(f"LAI files have different resolutions: {ds.res} vs {(res_x, res_y)}.")
+
                 b = ds.bounds
                 union_bounds = rio.coords.BoundingBox(
                     left=min(union_bounds.left, b.left),
@@ -69,34 +74,7 @@ def handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_fi
             )
     return
 
-
-@click.command()
-@click.argument('mask_path', type=click.Path(exists=True))
-@click.argument('out_path', type=click.Path())
-@click.option('--lai_dir', type=click.Path(exists=True), default=None, help='Directory where LAI data is saved. Needs to be used with --lai_region.')
-@click.option('--lai_region', type=str, default=None, help='Region of LAI data to use. Needs to be used with --lai_dir.')
-@click.option('--lai_resolution', type=int, help='Resolution of LAI data to use. Needs to be used if providing --lai_dir')
-@click.option('--lai_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files. Usage with --lai_dir', default='tif')
-@click.option('--lai_path', type=click.Path(exists=True), default=None, help='Path to a specific LAI file. Mutually exclusive with --lai_dir/region.')
-def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext, lai_path):
-    """Reprojects a crop mask to the LAI raster
-    
-    mask_path is reprojected to match the projection, extent, and resolution of
-    LAI_path. It is then saved as out_path.
-
-    Since the extent of LAI files may vary, it is reccomended to use --lai_dir/region to identify the file with the largest extent.
-    """
-
-    if not (lai_dir and lai_region and lai_resolution) and not lai_path:
-        raise Exception("Please either specify lai_dir and lai_region or specify lai_path.")
-
-    if (lai_dir or lai_region) and lai_path:
-        raise Exception("Please either specify lai_dir and lai_region OR lai_path.")
-
-    if lai_dir and lai_region:
-        handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path)
-        return
-
+def handle_reprojection_to_specified_raster(lai_path, mask_path, out_path):
     with rio.open(mask_path) as mask_ds:
         # Mask's CRS
         mask_crs = mask_ds.crs
@@ -129,6 +107,38 @@ def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext,
                     dst_crs=lai_crs,
                     resampling=Resampling.nearest
                 )
+
+
+@click.command()
+@click.argument('mask_path', type=click.Path(exists=True))
+@click.argument('out_path', type=click.Path())
+@click.option('--lai_dir', type=click.Path(exists=True), default=None, help='Directory where LAI data is saved. Needs to be used with --lai_region.')
+@click.option('--lai_region', type=str, default=None, help='Region of LAI data to use. Needs to be used with --lai_dir.')
+@click.option('--lai_resolution', type=int, help='Resolution of LAI data to use. Needs to be used if providing --lai_dir')
+@click.option('--lai_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files. Usage with --lai_dir', default='tif')
+@click.option('--lai_path', type=click.Path(exists=True), default=None, help='Path to a specific LAI file. Mutually exclusive with --lai_dir/region.')
+def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext, lai_path):
+    """Reprojects a crop mask to the LAI raster
+    
+    mask_path is reprojected to match the projection, extent, and resolution of
+    LAI_path. It is then saved as out_path.
+
+    Since the extent of LAI files may vary, it is reccomended to use --lai_dir/region to identify the file with the largest extent.
+    """
+
+    if not (lai_dir and lai_region and lai_resolution) and not lai_path:
+        raise Exception("Please either specify lai_dir and lai_region or specify lai_path.")
+
+    if (lai_dir or lai_region) and lai_path:
+        raise Exception("Please either specify lai_dir and lai_region OR lai_path.")
+
+    if lai_dir and lai_region:
+        # Sometimes the LAI resolution and extent might be heterogenous, so we need to identify the largest extent.
+        handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path)
+    else:
+        handle_reprojection_to_specified_raster(lai_path, mask_path, out_path)
+
+    
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-import concurrent.futures
+import logging
 import multiprocessing
 import os
 import subprocess
@@ -11,7 +11,15 @@ import pystac_client
 import rasterio as rio
 import requests
 from pystac.extensions.eo import EOExtension
-from rasterio.warp import Resampling, reproject, calculate_default_transform
+from rasterio.warp import Resampling, calculate_default_transform, reproject
+from rasterio.env import Env
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+
+from tqdm import tqdm
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def save_band(metadata, data, item, band_name, resolution, output_folder):
@@ -20,10 +28,11 @@ def save_band(metadata, data, item, band_name, resolution, output_folder):
     metadata.update(
         {
             "driver": "GTiff",
-            "comress": "LZW",
+            "compress": "LZW",
             "tiled": True,
             "blockxsize": 256,
             "blockysize": 256,
+            "dtype": np.int16,  # Forcing to Int16 for now
         }
     )
 
@@ -37,61 +46,72 @@ def save_band(metadata, data, item, band_name, resolution, output_folder):
 
     return output_path
 
-
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+)
 def load_resample(tile_path, resolution, mask=None):
-    with rio.open(tile_path) as src:
-        crs = src.crs
-        bounds = src.bounds
+    logger.info(f"Loading and resampling tile {tile_path} to {resolution}m resolution...")
+    with Env(AWS_NO_SIGN_REQUEST="YES",
+             GDAL_DISABLE_READDIR_ON_OPEN="YES",
+             GDAL_NUM_THREADS=8,
+             GDAL_HTTP_MULTIRANGE="YES",
+             GDAL_ENABLE_CURL_MULTI="YES",
+            ):
+        with rio.open(tile_path) as src:
+            crs = src.crs
+            bounds = src.bounds
 
-        if src.count > 1:
-            raise ValueError(
-                "The input tile has more than one band. Currently only handling single band rasters."
+            if src.count > 1:
+                raise ValueError(
+                    "The input tile has more than one band. Currently only handling single band rasters."
+                )
+
+            # TODO: Might have to use np.allclose for floating point precision in CRS
+            # Might instead want to only allow resampling to the dimensions (resolution) of another band of the tile
+
+            # Resample if not already at target resolution
+            if src.res != (resolution, resolution):
+                dst_transform, dst_width, dst_height = calculate_default_transform(
+                    src.crs, src.crs, src.width, src.height, *src.bounds, resolution=resolution
+                )
+
+                resampled = np.empty((dst_height, dst_width), dtype=src.dtypes[0])
+                reproject(
+                    source=rio.band(src, 1),
+                    destination=resampled,
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=dst_transform,
+                    dst_crs=crs,
+                    resampling=Resampling.nearest,
+                    num_threads=4,
+                )
+                data = resampled
+                transform = dst_transform
+            else:
+                data = src.read(1)
+                transform = src.transform
+
+            # Apply mask if provided. Using original nodata value for less confusion
+            # Expects a binary mask!
+            if mask is not None:
+                data = mask * data
+
+            # Save the band
+            profile = src.profile
+            profile.update(
+                {
+                    "height": data.shape[0],
+                    "width": data.shape[1],
+                    "transform": transform,
+                    "dtype": src.dtypes[0],
+                    "nodata": src.nodata,
+                    "crs": crs,
+                }
             )
-        
-        # TODO: Might have to use np.allclose for floating point precision in CRS
-        # Might instead want to only allow resampling to the dimensions (resolution) of another band of the tile
 
-        # Resample if not already at target resolution
-        if src.res != (resolution, resolution):
-            dst_transform, dst_width, dst_height = calculate_default_transform(
-                src.crs, src.crs, src.width, src.height, *src.bounds, resolution=resolution
-            )
-
-            resampled = np.empty((dst_height, dst_width), dtype=src.dtypes[0])
-            reproject(
-                source=rio.band(src, 1),
-                destination=resampled,
-                src_transform=src.transform,
-                src_crs=src.crs,
-                dst_transform=dst_transform,
-                dst_crs=crs,
-                resampling=Resampling.nearest,
-                num_threads=4,
-            )
-            data = resampled
-            transform = dst_transform
-        else:
-            data = src.read(1)
-            transform = src.transform
-
-        # Apply mask if provided. Using original nodata value for less confusion
-        if mask is not None:
-            data = np.where(mask, data, src.nodata)
-
-        # Save the band
-        profile = src.profile
-        profile.update(
-            {
-                "height": data.shape[0],
-                "width": data.shape[1],
-                "transform": transform,
-                "dtype": src.dtypes[0],
-                "nodata": src.nodata,
-                "crs": crs,
-            }
-        )
-
-        return profile, data
+            return profile, data
 
 
 def download_resample(tile_path, resolution, item, band_name, mask=None, output_folder=None):
@@ -118,9 +138,13 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
         output_file_path,
         *band_paths_ordered,
     ]
-    result = subprocess.run(vrt_build_command, shell=True, check=True)
-    print(result.stdout)
-    print(result.stderr)
+
+    try:
+        subprocess.run(vrt_build_command, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"gdalbuildvrt failed (exit {e.returncode}): {e.stderr.decode()}") from e
+    except OSError as e:
+        raise RuntimeError(f"Failed to launch gdalbuildvrt: {e}") from e
 
     if create_gtiff:
         # Create a GTiff from the VRT for easier exporting.
@@ -138,19 +162,42 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
             output_file_path,
             output_file_path_gtiff,
         ]
-        subprocess.run(geotiff_build_command, shell=True, check=True)
+        try:
+            subprocess.run(geotiff_build_command, check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"gdal_translate failed (exit {e.returncode}): {e.stderr.decode()}"
+            ) from e
+        except OSError as e:
+            raise RuntimeError(f"Failed to launch gdal_translate: {e}") from e
+
+    if not os.path.exists(output_file_path):
+        raise FileNotFoundError(f"Output VRT file was not created: {output_file_path}")
+
+    if create_gtiff and not os.path.exists(output_file_path_gtiff):
+        raise FileNotFoundError(f"Output GeoTIFF file was not created: {output_file_path_gtiff}")
 
     return output_file_path
 
 
+@retry(
+    retry=retry_if_exception_type((requests.RequestException, IOError)),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+)
 def download_file(url, output_path):
-    with open(output_path, "wb") as f:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(
-                f"Failed to download file from {url}. Status code: {response.status_code}"
-            )
-        f.write(response.content)
+    try:
+        with requests.get(url, stream=True) as response:
+            response.raise_for_status()
+            with open(output_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        return True
+    except (requests.RequestException, IOError) as e:
+        logger.info(f"Error downloading {url}: {e}")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return False
 
 
 def process_scene(
@@ -173,7 +220,7 @@ def process_scene(
 
             metadata_url = item.assets[metadata_asset_name].href
             metadata_ext = os.path.splitext(metadata_url)[1]
-            metedata_out_file_name = f'{item.id}_{metadata_asset_name}{metadata_ext}'
+            metedata_out_file_name = f"{item.id}_{metadata_asset_name}{metadata_ext}"
             metadata_out_path = os.path.join(output_folder, metedata_out_file_name)
             download_file(metadata_url, metadata_out_path)
             metadata_file_paths[metadata_asset_name] = metadata_out_path
@@ -185,26 +232,31 @@ def process_scene(
         if len(mask_bands) > 1 and not mask_band_processor:
             raise ValueError("Maskband processing func required for multiple mask bands")
 
-        print("Downloading mask bands and resampling to target resolution...")
+        logger.info("Downloading mask bands and resampling to target resolution...")
         maskbands = {}
         for mask_band_name in mask_bands:
             mask_band_path = item.assets[mask_band_name].href
             meta_and_mask = load_resample(mask_band_path, resolution)
             maskbands[mask_band_name] = meta_and_mask
 
+        # The mask band should contian 1 for pixels to keep and 0 for pixels to mask
         if not mask_band_processor and len(mask_bands) == 1:
-            mask_metadata, mask = maskbands[mask_bands.keys()[0]]
+            mask_metadata, mask = maskbands[mask_bands[0]]
         else:
-            print('Processing mask bands to binary mask.')
-            mask_metadata, mask = mask_band_processor(
-                maskbands, resolution, item, output_folder
+            logger.info("Processing mask bands to binary mask.")
+            mask_metadata, mask = mask_band_processor(maskbands, resolution, item, output_folder)
+
+        # Validate that the mask is binary
+        if not np.isin(np.unique(mask), [0, 1]).all():
+            raise ValueError(
+                f"Mask must be binary (0 and 1 values only). Values found: {np.unique(mask)}"
             )
 
     # Step 3: Download and resample bands of interest
-    print("Downloading band data and resampling...")
+    logger.info("Downloading band data and resampling...")
     band_paths = {}
     for band_name in band_names:
-        print(f"Downloading and resampling band {band_name}...")
+        logger.info(f"Downloading and resampling band {band_name}...")
         band_path = item.assets[band_name].href
         band_name, out_path = download_resample(
             band_path, resolution, item, band_name, mask, output_folder=output_folder
@@ -214,23 +266,32 @@ def process_scene(
     if save_mask:
         mask_band_path = save_band(mask_metadata, mask, item, "mask", resolution, output_folder)
         band_paths["mask"] = mask_band_path
+        band_names.append("mask")
 
     # Step 4: If custom band processing is provided, apply it
     # To bandorder will be specified by the names provided in band_names
     if custom_band_processor:
-        print("Applying custom band processing...")
+        logger.info("Applying custom band processing...")
         band_paths, band_names = custom_band_processor(
             item, band_paths, band_names, resolution, mask, metadata_file_paths, output_folder
         )
 
     # Step 5: Combine band into a vrt (or GTiff if requested)
-    print(f"Combining bands into single file for tile {item.id}...")
+    logger.info(f"Combining bands into single file for tile {item.id}...")
     vrt_path = os.path.join(
         output_folder, f"{item.id}_{resolution}m_{item.datetime.strftime('%Y-%m-%d')}.vrt"
     )
     combine_bands(vrt_path, band_paths, band_names)
 
     return vrt_path
+
+
+def execution_wrapper(args):
+    try:
+        return process_scene(*args)
+    except Exception as e:
+        item_id = args[0].id if args and args[0] and hasattr(args[0], "id") else "unknown"
+        raise type(e)(f"Error processing item {item_id}: {str(e)}") from e
 
 
 def download_process_parallel(
@@ -247,28 +308,39 @@ def download_process_parallel(
 ):
     output_paths = []
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = []
+    task_args = [
+        (
+            item,
+            bands,
+            resolution,
+            metadata_asset_names,
+            mask_bands,
+            mask_band_processor,
+            save_mask,
+            custom_band_processor,
+            output_folder,
+        )
+        for item in items
+    ]
 
-        for item in items:
-            future = executor.submit(
-                process_scene,
-                item,
-                bands,
-                resolution,
-                metadata_asset_names,
-                mask_bands,
-                mask_band_processor,
-                save_mask,
-                custom_band_processor,
-                output_folder,
-            )
-            futures.append(future)
+    output_paths = []
+    with multiprocessing.Pool(processes=num_workers) as pool:
+        try:
+            results_iter = pool.imap_unordered(execution_wrapper, task_args)
 
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result:
-                output_paths.append(result)
+            with tqdm(total=len(task_args), desc="Processing scenes") as pbar:
+                for result in results_iter:
+                    output_paths.append(result)
+                    pbar.update(1)
+
+        except KeyboardInterrupt:
+            logger.info("\nInterrupted by user. Terminating workers...")
+            pool.terminate()
+            raise
+        except Exception as e:
+            logger.info(f"\nError in worker process: {e}")
+            pool.terminate()
+            raise
 
     return output_paths
 
@@ -305,7 +377,7 @@ def run_pipeline(
         query = {"eo:cloud_cover": {"lt": max_cloud_cover}}
 
     # Search for STAC-items in the STAC catalog
-    print(f"Searching for items from {start_date} to {end_date}...")
+    logger.info(f"Searching for items from {start_date} to {end_date}...")
     t0 = time.time()
     search = catalog.search(
         collections=[stac_collection_name],
@@ -315,11 +387,11 @@ def run_pipeline(
     )
 
     items = search.item_collection()
-    print(f"Found {len(items)} items")
-    print(f"Search took {time.time() - t0:.2f} seconds")
+    logger.info(f"Found {len(items)} items")
+    logger.info(f"Search took {time.time() - t0:.2f} seconds")
 
     # Download all items
-    print("Downloading and processing items...")
+    logger.info("Downloading and processing items...")
     t1 = time.time()
     output_paths = download_process_parallel(
         items,
@@ -334,15 +406,18 @@ def run_pipeline(
         num_workers,
     )
 
-    print(f"\n Download data and created {len(output_paths)} files in {output_folder}")
-    print(f"\nTotal runtime: {time.time() - t1:.2f} seconds")
+    logger.info(f"\n Download data and created {len(output_paths)} files in {output_folder}")
+    logger.info(f"\nTotal runtime: {time.time() - t1:.2f} seconds")
 
 
 @click.command()
 @click.option("--start-date", type=str, required=True, help="Start date in YYYY-MM-DD format")
 @click.option("--end-date", type=str, required=True, help="End date in YYYY-MM-DD format")
 @click.option(
-    "--resolution", required=True, type=int, help="Target resolution in original units (e.g meters for Sentinel-2)"
+    "--resolution",
+    required=True,
+    type=int,
+    help="Target resolution in original units (e.g meters for Sentinel-2)",
 )
 @click.option(
     "--geojson-path",
@@ -353,7 +428,7 @@ def run_pipeline(
 @click.option(
     "--bands",
     type=str,
-    default="green,red,rededge1,rededge2,rededge3,nir08,swir16,swir22",
+    default="green,red,rededge1,rededge2,rededge3,nir08,swir16,swir22,scl,cloud,snow",
     help="Comma-separated list of bands to download and resample. If you want to download mask bands without applying them, specify them here.",
 )
 @click.option(
@@ -400,7 +475,7 @@ def run_pipeline(
         If a single band is provided, it will be used as a mask. This band then has to be binary. \
         If multiple bands are provided, a custom band processor function must be provided. \
         If you simply want to download mask bands without applying them, specify them in the bands option.",
-    default=None
+    default=None,
 )
 @click.option(
     "--save-mask",
@@ -422,12 +497,13 @@ def main(
     mask_bands,
     save_mask,
 ):
-    print("Starting satellite data download pipeline.")
+    logger.info("Starting satellite data download pipeline.")
 
     # TODOs
     # - Only fetch data within geometry if COGs are available using rasterio windowed read
     # - Add standard mask processors for some collections we know
-    # - Allow only downloading without resampling
+    # - Also allow only downloading without resampling
+    # - Handle download failures, retries
 
     bands = bands.split(",")
     metadata_asset_names = metadata_asset_names.split(",") if metadata_asset_names else None
@@ -437,13 +513,25 @@ def main(
     os.makedirs(output_folder, exist_ok=True)
 
     # Set up parallel processing
-    num_workers = max(1, int(multiprocessing.cpu_count() - 1))
-    print(f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores")
+    if num_workers is None:
+        num_workers = max(1, int(multiprocessing.cpu_count() - 1))
+    multiprocessing.set_start_method("spawn")
+    logger.info(f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores")
 
     # Read area of interest
-    print("Reading GeoDataFrame")
-    gdf = gpd.read_file(geojson_path)
-    gdf = gdf.to_crs(epsg=4326)
+    logger.info("Reading GeoDataFrame")
+    try:
+        gdf = gpd.read_file(geojson_path).to_crs(epsg=4326)
+    except Exception as e:
+        raise RuntimeError(f"Failed to read and reproject GeoJSON {geojson_path}: {e}") from e
+
+    if gdf.empty:
+        raise ValueError(f"GeoDataFrame is empty. Please check the input file {geojson_path}.")
+
+    if len(gdf) > 1:
+        raise ValueError(
+            f"GeoDataFrame contains multiple geometries. Please provide a single geometry."
+        )
 
     run_pipeline(
         start_date=start_date,
@@ -460,7 +548,7 @@ def main(
         mask_bands=mask_bands,
         save_mask=save_mask,
     )
-    print("Download Pipeline completed successfully.")
+    logger.info("Download Pipeline completed successfully.")
 
 
 if __name__ == "__main__":
