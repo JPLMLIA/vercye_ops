@@ -133,6 +133,7 @@ def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext,
         raise Exception("Please either specify lai_dir and lai_region OR lai_path.")
 
     if lai_dir and lai_region:
+        # Sometimes the LAI resolution and extent might be heterogenous, so we need to identify the largest extent.
         handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path)
     else:
         handle_reprojection_to_specified_raster(lai_path, mask_path, out_path)
