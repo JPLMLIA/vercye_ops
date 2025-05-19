@@ -13,7 +13,7 @@ nav:
     - 'Generating LAI Data': 'LAI/running.md'
   - 'Vercye':
     - 'Introduction': 'Vercye/intro.md'
-    - 'Running a Yield Study': 'Vercye/running.md'
+    - 'Yield Study Quickstart': 'Vercye/running.md'
     - 'Inputs': 'Vercye/inputs.md'
     - 'Outputs': 'Vercye/outputs.md'
     - 'Meteorological Data': 'Vercye/metdata.md'

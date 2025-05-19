@@ -7,8 +7,9 @@ The VeRCYe pipeline enables large-scale yield studies by organizing simulation d
 
 ## 1. Yield Study Setup
 To run a yieldstudy, you will need two things:
-1. A directory that includes all your regions of interest, APSIM configurations and Reference Data.
-2. A configuration file for VeRCYe, specifying different parameters for the study.
+
+1. **Base Directory**: A directory that includes all your regions of interest, APSIM configurations and Reference Data.
+2. **Configuration**: A configuration file for VeRCYe, specifying different parameters for the study.
 
 We provide an example setup under [Example Setup](vercye_ops/snakemake/example_setup).
 
@@ -44,8 +45,9 @@ Each **Region of Interest (ROI)** is represented as a GeoJSON file within its re
 ### Converting Shapefiles to GeoJSON
 We expect your data to initially be a **shapefile (.shp)**. To extract individual regions into GeoJSONs, we provide a conversion script.
 If your shapefile has
-- **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion.
-- **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile has a uniform administrative level.
+
+- A: **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion. Then proceed with B.
+- B: **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile has a uniform administrative level.
 
 > [!Warning]
 > Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
@@ -73,6 +75,7 @@ Years should be named numerically (e.g., `2024`, `2025`) to represent different 
 Each **timepoint** represents a simulation scenario, e.g., using all available meteorological data vs. limiting it to 30 days before the latest observation.
 
 Each timepoint must define:
+
 - **APSIM Simulation Start & End Dates**
 - **Meteorological Data Start & End Dates**
 - **LAI (Leaf Area Index) Data Start & End Dates**
@@ -84,9 +87,16 @@ Years and Timepoints are referenced in `snakemake_config.yaml` using their respe
 ## 4. APSIMX Templates
 
 ### Purpose
-Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop growth parameters and the dates (`Models.Clock`) in the APSIM file must align with the simulation dates set in `snakemake_config.yaml`.
+Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop and soil and other parameters for APSIM. The dates (`Models.Clock`) in the APSIM file must align with the simulation dates set in `snakemake_config.yaml`! This is often the only change that needs to be applied for using the same APSIM files for different years.
+
+If you are not using the `setup_helper.ipynb` you will likely want to copy the same file to a number of directories (regions):
+```
+cd path/to/apsim_simulation_20240607/2021/T-0  # Path where regions exist (e.g., from above shapefile conversion)
+source_file="/path/to/my/template.apsimx"; for dir in *; do cp "$source_file" "${dir}/${dir}_template.apsimx"; done
+```
 
 Adjustments for soil properties and simulation constraints must be manually configured with domain knowledge.
+
 
 ---
 
@@ -112,7 +122,7 @@ In this case a total reference value is ommited to avoid misinterpretation.
 
 ---
 
-## 6. Snakemake Configuration (`snakemake_config.yaml`)
+## 6. Snakemake Configuration
 This file defines the study parameters and links the **simulation head directory** with the pipeline. You will have to adapt this fill for each yield study. An example configuration can be found here [example configuration file](https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml). We reccomend, to use this as a template for adjustment. The following section describes the meaning of the paramters, but does not represent the syntac for how to organize the config. For this please refer to the example.
 
 ### Key Parameters

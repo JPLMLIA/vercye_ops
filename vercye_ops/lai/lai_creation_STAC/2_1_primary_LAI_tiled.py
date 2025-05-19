@@ -268,6 +268,12 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
     start = time.time()
     logger.info(f"Using {num_cores} parallel workers")
 
+    if resolution != 20:
+        logger.warning(
+            f"Currently only the 20m model is implemented in the STAC pipeline. If you are sure you want to use {resolution}m, remove this code.."
+        )
+        return
+
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
 

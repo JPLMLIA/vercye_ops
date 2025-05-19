@@ -1,4 +1,4 @@
-# Running a Yield Study
+# Quickstart - Yield Study
 
 This guide walks you through the process of setting up and running a yield study using our framework, which helps you simulate crop yields across different regions.
 
@@ -6,9 +6,9 @@ This guide walks you through the process of setting up and running a yield study
 
 Before starting, ensure you have:
 
-- Completed the [setup](../index.md#Setup) with all requirements
+- Completed the [setup](../index.md#Setup) and installed all requirements
 - [Generated LAI data](../LAI/running.md) for your region of interest
-- (Optional) Downloaded historical and current CHIRPS precipitation data. Only if using CHIRPS precipitation. [Instructions](metdata.md#chirps)
+- (Optional) [Downloaded](metdata.md#chirps) historical and current CHIRPS precipitation data. Only if using CHIRPS precipitation.
 
 ## Setup Process
 
@@ -17,67 +17,116 @@ Setting up a yield study involves three main steps:
 1. Defining your regions of interest
 2. Configuring your simulation parameters
 3. Preparing your base directory structure
+4. Adding reference (vlidation) data
+
+While the individual steps are detailed in other pages of this living document, on this page we outline the quickstart using our setup helper.
 
 ## 1. Defining Regions of Interest
 
 Your yield study will run simulations for each defined region, typically specified in a shapefile.
 
 **Important requirements for your shapefile:**
-- Contains geometries at the same administrative level only (e.g., all districts, all counties)
+
+- Contains geometries at the same administrative level only (e.g., all geometries are districts OR all counties)
 - Includes an attribute column with region names (e.g., `NAME_2` containing "Cook County", "Orleans Parish")
 
-If your shapefile contains mixed administrative levels, use the helper script:
+If your shapefile contains mixed administrative levels, use the interactive helper script to normalize it to a single level:
 ```
-python apsim/prepare_shapefile.py
+python apsim/prepare_shapefile.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
 ```
 
 ## 2. Defining Your Configuration
 
 Create a configuration file that controls simulation parameters:
 
-0. Create an empty directory that will be your basediretory of your study.
-1. Navigate to `snakemake/example_setup/` and copy one of the example configurations `new_basdir_path/config_template.yaml`.
-2. Modify parameters according to your study needs (years, date ranges, meteorological data sources)
+0. Create an empty directory `new_basedir_path` that will be your basediretory of your study.
+1. Navigate to `snakemake/example_setup/` and copy one of the example configurations to `new_basedir_path/config_template.yaml`.
+2. Modify parameters according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper.
 
 The full configuration options are documented in the [Inputs documentation (Section 6)](inputs.md#6-Snakemake-Configuration).
 
 ## 3. Setting Up Your Base Directory
 
-The base directory is the heart of your individual study and contains region-specific geometries and APSIM simulation files. It should contain a directory tree with a folder for each year, timepoint and region and holds the actual polygons and APSIM configurations per region. The required structure of this directory is detailed in [Inputs documentation (Section 1)](inputs.md#1-Yield-Study-Setup)
+The **base directory** (your study head dir) organizes region-specific geometries and APSIM simulations by year, timepoint, and region [Details](inputs.md)
+
+Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this structure – just set the parameters below and run it.
+
+1. **Input shapefile & region names**
+
+    - **`SHAPEFILE_PATH`**  Path to your `.shp` containing all simulation-level regions (all geometries must share the same admin level).
+
+    - **`ADMIN_COLUMN_NAME`**  Attribute column holding each region’s identifier (e.g. `NAME_2`).
+
+2. **(Optional) Subset regions**
+
+    If you only want a subset of regions (e.g. counties in Texas & Colorado), set:
+
+    - **`FILTER_COL_NAME`** Column for the higher-level admin unit (e.g. `NAME_1`).
+
+    - **`FILTER_COL_VALUES`** List of values to keep, e.g. `['Texas', 'Colorado']`.  
+      To include *all* regions, set `FILTER_COL_NAME = None` and leave `FILTER_COL_VALUES = []`.
+
+3. **Intermediate & output folders**
+
+    - **`GEOJSONS_FOLDER`** Temporary folder where the notebook extracts each region as a GeoJSON polygon.
+
+    - **`OUTPUT_DIR`** Your new base directory. **Place** `config_template.yaml` (your Snakemake config) here.
+
+    - **`SNAKEFILE_CONFIG`** Path to that prefilled `config_template.yaml` (it lives in `OUTPUT_DIR/config_template.yaml`; you can leave its `regions:` field empty).
+
+4. **APSIM configuration templates**
+
+    Rather than manually copying and editing an APSIM file for each year/region, the helper will:
+
+    1. Copy a template for each higher-level region (e.g. state) into every year’s folder.  
+    2. Auto-adjust the simulation dates.
+
+    Configure this by setting:
+
+    - **`APSIM_TEMPLATE_PATHS_FILTER_COL_NAME`** Admin column that groups regions sharing a template (e.g. `NAME_1`).
+
+    - **`APSIM_TEMPLATE_PATHS`** Dictionary mapping column values to template paths; e.g.  
+      ```yaml
+      APSIM_TEMPLATE_PATHS:
+        Texas:    /path/to/texas_template.yaml
+        Colorado: /path/to/colorado_template.yaml
+      ```
+
+    - **Single-template setup** If you only require one APSIM file for *all* regions, set:  
+      ```yaml
+      APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: None
+      APSIM_TEMPLATE_PATHS:
+        all: /your/path/to/generalApsimTemplate.yaml
+      ```
 
 
-Our setup helper simplifies and guides this setup process. To get startet you will have to:
-1. Open the Jupyter notebook `vercye_setup_helper.ipynb` and adapt the following parameters:
 
-- **`SHAPEFILE_PATH`**: The path to your .shp file containing all (simulation level) regions. (Ensure they all geometreies have the same admin level).
-- **`ADMIN_COLUMN_NAME`**: The column in the attribute table of the shapefile that contains the name of each region (e.g often `NAME_2`...)
+Once all parameters are defined, run the notebook. It will:
 
-Sometimes, you might only want to run the yieldstudy on a subset of the regions in you shapefile. Let's say your shapefile contains all counties in the US, however you only wish to run it on all counties in Texas and Colorado. You can filter these by specifying:
--** `FILTER_COL_NAME`**: The column in the attribute table holding the higher level administrative names (e.g `NAME_1`) with values such as `Texas` and `Oregon`.
--** `FILTER_COL_VALUES`**: An array of all values that should be kept. So for example here `['Texas', 'Colorado']`.
-However, this step is optional, if you do not wish to only run on a subset, leave the array empty and set `FILTER_COL_NAME` to None.
+- Create your year/timepoint/region directory tree under `OUTPUT_DIR`.  
+- Generate a final `config.yaml` that merges your Snakemake settings with the selected regions.
 
--**`GEOJSONS_FOLDER`**: An intermediate folder into which all geoemtries from the shapefile are initally extracted as polygons. This is **NOT** your base directory (study head dir)!
+## 4. Adding Reported Validation Data
 
-- **`OUTPUT_DIR`**: Your base directory (study head dir). In this directory your whole setup will be saved. Ensure you have placed the snakemake configuration file in here, with the name `config_template.yaml`.
-- **`SNAKEFILE_CONFIG`**: The prefilled configuration file you have setup in the previous step. The regions value may be left empty. It should be saved under `OUTPUT_DIR/config_template.yaml`.
+The VeRCYE pipeline can automatically generate validation metrics (e.g., R², RMSE) if reported data is available. To enable this, you must manually add validation data for each year.
 
-Now an essential part is to have individual APSIM configuration files for every season and region of your yield study. To reduce the manual load of copying each file into into an own directoty and adapting the simulation date range in the APSIM file, the helper script facilitates this process:
-Typically you will have APSIM files for different regions if you are running for example a national scale study. However, the general APSIM configuration stays the same throughout the years for each region, and only the simulation dates change in the file.
-By specyfing a template for each region the APSIM file template for a region will be copied to each years directory and the dates will be automatically be adjusted in by the helper script.
-Now since, we do not want to specify an individual APSIM file for each simulation level region (e.g counties) as these can be houndreds, we typically share a template over a higher admin level (e.g states).
-To match these, the following parameters in the config are used:
+Validation data can be provided at different geographic scales. It may be available at the smallest unit (e.g., ROI level used in simulations) or at a coarser level (e.g., government statistics). You must specify the scale so VeRCYE can aggregate predictions accordingly.
 
+Define aggregation levels in your config file under eval_params.aggregation_levels. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify State: ADMIN_1. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.
 
-- **`APSIM_TEMPLATE_PATHS_FILTER_COL_NAME`**: defines the admin column name which holds the values of the higher level adminstrative region (e.g states such as `Texas` or `Colorado`)
-- **`APSIM_TEMPLATE_PATHS`**: Is a dictionary mapping each of the values in this admin column to the APSIM templates for the regions sharing this configuration.
+For each year and aggregation level, create a CSV file named: `{year}/groundtruth-{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive).
 
-Sometimes, you may not want to specify individual APSIM templates for different regions and have only a single APSIM file for all regions in your study. IN this case, you can simple set `APSIM_TEMPLATE_PATHS_FILTER_COL_NAME` to `None` and set the dictionary to `{'all': '/your/path/to/generalApsimTemplate.yaml'}`
+Example: For 2024 state-level data, the file should be: `basedirectory/2024/groundtruth-State-2024.csv`
+For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/groundtruth-primary-2024.csv`
 
-Once you have set all these parameters, you are ready to run the notebook. This will create your basedirectory setup and a new file called `config.yaml` that will contain all the regions of interest in addition to the values of your previous configured snakemake configuration file.
+Each CSV must include:
+
+- `region`: Region name, matching the cleaned names in your yield study
+- `reported_mean_yield_kg_ha`: Mean yield in kg/ha
+If unavailable, provide reported_yield_kg instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
 
 
-## Running the Yield Study
+## 5. Running the Yield Study
 
 Once your setup is complete:
 
@@ -89,7 +138,7 @@ Once your setup is complete:
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml
    ```
 
-5. For custom CPU core allocation, add the `-c` flag:
+5. For custom CPU core allocation, add the `-c` flag (e.g with 20 cores):
    ```bash
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml -c 20
    ```
@@ -97,3 +146,5 @@ Once your setup is complete:
 ## Output
 
 When the simulation completes, results will be available in your base directory. See the [Outputs Documentation](outputs.md) for details on interpreting the results.
+
+To run the pipeline over the same region(s), either use Snakemake's `-F` flag or delete the log files at `vercye_ops/snakemake/logs_*`. Runtimes are in `vercye_ops/snakemake/benchmarks`.

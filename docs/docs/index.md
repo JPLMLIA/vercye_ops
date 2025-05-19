@@ -11,37 +11,81 @@ Currently the documentation is a work in progress, so please visit again soon.
 
 
 ### Overview
-The VeRCYe pipeline is split into two main components:
-- **LAI Generation**: Downloading of remotely sensed imagery and prediction of Leaf Area Index (LAI) values per pixel.
-- **Yield Simulation and Prediction**: Simulation of numerous likely configurations with APSIM and identification of the best matching simulations
-with the LAI data. Also includes evaluation and reporting tools.
+
+The **VeRCYe** pipeline is split into two main components:
+
+- **LAI Generation**: Download remotely sensed imagery and predict Leaf Area Index (LAI) values per pixel.
+- **Yield Simulation and Prediction**: Simulate numerous likely configurations using APSIM and identify the best-matching simulations with the LAI data. This step also includes evaluation and reporting tools.
+
+---
 
 ### Setup
-1. **Install the requirements**: Navigate to this package's root directory and then run:
 
-`conda install --yes --file requirements.txt`
-or
-`pip install -r requirements.txt`
+#### 0. Clone this repository
 
-Note: As of June 2024, if you use conda, you may need to manually install `Snakemake` and a specific dependency via pip: `pip install snakemake pulp=2.7.0`
+```bash
+git clone https://github.com/JPLMLIA/vercye_ops.git
+```
 
-2. **Install the VeRCYe package**: Navigate to this package's root directory and then run:
-`pip install -e .`
+#### 1. Install the requirements
 
-3. **Install APSIMX**: There are two ways of running APSIM. Either by using the APSIM docker container or by downloading and building the APSIM binary. For the first option, you will only have to set a parameter later when configuring your yieldstudy and the docker container will be automatically build (Ensure you have `docker` installed). For the second option, see the instructions at [vercye_ops/apsim/README.md](vercye_ops/apsim/README.md).
+Navigate to this package's root directory and run:
 
-Note: If running on the UMD Systems, APSIM is already installed under `/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models`.
+```bash
+conda install --yes --file requirements.txt
+# or
+pip install -r requirements.txt
+```
 
-4. **Install jq**: To manipulate json files via the command line, install https://jqlang.github.io/jq/ or if on HPC resources, you might be able to activate it with `module load jq`
+> **Note**: As of June 2024, if using `conda`, you may also need to install `Snakemake` and a specific dependency manually via pip:
+>
+> ```bash
+> pip install snakemake pulp==2.7.0
+> ```
+
+#### 2. Install the VeRCYe package
+
+From the root directory, run:
+
+```bash
+pip install -e .
+```
+
+#### 3. Install APSIMX
+
+There are two options for running APSIM:
+
+- **Using Docker**: Simply set a parameter during configuration of your yield study. The Docker container will build automatically. (Ensure `docker` is installed.)
+- **Building the binary manually**: See instructions in [vercye_ops/apsim/README.md](vercye_ops/apsim/README.md).
+
+> **Note**: If running on UMD systems, APSIM is pre-installed at:
+>
+> ```
+> /gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models
+> ```
+
+#### 4. Install `jq`
+
+To manipulate JSON files via the command line:
+
+- Install from [https://jqlang.github.io/jq/](https://jqlang.github.io/jq/)
+- Or on HPC systems, load it with:
+
+```bash
+module load jq
+```
+
+
 
 ### Running your first yield study
-You will first have to generate **LAI** data from remotely sensed imagery. Refer to the [LAI Creation Guide]() for details.
+You will first have to generate **LAI** data from remotely sensed imagery. Refer to the [LAI Creation Guide](LAI/running.md) for details.
 
-Once you have generated the **LAI** data, you can run your yield study, by following the [Running a Yieldstudy Guide]().
+Once you have generated the **LAI** data, you can run your yield study, by following the [Running a Yieldstudy Guide](Vercye/running.md).
+
 
 ### Technical Details
 Coming soon.
 
 
 ### Development
-Development tipps and best practices will be filled in here soon.
+Development tipps and best practices are documented under [Development Tipps](devtipps.md)

@@ -1,5 +1,6 @@
 ## Overview
 The VeRCYe pipeline generates outputs at multiple levels of abstraction, including:
+
 - **Pixel-wise yield predictions**
 - **Predictions for each region of interest (ROI)**
 - **Aggregated insights across multiple ROIs**
@@ -92,7 +93,7 @@ The aggregated outputs are produced for each year-timepoint combination. They co
 
 - **`agg_yield_estimates_{agglevel}_suffix.csv`**: The detailed predictions with debug data from all simulation ROIs aggregated by the specified column from the config aggregation level. If `primary`, it is the simulation level data.
 
--**`agg_laicurves_suffix.html`**: Interactive visualization of the LAI data from all regions in the yield study. Enables quicker debugging.
+- **`agg_laicurves_suffix.html`**: Interactive visualization of the LAI data from all regions in the yield study. Enables quicker debugging.
 
 ### Aggregated Maps
 - **`yield_map_{aggregation-level}.png`**: Preview image of all ROI boundaries with the corresponding mean and median yield in kg/ha. The aggregation level defines the name specified in the config by which the simulation level data was aggregated. If `primary`, it is the simulation level.
