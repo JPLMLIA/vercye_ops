@@ -31,7 +31,8 @@ def all_chirps_data_exists(dates, chirps_dir):
     """
     for date in dates:
         chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
-        if not op.exists(chirps_file_path):
+        chirps_prelim_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}_prelim.tif')
+        if not op.exists(chirps_file_path) or not op.exists(chirps_prelim_file_path):
             logger.error("CHIRPS data not found for date %s. This data should be present under: %s", date, chirps_file_path)
             return False
     
@@ -69,6 +70,13 @@ def load_geometry(geometry_path, epsg=4326):
 def read_chirps_file(chirps_dir, date):
     """Generate the file path for a given date and read the CHIRPS data file."""
     chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
+
+    if not op.exists(chirps_file_path):
+        chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}_prelim.tif')
+    
+    if not op.exists(chirps_file_path):
+        raise FileNotFoundError(f"CHIRPS data not found for date {date}.")
+
     return rio.open(chirps_file_path)
 
 def process_centroid_data(chirps_dir, date, centroids):

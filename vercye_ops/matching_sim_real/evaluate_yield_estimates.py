@@ -87,9 +87,10 @@ def create_scatter_plot(preds, obs, obs_years=None):
 
         if use_density:
             fig = px.scatter(
-                x=preds, y=obs,
+                x=preds,
+                y=obs,
                 color=density,
-                color_continuous_scale="Viridis",
+                color_continuous_scale=px.colors.sequential.Viridis,
                 labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)", "color": "Point Density"},
                 marginal_x="histogram",
                 marginal_y="histogram",

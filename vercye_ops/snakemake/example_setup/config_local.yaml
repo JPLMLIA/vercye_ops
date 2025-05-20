@@ -154,7 +154,7 @@ lai_params:
   lai_analysis_mode: 'raster'
   file_ext: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
   min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at scale of lai_resolution
-  cloudcov_threshold: 0.92 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
+  cloudcov_threshold: 0.99 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']
@@ -216,3 +216,5 @@ scripts:
   aggregate_yield_estimates_per_eval_lvl: '../matching_sim_real/aggregate_yield_estimates_per_eval_lvl.py'
   construct_chirps_data: '~/Builds/vercye_ops/vercye_ops/apsim/construct_chirps_precipitation_files.py'
   reproject_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_reproj_mask.py'
+  generate_multiyear_comparison: /Builds/vercye_ops/vercye_ops/matching_sim_real/generate_multiyear_comparison.py'
+
