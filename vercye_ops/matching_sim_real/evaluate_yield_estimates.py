@@ -165,10 +165,10 @@ def get_preds_obs(estimation_fpath, val_fpath):
     # It might occur that the reported mean yield is not available in the input csv.
     # In this case, we can compute it from the reported yield and the total area.
     if 'reported_mean_yield_kg_ha' not in combined.columns:
-        if not 'reported_yield_kg' in combined.columns:
-            raise ValueError("Could not compute metrics as neither 'reported_mean_yield_kg_ha' or 'reported_yield_kg' are not available in the input csv.")
+        if not 'reported_production_kg' in combined.columns:
+            raise ValueError("Could not compute metrics as neither 'reported_mean_yield_kg_ha' or 'reported_production_kg' are not available in the input csv.")
 
-        combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_yield_kg']
+        combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_production_kg']
 
     return {
         'obs': combined['reported_mean_yield_kg_ha'],

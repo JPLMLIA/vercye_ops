@@ -125,7 +125,7 @@ def file_exists_ftp(file_name, ftp_connection):
             raise e
 
 
-def unzip_file(file_path):
+def unzip_file(file_path, output_path):
     """
     Unzips a gzipped file.
 
@@ -139,17 +139,23 @@ def unzip_file(file_path):
     str
         Path to the unzipped file.
     """
-    output_path = file_path.replace('.gz', '')
     try:
-        with open(output_path, 'wb') as out_f:
-            with gzip.open(file_path, 'rb') as in_f:
-                shutil.copyfileobj(in_f, out_f)
-        os.remove(file_path)  # Remove the gzipped file after extraction
+        # open both in a single with-statement
+        with gzip.open(file_path, 'rb') as in_f, open(output_path, 'wb') as out_f:
+            shutil.copyfileobj(in_f, out_f)
     except Exception as e:
-        os.remove(output_path)
-        raise IOError(f"Error unzipping file {file_path}: {e}")
+        # if anything went wrong, remove the partial output
+        logger.warning('REMOVING')
+        if op.exists(output_path):
+            os.remove(output_path)
+    
+        raise e
+    
+    # success: now delete the source .gz
+    os.remove(file_path)
 
     return output_path
+
 
 
 def fetch_chirps_files(daterange, output_dir, connection_pool):
@@ -212,15 +218,15 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
 
             # Remove the prelim file if it exists as it is replaced by the final file now
             if op.exists(chirps_prelim_fpath):
+                logger.warning("REMOVING A")
                 os.remove(chirps_prelim_fpath)
     
     # Try to download the preliminary files for the unavailable dates
     ftp_connection.cwd(CHIRPS_PRELIM_BASEDIR)
     cur_ftp_dir_year = None
     for date in unavailable_dates:
-        chirps_prelim_file_name_original = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
-        chirps_prelim_file_name_out = chirps_prelim_file_name_original.replace('.tif.gz', '_prelim.tif')
-        output_fpath = op.join(output_dir, chirps_prelim_file_name_out)
+        chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
+        output_fpath = op.join(output_dir, chirps_prelim_file_name)
         year = date.year
         if cur_ftp_dir_year != year:
             try:
@@ -232,18 +238,19 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
                 remaining_dates = daterange[daterange.index(date):]
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
+        
+        unzipped_prelim_filepath = output_fpath.replace('.tif.gz', '_prelim.tif')
+        if not op.exists(unzipped_prelim_filepath):
+            logger.info(f"Chirps preliminary data not existing locally for date {date}. Fetching and storing to: \n%s", output_fpath)
 
-        if not op.exists(output_fpath):
-            logger.info("Chirps preliminary data not existing locally for date {date}. Fetching and storing to: \n%s", output_fpath)
-
-            if not file_exists_ftp(chirps_prelim_file_name_original, ftp_connection):
+            if not file_exists_ftp(chirps_prelim_file_name, ftp_connection):
                 logger.error(f"Neither Final nor Preliminary CHIRPS product available for date: %s", date)
                 continue
 
             try:
-                download_file_ftp(chirps_prelim_file_name_original, output_fpath, ftp_connection)
+                download_file_ftp(chirps_prelim_file_name, output_fpath, ftp_connection)
                 if output_fpath.endswith('.gz'):
-                    output_fpath = unzip_file(output_fpath)
+                    output_fpath = unzip_file(output_fpath, unzipped_prelim_filepath)
             except Exception as e:
                 logger.error(f"Error downloading file {chirps_prelim_file_name}: {e}")
                 failed_downloads.append(date)

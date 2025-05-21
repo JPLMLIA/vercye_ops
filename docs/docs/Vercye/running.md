@@ -123,7 +123,7 @@ Each CSV must include:
 
 - `region`: Region name, matching the cleaned names in your yield study
 - `reported_mean_yield_kg_ha`: Mean yield in kg/ha
-If unavailable, provide reported_yield_kg instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
+If unavailable, provide `reported_production_kg` instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
 
 
 ## 5. Running the Yield Study

@@ -26,21 +26,7 @@ def compute_global_summary(regions_summary):
     mean_yield_kg = total_yield_production_kg / total_area_ha
 
     # Add total reported production and mean reported yield if all regions have reported data
-    if 'reported_yield_kg' in regions_summary.columns:
-        reported_regions_data = regions_summary[~regions_summary['reported_yield_kg'].isna()]
-
-        if regions_summary['reported_yield_kg'].isna().any():
-            logger.warning('Some regions have NaN reported yield. Not reporting.')
-            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_yield_kg'].isna()]['region'].values}")
-
-            reported_total_production_ton = None
-            mean_reported_yield_kg = None
-        else:
-            reported_total_production_kg = reported_regions_data['reported_yield_kg'].sum()
-            reported_total_production_ton = reported_total_production_kg / 1000
-            cropmap_areas_ha = reported_regions_data['total_area_ha'].sum()
-            mean_reported_yield_kg = reported_total_production_kg / cropmap_areas_ha
-    elif 'reported_mean_yield_kg_ha' in regions_summary.columns:
+    if 'reported_mean_yield_kg_ha' in regions_summary.columns:
         reported_regions_data = regions_summary[~regions_summary['reported_mean_yield_kg_ha'].isna()]
 
         if regions_summary['reported_mean_yield_kg_ha'].isna().any():
@@ -54,6 +40,20 @@ def compute_global_summary(regions_summary):
             reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
             reported_total_production_ton = reported_total_production_kg / 1000
             mean_reported_yield_kg = reported_total_production_kg / cropmask_areas_ha
+    elif 'reported_production_kg' in regions_summary.columns:
+        reported_regions_data = regions_summary[~regions_summary['reported_production_kg'].isna()]
+
+        if regions_summary['reported_production_kg'].isna().any():
+            logger.warning('Some regions have NaN reported yield. Not reporting.')
+            logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_production_kg'].isna()]['region'].values}")
+
+            reported_total_production_ton = None
+            mean_reported_yield_kg = None
+        else:
+            reported_total_production_kg = reported_regions_data['reported_production_kg'].sum()
+            reported_total_production_ton = reported_total_production_kg / 1000
+            cropmap_areas_ha = reported_regions_data['total_area_ha'].sum()
+            mean_reported_yield_kg = reported_total_production_kg / cropmap_areas_ha
     else:
         reported_total_production_ton = None
         mean_reported_yield_kg = None
@@ -190,8 +190,8 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
         logger.info('Loading groundtruth data...')
         gt = pd.read_csv(groundtruth_path)
         cols = ['region']
-        if 'reported_yield_kg' in gt.columns:
-            cols.append('reported_yield_kg')
+        if 'reported_production_kg' in gt.columns:
+            cols.append('reported_production_kg')
         if 'reported_mean_yield_kg_ha' in gt.columns:
             cols.append('reported_mean_yield_kg_ha')
 
@@ -296,7 +296,7 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
                     <th>Estimated Median Yield (kg/ha)</th>
                     {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
                     <th>Estimated Total Production (t)</th>
-                    {'<th>Reported Total Production (t)</th>' if 'reported_yield_kg' in regions_summary.columns else ''}
+                    {'<th>Reported Total Production (t)</th>' if 'reported_production_kg' in regions_summary.columns else ''}
                     {'<th>Estimation Error (kg/ha)</th>' if evaluation_results is not None else ''}
                     <th>{crop_name} Area (ha)</th>
                 </tr>
@@ -312,7 +312,7 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
                         <td>{int(row['median_yield_kg_ha'])}</td>
                         {f'<td>{int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A" }</td>' if 'reported_mean_yield_kg_ha' in row else ''}
                         <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
-                        {f'<td>{"{:,.2f}".format((row["reported_yield_kg"] / 1000)) if not pd.isna(row["reported_yield_kg"]) else "N/A"}</td>' if 'reported_yield_kg' in row else ''}
+                        {f'<td>{"{:,.2f}".format((row["reported_production_kg"] / 1000)) if not pd.isna(row["reported_production_kg"]) else "N/A"}</td>' if 'reported_production_kg' in row else ''}
                         {f'<td>{int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
                         <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
                     </tr>

@@ -32,7 +32,7 @@ def all_chirps_data_exists(dates, chirps_dir):
     for date in dates:
         chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
         chirps_prelim_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}_prelim.tif')
-        if not op.exists(chirps_file_path) or not op.exists(chirps_prelim_file_path):
+        if not op.exists(chirps_file_path) and not op.exists(chirps_prelim_file_path):
             logger.error("CHIRPS data not found for date %s. This data should be present under: %s", date, chirps_file_path)
             return False
     

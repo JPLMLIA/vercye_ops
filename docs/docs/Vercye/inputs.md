@@ -107,13 +107,13 @@ Hereby, `aggregation level`, specifies how the simulation level regions should b
 ### Reference CSV Specification
 | Column Name               | Description |
 |---------------------------|-------------|
-| `region`                  | Name matching GeoJSON folder |
+| `region`                  | Name matching GeoJSON folder (for `primary aggregation level`) or matching column values for custom aggregation level |
 | `reported_mean_yield_kg_ha` | Mean yield (kg/ha), if available |
-| `reported_yield_kg`        | Total yield (kg) (optional, used to derive mean yield) |
+| `reported_production_kg`        | Total production (kg) (optional, used to derive mean yield) |
 
-If `reported_yield_kg` is provided, the mean yield is computed as:
+If `reported_production_kg` is provided, the mean yield is computed as:
 ```plaintext
-mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
+mean_yield_kg_ha = reported_production_kg / cropland_area_ha
 ```
 with cropland_area_ha being the **computed cropland_area_ha** based on the provided cropland map!.
 
