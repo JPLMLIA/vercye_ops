@@ -192,12 +192,11 @@ def download_file(url, output_path):
             with open(output_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-        return True
     except (requests.RequestException, IOError) as e:
-        logger.info(f"Error downloading {url}: {e}")
+        logger.error(f"Error downloading {url}: {e}")
         if os.path.exists(output_path):
             os.remove(output_path)
-        return False
+        raise e
 
 
 def process_scene(
@@ -334,11 +333,11 @@ def download_process_parallel(
                     pbar.update(1)
 
         except KeyboardInterrupt:
-            logger.info("\nInterrupted by user. Terminating workers...")
+            logger.error("\nInterrupted by user. Terminating workers...")
             pool.terminate()
             raise
         except Exception as e:
-            logger.info(f"\nError in worker process: {e}")
+            logger.error(f"\nError in worker process: {e}")
             pool.terminate()
             raise
 
@@ -406,7 +405,7 @@ def run_pipeline(
         num_workers,
     )
 
-    logger.info(f"\n Download data and created {len(output_paths)} files in {output_folder}")
+    logger.info(f"\n Downloaded data and created {len(output_paths)} files in {output_folder}")
     logger.info(f"\nTotal runtime: {time.time() - t1:.2f} seconds")
 
 

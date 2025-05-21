@@ -295,7 +295,7 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
     logger.info(f"Time taken to identify most common CRS: {time.time()-t0:.2f} seconds")
 
     # Divide files into batches for each worker
-    batch_size = len(vrt_files) // num_cores
+    batch_size = max(1, len(vrt_files) // num_cores)
     file_batches = []
 
     for i in range(num_cores):

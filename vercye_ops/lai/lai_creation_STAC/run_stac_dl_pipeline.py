@@ -21,8 +21,8 @@ def is_within_date_range(file_path: str, start_date: datetime.date, end_date: da
     """
     try:
         basename = os.path.basename(file_path)
-        # Expecting format: prefix_YYYYMMDD_suffix
-        date_str = basename.split("_")[-3]
+        date_str = basename.split("_")[-1]
+        date_str = date_str.split(".")[0]  # Remove file extension
         file_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         return start_date <= file_date <= end_date
     except Exception as e:
@@ -53,6 +53,7 @@ def run_pipeline(
     out_dir: str,
     region_out_prefix: str,
     from_step: int = 0,
+    num_workers: int = 1
 ):
     """
     Run the LAI creation pipeline in sequential steps.
@@ -106,14 +107,15 @@ def run_pipeline(
             lai_dir,
             str(resolution),
             "--start-date", start_date,
-            "--end-date", end_date
+            "--end-date", end_date,
+            "--num-cores", str(num_workers),
         ]
         run_subprocess(cmd, "Compute LAI for each tile")
 
-    # Step 2: Clean up intermediate tiles
+    # Step 2: Clean up original tiles
     if from_step <= 2:
-        logger.info("Deleting intermediate LAI tiles outside date range or mismatched resolution...")
-        pattern = f"{lai_dir}/*_{resolution}m_*_LAI_tile.tif"
+        logger.info("Deleting original tiles")
+        pattern = f"{tiles_out_dir}/*_{resolution}m_*.*"
         for fpath in glob(pattern):
             if is_within_date_range(fpath, start_date_dt, end_date_dt):
                 try:
@@ -169,7 +171,10 @@ def run_pipeline(
     "--from-step", type=click.IntRange(0, 3), default=0,
     help="Pipeline step to start from (0: download, 1: tile LAI, 2: cleanup, 3: VRT build). Use on failure to resume."
 )
-def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_prefix, from_step):
+@click.option(
+    "--num-workers", type=int, default=1,
+)
+def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_prefix, from_step, num_workers):
     """
     Entry point for the LAI creation pipeline.
     """
@@ -181,7 +186,8 @@ def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_pre
             geojson_path,
             out_dir,
             region_out_prefix,
-            from_step
+            from_step,
+            num_workers
         )
     except Exception as e:
         logger.error(f"Pipeline terminated with error: {e}")
