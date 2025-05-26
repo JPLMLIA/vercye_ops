@@ -7,6 +7,7 @@ from datetime import datetime
 import numpy as np
 import click
 import pandas as pd
+import pyarrow.parquet as pq
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -23,6 +24,8 @@ POWER_TO_APSIM = {'YEAR': 'year',
                   'ALLSKY_SFC_SW_DWN':'radn',
                   'PRECTOTCORR':'rain',
                   'data_type': 'data_type'}
+
+# Units for APSIM weather data
 APSIM_UNITS = {'year':'()',
                'day': '()',
                'mint': '(oC)',
@@ -33,6 +36,7 @@ APSIM_UNITS = {'year':'()',
                'radn':'(MJ/m^2)',
                'code': '()',
                'data_type': '()'}
+
 # Define how many decimal places to keep for projected data
 APSIM_DECIMALS = {'WS2M': 2,
                   'T2M_MAX': 2,
@@ -75,7 +79,32 @@ def parse_weather_filename(filename):
     return lat, lon, start, end
 
 
-def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, fallback_precipitation):
+def load_chirps_precipitation(start_date, end_date, chirps_file, column_name):
+    """
+    Loads the chirps precipitation data from the precomputed chirps file.
+    """
+
+    logger.info("Using CHIRPS precipitation data for the given date range.")
+    required_dates = pd.date_range(start_date, end_date)
+
+    parquet_file = pq.ParquetFile(chirps_file)
+    column_names = parquet_file.schema.names
+    if column_name not in column_names:
+        raise KeyError(f"CHIRPS data incomplete. {column_name} not found in CHIRPS data.")
+
+    chirps_data_unfiltered = pd.read_parquet(chirps_file, columns=[column_name])
+    chirps_data = chirps_data_unfiltered.loc[required_dates.strftime('%Y-%m-%d')]
+    chirps_data.index = pd.to_datetime(chirps_data.index)
+
+    # Check for missing dates
+    missing_dates = required_dates.difference(chirps_data.index)
+    if not missing_dates.empty:
+        raise ValueError(f"CHIRPS data is missing for the following dates: {missing_dates.tolist()}")
+
+    return chirps_data[column_name]
+
+
+def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, fallback_precipitation, region, chirps_file):
     """
     Load CSV data and prepare it by adding day of year and measurement type. Add
     weather projections if necessary
@@ -97,13 +126,28 @@ def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, 
 
     # Using CHIRPS data if specified, by simply replacing the PRECTOTCORR column
     if precipitation_src.lower() == 'chirps':
-        if 'PRECTOTCORR_CHIRPS' not in df.columns:
+        try:
+            start_date = df.index.min()
+            end_date = df.index.max()
+
+            chirps_data = load_chirps_precipitation(
+                start_date=start_date,
+                end_date=end_date,
+                chirps_file=chirps_file,
+                column_name=region
+            )
+        except KeyError as e:
             if not fallback_precipitation:
-                raise KeyError('CHIRPS data not found in the input file.')
-            logger.warning('CHIRPS data not found in the input file. Using original precipitation fallback.')
-        else:
-            logger.info('Using CHIRPS data for precipitation.')
-            df['PRECTOTCORR'] = df['PRECTOTCORR_CHIRPS']
+                raise KeyError('CHIRPS region data not found.')
+        except ValueError as e:
+            if not fallback_precipitation:
+                raise KeyError('CHIRPS region data incomplete.')
+
+        logger.info('Using CHIRPS data for precipitation.')
+        if len(chirps_data) != len(df):
+            raise ValueError("Unexpected Chirps datalength.")
+            
+        df['PRECTOTCORR'] = chirps_data
 
     # Add year and day of year columns to prep for .met export
     df.insert(0, 'YEAR', df.index.year)
@@ -194,7 +238,7 @@ def get_tav_amp(df):
     return tav, amp
 
 
-def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_precipitation, output_dir, precipitation_src):
+def create_met_file(weather_data_fpath, lon, lat, sim_end_date, fallback_precipitation, output_dir, precipitation_src, chirps_file):
     """
     Processes weather data for APSIM simulations, integrating measured and forecasted data, and writing to a .met file.
     """
@@ -202,16 +246,13 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_pr
     ###################################
     # Extract basic info and run error checking
 
-    #lat, lon, start_date, end_date = parse_weather_filename(Path(weather_data_fpath).name)
-    #output_fpath = Path(op.join(output_dir, f'metdata_lat_{lat}_lon_{lon}_start_{start_date.strftime("%Y-%m-%d")}_simend_{sim_end_date.strftime("%Y-%m-%d")}.met'))
-
     region = Path(output_dir).name
     output_fpath = Path(op.join(output_dir, f'{region}_weather.met'))
 
     ###################################
     # Load, prep, project data and calc tav/amp
 
-    df = load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, fallback_precipitation)
+    df = load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, fallback_precipitation, region, chirps_file)
     tav, amp = get_tav_amp(df)
 
     logger.info('Loaded data from %s', weather_data_fpath)
@@ -253,17 +294,18 @@ def process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_pr
 @click.option('--lon', type=float, required=True, help="Longitude of the location.")
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
 @click.option('--sim_end_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date of the simulation period.")
+@click.option('--chirps_file', type=click.Path(exists=True), required=False, help="Path to the precomputed CHIRPS data file.")
 @click.option('--precipitation_source', type=click.Choice(['chirps', 'ERA5', 'nasa_power'], case_sensitive=False), default='nasa_power', show_default=True, help="Source of precipitation data.")
 @click.option('--fallback_precipitation', help="Fallback to original precipitation data if CHIRPS data is not available.", default=False)
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="File path for the .met output file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(weather_data_fpath, lon, lat, sim_end_date, precipitation_source, fallback_precipitation, output_dir, verbose):
+def cli(weather_data_fpath, lon, lat, sim_end_date, chirps_file, precipitation_source, fallback_precipitation, output_dir, verbose):
     """Wrapper to processess weather data"""
     
     if verbose:
        logger.setLevel('INFO')
 
-    process_weather_data(weather_data_fpath, lon, lat, sim_end_date, fallback_precipitation, output_dir, precipitation_source)
+    create_met_file(weather_data_fpath, lon, lat, sim_end_date, fallback_precipitation, output_dir, precipitation_source, chirps_file)
     
     
 if __name__ == '__main__':

@@ -24,6 +24,10 @@ regions_shp_name: 'ukraine_adm2.shp'
 # after the pipeline finishes, set this to False.
 keep_apsim_db_files: False
 
+# Disactivate the per region html reporting if you want to reduce storage for predictions on manny regions
+# The per region html reports are currently the largest output artefacts
+create_per_region_html_report: True
+
 # Specify one or more simulations
 regions:
   - 'Chornukhynskyi'
@@ -71,6 +75,7 @@ apsim_params:
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
   chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'
+  nasapower_cache_dir : '/nasapower_cache' # Directory to cache NASA POWER data. Only required to set if met_source is 'NASA_POWER'. Avoids heavy rate limiting from NP.
   ee_project: '' # Earth Engine project name. Only required to set if met_source is 'ERA5'.
   time_bounds:
     2021:
@@ -190,7 +195,8 @@ eval_params:
 scripts:
   construct_met_files: '../apsim/construct_met_files.py'
   plot_met_files: '../apsim/generate_weather_report.py'
-  fetch_met_data: '../apsim/fetch_met_data.py'
+  fetch_met_data_nasapower: '../apsim/fetch_nasapower.py'
+  fetch_met_data_era5: '../apsim/fetch_era5.py'
   update_apsimx_template: '../apsim/update_apsimx_template.py'
   constrain_lai_cropmask: '../lai/0_mask_cropmask.py'
   check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'

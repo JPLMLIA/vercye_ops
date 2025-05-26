@@ -149,6 +149,7 @@ This file defines the study parameters and links the **simulation head directory
 - `precipitation_agg_method`: Aggregation method for precipitation data (`mean` or `centroid`). `'NASA_POWER'` only supporting `centroid` currently.
 - `fallback_precipitation`: Set `True` to use the original precipitation data (`NASAPower or ERA5`) if `CHIRPS` is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.
 - `chirps_dir`: Directory containing global CHIRPS precipitation data (tiffs).
+- `nasapower_cache_dir`: Directory to cache NASA_Power meteorological data for specific lat/lon's. Should be the same for different studies to avoid rate limiting.
 - `ee_project`: Project ID in google earth engine. Required if using ERA5 meteorological data.
 - `time_bounds`: Defines timepoint parameters:
   - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
@@ -189,4 +190,3 @@ run at Admin3. So all predictions that share the same Admin2 region would be agg
 
 #### Scripts Configuration
 - Paths to scripts used within the Snakemake pipeline. See the example for details
-
