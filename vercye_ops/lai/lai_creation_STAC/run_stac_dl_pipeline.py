@@ -5,6 +5,9 @@ import logging
 from glob import glob
 from datetime import datetime
 import click
+import pandas as pd
+from dateutil.relativedelta import relativedelta
+
 
 # Configure logging
 logging.basicConfig(
@@ -45,6 +48,15 @@ def run_subprocess(cmd: list, step_desc: str):
     logger.info(f"Completed: {step_desc}")
 
 
+def batch_date_range(start_date, end_date, chunk_days=30):
+        start = start_date
+        end = end_date + relativedelta(days=1)
+        while start < end:
+            next_start = min(start + relativedelta(days=chunk_days), end)
+            yield start.strftime('%Y-%m-%d'), next_start.strftime('%Y-%m-%d')
+            start = next_start
+
+
 def run_pipeline(
     start_date: str,
     end_date: str,
@@ -53,7 +65,8 @@ def run_pipeline(
     out_dir: str,
     region_out_prefix: str,
     from_step: int = 0,
-    num_workers: int = 1
+    num_workers: int = 1,
+    chunk_days: int = 30,
 ):
     """
     Run the LAI creation pipeline in sequential steps.
@@ -85,52 +98,62 @@ def run_pipeline(
     lai_dir = os.path.join(out_dir, "tile-lai")
     merged_lai_dir = os.path.join(out_dir, "merged-lai")
 
-    # Step 0: Download tiles
-    if from_step <= 0:
-        os.makedirs(tiles_out_dir, exist_ok=True)
-        cmd = [
-            sys.executable, "1_download_S2_tiles.py",
-            "--start-date", start_date,
-            "--end-date", end_date,
-            "--resolution", str(resolution),
-            "--geojson-path", geojson_path,
-            "--output-dir", tiles_out_dir
-        ]
-        run_subprocess(cmd, "Download Sentinel-2 tiles")
+    # Create batches to process in chunks
+    for start, end in batch_date_range(start_date_dt, end_date_dt, chunk_days=chunk_days):
+        logger.info(f"Processing date range: {start} to {end}")
 
-    # Step 1: Create LAI per tile
-    if from_step <= 1:
-        os.makedirs(lai_dir, exist_ok=True)
+        # Update start and end dates for this batch
+        start_date = start
+        end_date = end
+
+        # Step 0: Download tiles
+        if from_step <= 0:
+            os.makedirs(tiles_out_dir, exist_ok=True)
+            cmd = [
+                sys.executable, "1_download_S2_tiles.py",
+                "--start-date", start_date,
+                "--end-date", end_date,
+                "--resolution", str(resolution),
+                "--geojson-path", geojson_path,
+                "--output-dir", tiles_out_dir
+            ]
+            run_subprocess(cmd, "Download Sentinel-2 tiles")
+
+        # Step 1: Create LAI per tile
+        if from_step <= 1:
+            os.makedirs(lai_dir, exist_ok=True)
+            cmd = [
+                sys.executable, "2_1_primary_LAI_tiled.py",
+                tiles_out_dir,
+                lai_dir,
+                str(resolution),
+                "--start-date", start_date,
+                "--end-date", end_date,
+                "--num-cores", str(num_workers),
+                "--remove-original",
+            ]
+            run_subprocess(cmd, "Compute LAI for each tile")
+
+    # Step 2: Standardize LAI files
+    standardize_lai_dir = os.path.join(out_dir, "standardized-lai")
+    if from_step <= 2:
         cmd = [
-            sys.executable, "2_1_primary_LAI_tiled.py",
-            tiles_out_dir,
+            sys.executable, "2_2_standardize.py",
             lai_dir,
+            standardize_lai_dir,
             str(resolution),
             "--start-date", start_date,
             "--end-date", end_date,
-            "--num-cores", str(num_workers),
+            "--remove-original"
         ]
-        run_subprocess(cmd, "Compute LAI for each tile")
-
-    # Step 2: Clean up original tiles
-    if from_step <= 2:
-        logger.info("Deleting original tiles")
-        pattern = f"{tiles_out_dir}/*_{resolution}m_*.*"
-        for fpath in glob(pattern):
-            if is_within_date_range(fpath, start_date_dt, end_date_dt):
-                try:
-                    os.remove(fpath)
-                    logger.debug(f"Removed: {fpath}")
-                except OSError as e:
-                    logger.warning(f"Failed to remove {fpath}: {e}")
-        logger.info("Cleanup complete.")
+        run_subprocess(cmd, "Standardize LAI files")
 
     # Step 3: Build daily VRTs
     if from_step <= 3:
         os.makedirs(merged_lai_dir, exist_ok=True)
         cmd = [
             sys.executable, "2_2_build_daily_LAI_vrts.py",
-            lai_dir,
+            standardize_lai_dir,
             merged_lai_dir,
             str(resolution),
             "--region-out-prefix", region_out_prefix,
@@ -172,22 +195,28 @@ def run_pipeline(
     help="Pipeline step to start from (0: download, 1: tile LAI, 2: cleanup, 3: VRT build). Use on failure to resume."
 )
 @click.option(
-    "--num-workers", type=int, default=1,
+    "--num_cores", type=int, default=1,
+    help="Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems. Only used for LAI parallelism."
 )
-def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_prefix, from_step, num_workers):
+@click.option(
+    "--chunk-days", type=int, default=30,
+    help="Number of days to process in each batch. Default is 30 days. Can be used to control storage usage by avoiding to keep more than chunk-days of original tile data on disk at once."
+)
+def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_prefix, from_step, num_cores, chunk_days):
     """
     Entry point for the LAI creation pipeline.
     """
     try:
         run_pipeline(
-            start_date.strftime("%Y-%m-%d"),
-            end_date.strftime("%Y-%m-%d"),
-            resolution,
-            geojson_path,
-            out_dir,
-            region_out_prefix,
-            from_step,
-            num_workers
+            start_date = start_date.strftime("%Y-%m-%d"),
+            end_date = end_date.strftime("%Y-%m-%d"),
+            resolution = resolution,
+            geojson_path = geojson_path,
+            out_dir = out_dir,
+            region_out_prefix = region_out_prefix,
+            from_step = from_step,
+            num_workers = num_cores,
+            chunk_days = chunk_days
         )
     except Exception as e:
         logger.error(f"Pipeline terminated with error: {e}")
