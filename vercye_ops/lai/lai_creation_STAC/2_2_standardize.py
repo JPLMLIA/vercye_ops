@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from glob import glob
 import os
@@ -67,25 +68,26 @@ def determine_target_resolution(lai_file, target_crs="EPSG:4326"):
         logger.info(f"Target resolution: {x_res_target:.8f}, {y_res_target:.8f} in {target_crs}")
         src = None  # Explicitely Close the file
     src = None  # Explicitely Close the file
-    return (x_res_target, y_res_target)
+    return (round(x_res_target, 6), round(y_res_target, 6))
 
-def identify_target_crs_and_resolution(file_paths):
+def identify_target_resolution(file_paths, target_crs):
     """
     Identify the target CRS and resolution based on the input files.
     """
     # Identify the most common CRS
-    target_crs, sample_file = get_most_common_crs(file_paths)
+    most_common_crs, sample_file = get_most_common_crs(file_paths)
     logger.info(f"Most common CRS: {target_crs}")
 
     # Determine target resolution
     target_resolution = determine_target_resolution(sample_file, target_crs)
     logger.info(f"Target resolution: {target_resolution}")
 
-    return target_crs, target_resolution
+    return target_resolution
 
 
-def standardize_lai(lai_files, output_dir, target_crs, target_resolution, remove_original):
-    for lai_file in lai_files:
+def standardize_lai(args):
+    lai_file, output_dir, target_crs, target_resolution, remove_original = args
+    try:
         with rio.open(lai_file) as src:
             # Create output filename
             output_file = Path(lai_file).stem.replace("_LAI_tile", "_LAI_tile_standardized") + ".tif"
@@ -130,6 +132,9 @@ def standardize_lai(lai_files, output_dir, target_crs, target_resolution, remove
                 logger.info(f"Removed original file: {lai_file}")
             except OSError as e:
                 logger.warning(f"Failed to remove {lai_file}: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to process {lai_file}: {e}")
+        raise e
 
 @click.command()
 @click.argument("input-dir", type=click.Path(exists=True))
@@ -155,25 +160,37 @@ def standardize_lai(lai_files, output_dir, target_crs, target_resolution, remove
     help="Remove original files after standardization",
     default=False,
 )
-def main(input_dir, output_dir, resolution, start_date, end_date, remove_original):
+@click.option(
+    "--target-crs",
+    type=str,
+    default="EPSG:4326",
+    help="Target CRS for standardized files. Default is EPSG:4326.",
+    required=False,
+)
+@click.option(
+    "--num-cores",
+    type=int,
+    default=64,
+    help="Number of workers (cores) to use.",
+)
+def main(input_dir, output_dir, resolution, start_date, end_date, remove_original, target_crs, num_cores):
 
-    lai_files = sorted(glob(f"{input_dir}/*_{resolution}m_LAI_tile.tif"))
+    lai_files = sorted(glob(f"{input_dir}/*_{resolution}m_*_LAI_tile.tif"))
     if start_date is not None and end_date is not None:
         lai_files = [vf for vf in lai_files if is_within_date_range(vf, start_date, end_date)]
 
     logger.info(f"Found {len(lai_files)} VRT files at {resolution}m in {input_dir}")
 
-    target_crs, target_resolution = identify_target_crs_and_resolution(
-        lai_files
+    target_resolution = identify_target_resolution(
+        lai_files, target_crs
     )
 
-    standardize_lai(
-        file_paths=lai_files,
-        output_dir=output_dir,
-        target_crs=target_crs,
-        target_resolution=target_resolution,
-        remove_original=remove_original
-    )
+    args = [
+        (lai_file, output_dir, target_crs, target_resolution, remove_original)
+        for lai_file in lai_files
+    ]
+    with ProcessPoolExecutor(max_workers=num_cores) as executor:
+        list(executor.map(standardize_lai, args))
 
 if __name__ == "__main__":
     main()

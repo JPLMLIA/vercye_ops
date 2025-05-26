@@ -7,6 +7,7 @@ from datetime import datetime
 import click
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+import time
 
 
 # Configure logging
@@ -39,13 +40,14 @@ def run_subprocess(cmd: list, step_desc: str):
     If it fails, log error and raise.
     """
     logger.info(f"Starting: {step_desc}\n  Command: {' '.join(cmd)}")
+    t0 = time.time()
     try:
         # Inherit stdout/stderr so user sees real-time output
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error during {step_desc}: return code {e.returncode}")
         raise RuntimeError(f"{step_desc} failed (exit code {e.returncode})")
-    logger.info(f"Completed: {step_desc}")
+    logger.info(f"Completed: {step_desc} in {time.time() - t0:.2f} seconds")
 
 
 def batch_date_range(start_date, end_date, chunk_days=30):
@@ -98,6 +100,9 @@ def run_pipeline(
     lai_dir = os.path.join(out_dir, "tile-lai")
     merged_lai_dir = os.path.join(out_dir, "merged-lai")
 
+    start_date_original = start_date
+    end_date_original = end_date
+
     # Create batches to process in chunks
     for start, end in batch_date_range(start_date_dt, end_date_dt, chunk_days=chunk_days):
         logger.info(f"Processing date range: {start} to {end}")
@@ -136,14 +141,15 @@ def run_pipeline(
 
     # Step 2: Standardize LAI files
     standardize_lai_dir = os.path.join(out_dir, "standardized-lai")
+    os.makedirs(standardize_lai_dir, exist_ok=True)
     if from_step <= 2:
         cmd = [
             sys.executable, "2_2_standardize.py",
             lai_dir,
             standardize_lai_dir,
             str(resolution),
-            "--start-date", start_date,
-            "--end-date", end_date,
+            "--start-date", start_date_original,
+            "--end-date", end_date_original,
             "--remove-original"
         ]
         run_subprocess(cmd, "Standardize LAI files")
@@ -152,13 +158,13 @@ def run_pipeline(
     if from_step <= 3:
         os.makedirs(merged_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_2_build_daily_LAI_vrts.py",
+            sys.executable, "2_3_build_daily_LAI_vrts.py",
             standardize_lai_dir,
             merged_lai_dir,
             str(resolution),
             "--region-out-prefix", region_out_prefix,
-            "--start-date", start_date,
-            "--end-date", end_date
+            "--start-date", start_date_original,
+            "--end-date", end_date_original
         ]
         run_subprocess(cmd, "Build daily VRTs for LAI")
 
@@ -167,11 +173,11 @@ def run_pipeline(
 
 @click.command()
 @click.option(
-    "--start-date", type=click.DateTime(formats=["%Y-%m-%d"]), required=True,
+    "--start-date", type=click.DateTime(formats=["%Y-%m-%d"]), required=False,
     help="Start date in YYYY-MM-DD format."
 )
 @click.option(
-    "--end-date", type=click.DateTime(formats=["%Y-%m-%d"]), required=True,
+    "--end-date", type=click.DateTime(formats=["%Y-%m-%d"]), required=False,
     help="End date in YYYY-MM-DD format."
 )
 @click.option(
@@ -195,7 +201,7 @@ def run_pipeline(
     help="Pipeline step to start from (0: download, 1: tile LAI, 2: cleanup, 3: VRT build). Use on failure to resume."
 )
 @click.option(
-    "--num_cores", type=int, default=1,
+    "--num-cores", type=int, default=1,
     help="Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems. Only used for LAI parallelism."
 )
 @click.option(
@@ -206,6 +212,7 @@ def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_pre
     """
     Entry point for the LAI creation pipeline.
     """
+    
     try:
         run_pipeline(
             start_date = start_date.strftime("%Y-%m-%d"),

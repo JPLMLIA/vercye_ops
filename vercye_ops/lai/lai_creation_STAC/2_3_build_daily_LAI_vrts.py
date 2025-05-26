@@ -12,7 +12,7 @@ import rasterio as rio
 
 def is_within_date_range(vf, start_date, end_date):
     # files are expected to have the pattern f"{s2_dir}/{region}_{resolution}m_{date}_LAI_tile_standardized.tif"
-    date = Path(vf).stem.split("_")[-3]
+    date = Path(vf).stem.split("_")[-4]
     date = datetime.strptime(date, "%Y-%m-%d")
     return start_date <= date <= end_date
 
@@ -106,7 +106,7 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
     # Group files by date
     date_groups = defaultdict(list)
     for region_file in lai_files:
-        date = region_file.split("_")[-3]
+        date = region_file.split("_")[-4]
         date_groups[date].append(region_file)
 
     # Use the most frequent resolution
