@@ -6,7 +6,7 @@ from pathlib import Path
 from pathvalidate import sanitize_filename
 import glob
 
-from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func
+from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_met_max_range
 from generate_aggregated_final_report import create_final_report
 
 def get_valid_regions(wildcards):
@@ -93,9 +93,56 @@ rule construct_chirps_data:
         --output_file {output.csv} > {log}
         """
 
-# Rule to fetch weather data from NASAPower or ERA5 and save as CSV
+# Before creating the met.csv files with the data per region and timepoint, we fetch the cache with the NASA Power data for the region and all timepoints.
+# This needs to be done to avoid multiple calls to the NASA Power API for the same region, which leads to rate limiting.
+# This rule fills the cache with the necessary data for the region by taking the min and max date and avoids multiple processes writing to the same cache file.
+rule fill_nasapower_cache:
+    priority: 1 # This might be a longer running job without dependencies, want to start as early as possible
+    input:
+        geometry = op.join(config['sim_study_head_dir'], config['years'][0], config['timepoints'][0], '{region}', '{region}.geojson'),
+    params:
+        met_start_date, met_end_date = get_met_max_range(config)
+        script_fpath = config['scripts']['fetch_met_data_nasapower'],
+        head_dir = config['sim_study_head_dir'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        region_name = lambda wildcards: wildcards.region,
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
+    log: 
+        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
+    output:
+        csv = temp(op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt')),
+    resources:
+        nasa_power_calls = 1
+    retries: 2
+    shell:
+        """
+        {params.jq_load_statement}
+        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+
+        python {params.script_fpath} \
+        --met_agg_method {params.met_agg_method} \
+        --start_date {params.met_start_date} \
+        --end_date {params.met_end_date} \
+        --variables ALLSKY_SFC_SW_DWN \
+        --variables T2M_MAX \
+        --variables T2M_MIN \
+        --variables T2M \
+        --variables PRECTOTCORR \
+        --variables WS2M \
+        --lon ${{LON}} \
+        --lat ${{LAT}} \
+        --cache_dir {params.np_cache_dir} \
+        --verbose > {log}
+
+        echo "all missing dates fetched" > {output.csv}
+        """
+
+
+# Rule to fetch weather data from NASAPower - at this point the cache should be filled and data is only from the cache and not from the API and save as CSV
 rule fetch_met_data_nasapower:
     input:
+        cache_fill = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_np_cache_filled.txt'),  # Ensure cache fill is done before fetching data
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
         met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
@@ -105,6 +152,7 @@ rule fetch_met_data_nasapower:
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
         met_agg_method = config['apsim_params']['met_agg_method'],
+        np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -130,12 +178,14 @@ rule fetch_met_data_nasapower:
         --lon ${{LON}} \
         --lat ${{LAT}} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
+        --cache_dir {config['apsim_params']['nasapower_cache_dir']} \
         --verbose > {log}
         """
     ruleorder:
         fetch_met_data_nasapower > fetch_met_data_era5  if config['apsim_params']['met_source'].lower() == 'nasapower' else fetch_met_data_era5 > fetch_met_data_nasapower
 
-# Rule to fetch weather data from NASAPower or ERA5 and save as CSV
+# Rule to fetch weather data from ERA5 and save as CSV
+# Not yet using caching
 rule fetch_met_data_era5:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),

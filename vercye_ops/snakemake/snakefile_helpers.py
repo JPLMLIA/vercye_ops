@@ -40,3 +40,20 @@ def get_evaluation_results_path_func(config):
         return output_paths
         
     return get_evaluation_results_path
+
+def get_met_max_range(config):
+    met_min_start = None
+    met_max_end = None
+
+    for year in config['apsim_params']['time_bounds']:
+        for timepoint in config['apsim_params']['time_bounds'][year]:
+            met_start = config['apsim_params']['time_bounds'][year][timepoint]['met_start_date']
+            met_end = config['apsim_params']['time_bounds'][year][timepoint]['met_end_date']
+
+            if met_min_start is None or met_start < met_min_start:
+                met_min_start = met_start
+
+            if met_max_end is None or met_end > met_max_end:
+                met_max_end = met_end
+    
+    return met_min_start, met_max_end

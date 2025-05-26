@@ -165,7 +165,9 @@ def fetch_missing_nasa_power_data(output_fpath, start_date, end_date, variables,
         logger.info("No missing dates found. Using existing data.")
         return df_existing, None
     
-    logger.info("Missing dates found: %s", missing_dates)
+    from_missing = missing_dates.min()
+    to_missing = missing_dates.max()
+    logger.info(f"Missing dates found: {from_missing.date()} to {to_missing.date()}")
 
     missing_data = []
     nodata_vals = []
@@ -219,7 +221,7 @@ def validate_aggregation_options(met_agg_method):
 @click.option('--lon', type=float, required=True, help="Longitude of the location.")
 @click.option('--lat', type=float, required=True, help="Latitude of the location.")
 @click.option('--met_agg_method', type=click.Choice(['mean', 'centroid'], case_sensitive=False), help="Method to aggregate meteorological data in a ROI.")
-@click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
+@click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the .csv file will be saved.")
 @click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the downloaded data will be cached to avoid rate limiting. If not provided, no caching will be done.")
 @click.option('--overwrite-cache', is_flag=True, default=False, help="Enable file overwriting if weather data already exists in cache. Otherwise if a file exists, only missing dates will be appended to the existing file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
@@ -231,12 +233,18 @@ def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, c
     if verbose:
         logger.setLevel('INFO')
 
+    if output_dir is None and cache_dir is None:
+        raise ValueError("At least one of output_dir or cache_dir must be specified.")
+    
+    if output_dir is None:
+        logger.warning("No output_dir specified, data will only be saved to cache.")
+
     # !! Not implemented yet, currently just returns the same coordinates
     lat, lon = get_grid_aligned_coordinates(lat, lon)
     
     if cache_dir is not None:
         cache_region = f"{lon:.6f}_{lat:.6f}".replace('.', '_')
-        cache_fpath = Path(output_dir) / f'{cache_region}_nasapower.csv'
+        cache_fpath = Path(cache_dir) / f'{cache_region}_nasapower.csv'
 
     region = Path(output_dir).stem
     output_fpath = Path(output_dir) / f'{region}_met.csv'

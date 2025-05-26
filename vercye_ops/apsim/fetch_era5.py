@@ -253,7 +253,10 @@ def clean_era5(df):
 @click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
 def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, overwrite, verbose):
-    """Wrapper to fetch_met_data"""
+    """Wrapper to fetch_met_data
+        Currently this is designed specifically for the VeRCYe pipeline,
+        so the output names are hardcoded to match those from a previous version (NasaPower)
+    """
     if verbose:
         logger.setLevel('INFO')
     region = Path(output_dir).stem
