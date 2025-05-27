@@ -101,19 +101,19 @@ Adjustments for soil properties and simulation constraints must be manually conf
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth-{AggregationLevel}-{Year}.csv` in the corresponding year directory.
+If ground-truth yield data is available, it should be included as `groundtruth_{AggregationLevel}-{Year}.csv` in the corresponding year directory.
 Hereby, `aggregation level`, specifies how the simulation level regions should be aggregated and must be aliged with the `eval_params.aggregation_levels` in your `snakemake_config.yaml`. The `year` must match the corresponding year directory.
 
 ### Reference CSV Specification
 | Column Name               | Description |
 |---------------------------|-------------|
-| `region`                  | Name matching GeoJSON folder |
+| `region`                  | Name matching GeoJSON folder (for `primary aggregation level`) or matching column values for custom aggregation level |
 | `reported_mean_yield_kg_ha` | Mean yield (kg/ha), if available |
-| `reported_yield_kg`        | Total yield (kg) (optional, used to derive mean yield) |
+| `reported_production_kg`        | Total production (kg) (optional, used to derive mean yield) |
 
-If `reported_yield_kg` is provided, the mean yield is computed as:
+If `reported_production_kg` is provided, the mean yield is computed as:
 ```plaintext
-mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
+mean_yield_kg_ha = reported_production_kg / cropland_area_ha
 ```
 with cropland_area_ha being the **computed cropland_area_ha** based on the provided cropland map!.
 

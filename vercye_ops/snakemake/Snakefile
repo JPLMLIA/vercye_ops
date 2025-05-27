@@ -5,13 +5,18 @@ import os.path as op
 from pathlib import Path
 from pathvalidate import sanitize_filename
 import glob
+from types import SimpleNamespace
 
-from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func
+
+from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix
 from generate_aggregated_final_report import create_final_report
+
+#######################################
+# Helper functions to facilitate checkpointing
 
 def get_valid_regions(wildcards):
     """Get list of valid regions after checkpoint completion"""
-    # Force dependency on the checkpoint
+    # Forces dependency on the checkpoint
     checkpoints.all_regions_validated.get(**wildcards)
     
     base_dir = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint)
@@ -29,14 +34,8 @@ def get_all_valid_region_outputs(wildcards, suffix):
     valid_regions = get_valid_regions(wildcards)
     return [op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, region, f"{region}_{suffix}") for region in valid_regions]
 
-def get_required_yield_report_suffix():
-    """Get the required suffix for the yield report based on the configuration"""
-
-    # Will alwayscreate a lightweight downsampled png, but html report is only created if specifieds
-    if config["create_per_region_html_report"]:
-        return "html"
-    else:
-        return "png"
+#######################################
+# Main Snakemake pipeline. Rules to run will be derived from here
 
 rule all:
     params:
@@ -44,19 +43,17 @@ rule all:
     input:
         valid_cropmasks = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
         sim_match_report_workaround = expand(op.join('logs_expand_sim_match_report_region', '{year}_{timepoint}.log'), year=config['years'], timepoint=config['timepoints']),
-        # sim_match_output_fpath = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        # converted_lai_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
-        # total_yield_csv = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'), year=config['years'], region=get_valid_regions(wildcards), timepoint=config['timepoints']),
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_laicurves = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        multiyear_report = op.join(config['sim_study_head_dir'], 'multiyear_summary_{}.html'.format(sanitize_filename(config['study_id']))),
 
 # Workaround to expand outputs for individual regions with checkpointing as expand and wildcards don't work well together
 rule expand_sim_match_report_region:
     input:
-        sim_match_report_html_fpath = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix=f'yield_report.{get_required_yield_report_suffix()}')),
+        sim_match_report_html_fpath = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix=f'yield_report.{get_required_yield_report_suffix(config)}')),
     output:
         'logs_expand_sim_match_report_region/{year}_{timepoint}.log',
     shell:
@@ -627,12 +624,15 @@ rule generate_final_report:
                                  region=get_valid_regions(wildcards),
                                  year='{year}',
                                  timepoint='{timepoint}'),
+
         aggregated_yield_estimates = lambda wildcards: expand(
             op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'agg_yield_estimates_{}_{}_{}_{}.csv'
             .format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), wildcards.year, wildcards.timepoint)), 
             agg_level_name=list(config['eval_params']['aggregation_levels'].keys()) + ['primary']),
+
         pixel_level_yieldmap = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 
                                       'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+
         evaluation_results = lambda wildcards: get_evaluation_results_path_func(config)(wildcards)
     params:
         executable_fpath = config['scripts']['generate_final_report'],
@@ -662,3 +662,32 @@ rule generate_final_report:
     run:
         with open(log[0], 'w') as logfile:
             create_final_report(input, output, params, log=logfile, wildcards=wildcards)
+
+rule generate_multiyear_comparison:
+    input:
+        # Using final reports as a proxy for all dependancies, as this simplifies the rule strongly
+        # True dependancies are LAI_stats, aggregated yield estimates, and evaluation results for all years, and timepoints (and regions)
+        final_reports = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints']
+        )
+    params:
+        executable_fpath = config['scripts']['generate_multiyear_comparison'],
+        input_dir = config['sim_study_head_dir'],
+        lai_agg_type = config['lai_params']['lai_aggregation'],
+        adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '',
+        title = f"Multiyear Summary {config['title']}",
+    log:
+        op.join('logs_generate_multiyear_summary', f"{config['study_id']}.log")
+    output:
+        op.join(config['sim_study_head_dir'], f"multiyear_summary_{config['study_id']}.html")
+    shell:
+        """
+        python {params.executable_fpath} \
+        --input-dir {params.input_dir} \
+        --lai-agg-type {params.lai_agg_type} \
+        {params.adjusted_cmd} \
+        --title "{params.title}" \
+        --output-file {output}
+        """

@@ -2,8 +2,10 @@ import click
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import stats
 from sklearn.metrics import mean_squared_error, r2_score
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
 import scipy
 
 from vercye_ops.utils.init_logger import get_logger
@@ -52,76 +54,99 @@ def write_metrics(metrics, out_fpath):
     return out_fpath
 
 
-def colorize_plot_by_density(rawr, values, preds):
-    fallback_kernel_used = False
-
-    try:
-        kernel = scipy.stats.gaussian_kde(values)(values)
-    except:
-        print("KDE failed due to low-dimensional data — using uniform color instead.")
-        kernel = np.ones_like(preds)  # fallback uniform density
-        fallback_kernel_used = True
-
-    rawr.plot_joint(sns.scatterplot, c=kernel, cmap='viridis')
-    rawr.plot_marginals(sns.kdeplot, fill=True)
-
-    # Add colormap for scatter plot (placing it outside the plot)
-    if not fallback_kernel_used:
-        norm = plt.Normalize(kernel.min(), kernel.max())
-        sm = plt.cm.ScalarMappable(cmap='viridis', norm=norm)
-        fig = rawr.figure
-        cbar_ax = fig.add_axes([1, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
-        cbar = fig.colorbar(sm, cax=cbar_ax)
-        cbar.set_label("Point Density")
-        cbar.ax.yaxis.get_offset_text().set_visible(False)
-
-
-def colorize_plot_by_years(rawr, obs_years, preds, obs):
-    # Create a color map based on the years
-    unique_years = np.unique(obs_years)
-    colors = sns.color_palette("hsv", len(unique_years))
-
-    # Create a mapping from year to color
-    year_to_color = {year: colors[i] for i, year in enumerate(unique_years)}
-
-    # Map the colors to the observations
-    obs_colors = [year_to_color[year] for year in obs_years]
-
-    rawr.plot_joint(sns.scatterplot, c=obs_colors)
-    rawr.plot_marginals(sns.kdeplot, fill=True)
-
-
 def create_scatter_plot(preds, obs, obs_years=None):
-    # Pass obs_years if you want to use it for coloring the points
-    # obs_years should be the year of each observation
+    preds = np.asarray(preds)
+    obs   = np.asarray(obs)
 
-    if len(preds) != len(obs):
-        raise ValueError("Length of the predictions and observations do not match.")
-    
-    if obs_years is not None and len(obs_years) != len(obs):
-        raise ValueError("Length of the years and observations do not match.")
+    if obs_years is not None:
+        obs_years = np.asarray(obs_years)
+        if len(obs_years) != len(obs):
+            raise ValueError("Length of obs_years must match length of obs")
 
-    abs_max = max(obs.max(), preds.max())
-    values = np.vstack([preds, obs])
+    # determine plot range
+    abs_max = max(preds.max(), obs.max())
+    xlims = [-5, abs_max + 100]
+    ylims = [-5, abs_max + 100]
 
-    rawr = sns.JointGrid(xlim=(-5, abs_max + 100), ylim=(-5, abs_max + 100), x=preds, y=obs)
-    theta = np.polyfit(preds, obs, 1)
-    y_line = theta[1] + theta[0] * preds
+    # compute regression line
+    slope, intercept = np.polyfit(preds, obs, 1)
+    x_line = np.linspace(0, abs_max, 100)
+    y_line = intercept + slope * x_line
 
+    # choose coloring
     if obs_years is None:
-        colorize_plot_by_density(rawr, values, preds)
+        # try KDE‐based density
+        try:
+            values = np.vstack([preds, obs])
+            density = stats.gaussian_kde(values)(values)
+            use_density = True
+        except Exception:
+            print("KDE failed — falling back to uniform color")
+            density = None
+            use_density = False
+
+        if use_density:
+            fig = px.scatter(
+                x=preds,
+                y=obs,
+                color=density,
+                color_continuous_scale=px.colors.sequential.Viridis,
+                labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)", "color": "Point Density"},
+                marginal_x="histogram",
+                marginal_y="histogram",
+            )
+        else:
+            fig = px.scatter(
+                x=preds, y=obs,
+                labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)"},
+                marginal_x="histogram",
+                marginal_y="histogram",
+            )
+
     else:
-        colorize_plot_by_years(rawr, obs_years, preds, obs)
+        # color by year
+        fig = px.scatter(
+            x=preds, y=obs, color=obs_years,
+            color_discrete_sequence=px.colors.qualitative.Plotly,
+            labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)", "color": "Year"},
+            marginal_x="histogram",
+            marginal_y="histogram",
+        )
 
-    rawr.ax_joint.plot(np.arange(0, abs_max), np.arange(0, abs_max), label='1:1', color='gray')
-    rawr.ax_joint.plot(preds, y_line, color='magenta', label=f"y = {theta[0]:.2f} x + {theta[1]:.2f}")
-    rawr.ax_joint.legend()
-    rawr.set_axis_labels("Predicted (kg/ha)", "Observed (kg/ha)")
+    # add 1:1 line
+    fig.add_trace(
+        go.Scatter(
+            x=[0, abs_max],
+            y=[0, abs_max],
+            mode="lines",
+            name="1:1",
+            line=dict(color="gray", dash="dash"),
+        )
+    )
 
-    return rawr
+    # add regression line
+    fig.add_trace(
+        go.Scatter(
+            x=x_line,
+            y=y_line,
+            mode="lines",
+            name=f"y = {slope:.2f}·x + {intercept:.2f}",
+            line=dict(color="magenta"),
+        )
+    )
 
-def save_scatter_plot(scatter_plot, out_fpath):
-    scatter_plot.savefig(out_fpath, bbox_inches='tight', dpi=500)
+    fig.update_xaxes(range=xlims)
+    fig.update_yaxes(range=ylims)
+
+    fig.update_layout(template="simple_white", title="Predicted vs Reference Yield",)
+    for ax in fig.layout:
+        if ax.startswith('xaxis') or ax.startswith('yaxis'):
+            fig.layout[ax].update(showgrid=False)
+    return fig
+
+
+def save_scatter_plot(fig, out_fpath, width=800, height=600):
+    fig.write_image(out_fpath, width=width, height=height)
     return out_fpath
 
 def get_preds_obs(estimation_fpath, val_fpath):
@@ -140,10 +165,10 @@ def get_preds_obs(estimation_fpath, val_fpath):
     # It might occur that the reported mean yield is not available in the input csv.
     # In this case, we can compute it from the reported yield and the total area.
     if 'reported_mean_yield_kg_ha' not in combined.columns:
-        if not 'reported_yield_kg' in combined.columns:
-            raise ValueError("Could not compute metrics as neither 'reported_mean_yield_kg_ha' or 'reported_yield_kg' are not available in the input csv.")
+        if not 'reported_production_kg' in combined.columns:
+            raise ValueError("Could not compute metrics as neither 'reported_mean_yield_kg_ha' or 'reported_production_kg' are not available in the input csv.")
 
-        combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_yield_kg']
+        combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_production_kg']
 
     return {
         'obs': combined['reported_mean_yield_kg_ha'],

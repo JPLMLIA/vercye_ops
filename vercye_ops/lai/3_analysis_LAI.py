@@ -314,7 +314,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                         "driver": "GTiff"})
             
             should_skip = False
-            if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold:
+            if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold * 100:
                 print(f"{Path(LAI_path).name} [INSUFFICIENT DATA IN GEOMETRY]")
                 should_skip = True
 

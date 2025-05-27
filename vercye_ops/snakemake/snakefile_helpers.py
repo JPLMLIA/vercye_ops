@@ -1,5 +1,6 @@
 import os.path as op
 from pathlib import Path
+from types import SimpleNamespace
 
 def build_apsim_execution_command(head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file):
     '''Builds the APSIM execution command depending on whether we are using APSIM in Docker or not'''
@@ -40,3 +41,29 @@ def get_evaluation_results_path_func(config):
         return output_paths
         
     return get_evaluation_results_path
+
+
+def get_multiyear_evaluation_results_path_func(config):
+    """ Function to get all evaluation results paths from all configs and timepoints"""
+    single_year = get_evaluation_results_path_func(config)
+
+    def _collect_all(wildcards):
+        all_paths = []
+        for year in config['years']:
+            for tp in config['timepoints']:
+                # build a fake wildcards object
+                fake = SimpleNamespace(year=year, timepoint=tp)
+                all_paths.extend(single_year(fake))
+        return all_paths
+
+    return _collect_all
+
+
+def get_required_yield_report_suffix(config):
+    """Get the required suffix for the yield report based on the configuration"""
+
+    # Will always create a lightweight downsampled png, but html report is only created if specified
+    if config["create_per_region_html_report"]:
+        return "html"
+    else:
+        return "png"

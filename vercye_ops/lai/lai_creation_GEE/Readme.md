@@ -28,6 +28,7 @@ The LAI pipeline processes **Sentinel-2 imagery** to generate LAI estimates via 
 3. **Standardize** data format (VRT).
 4. **Generate** LAI using a trained neural network.
 5. *(Optional)* Merge multiple regions into daily VRTs.
+6. **Additional Scripts** Used for analysis and postprocessing
 
 > Run steps individually or use the **Snakemake workflow** for automation.
 
@@ -37,40 +38,12 @@ The LAI pipeline processes **Sentinel-2 imagery** to generate LAI estimates via 
 ---
 
 # ⚙️ Running the Complete Pipeline
+Use **Snakemake** for full automation as described in the docs.
 
-Use **Snakemake** for full automation.
-
-### 🔧 Setup
-
-Edit `config.yaml`:
-
-```yaml
-geojsons_dir: 'lai/regions/'
-ee_project: 'your-ee-project-id'
-output_base_dir: 'output'
-gdrive_credentials_path: '/path/to/credentials.json'
-
-timepoints:
-  2024:
-    start_date: '2024-01-01'
-    end_date: '2024-02-01'
-
-resolution: 20
-merge_regions_lai: true
-combined_region_name: 'merged_regions'
-```
-
-Run the pipeline:
-
-```bash
-snakemake --cores 4
-```
-
----
 
 ## 🛠️ Individual Scripts
 
-### 1. Export Sentinel-2 Data
+### 1.1 Export Sentinel-2 Data
 
 **Script:** `1_1_gee_export_S2.py`
 
@@ -85,6 +58,9 @@ python 1_1_gee_export_S2.py \
   --end-date [YYYY-MM-DD] \
   --resolution [10|20] \
   --export-mode [gdrive|gcs] \
+  --snow-threshold [PERPIXEL_MAX_SNOWPROB] \
+  --cloudy-threshold [PERTILE_MAX_CLOUDCOV] \
+  --cs-threshold [PERPIXEL_MAX_CLOUDPROB] \
   [--export-bucket BUCKET_NAME --gcs-folder-path FOLDER_PATH] \
   [--gdrive-credentials PATH_TO_CREDENTIALS --download-folder LOCAL_PATH]
 ```
@@ -93,10 +69,12 @@ python 1_1_gee_export_S2.py \
 - `--project`: Earth Engine project ID
 - `--library`: Path to the folder where the region geojsons are stored
 - `--region`: Region name (must match GeoJSON name in the library)
-- `--resolution`: Typically 10 or 20 (meters)
+- `--resolution`: Typically 10 or 20 (meters). Depending on which is selected different bands will be downloaded:
+For 10m `["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"]` will be downloaded and for any other resolution 
+`["cosVZA", "cosSZA", "cosRAA", "B3", "B4", "B5", "B6", "B7", "B8A", "B11", "B12"] will be downloaded. These are the bands that the respective LAI model expects.
 - `--export-mode`: Export to `gdrive` or `gcs`
 
-If `--gdrive-credentials` and  `--download-folder` are specified, the script will automatically download the files directly after creation in GDrive to your local machine. This avoids storage limitations in GDrive. 
+If `--gdrive-credentials` and  `--download-folder` are specified, the script will automatically download the files directly after creation in GDrive to your local machine. This avoids storage limitations in GDrive. If you use this, ensure you follow the same setup instructions as for (2. Manual Google Drive Download)
 
 **Export Options**
 
@@ -130,7 +108,7 @@ This looks for the file `library/Poltava.geojson` and uses its geometry to expor
 
 ---
 
-### 2. Manual Google Drive Download
+### 1.2 Manual Google Drive Download
 
 **Script:** `1_2_gdrive_dl_S2.py`
 
@@ -152,11 +130,11 @@ python 1_2_gdrive_dl_S2.py \
 
 ---
 
-### 3. Standardize Data Format
+### 1.3 Standardize Data Format
 
 **Script:** `1_3_standardize_S2.py`
 
-Organizes and converts Sentinel-2 files into standardized VRT format.
+Organizes and converts Sentinel-2 files into standardized VRT format. Used to create a single file as exports might be split into mutliple files from GEE.
 
 ```bash
 python 1_3_standardize_S2.py [REGION_NAME] [INPUT_DIR] [VRT_OUTPUT_DIR] [RESOLUTION]
@@ -186,9 +164,9 @@ This will look for all rasters that match `Poltava_20m_*.tif` in `/path/to/downl
 
 ---
 
-### 4. Generate LAI Estimates
+### 2. Generate LAI Estimates
 
-**Script:** `2_primary_LAI_GEE.py`
+**Script:** `2_1_primary_LAI_GEE.py`
 
 This script produces primary region-level LAI rasters using a deep learning model. All future analyses will be based on these rasters. After these rasters have been produced, the Sentinel-2 rasters can be archived or deleted.
 
@@ -197,7 +175,7 @@ The model used to predict LAI is an implementation of Weiss and Baret, 2016. The
 Note that wheat and maize adjustments are performed during the analysis step, not here.
 
 ```bash
-python 2_primary_LAI_GEE.py [S2_DIR] [LAI_DIR] [REGION] [RESOLUTION] \
+python 2_1_primary_LAI_GEE.py [S2_DIR] [LAI_DIR] [REGION] [RESOLUTION] \
   [--start_date YYYY-MM-DD] [--end_date YYYY-MM-DD] \
   [--model_weights PATH_TO_WEIGHTS] [--channels CHANNEL_LIST]
 ```
@@ -206,22 +184,27 @@ python 2_primary_LAI_GEE.py [S2_DIR] [LAI_DIR] [REGION] [RESOLUTION] \
 > This script assumes that it is being run on a CPU HPC node with lots of RAM. Running this on GPU will be faster, but may face VRAM limitations.
 > It is unlikely that this script will work at region-level on a laptop due to the RAM requirements.
 > A compute-memory tradeoff is possible, and a version of this script that takes longer to run while using less memory is planned.
+> Depending on the resolution provided a different model might be used: Currently there is a specific model for 10m resolution (which was trained on 10m data) and one for all other resolutions which was trained on 20m data.
 
 ---
 
-### 5. Merge LAI Estimates
+### 5. Optional: Merge LAI Estimates
 
-**Script:** `3_build_daily_vrts.py`
+**Script:** `2_2_build_daily_vrts.py`
 
-Combines LAI files from multiple regions into daily VRTs.
+Combines LAI files from multiple regions into daily VRTs containing all regions in a single file.
+This is often helpful to provide all this data to a VeRCYe in a single yield study.
 
 ```bash
-python 3_build_daily_vrts.py [LAI_DIR] [OUTPUT_DIR] [RESOLUTION] \
+python 2_2_build_daily_vrts.py [LAI_DIR] [OUTPUT_DIR] [RESOLUTION] \
   [--region-out-prefix PREFIX] \
   [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]
 ```
 
 ---
+
+### 5. Additional Scripts
+TODO Need to fill this back in from Jakes documentation
 
 ## 🧩 Troubleshooting
 
