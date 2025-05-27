@@ -73,7 +73,7 @@ rule estimate_lai:
     shell:
         """
         mkdir -p "{params.lai_dir}" && \
-        python 2_primary_LAI_GEE.py {params.input_dir} {params.lai_dir} {wildcards.region_name} {params.resolution} --start_date {wildcards.start_date} --end_date {wildcards.end_date} \
+        python 2_1_primary_LAI_GEE.py {params.input_dir} {params.lai_dir} {wildcards.region_name} {params.resolution} --start_date {wildcards.start_date} --end_date {wildcards.end_date} \
         && touch {output}
         """
 
@@ -96,6 +96,6 @@ rule merge_lai:
     shell:
         """
         mkdir -p "{params.output_dir}" && \
-        python ../2_build_daily_vrts.py {params.lai_dir} {params.output_dir} {params.resolution} --start-date {wildcards.start_date} --end-date {wildcards.end_date} --region-out-prefix {params.region_out_prefix} \
+        python 2_2_build_daily_vrts.py {params.lai_dir} {params.output_dir} {params.resolution} --start-date {wildcards.start_date} --end-date {wildcards.end_date} --region-out-prefix {params.region_out_prefix} \
         && touch {output}
         """

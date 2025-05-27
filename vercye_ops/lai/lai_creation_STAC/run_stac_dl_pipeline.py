@@ -163,64 +163,6 @@ def run_pipeline(config):
     logger.info("Pipeline completed successfully.")
 
 
-@click.command()
-@click.option(
-    "--start-date", type=click.DateTime(formats=["%Y-%m-%d"]), required=False,
-    help="Start date in YYYY-MM-DD format."
-)
-@click.option(
-    "--end-date", type=click.DateTime(formats=["%Y-%m-%d"]), required=False,
-    help="End date in YYYY-MM-DD format."
-)
-@click.option(
-    "--resolution", type=int, required=True,
-    help="Spatial resolution in meters."
-)
-@click.option(
-    "--geojson-path", type=click.Path(exists=True), required=True,
-    help="Path to the GeoJSON file defining the region."
-)
-@click.option(
-    "--out-dir", type=click.Path(file_okay=False), required=True,
-    help="Output directory for all generated data."
-)
-@click.option(
-    "--region-out-prefix", type=str, required=True,
-    help="Prefix for the output VRT filenames."
-)
-@click.option(
-    "--from-step", type=click.Choice([0,2,3]), default=0,
-    help="Pipeline step to start from (0: download & Produce LAI, 2: Standardize, 3: VRT build). Use on failure to resume."
-)
-@click.option(
-    "--num-cores", type=int, default=1,
-    help="Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems. Only used for LAI parallelism."
-)
-@click.option(
-    "--chunk-days", type=int, default=30,
-    help="Number of days to process in each batch. Default is 30 days. Can be used to control storage usage by avoiding to keep more than chunk-days of original tile data on disk at once."
-)
-def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_prefix, from_step, num_cores, chunk_days):
-    """
-    Entry point for the LAI creation pipeline.
-    """
-    
-    try:
-        run_pipeline(
-            start_date = start_date.strftime("%Y-%m-%d"),
-            end_date = end_date.strftime("%Y-%m-%d"),
-            resolution = resolution,
-            geojson_path = geojson_path,
-            out_dir = out_dir,
-            region_out_prefix = region_out_prefix,
-            from_step = from_step,
-            num_workers = num_cores,
-            chunk_days = chunk_days
-        )
-    except Exception as e:
-        logger.error(f"Pipeline terminated with error: {e}")
-        sys.exit(1)
-
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python run_pipeline.py <config.yaml>")
