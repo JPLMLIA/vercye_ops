@@ -9,7 +9,7 @@ ee_project: 'ee-project-id'
 # Output directory for the LAI data and intermediate files
 output_base_dir: 'outputdir'
 
-# Path to the Google Earth Engine service account credentials
+# Path to the Google Earth Engine credentials file
 gdrive_credentials_path: '/path/to/credentials.json'
 
 # Timepoint for which to create LAI

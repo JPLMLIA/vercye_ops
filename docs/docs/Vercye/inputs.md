@@ -101,19 +101,19 @@ Adjustments for soil properties and simulation constraints must be manually conf
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth-{AggregationLevel}-{Year}.csv` in the corresponding year directory.
+If ground-truth yield data is available, it should be included as `groundtruth_{AggregationLevel}-{Year}.csv` in the corresponding year directory.
 Hereby, `aggregation level`, specifies how the simulation level regions should be aggregated and must be aliged with the `eval_params.aggregation_levels` in your `snakemake_config.yaml`. The `year` must match the corresponding year directory.
 
 ### Reference CSV Specification
 | Column Name               | Description |
 |---------------------------|-------------|
-| `region`                  | Name matching GeoJSON folder |
+| `region`                  | Name matching GeoJSON folder (for `primary aggregation level`) or matching column values for custom aggregation level |
 | `reported_mean_yield_kg_ha` | Mean yield (kg/ha), if available |
-| `reported_yield_kg`        | Total yield (kg) (optional, used to derive mean yield) |
+| `reported_production_kg`        | Total production (kg) (optional, used to derive mean yield) |
 
-If `reported_yield_kg` is provided, the mean yield is computed as:
+If `reported_production_kg` is provided, the mean yield is computed as:
 ```plaintext
-mean_yield_kg_ha = reported_yield_kg / cropland_area_ha
+mean_yield_kg_ha = reported_production_kg / cropland_area_ha
 ```
 with cropland_area_ha being the **computed cropland_area_ha** based on the provided cropland map!.
 
@@ -149,7 +149,6 @@ This file defines the study parameters and links the **simulation head directory
 - `precipitation_agg_method`: Aggregation method for precipitation data (`mean` or `centroid`). `'NASA_POWER'` only supporting `centroid` currently.
 - `fallback_precipitation`: Set `True` to use the original precipitation data (`NASAPower or ERA5`) if `CHIRPS` is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.
 - `chirps_dir`: Directory containing global CHIRPS precipitation data (tiffs).
-- `nasapower_cache_dir`: Directory to cache NASA_Power meteorological data for specific lat/lon's. Should be the same for different studies to avoid rate limiting.
 - `ee_project`: Project ID in google earth engine. Required if using ERA5 meteorological data.
 - `time_bounds`: Defines timepoint parameters:
   - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
@@ -182,6 +181,14 @@ This file defines the study parameters and links the **simulation head directory
 - `local.executable_fpath`: Path to the local APSIM executable. Follow the setup instruction to install it and replace this path if not using docker.
 - `local.n_jobs`: Number of threads (`-1` uses APSIM default).
 
+
+#### Evaluation Parameters
+- `aggregation_levels`: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are 
+columns in the shapefile allowing to aggregate simulation level results. E.g a the shapefile might have a column Admin2 and the simulations are
+run at Admin3. So all predictions that share the same Admin2 region would be aggregated and metrics would be computed for these.
+
+#### Scripts Configuration
+- Paths to scripts used within the Snakemake pipeline. See the example for details
 
 #### Evaluation Parameters
 - `aggregation_levels`: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are 

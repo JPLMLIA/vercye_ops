@@ -24,9 +24,16 @@ regions_shp_name: 'ukraine_adm2.shp'
 # after the pipeline finishes, set this to False.
 keep_apsim_db_files: False
 
+<<<<<<< HEAD
 # Disactivate the per region html reporting if you want to reduce storage for predictions on manny regions
 # The per region html reports are currently the largest output artefacts
 create_per_region_html_report: True
+=======
+# Disactivate the per region html reporting if you want to reduce storage for predictions on many regions
+# The per region html reports are currently the largest output artefacts
+create_per_region_html_report: True
+
+>>>>>>> origin/develop
 
 # Specify one or more simulations
 regions:
@@ -150,7 +157,11 @@ lai_params:
   lai_analysis_mode: 'raster'
   file_ext: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
   min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at scale of lai_resolution
+<<<<<<< HEAD
   cloudcov_threshold: 0.92 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
+=======
+  cloudcov_threshold: 0.99 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
+>>>>>>> origin/develop
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']
@@ -202,7 +213,7 @@ scripts:
   check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'
   lai_analysis: '../lai/3_analysis_LAI.py'
   lai_quicklook: '../lai/4_quicklook.py'
-  match_sim_real: '../matching_sim_real/match_sim_rs_lai.py'
+  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_30-04-25.py' # Adapt to real implementation locally.
   match_sim_real_quicklook: '../matching_sim_real/generate_matching_report.py'
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
@@ -215,3 +226,4 @@ scripts:
   aggregate_yield_estimates_per_eval_lvl: '../matching_sim_real/aggregate_yield_estimates_per_eval_lvl.py'
   construct_chirps_data: '../apsim/construct_chirps_precipitation_files.py'
   reproject_cropmask: '../lai/0_reproj_mask.py'
+  generate_multiyear_comparison: '../matching_sim_real/generate_multiyear_comparison.py'
