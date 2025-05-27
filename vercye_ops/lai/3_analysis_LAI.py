@@ -81,7 +81,8 @@ def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
 @click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
 @click.option('--LAI_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files', default='tif')
 @click.option('--smoothed', is_flag=True, help='Whether the LAI curve should be smoothed (savgol), before interpolation.')
-def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext, smoothed):
+@click.option('--cloudcov_threshold', type=float, default=None, help='Precentage of pixels in ROI that are allowed to be clouds or snow. If exceeded, the LAI from this date is ignored. Default: None (no threshold).')
+def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext, smoothed, cloudcov_threshold):
     """ LAI Analysis function
 
     LAI_dir: Local path to the directory containing regional primary LAI rasters
@@ -311,10 +312,18 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                         "count": 2,
                         "compress": "lzw",
                         "driver": "GTiff"})
+            
+            should_skip = False
+            if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold:
+                print(f"{Path(LAI_path).name} [INSUFFICIENT DATA IN GEOMETRY]")
+                should_skip = True
+
+            if np.all(np.isnan(masked_src)):
+                print(f"{Path(LAI_path).name} [NO DATA IN GEOMETRY]")
+                should_skip = True
 
             # If the raster after masking is all nan, skip
-            if np.all(np.isnan(masked_src)):
-                print(f"{Path(LAI_path).name} [NODATA IN GEOMETRY]")
+            if should_skip:
                 stat = {
                     "Date": d_slash,
                     "n_pixels": 0,

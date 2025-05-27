@@ -1,15 +1,18 @@
 ########################################
 # Platform
-platform: 'umd'
+platform: 'local'
 
 ########################################
 # Simulation Parameters
 
 # Directory containing each region. Update this for each new snakemake run
-sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
+sim_study_head_dir: '/home/rohan/nasa-harvest/vercye/data/yielstudy_test'
 
-# Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
+# Unique Id/name for indexing. Should not exceed 25 characters and avoid special characters.
 study_id: 'Poltava'
+
+# Title used for reporting
+title: 'Poltava Oblast, Ukraine Yield for 2021-2023'
 
 # More detailed description of the simulation.
 description: 'Poltava Oblast, Ukraine for 2021-2023. Yield study created using the internal APSIM file from march 2025.'
@@ -22,51 +25,57 @@ regions_shp_name: 'ukraine_adm2.shp'
 
 # For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
 # after the pipeline finishes, set this to False.
-keep_apsim_db_files: True
+keep_apsim_db_files: False
+
+# Disactivate the per region html reporting if you want to reduce storage for predictions on manny regions
+# The per region html reports are currently the largest output artefacts
+create_per_region_html_report: True
 
 # Specify one or more simulations
 regions:
-  - 'Chornukhynskyi'
-  - 'Chutivskyi'
-  - 'Dykanskyi'
-  - 'Hadiatskyi'
-  - 'Hlobynskyi'
-  - 'Hrebinkivskyi'
-  - 'Karlivskyi'
-  - 'Khorolskyi'
-  - 'Kobeliatskyi'
-  - 'Komsomolska'
-  - 'Kotelevskyi'
-  - 'Kozelshchynskyi'
-  - 'Kremenchutskyi'
-  - 'Lokhvytskyi'
-  - 'Lubenskyi'
+  # - 'Chornukhynskyi'
+  # - 'Chutivskyi'
+  # - 'Dykanskyi'
+  # - 'Hadiatskyi'
+  # - 'Hlobynskyi'
+  # - 'Hrebinkivskyi'
+  # - 'Karlivskyi'
+  # - 'Khorolskyi'
+  # - 'Kobeliatskyi'
+  # - 'Komsomolska'
+  # - 'Kotelevskyi'
+  # - 'Kozelshchynskyi'
+  # - 'Kremenchutskyi'
+  # - 'Lokhvytskyi'
+  # - 'Lubenskyi'
   - 'Mashivskyi'
-  - 'Myrhorodskyi'
-  - 'Novosanzharskyi'
-  - 'Orzhytskyi'
-  - 'Poltavskyi'
-  - 'Pyriatynskyi'
-  - 'Reshetylivskyi'
-  - 'Semenivskyi'
-  - 'Shyshatskyi'
-  - 'Velykobahachanskyi'
-  - 'Zinkivskyi'
+  # - 'Myrhorodskyi'
+  # - 'Novosanzharskyi'
+  # - 'Orzhytskyi'
+  # - 'Poltavskyi'
+  # - 'Pyriatynskyi'
+  # - 'Reshetylivskyi'
+  # - 'Semenivskyi'
+  # - 'Shyshatskyi'
+  # - 'Velykobahachanskyi'
+  # - 'Zinkivskyi'
 
-years:  # For any years, be sure to set APSIM/LAI params below
+years:
   - 2021
-#  - 2022
-#  - 2023
+  # - 2022
+  # - 2023
 
 timepoints:  # Days relative to harvest
-  - T-0
-#   - T-30
-#   - T-60
+  # - T-0
+  - T-30
+  # - T-60
 
 ########################################
 # APSIM Parameters
+
 apsim_params:
   met_source: 'NASA_POWER' # 'NASA_POWER' or 'ERA5'
+  met_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is not yet supported for NasaPower.
   precipitation_source: 'NASA_POWER' # 'NASA_POWER', 'CHIRPS' or 'ERA5'
   precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
@@ -136,15 +145,16 @@ apsim_execution:
 # LAI parameters
 lai_params:
   lai_aggregation: 'median' # 'median' or 'mean'
-  lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI'
+  lai_dir: '/Volumes/red/NASA_Ag/LAI'
   lai_region: 'Poltava'
   lai_resolution: 20 # meters/pixel
   smoothed: False # Whether to apply savgol smoothing to the RS LAI timeseries
   crop_name: 'wheat'  # "wheat", "maize"
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster'
-  file_ext: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'
+  file_ext: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
   min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at scale of lai_resolution
+  cloudcov_threshold: 0.92 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']
@@ -159,51 +169,50 @@ lai_params:
       T-30: ['2022-08-20', '2023-06-27']
       T-60: ['2022-08-20', '2023-05-28']
   crop_mask:
-    2021: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
-    2022: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
-    2023: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
+    2021: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+    2022: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
+    2023: '/home/rohan/nasa-harvest/vercye/data/yieldstudy_20241108_except_db_modified/mock_cropmask.tif'
   do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
 
 ########################################
 # Sim/Real Matching Parameters
-
+    
 matching_params:
   target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
 
 ########################################
 # Evaluation Parameters
 eval_params:
-
   # Specify additional level on which to aggregate the yield estimates for evaluation
   # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
   # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
+  # If you do not want additional aggregation level, set aggregation_levels: {}
   aggregation_levels:
     National: 'Name_0'
     Oblast: 'Name_1'
-  
   
 ########################################
 # Local paths to the python/APSIM scripts
 
 scripts:
-  construct_met_files: '../apsim/construct_met_files.py'
-  plot_met_files: '../apsim/generate_weather_report.py'
-  fetch_met_data: '../apsim/fetch_met_data.py'
-  update_apsimx_template: '../apsim/update_apsimx_template.py'
-  constrain_lai_cropmask: '../lai/0_mask_cropmask.py'
-  check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'
-  lai_analysis: '../lai/3_analysis_LAI.py'
-  lai_quicklook: '../lai/4_quicklook.py'
-  match_sim_real: '../matching_sim_real/match_sim_rs_lai.py'
-  match_sim_real_quicklook: '../matching_sim_real/generate_matching_report.py'
-  generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
-  estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
-  aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
-  aggregate_maps : '../matching_sim_real/aggregate_maps.py'
-  generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'
-  generate_aggregated_lai_curves_plot: '../matching_sim_real/generate_lai_plot.py'
-  aggregate_met_stats: '../matching_sim_real/aggregate_meteorological_stats.py'
-  evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'
+  construct_met_files: '~/Builds/vercye_ops/vercye_ops/apsim/construct_met_files.py'
+  plot_met_files: '~/Builds/vercye_ops/vercye_ops/apsim/generate_weather_report.py'
+  fetch_met_data: '~/Builds/vercye_ops/vercye_ops/apsim/fetch_met_data.py'
+  update_apsimx_template: '~/Builds/vercye_ops/vercye_ops/apsim/update_apsimx_template.py'
+  constrain_lai_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_mask_cropmask.py'
+  check_region_has_cropland: '~/Builds/vercye_ops/vercye_ops/lai/0_validate_constrained_cropmask.py'
+  lai_analysis: '~/Builds/vercye_ops/vercye_ops/lai/3_analysis_LAI.py'
+  lai_quicklook: '~/Builds/vercye_ops/vercye_ops/lai/4_quicklook.py'
+  match_sim_real: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/match_sim_rs_lai.py'
+  match_sim_real_quicklook: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_matching_report.py'
+  generate_converted_lai_map: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_converted_lai_map.py'
+  estimate_total_yield: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/estimate_total_yield.py'
+  aggregate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_yield_estimates.py'
+  aggregate_maps : '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_maps.py'
+  generate_final_report: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_aggregated_final_report.py'
+  generate_aggregated_lai_curves_plot: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/generate_lai_plot.py'
+  aggregate_met_stats: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/aggregate_meteorological_stats.py'
+  evaluate_yield_estimates: '~/Builds/vercye_ops/vercye_ops/matching_sim_real/evaluate_yield_estimates.py'
   aggregate_yield_estimates_per_eval_lvl: '../matching_sim_real/aggregate_yield_estimates_per_eval_lvl.py'
-  construct_chirps_data: '../apsim/construct_chirps_precipitation_files.py'
-  reproject_cropmask: '../lai/0_reproj_mask.py'
+  construct_chirps_data: '~/Builds/vercye_ops/vercye_ops/apsim/construct_chirps_precipitation_files.py'
+  reproject_cropmask: '~/Builds/vercye_ops/vercye_ops/lai/0_reproj_mask.py'
