@@ -226,13 +226,18 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
     logger.info(f"Found {len(vrt_files)} VRT files at {resolution}m in {s2_dir}")
 
     # Divide files into batches for each worker
-    batch_size = max(1, len(vrt_files) // num_cores)
     file_batches = []
+    n = len(vrt_files)
+    base_size  = n // num_cores
+    remainder  = n % num_cores
 
+    start = 0
     for i in range(num_cores):
-        start_idx = i * batch_size
-        end_idx = start_idx + batch_size if i < num_cores - 1 else len(vrt_files)
-        file_batches.append(vrt_files[start_idx:end_idx])
+        # each of the first `remainder` batches gets one extra file
+        this_batch_size = base_size + (1 if i < remainder else 0)
+        end = start + this_batch_size
+        file_batches.append(vrt_files[start:end])
+        start = end
 
     # Create a process pool with fixed number of workers
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_cores) as executor:

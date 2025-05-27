@@ -9,6 +9,8 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 import time
 
+import yaml
+
 
 # Configure logging
 logging.basicConfig(
@@ -59,102 +61,92 @@ def batch_date_range(start_date, end_date, chunk_days=30):
             start = next_start
 
 
-def run_pipeline(
-    start_date: str,
-    end_date: str,
-    resolution: int,
-    geojson_path: str,
-    out_dir: str,
-    region_out_prefix: str,
-    from_step: int = 0,
-    num_workers: int = 1,
-    chunk_days: int = 30,
-):
-    """
-    Run the LAI creation pipeline in sequential steps.
-    If any step fails, no further steps are run.
-    """
-    # Validate dates
-    try:
-        start_date_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_date_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise click.BadParameter(f"Invalid date format: {e}")
+def run_pipeline(config):
+    date_ranges = config["date_ranges"]
+    resolution = config["resolution"]
+    geojson_path = config["geojson_path"]
+    out_dir = config["out_dir"]
+    region_out_prefix = config["region_out_prefix"]
+    from_step = config.get("from_step", 0)
+    num_workers = config.get("num_cores", 1)
+    chunk_days = config.get("chunk_days", 30)
 
-    if start_date_dt > end_date_dt:
-        raise click.BadParameter("start-date must be on or before end-date")
+    if from_step not in [0, 2, 3]:
+        raise ValueError("Invalid from_step value. Must be 0, 2, or 3.")
 
-    # Validate steps
-    max_step = 3
-    if not (0 <= from_step <= max_step):
-        raise click.BadParameter(f"--from-step must be between 0 and {max_step}")
+    tiles_out_dir = os.path.join(out_dir, "tiles")
+    lai_dir = os.path.join(out_dir, "tile-lai")
+    standardize_lai_dir = os.path.join(out_dir, "standardized-lai")
+    merged_lai_dir = os.path.join(out_dir, "merged-lai")
 
-    # Ensure GDAL is available
     try:
         run_subprocess(["gdalinfo", "--version"], "Check GDAL installation")
     except RuntimeError:
-        raise click.ClickException("GDAL is not installed or not in the PATH.")
+        raise RuntimeError("GDAL is not installed or not in the PATH.")
 
-    # Paths
-    tiles_out_dir = os.path.join(out_dir, "tiles")
-    lai_dir = os.path.join(out_dir, "tile-lai")
-    merged_lai_dir = os.path.join(out_dir, "merged-lai")
+    all_starts = []
+    all_ends = []
 
-    start_date_original = start_date
-    end_date_original = end_date
+    # Process all date ranges for step 0 and 1
+    for i, dr in enumerate(date_ranges):
+        try:
+            start_date = datetime.strptime(dr["start_date"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(dr["end_date"], "%Y-%m-%d").date()
 
-    # Create batches to process in chunks
-    for start, end in batch_date_range(start_date_dt, end_date_dt, chunk_days=chunk_days):
-        logger.info(f"Processing date range: {start} to {end}")
+            all_starts.append(start_date)
+            all_ends.append(end_date)
 
-        # Update start and end dates for this batch
-        start_date = start
-        end_date = end
+            logger.info(f"Processing date range {i+1}: {start_date} to {end_date}")
 
-        # Step 0: Download tiles
-        if from_step <= 0:
-            os.makedirs(tiles_out_dir, exist_ok=True)
-            cmd = [
-                sys.executable, "1_download_S2_tiles.py",
-                "--start-date", start_date,
-                "--end-date", end_date,
-                "--resolution", str(resolution),
-                "--geojson-path", geojson_path,
-                "--output-dir", tiles_out_dir
-            ]
-            run_subprocess(cmd, "Download Sentinel-2 tiles")
+            for start, end in batch_date_range(start_date, end_date, chunk_days=chunk_days):
+                if from_step <= 0:
+                    os.makedirs(tiles_out_dir, exist_ok=True)
+                    cmd = [
+                        sys.executable, "1_download_S2_tiles.py",
+                        "--start-date", start,
+                        "--end-date", end,
+                        "--resolution", str(resolution),
+                        "--geojson-path", geojson_path,
+                        "--output-dir", tiles_out_dir
+                    ]
+                    run_subprocess(cmd, f"Download tiles {start} to {end}")
 
-        # Step 1: Create LAI per tile
-        if from_step <= 1:
-            os.makedirs(lai_dir, exist_ok=True)
-            cmd = [
-                sys.executable, "2_1_primary_LAI_tiled.py",
-                tiles_out_dir,
-                lai_dir,
-                str(resolution),
-                "--start-date", start_date,
-                "--end-date", end_date,
-                "--num-cores", str(num_workers),
-                "--remove-original",
-            ]
-            run_subprocess(cmd, "Compute LAI for each tile")
+                if from_step <= 1:
+                    os.makedirs(lai_dir, exist_ok=True)
+                    cmd = [
+                        sys.executable, "2_1_primary_LAI_tiled.py",
+                        tiles_out_dir,
+                        lai_dir,
+                        str(resolution),
+                        "--start-date", start,
+                        "--end-date", end,
+                        "--num-cores", str(num_workers),
+                        "--remove-original",
+                    ]
+                    run_subprocess(cmd, f"Compute LAI for {start} to {end}")
 
-    # Step 2: Standardize LAI files
-    standardize_lai_dir = os.path.join(out_dir, "standardized-lai")
-    os.makedirs(standardize_lai_dir, exist_ok=True)
+        except Exception as e:
+            logger.error(f"Aborting further processing due to error in date range {start_date} to {end_date}: {e}")
+            raise  # Reraise to halt the pipeline
+
+    # Steps 2 and 3 are run once after all ranges
+    overall_start = min(all_starts)
+    overall_end = max(all_ends)
+
     if from_step <= 2:
+        os.makedirs(standardize_lai_dir, exist_ok=True)
         cmd = [
             sys.executable, "2_2_standardize.py",
             lai_dir,
             standardize_lai_dir,
             str(resolution),
-            "--start-date", start_date_original,
-            "--end-date", end_date_original,
-            "--remove-original"
+            "--start-date", overall_start.strftime("%Y-%m-%d"),
+            "--end-date", overall_end.strftime("%Y-%m-%d"),
+            "--num-cores", str(num_workers),
+            "--remove-original",
         ]
         run_subprocess(cmd, "Standardize LAI files")
 
-    # Step 3: Build daily VRTs
     if from_step <= 3:
         os.makedirs(merged_lai_dir, exist_ok=True)
         cmd = [
@@ -163,8 +155,8 @@ def run_pipeline(
             merged_lai_dir,
             str(resolution),
             "--region-out-prefix", region_out_prefix,
-            "--start-date", start_date_original,
-            "--end-date", end_date_original
+            "--start-date", overall_start.strftime("%Y-%m-%d"),
+            "--end-date", overall_end.strftime("%Y-%m-%d")
         ]
         run_subprocess(cmd, "Build daily VRTs for LAI")
 
@@ -197,8 +189,8 @@ def run_pipeline(
     help="Prefix for the output VRT filenames."
 )
 @click.option(
-    "--from-step", type=click.IntRange(0, 3), default=0,
-    help="Pipeline step to start from (0: download, 1: tile LAI, 2: cleanup, 3: VRT build). Use on failure to resume."
+    "--from-step", type=click.Choice([0,2,3]), default=0,
+    help="Pipeline step to start from (0: download & Produce LAI, 2: Standardize, 3: VRT build). Use on failure to resume."
 )
 @click.option(
     "--num-cores", type=int, default=1,
@@ -230,4 +222,20 @@ def main(start_date, end_date, resolution, geojson_path, out_dir, region_out_pre
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) != 2:
+        print("Usage: python run_pipeline.py <config.yaml>")
+        sys.exit(1)
+
+    config_path = sys.argv[1]
+    if not os.path.exists(config_path):
+        print(f"Config file not found: {config_path}")
+        sys.exit(1)
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    try:
+        run_pipeline(config)
+    except Exception as e:
+        logger.error(f"Pipeline terminated with error: {e}")
+        sys.exit(1)

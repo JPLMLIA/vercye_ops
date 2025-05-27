@@ -114,7 +114,7 @@ Create a GeoJSON of the convex hull of your study area for simplicity. You can d
 cd vercye_ops/lai/lai_creation_STAC
 ```
 
-**Step 3: Run the Pipeline** 
+**Step 3: Create a Config** 
 ```bash
 python run_stac_dl_pipeline.py [OPTIONS]
 ```
