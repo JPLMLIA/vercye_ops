@@ -326,13 +326,13 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
 
     # !! Not implemented yet, currently just returns the same coordinates
     lat, lon = get_grid_aligned_coordinates(lat, lon)
-    
-    if cache_dir is not None:
-        cache_region = f"{lon:.4f}_{lat:.4f}".replace('.', '_')
-        cache_fpath = Path(cache_dir) / f'{cache_region}_nasapower.csv'
 
     met_agg_method = met_agg_method.lower()
     validate_aggregation_options(met_agg_method)
+    
+    if cache_dir is not None:
+        cache_region = f"{lon:.4f}_{lat:.4f}".replace('.', '_')
+        cache_fpath = Path(cache_dir) / f'{cache_region}_{met_agg_method}_nasapower.csv'
 
     if ee_project is None:
         raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
