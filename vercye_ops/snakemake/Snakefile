@@ -510,6 +510,8 @@ rule match_sim_real:
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
+    resources:
+        kaleido_resources = 1,  # Poltly-Kaleido uses 40+ threads internally for image generation. Used to avoid nproc limitations on shared cluster
     output:
         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
         conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
