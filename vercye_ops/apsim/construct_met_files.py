@@ -126,6 +126,7 @@ def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, 
 
     # Using CHIRPS data if specified, by simply replacing the PRECTOTCORR column
     if precipitation_src.lower() == 'chirps':
+        chirps_data = None
         try:
             start_date = df.index.min()
             end_date = df.index.max()
@@ -138,16 +139,21 @@ def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, 
             )
         except KeyError as e:
             if not fallback_precipitation:
-                raise KeyError('CHIRPS region data not found.')
+                raise KeyError('CHIRPS region data not found and fallback precipitation is not enabled.')
         except ValueError as e:
             if not fallback_precipitation:
                 raise KeyError('CHIRPS region data incomplete.')
 
-        logger.info('Using CHIRPS data for precipitation.')
-        if len(chirps_data) != len(df):
-            raise ValueError("Unexpected Chirps datalength.")
-            
-        df['PRECTOTCORR'] = chirps_data
+        if chirps_data is not None :
+            logger.info('Using CHIRPS data for precipitation.')
+            if len(chirps_data) != len(df):
+                raise ValueError("Unexpected Chirps datalength.")
+                
+            df['PRECTOTCORR'] = chirps_data
+        elif chirps_data is None and fallback_precipitation:
+            logger.warning('CHIRPS data not found, falling back to original precipitation data.')
+        else:
+            raise KeyError('CHIRPS data not found and fallback precipitation is not enabled.')
 
     # Add year and day of year columns to prep for .met export
     df.insert(0, 'YEAR', df.index.year)

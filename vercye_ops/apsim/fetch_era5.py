@@ -258,7 +258,7 @@ def fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_pro
     # Identify blocks of missing dates
     if missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
-        return df_existing, None
+        return df_existing
     
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
@@ -343,9 +343,9 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
     else:
         # Get mean or centroid data
         if met_agg_method == 'mean':
-            df = fetch_era5_data(start_date, end_date, None, None, polygon_path, ee_project)
+            df = fetch_era5_data(start_date, end_date, ee_project, None, None, polygon_path)
         elif met_agg_method == 'centroid':
-            df = fetch_era5_data(start_date, end_date, lon, lat, None, ee_project)
+            df = fetch_era5_data(start_date, end_date, ee_project, lon, lat, None)
         else:
             raise ValueError(f"Unsupported met_agg_method: {met_agg_method}")
 

@@ -101,19 +101,20 @@ rule construct_chirps_data:
 rule fill_nasapower_cache:
     priority: 1 # This might be a longer running job without dependencies, want to start as early as possible
     input:
-        geometry = op.join(config['sim_study_head_dir'], config['years'][0], config['timepoints'][0], '{region}', '{region}.geojson'),
+        geometry = op.join(config['sim_study_head_dir'], str(config['years'][0]), str(config['timepoints'][0]), '{region}', '{region}.geojson'),
     params:
-        met_start_date, met_end_date = get_met_max_range(config)
-        script_fpath = config['scripts']['fetch_met_data_nasapower'],
+        met_start_date = get_met_max_range(config)[0],
+        met_end_date = get_met_max_range(config)[1],
+        script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
         met_agg_method = config['apsim_params']['met_agg_method'],
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
     log: 
-        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
+        'logs_fetch_np_data_cache/{region}.log',
     output:
-        csv = temp(op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt')),
+        temp(op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt')),
     resources:
         nasa_power_calls = 1
     retries: 2
@@ -122,7 +123,7 @@ rule fill_nasapower_cache:
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
-        python {params.script_fpath} \
+        python {params.script_fpath_nasapower} \
         --met_agg_method {params.met_agg_method} \
         --start_date {params.met_start_date} \
         --end_date {params.met_end_date} \
@@ -137,102 +138,133 @@ rule fill_nasapower_cache:
         --cache_dir {params.np_cache_dir} \
         --verbose > {log}
 
-        echo "all missing dates fetched" > {output.csv}
+        echo "all missing dates fetched" > {output}
         """
 
-
-# Rule to fetch weather data from NASAPower - at this point the cache should be filled and data is only from the cache and not from the API and save as CSV
-rule fetch_met_data_nasapower:
+# Same as for NASA Power cache filling
+rule fill_era5_cache:
     input:
-        cache_fill = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_np_cache_filled.txt'),  # Ensure cache fill is done before fetching data
-        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        geometry = op.join(config['sim_study_head_dir'], str(config['years'][0]), str(config['timepoints'][0]), '{region}', '{region}.geojson'),
     params:
-        met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
-        met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
-        script_fpath = config['scripts']['fetch_met_data_nasapower'],
-        head_dir = config['sim_study_head_dir'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
-        region_name = lambda wildcards: wildcards.region,
-        met_agg_method = config['apsim_params']['met_agg_method'],
-        np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
-    log: 
-        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
-    output:
-        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
-    resources:
-        nasa_power_calls = 1
-    retries: 2
-    shell:
-        """
-        {params.jq_load_statement}
-        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
-
-        python {params.script_fpath} \
-        --met_agg_method {params.met_agg_method} \
-        --start_date {params.met_start_date} \
-        --end_date {params.met_end_date} \
-        --variables ALLSKY_SFC_SW_DWN \
-        --variables T2M_MAX \
-        --variables T2M_MIN \
-        --variables T2M \
-        --variables PRECTOTCORR \
-        --variables WS2M \
-        --lon ${{LON}} \
-        --lat ${{LAT}} \
-        --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
-        --cache_dir {config['apsim_params']['nasapower_cache_dir']} \
-        --verbose > {log}
-        """
-    ruleorder:
-        fetch_met_data_nasapower > fetch_met_data_era5  if config['apsim_params']['met_source'].lower() == 'nasapower' else fetch_met_data_era5 > fetch_met_data_nasapower
-
-# Rule to fetch weather data from ERA5 and save as CSV
-# Not yet using caching
-rule fetch_met_data_era5:
-    input:
-        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
-    params:
-        met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
-        met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
-        script_fpath = config['scripts']['fetch_met_data_era5'],
+        met_start_date = get_met_max_range(config)[0],
+        met_end_date = get_met_max_range(config)[1],
+        script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
         ee_project = config['apsim_params']['ee_project'],
         met_agg_method = config['apsim_params']['met_agg_method'],
-        polygon_path_cmd = lambda wildcards: f"--polygon_path {op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, wildcards.region, f'{wildcards.region}.geojson')}" if config['apsim_params']['met_agg_method'].lower() == 'mean' else '',
-    log: 
-        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
+        era5_cache_dir = config['apsim_params']['era5_cache_dir'],
+        met_source = config['apsim_params']['met_source'].lower(),
+    log:
+        'logs_fetch_era5_data_cache/{region}.log',
     output:
-        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
+        temp(op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt')),
     resources:
-        era5_calls = 1 
-    retries: 5 # ERA5 in GEE can be flaky
+        era5_calls = 1
+    retries: 5 # ERA5 on GEE can be flaky
     shell:
         """
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
-        python {params.script_fpath} \
+        POLYGON_PATH=""
+        if [ "{params.met_agg_method}" = "mean" ]; then
+            POLYGON_PATH="--polygon_path {input.geometry}"
+        fi
+
+        python {params.script_fpath_era5} \
         --met_agg_method {params.met_agg_method} \
-        {params.polygon_path_cmd} \
+        $POLYGON_PATH \
         --start_date {params.met_start_date} \
         --end_date {params.met_end_date} \
         --lon ${{LON}} \
         --lat ${{LAT}} \
         --ee_project {params.ee_project} \
-        --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
-        --overwrite \
+        --cache_dir {params.era5_cache_dir} \
         --verbose > {log}
+
+        echo "all missing dates fetched" > {output}
         """
-    ruleorder:
-        fetch_met_data_era5 > fetch_met_data_nasapower if config['apsim_params']['met_source'].lower() == 'era5' else fetch_met_data_nasapower > fetch_met_data_era5
+
+# Rule to fetch weather data either from ERA5 or NASAPower and save as CSV
+rule fetch_met_data:
+    input:
+        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasapower' else [],
+    params:
+        met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
+        met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
+        script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
+        script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
+        head_dir = config['sim_study_head_dir'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        region_name = lambda wildcards: wildcards.region,
+        ee_project = config['apsim_params']['ee_project'],
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        era5_cache_dir = config['apsim_params']['era5_cache_dir'],
+        np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
+        met_source = config['apsim_params']['met_source'].lower(),
+        platform = config['platform'],
+    log: 
+        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
+    output:
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
+    resources:
+        era5_calls = 1 if config['apsim_params']['met_source'].lower() == 'era5' else 0,
+        nasa_power_calls = 1 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 0,
+    retries: 5 if config['apsim_params']['met_source'].lower() == 'era5' else 2,  # ERA5 on GEE can be flaky
+    shell:
+        """
+        # Load geometry centroid
+        {params.jq_load_statement}
+        read LON LAT <<< $(cat {input.geometry} | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
+
+        # Set script and run based on met source
+        if [ "{params.met_source}" = "nasa_power" ]; then
+            python {params.script_fpath_nasapower} \
+            --met_agg_method {params.met_agg_method} \
+            --start_date {params.met_start_date} \
+            --end_date {params.met_end_date} \
+            --variables ALLSKY_SFC_SW_DWN \
+            --variables T2M_MAX \
+            --variables T2M_MIN \
+            --variables T2M \
+            --variables PRECTOTCORR \
+            --variables WS2M \
+            --lon $LON \
+            --lat $LAT \
+            --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
+            --cache_dir {params.np_cache_dir} \
+            --verbose > {log}
+        elif [ "{params.met_source}" = "era5" ]; then
+            POLYGON_PATH=""
+            if [ "{params.met_agg_method}" = "mean" ]; then
+                POLYGON_PATH="--polygon_path {input.geometry}"
+            fi
+            python {params.script_fpath_era5} \
+            --met_agg_method {params.met_agg_method} \
+            $POLYGON_PATH \
+            --start_date {params.met_start_date} \
+            --end_date {params.met_end_date} \
+            --lon $LON \
+            --lat $LAT \
+            --ee_project {params.ee_project} \
+            --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
+            --cache_dir {params.era5_cache_dir} \
+            --verbose > {log}
+        else
+            echo "Invalid met source: {params.met_source}" >&2
+            exit 1
+        fi
+        """
 
 # Rule to generate .met files from weather CSVs
 rule construct_plot_met_files:
     input:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
         geojson = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        chirps_file = lambda wildcards: op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else [],
     params:
         met_gen_script_fpath = config['scripts']['construct_met_files'],
         met_plot_script_fpath = config['scripts']['plot_met_files'],
@@ -242,6 +274,7 @@ rule construct_plot_met_files:
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        chirps_arg = lambda wildcards, input: f"--chirps_file {input.chirps_file}" if input.get("chirps_file") else "",
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
@@ -258,6 +291,7 @@ rule construct_plot_met_files:
         --lat ${{LAT}} \
         --sim_end_date {params.sim_end_date} \
         --precipitation_source {params.precipitation_source} \
+        {params.chirps_arg} \
         --fallback_precipitation {params.fallback_precipitation} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region} \
         --verbose > {log}

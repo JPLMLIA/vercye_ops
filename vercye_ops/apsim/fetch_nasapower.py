@@ -150,8 +150,6 @@ def fetch_missing_nasa_power_data(output_fpath, start_date, end_date, variables,
     for the desired variables, based on an existing CSV file.
     """
 
-    logger.info("Fetching missing data from NASA POWER for %s to %s...", start_date.date(), end_date.date())
-
     # Read existing data
     df_existing = pd.read_csv(output_fpath, index_col=0, parse_dates=True)
 
@@ -250,7 +248,7 @@ def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, c
     validate_aggregation_options(met_agg_method)
 
     if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
-        logger.info("Weather data already exists locally. Will fetch and append only missing dates to: \n%s", cache_fpath)
+        logger.info("Weather data already exists locally. Will fetch and append only missing dates to if necessary: \n%s", cache_fpath)
         df, nodata_val = fetch_missing_nasa_power_data(cache_fpath, start_date, end_date, variables, lon, lat)
     else:
         logger.info("Fetching weather data from NASA POWER for %s to %s", start_date.date(), end_date.date())
