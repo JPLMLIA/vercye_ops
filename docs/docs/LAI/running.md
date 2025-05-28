@@ -1,8 +1,8 @@
-# LAI Generation
+# 🌿 LAI Generation 
 The pipeline produces LAI products for VERCYe and is intended for scaled deployment on servers or HPC with minimal human intervention. The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox. We provide two methods for exporting remotely sensed imagery and deriving LAI products:
 
 
-A: Exporting RS imagery from **Google Earth Engine** (slow, better cloudmasks)
+A: Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)
 B: Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS (fast, inferior cloudmasking).
 
 The individual advantages are detailed in the [introduction](intro.md#lai-generation). This document details the instruction on how to download remotely sensed imagery and derive LAI data. For both approaches we provide pipelines that simply require specifying a configuration and then handle the complete process from exporting and downloading remotely sensed imagery to cloudmasking and deriving LAI estimates. Details of the invididual components of the pipelines can be found in the readme of the corresponding folders.
@@ -19,6 +19,23 @@ Extract geosjsons from a shapefile for each region of interest. Typically, you w
 
 While it is possible, to also provide a national scale geometry directly, in the past we noticed the export through GEE to be significantly slower then when processing multiple e.g `admin2` geometries in parallel. We therefore do not reccomend providing a single national geometry.
 
+Use the `vercye_ops/lai/0_build_library.py` helper script to extract individual GeoJSONS from a shapefile. Ensure that the shapefile only contains geometries at the same administrative level (e.g do NOT mix polygons for states and districts in the same shapefile).
+
+```bash
+python 0_build_library.py --help
+Usage: 0_build_library.py [OPTIONS] SHP_FPATH
+
+  Wrapper around geojson generation func
+
+Options:
+  --admin_name_col [str]  Column name in the shapefile\'s attribute table
+                          containg the geometries administrative name (e.g NAME_1).
+  --output_head_dir DIRECTORY   Head directory where the region output dirs
+                                will be created.
+  --verbose                     Print verbose output.
+  --help                        Show this message and exit.
+```
+
 **Step2: Create your Google Earth Engine Credentials**
 Follow the Google Drive Python Quickstart to download a `client_secret.json`: https://developers.google.com/drive/api/quickstart/python
 
@@ -33,7 +50,7 @@ Create a LAI config file that defines the parameters of your study.
 **3.2 Set the parameters** in `vercye_ops/lai/lai_creation_GEE/custom_configs/your_config_name.yaml`:
 
 ```yaml
-# Folder where GeoJSONS from Step1 are stored
+# Folder where GeoJSONS from Step1 are stored (output_head_dir from 0_build_library.py)
 geojsons_dir: 'lai/regions/'
 
 # Your Earth Engine project ID
@@ -105,45 +122,56 @@ All this data has been processed with `Baseline 5.0`.
 
 To generate daily LAI data for your region of interest follow the steps blow:
 
-**Step 1: Prep Your Area of Interest**
-Create a GeoJSON of the convex hull of your study area for simplicity. You can do this for example in QGIS by first running
-`Vector -> Geoprocessing Tools -> Dissolve`, followed by `Vector -> Geoprocessing Tools -> Convex Hull`. Then export the layer as `GeoJSON`.
+**Step 1: Prepare Your Area of Interest**
+Prepare a **GeoJSON** file representing the convex hull of your region.
 
-**Step 2: Navigate to the Pipeline**
+In **QGIS**, this can be done by:
+
+1. `Vector → Geoprocessing Tools → Dissolve`
+2. Then: `Vector → Geoprocessing Tools → Convex Hull`
+3. Export the resulting layer as **GeoJSON**
+
+
+**Step 2: Define Your Configuration**
+
+Here's an example of how you'd process a multiple years of Morocco data at 20m resolution (Save as `config.yaml`):
+
+```yaml
+date_ranges:
+  - start_date: "2019-04-01"
+    end_date: "2019-06-30"
+  - start_date: "2020-03-15"
+    end_date: "2020-07-15"
+  - start_date: "2021-05-01"
+    end_date: "2021-09-30"
+
+resolution: 20
+geojson_path: /data/morocco.geojson
+out_dir: /data/morocco/lai
+region_out_prefix: morocco
+from_step: 0
+num_cores: 64
+chunk_days: 30
+```
+
+- `date_ranges`: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).
+
+- `resolution`: Spatial resolution in meters. (Typically 10 or 20)
+- `geojson-path`: Path to your convex hull geojson.
+- `out_dir`: Output directory for all generated data.
+- `region_out_prefix`: Prefix for the output VRT filenames - typically the name of the GeoJSON region.
+- `from_step`: Controls which part of the pipeline to resume from (0–3). Should be at 0 if not trying to recover a crashed run.
+- `chunk_days`: Number of days to process in each batch. Default is 30 days. Can be used to control storage usage by avoiding to keep more than chunk-days of original tile data on disk at once.
+- `num_cores`: Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems.
+
+**Step 3: Navigate to the Pipeline**
 ```bash
 cd vercye_ops/lai/lai_creation_STAC
 ```
 
-**Step 3: Create a Config** 
+**Step 3: Run the LAI Generation Pipeline**
 ```bash
-python run_stac_dl_pipeline.py [OPTIONS]
-```
-
-```bash
-Options:
-  --start-date [%Y-%m-%d]    Start date from when to download imagery in YYYY-MM-DD format.  [required]
-  --end-date [%Y-%m-%d]      End date from when to download imagery in YYYY-MM-DD format.  [required]
-  --resolution INTEGER       Spatial resolution in meters.  [required]
-  --geojson-path PATH        Path to the GeoJSON file defining the region.
-                             [required]
-  --out-dir DIRECTORY        Output directory for all generated data.
-                             [required]
-  --region-out-prefix TEXT   Prefix for the output VRT filenames - typically the name of the GeoJSON region.  [required]
-  --from-step INTEGER RANGE  Pipeline step to start from (0: download, 1: tile
-                             LAI, 2: cleanup, 3: VRT build). Use on failure toresume.  [0<=x<=3]
-  --num-cores INTEGER        Number of cores to use. Default is 1
-                             (sequential). Increase for faster processing on
-                             multi-core systems. Only used for LAI parallelism.
-  --chunk-days INTEGER       Number of days to process in each batch. Default
-                             is 30 days. Can be used to control storage usage
-                             by avoiding to keep more than chunk-days of
-                             original tile data on disk at once.
-```
-
-**Example**
-Here's how you'd process a year of Morocco data at 20m resolution:
-```bash
-python run_stac_dl_pipeline.py --start-date 2020-01-17 --end-date 2021-01-20 --resolution 20 --geojson-path /data/morocco.geojson --out-dir /data/morrocco/lai --region-out-prefix morocco --num-cores 64
+python run_stac_dl_pipeline.py /path/to/your/config.yaml
 ```
 
 **Pipeline Steps Breakdown**
@@ -152,15 +180,6 @@ python run_stac_dl_pipeline.py --start-date 2020-01-17 --end-date 2021-01-20 --r
 - Step 2: Clean up temporary files
 - Step 3: Build final VRT mosaics
 
-The --from-step option is your friend when things don't go as planned - no need to start from scratch!
-
-After the pipeline finishes , you'll find a merged-lai directory in your output folder packed with daily .vrt files. Each file contains LAI data for your entire region, covering all tiles that had usable imagery on that date.
-
-**Tips**
-
-- **Storage Management**: Use --chunk-days to control how much disk space you're using at once
-- **Performance**: Increase--num-cores on multi-core systems for faster LAI processing, but be mindful of memory usage. Typically on HPC the memory should not be too much of a concern.
-- **Recovery**: If something breaks, use --from-step to pick up where you left off
-- **Quality Control**: The pipeline only processes tiles with available imagery, so some dates might be missing
+After the pipeline finishes , you'll find a `merged-lai` directory in your `out_dir` packed with daily .vrt files. Each file contains LAI data for your entire region, covering all tiles that had usable imagery on that date.
 
 Happy LAI generating! 🛰️🌱

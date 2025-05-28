@@ -8,7 +8,7 @@ import glob
 from types import SimpleNamespace
 
 
-from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range
+from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range
 from generate_aggregated_final_report import create_final_report
 
 #######################################
@@ -26,8 +26,13 @@ def get_valid_regions(wildcards):
         with open(vf, 'r') as f:
             content = f.read().strip()
         if content == "valid":
-            vf_file = Path(vf).stem
-            regions.append(vf_file.replace("_VALID", ""))
+            vf_name = Path(vf).name
+            region = vf_name[:-len("_VALID")]
+            regions.append(region)
+
+    # only return regions that are in the config
+    regions = list(set(regions) & set(config['regions']))
+
     return regions
 
 def get_all_valid_region_outputs(wildcards, suffix):
@@ -334,6 +339,7 @@ rule reproject_cropmask:
         lai_region = config['lai_params']['lai_region'],
         lai_resolution = config['lai_params']['lai_resolution'],
         lai_file_ext = config['lai_params']['file_ext'],
+        date_range = lambda wildcards: get_lai_date_range(config['lai_params']['time_bounds'][int(wildcards.year)]),
     log:
         'logs_reproject_cropmask/{year}.log'
     output:
@@ -346,6 +352,8 @@ rule reproject_cropmask:
         --lai_dir {params.lai_dir} \
         --lai_region {params.lai_region} \
         --lai_file_ext {params.lai_file_ext} \
+        --start_date {params.date_range[0]} \
+        --end_date {params.date_range[1]} \
         --lai_resolution {params.lai_resolution} > {log}
         """ if config['lai_params']['do_cropmask_reprojection'] else 'cp {input.original_cropmask} {output.reproj_cropmask}'
 

@@ -2,6 +2,7 @@ click
 colorlog
 earthengine-api
 ee
+earthengine-api
 gdal
 geopandas
 joblib

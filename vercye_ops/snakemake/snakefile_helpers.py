@@ -1,5 +1,5 @@
+from datetime import datetime
 import os.path as op
-from pathlib import Path
 from types import SimpleNamespace
 
 def build_apsim_execution_command(head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file):
@@ -83,3 +83,12 @@ def get_required_yield_report_suffix(config):
         return "html"
     else:
         return "png"
+
+def get_lai_date_range(timepoints):
+    all_start_dates = [datetime.strptime(bounds[0], "%Y-%m-%d") for bounds in timepoints.values()]
+    all_end_dates = [datetime.strptime(bounds[1], "%Y-%m-%d") for bounds in timepoints.values()]
+    
+    min_date = min(all_start_dates).strftime("%Y-%m-%d")
+    max_date = max(all_end_dates).strftime("%Y-%m-%d")
+    
+    return min_date, max_date
