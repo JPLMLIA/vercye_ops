@@ -8,7 +8,8 @@ Before starting, ensure you have:
 
 - Completed the [setup](../index.md#Setup) and installed all requirements
 - [Generated LAI data](../LAI/running.md) for your region of interest
-- (Optional) [Downloaded](metdata.md#chirps) historical and current CHIRPS precipitation data. Only if using CHIRPS precipitation.
+- (Optional) If using CHIRPS precipitation data: [Downloaded](metdata.md#chirps) historical and current CHIRPS precipitation data.
+- (Optional) If using ERA5 Metdata: Run `earthengine authenticate` and copy the link to your browser to sign into earth engine.
 
 ## Setup Process
 
@@ -17,9 +18,12 @@ Setting up a yield study involves three main steps:
 1. Defining your regions of interest
 2. Configuring your simulation parameters
 3. Preparing your base directory structure
-4. Adding reference (vlidation) data
+4. Optional: Adding reference (validation) data
 
 While the individual steps are detailed in other pages of this living document, on this page we outline the quickstart using our setup helper.
+
+
+If you already have prepared a base directory and a configuration file, you can skip to step 4.
 
 ## 1. Defining Regions of Interest
 
@@ -42,6 +46,8 @@ Create a configuration file that controls simulation parameters:
 0. Create an empty directory `new_basedir_path` that will be your basediretory of your study.
 1. Navigate to `snakemake/example_setup/` and copy one of the example configurations to `new_basedir_path/config_template.yaml`.
 2. Modify parameters according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper.
+
+**Note** The script for matching remotely sensed LAI and APSIM predicted LAI is not publicly available in this repository. You will have to set the path to the true matching script in your `config` file under `scripts.match_sim_real`.
 
 The full configuration options are documented in the [Inputs documentation (Section 6)](inputs.md#6-Snakemake-Configuration).
 
@@ -100,10 +106,9 @@ Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this s
       ```
 
 
-
 Once all parameters are defined, run the notebook. It will:
 
-- Create your year/timepoint/region directory tree under `OUTPUT_DIR`.  
+- Create your `year/timepoint/region` directory tree under `OUTPUT_DIR`.  
 - Generate a final `config.yaml` that merges your Snakemake settings with the selected regions.
 
 ## 4. Adding Reported Validation Data
@@ -112,18 +117,19 @@ The VeRCYE pipeline can automatically generate validation metrics (e.g., R², RM
 
 Validation data can be provided at different geographic scales. It may be available at the smallest unit (e.g., ROI level used in simulations) or at a coarser level (e.g., government statistics). You must specify the scale so VeRCYE can aggregate predictions accordingly.
 
-Define aggregation levels in your config file under eval_params.aggregation_levels. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify State: ADMIN_1. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.
+Define aggregation levels in your `config file` under `eval_params.aggregation_levels`. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify `State: ADMIN_1`. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.
 
-For each year and aggregation level, create a CSV file named: `{year}/groundtruth_{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive).
+For each year and aggregation level, create a CSV file named: `{year}/groundtruth_{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive!).
 
 Example: For 2024 state-level data, the file should be: `basedirectory/2024/groundtruth_State-2024.csv`
 For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/groundtruth_primary-2024.csv`
 
 Each CSV must include:
 
-- `region`: Region name, matching the cleaned names in your yield study
+- `region`: Name matching GeoJSON folder (for `primary aggregation level`) or matching attribute table column values for custom aggregation level (Column as specified under `eval_params.aggregation_levels` in tour `config.yaml`)
 - `reported_mean_yield_kg_ha`: Mean yield in kg/ha
 If unavailable, provide `reported_production_kg` instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
+- If your reference data contains area, it is reccomended to also include this under `reported_area` even though this is not yet used in the evaluation pipeline.
 
 
 ## 5. Running the Yield Study

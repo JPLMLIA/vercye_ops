@@ -107,7 +107,7 @@ Hereby, `aggregation level`, specifies how the simulation level regions should b
 ### Reference CSV Specification
 | Column Name               | Description |
 |---------------------------|-------------|
-| `region`                  | Name matching GeoJSON folder (for `primary aggregation level`) or matching column values for custom aggregation level |
+| `region`                  | Name matching GeoJSON folder (for `primary aggregation level`) or matching attribute table column values for custom aggregation level |
 | `reported_mean_yield_kg_ha` | Mean yield (kg/ha), if available |
 | `reported_production_kg`        | Total production (kg) (optional, used to derive mean yield) |
 

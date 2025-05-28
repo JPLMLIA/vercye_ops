@@ -76,7 +76,6 @@ module load jq
 ```
 
 
-
 ### Running your first yield study
 You will first have to generate **LAI** data from remotely sensed imagery. Refer to the [LAI Creation Guide](LAI/running.md) for details.
 
@@ -84,7 +83,7 @@ Once you have generated the **LAI** data, you can run your yield study, by follo
 
 
 ### Technical Details
-Coming soon.
+The technical implementation details are outlined in he [Architecture Section](Vercye/architecture.md). Fore more details check out the code in `vercye_ops`.
 
 
 ### Development
