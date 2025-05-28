@@ -113,10 +113,10 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     good_sim_ids = apsim_filtered[apsim_filtered['StepFilteredOut'].isna()]['SimulationID']
     mean_data = report_data[report_data['SimulationID'].isin(good_sim_ids)].groupby('Date').mean()
 
-    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data[f'{crop_name}.Leaf.LAI'], mode='lines', name='Mean LAI',
+    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data[f'{crop_name}.Leaf.LAI'], mode='lines', name='Mean Matched LAI',
                              line=dict(color='chartreuse', width=4)), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Yield'], mode='lines', name='Mean Yield',
+    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Yield'], mode='lines', name='Mean Matched Yield',
                              line=dict(color='deepskyblue', width=4)), row=2, col=1)
 
     ###################################

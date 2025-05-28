@@ -24,16 +24,10 @@ regions_shp_name: 'ukraine_adm2.shp'
 # after the pipeline finishes, set this to False.
 keep_apsim_db_files: False
 
-<<<<<<< HEAD
-# Disactivate the per region html reporting if you want to reduce storage for predictions on manny regions
-# The per region html reports are currently the largest output artefacts
-create_per_region_html_report: True
-=======
 # Disactivate the per region html reporting if you want to reduce storage for predictions on many regions
 # The per region html reports are currently the largest output artefacts
 create_per_region_html_report: True
 
->>>>>>> origin/develop
 
 # Specify one or more simulations
 regions:
@@ -83,6 +77,7 @@ apsim_params:
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
   chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'
   nasapower_cache_dir : '/nasapower_cache' # Directory to cache NASA POWER data. Only required to set if met_source is 'NASA_POWER'. Avoids heavy rate limiting from NP.
+  era5_cache_dir: '/era5_cache' # Directory to cache ERA5 data. Only required to set if met_source is 'ERA5'. Avoids fetching data from GEE multuple times.
   ee_project: '' # Earth Engine project name. Only required to set if met_source is 'ERA5'.
   time_bounds:
     2021:
@@ -157,11 +152,7 @@ lai_params:
   lai_analysis_mode: 'raster'
   file_ext: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
   min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at scale of lai_resolution
-<<<<<<< HEAD
-  cloudcov_threshold: 0.92 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
-=======
   cloudcov_threshold: 0.99 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
->>>>>>> origin/develop
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']

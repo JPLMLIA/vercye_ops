@@ -1,5 +1,6 @@
 """CLI tools for fetching/formatting meteorological data"""
 
+import os
 from pathlib import Path
 
 import click
@@ -80,16 +81,37 @@ def write_met_data_to_csv(df, output_fpath):
     """
     df.to_csv(output_fpath)
 
-    logger.info("Data successfully written to %s", output_fpath)
     return output_fpath
 
 
-def get_era5_data(start_date, end_date, lon, lat, polygon_path, ee_project, output_fpath, overwrite):
-    if Path(output_fpath).exists() and not overwrite:
-        logger.info("Weather data already exists locally. Skipping download for: \n%s", output_fpath)
-        return pd.read_csv(output_fpath)
+def get_grid_aligned_coordinates(lat, lon):
+    return lat, lon
+
+
+def get_consecutive_date_chunks(dates):
+    """
+    Split a DatetimeIndex of dates into consecutive chunks.
+    """
+    if dates.empty:
+        return []
     
-    return fetch_era5_data(start_date, end_date, ee_project, lon, lat, polygon_path)
+    # Ensure dates are sorted
+    dates = dates.sort_values()
+
+    chunks = []
+    current_chunk_start = 0
+    
+    for i in range(1, len(dates)):
+        # Check if there's a gap between consecutive dates (more than 1 day)
+        if (dates[i] - dates[i-1]).days > 1:
+            # End current chunk and start new one
+            chunks.append(dates[current_chunk_start:i])
+            current_chunk_start = i
+    
+    # Add the final chunk
+    chunks.append(dates[current_chunk_start:])
+    
+    return chunks
 
 
 def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygon_path=None) :
@@ -224,6 +246,41 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
     return df
 
+def fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath):
+    # Read existing data
+    df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
+
+    # Determine the date range to fetch
+    existing_dates = df_existing.index
+    all_dates = get_dates_range(start_date, end_date)
+    missing_dates = all_dates.difference(existing_dates)
+
+    # Identify blocks of missing dates
+    if missing_dates.empty:
+        logger.info("No missing dates found. Using existing data.")
+        return df_existing, None
+    
+    from_missing = missing_dates.min()
+    to_missing = missing_dates.max()
+
+    # Fetch data for the missing dates
+    logger.info(f"Missing dates found: {from_missing.date()} to {to_missing.date()}. Fetching...")
+    missing_data = []
+
+    missing_date_chunks = get_consecutive_date_chunks(missing_dates)
+    for i, chunk in enumerate(missing_date_chunks):
+        logger.info("Fetching chunk %d with %d missing dates: %s to %s", 
+                   i + 1, len(chunk), chunk[0].date(), chunk[-1].date())
+
+        chunk_data = fetch_era5_data(chunk[0], chunk[-1], ee_project, lon, lat, polygon_path)
+        missing_data.append(chunk_data)
+
+    # Combine existing data with newly fetched data and bring in correct order
+    df_combined = pd.concat([df_existing] + missing_data)
+    df_combined.sort_index(inplace=True)
+
+    return df_combined
+
 
 def validate_aggregation_options(met_agg_method):
     """Helper to check that no unsupported combination is run"""
@@ -231,7 +288,7 @@ def validate_aggregation_options(met_agg_method):
     if met_agg_method not in  ['mean', 'centroid']:
         raise Exception('ERA5 only supports centroid and mean as the met_aggregation options.')
 
-    
+
 def clean_era5(df):
     # Clip negative precipitation values, if any
     neg_precip = df['PRECTOTCORR'] < 0
@@ -249,36 +306,63 @@ def clean_era5(df):
 @click.option('--polygon_path', type=click.Path(file_okay=True, dir_okay=False), required=False, help="Path to the regions polygon if using mean aggregation method.", default=None)
 @click.option('--met_agg_method', type=click.Choice(['mean', 'centroid'], case_sensitive=False), help="Method to aggregate meteorological data in a ROI.")
 @click.option('--ee_project', type=str, required=False, help='Name of the Earth Engine Project in which to run the ERA5 processing. Only required when using --met_source era5.')
-@click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), required=True, help="Directory where the .csv file will be saved.")
-@click.option('--overwrite', is_flag=True, help="Enable file overwriting if weather data already exists.")
+@click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the .csv file will be saved.")
+@click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the downloaded data will be cached to avoid rate limiting. If not provided, no caching will be done.")
+@click.option('--overwrite-cache', is_flag=True, default=False, help="Enable file overwriting if weather data already exists in cache. Otherwise if a file exists, only missing dates will be appended to the existing file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, overwrite, verbose):
+def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, cache_dir, overwrite_cache, verbose):
     """Wrapper to fetch_met_data
         Currently this is designed specifically for the VeRCYe pipeline,
         so the output names are hardcoded to match those from a previous version (NasaPower)
     """
     if verbose:
         logger.setLevel('INFO')
-    region = Path(output_dir).stem
-    output_fpath = Path(output_dir) / f'{region}_met.csv'
+
+    if output_dir is None and cache_dir is None:
+        raise ValueError("At least one of output_dir or cache_dir must be specified.")
+    
+    if output_dir is None:
+        logger.warning("No output_dir specified, data will only be saved to cache.")
+
+    # !! Not implemented yet, currently just returns the same coordinates
+    lat, lon = get_grid_aligned_coordinates(lat, lon)
+    
+    if cache_dir is not None:
+        cache_region = f"{lon:.4f}_{lat:.4f}".replace('.', '_')
+        cache_fpath = Path(cache_dir) / f'{cache_region}_nasapower.csv'
 
     met_agg_method = met_agg_method.lower()
     validate_aggregation_options(met_agg_method)
 
     if ee_project is None:
         raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
-
-    # Get mean or centroid data
-    if met_agg_method == 'mean':
-        df = get_era5_data(start_date, end_date, None, None, polygon_path, ee_project, output_fpath, overwrite)
+    
+    if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
+        logger.info("Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s", cache_fpath)
+        df = fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath)
     else:
-        df = get_era5_data(start_date, end_date, lon, lat, None, ee_project, output_fpath, overwrite)
+        # Get mean or centroid data
+        if met_agg_method == 'mean':
+            df = fetch_era5_data(start_date, end_date, None, None, polygon_path, ee_project)
+        elif met_agg_method == 'centroid':
+            df = fetch_era5_data(start_date, end_date, lon, lat, None, ee_project)
+        else:
+            raise ValueError(f"Unsupported met_agg_method: {met_agg_method}")
 
     # Clean the data
     df = clean_era5(df)
+
+    if cache_dir is not None:
+        logger.info("Writing fetched data to cache file: %s", cache_fpath)
+        os.makedirs(cache_dir, exist_ok=True)
+        write_met_data_to_csv(df, cache_fpath)
     
     error_checking_function(df)
-    write_met_data_to_csv(df, output_fpath)
+    if output_dir is not None:
+        region = Path(output_dir).stem
+        output_fpath = Path(output_dir) / f'{region}_met.csv'
+        write_met_data_to_csv(df, output_fpath)
+        logger.info("Data successfully written to %s", output_fpath)
 
 if __name__ == '__main__':
     cli()

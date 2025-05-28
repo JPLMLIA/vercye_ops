@@ -243,11 +243,8 @@ def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, c
     lat, lon = get_grid_aligned_coordinates(lat, lon)
     
     if cache_dir is not None:
-        cache_region = f"{lon:.6f}_{lat:.6f}".replace('.', '_')
+        cache_region = f"{lon:.4f}_{lat:.4f}".replace('.', '_')
         cache_fpath = Path(cache_dir) / f'{cache_region}_nasapower.csv'
-
-    region = Path(output_dir).stem
-    output_fpath = Path(output_dir) / f'{region}_met.csv'
 
     met_agg_method = met_agg_method.lower()
     validate_aggregation_options(met_agg_method)
@@ -267,8 +264,11 @@ def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, c
         write_met_data_to_csv(df, cache_fpath)
     
     error_checking_function(df)
-    write_met_data_to_csv(df, output_fpath)
-    logger.info("Data successfully written to %s", output_fpath)
+    if output_dir is not None:
+        region = Path(output_dir).stem
+        output_fpath = Path(output_dir) / f'{region}_met.csv'
+        write_met_data_to_csv(df, output_fpath)
+        logger.info("Data successfully written to %s", output_fpath)
 
 
 if __name__ == '__main__':

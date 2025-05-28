@@ -45,7 +45,15 @@ HTML_TEMPLATE = """
 
 
 def get_available_years(input_dir):
-    return sorted([d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))])
+    # Might want to revisit this as this assumes that the input dir only contains directories named by year
+    years = []
+
+    for year in os.listdir(input_dir):
+        year_path = os.path.join(input_dir, year)
+        if os.path.isdir(year_path) and year.isdigit():
+            years.append(year)
+
+    return sorted(years)
 
 
 def get_available_timepoints(reference_year_dir):

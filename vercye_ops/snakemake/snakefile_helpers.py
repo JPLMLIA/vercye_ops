@@ -42,7 +42,6 @@ def get_evaluation_results_path_func(config):
         
     return get_evaluation_results_path
 
-<<<<<<< HEAD
 def get_met_max_range(config):
     met_min_start = None
     met_max_end = None
@@ -59,7 +58,6 @@ def get_met_max_range(config):
                 met_max_end = met_end
     
     return met_min_start, met_max_end
-=======
 
 def get_multiyear_evaluation_results_path_func(config):
     """ Function to get all evaluation results paths from all configs and timepoints"""
@@ -85,4 +83,3 @@ def get_required_yield_report_suffix(config):
         return "html"
     else:
         return "png"
->>>>>>> origin/develop
