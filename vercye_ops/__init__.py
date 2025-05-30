@@ -1,9 +1,9 @@
 # Sample code: REPLACE with project code.
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # extend PYTHONPATH
-path_update = ['.', str(Path(__file__).resolve().parent)]
+path_update = [".", str(Path(__file__).resolve().parent)]
 for p in path_update:
     if p not in sys.path:
         sys.path.append(p)

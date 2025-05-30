@@ -1,27 +1,25 @@
-import os
-import sys
-import subprocess
 import logging
-from glob import glob
-from datetime import datetime
-import click
-import pandas as pd
-from dateutil.relativedelta import relativedelta
+import os
+import subprocess
+import sys
 import time
+from datetime import datetime
 
 import yaml
-
+from dateutil.relativedelta import relativedelta
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
 
 
-def is_within_date_range(file_path: str, start_date: datetime.date, end_date: datetime.date) -> bool:
+def is_within_date_range(
+    file_path: str, start_date: datetime.date, end_date: datetime.date
+) -> bool:
     """
     Check if the file date is within the specified range.
     """
@@ -53,12 +51,12 @@ def run_subprocess(cmd: list, step_desc: str):
 
 
 def batch_date_range(start_date, end_date, chunk_days=30):
-        start = start_date
-        end = end_date + relativedelta(days=1)
-        while start < end:
-            next_start = min(start + relativedelta(days=chunk_days), end)
-            yield start.strftime('%Y-%m-%d'), next_start.strftime('%Y-%m-%d')
-            start = next_start
+    start = start_date
+    end = end_date + relativedelta(days=1)
+    while start < end:
+        next_start = min(start + relativedelta(days=chunk_days), end)
+        yield start.strftime("%Y-%m-%d"), next_start.strftime("%Y-%m-%d")
+        start = next_start
 
 
 def run_pipeline(config):
@@ -98,35 +96,49 @@ def run_pipeline(config):
 
             logger.info(f"Processing date range {i+1}: {start_date} to {end_date}")
 
-            for start, end in batch_date_range(start_date, end_date, chunk_days=chunk_days):
+            for start, end in batch_date_range(
+                start_date, end_date, chunk_days=chunk_days
+            ):
                 if from_step <= 0:
                     os.makedirs(tiles_out_dir, exist_ok=True)
                     cmd = [
-                        sys.executable, "1_download_S2_tiles.py",
-                        "--start-date", start,
-                        "--end-date", end,
-                        "--resolution", str(resolution),
-                        "--geojson-path", geojson_path,
-                        "--output-dir", tiles_out_dir
+                        sys.executable,
+                        "1_download_S2_tiles.py",
+                        "--start-date",
+                        start,
+                        "--end-date",
+                        end,
+                        "--resolution",
+                        str(resolution),
+                        "--geojson-path",
+                        geojson_path,
+                        "--output-dir",
+                        tiles_out_dir,
                     ]
                     run_subprocess(cmd, f"Download tiles {start} to {end}")
 
                 if from_step <= 1:
                     os.makedirs(lai_dir, exist_ok=True)
                     cmd = [
-                        sys.executable, "2_1_primary_LAI_tiled.py",
+                        sys.executable,
+                        "2_1_primary_LAI_tiled.py",
                         tiles_out_dir,
                         lai_dir,
                         str(resolution),
-                        "--start-date", start,
-                        "--end-date", end,
-                        "--num-cores", str(num_workers),
+                        "--start-date",
+                        start,
+                        "--end-date",
+                        end,
+                        "--num-cores",
+                        str(num_workers),
                         "--remove-original",
                     ]
                     run_subprocess(cmd, f"Compute LAI for {start} to {end}")
 
         except Exception as e:
-            logger.error(f"Aborting further processing due to error in date range {start_date} to {end_date}: {e}")
+            logger.error(
+                f"Aborting further processing due to error in date range {start_date} to {end_date}: {e}"
+            )
             raise  # Reraise to halt the pipeline
 
     # Steps 2 and 3 are run once after all ranges
@@ -136,13 +148,17 @@ def run_pipeline(config):
     if from_step <= 2:
         os.makedirs(standardize_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_2_standardize.py",
+            sys.executable,
+            "2_2_standardize.py",
             lai_dir,
             standardize_lai_dir,
             str(resolution),
-            "--start-date", overall_start.strftime("%Y-%m-%d"),
-            "--end-date", overall_end.strftime("%Y-%m-%d"),
-            "--num-cores", str(num_workers),
+            "--start-date",
+            overall_start.strftime("%Y-%m-%d"),
+            "--end-date",
+            overall_end.strftime("%Y-%m-%d"),
+            "--num-cores",
+            str(num_workers),
             "--remove-original",
         ]
         run_subprocess(cmd, "Standardize LAI files")
@@ -150,13 +166,17 @@ def run_pipeline(config):
     if from_step <= 3:
         os.makedirs(merged_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_3_build_daily_LAI_vrts.py",
+            sys.executable,
+            "2_3_build_daily_LAI_vrts.py",
             standardize_lai_dir,
             merged_lai_dir,
             str(resolution),
-            "--region-out-prefix", region_out_prefix,
-            "--start-date", overall_start.strftime("%Y-%m-%d"),
-            "--end-date", overall_end.strftime("%Y-%m-%d")
+            "--region-out-prefix",
+            region_out_prefix,
+            "--start-date",
+            overall_start.strftime("%Y-%m-%d"),
+            "--end-date",
+            overall_end.strftime("%Y-%m-%d"),
         ]
         run_subprocess(cmd, "Build daily VRTs for LAI")
 

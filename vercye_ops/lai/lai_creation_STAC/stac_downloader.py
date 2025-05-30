@@ -11,11 +11,10 @@ import pystac_client
 import rasterio as rio
 import requests
 from pystac.extensions.eo import EOExtension
-from rasterio.warp import Resampling, calculate_default_transform, reproject
 from rasterio.env import Env
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-
-
+from rasterio.warp import Resampling, calculate_default_transform, reproject
+from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
+                      wait_exponential)
 from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -23,7 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 def save_band(metadata, data, item, band_name, resolution, output_folder):
-    output_path = os.path.join(output_folder, f"{item.id}_{band_name}_{resolution}m.tif")
+    output_path = os.path.join(
+        output_folder, f"{item.id}_{band_name}_{resolution}m.tif"
+    )
 
     metadata.update(
         {
@@ -46,21 +47,24 @@ def save_band(metadata, data, item, band_name, resolution, output_folder):
 
     return output_path
 
+
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=2, max=10),
 )
 def load_resample(tile_path, resolution, mask=None):
-    logger.info(f"Loading and resampling tile {tile_path} to {resolution}m resolution...")
-    with Env(AWS_NO_SIGN_REQUEST="YES",
-             GDAL_DISABLE_READDIR_ON_OPEN="YES",
-             GDAL_NUM_THREADS=8,
-             GDAL_HTTP_MULTIRANGE="YES",
-             GDAL_ENABLE_CURL_MULTI="YES",
-            ):
+    logger.info(
+        f"Loading and resampling tile {tile_path} to {resolution}m resolution..."
+    )
+    with Env(
+        AWS_NO_SIGN_REQUEST="YES",
+        GDAL_DISABLE_READDIR_ON_OPEN="YES",
+        GDAL_NUM_THREADS=8,
+        GDAL_HTTP_MULTIRANGE="YES",
+        GDAL_ENABLE_CURL_MULTI="YES",
+    ):
         with rio.open(tile_path) as src:
             crs = src.crs
-            bounds = src.bounds
 
             if src.count > 1:
                 raise ValueError(
@@ -73,7 +77,12 @@ def load_resample(tile_path, resolution, mask=None):
             # Resample if not already at target resolution
             if src.res != (resolution, resolution):
                 dst_transform, dst_width, dst_height = calculate_default_transform(
-                    src.crs, src.crs, src.width, src.height, *src.bounds, resolution=resolution
+                    src.crs,
+                    src.crs,
+                    src.width,
+                    src.height,
+                    *src.bounds,
+                    resolution=resolution,
                 )
 
                 resampled = np.empty((dst_height, dst_width), dtype=src.dtypes[0])
@@ -114,7 +123,9 @@ def load_resample(tile_path, resolution, mask=None):
             return profile, data
 
 
-def download_resample(tile_path, resolution, item, band_name, mask=None, output_folder=None):
+def download_resample(
+    tile_path, resolution, item, band_name, mask=None, output_folder=None
+):
     """
     Download and resample the tile to the desired resolution entirely in memory.
     If a mask is provided it will be applied to the data.
@@ -126,7 +137,9 @@ def download_resample(tile_path, resolution, item, band_name, mask=None, output_
     return band_name, out_path
 
 
-def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, blocksize=256):
+def combine_bands(
+    output_file_path, band_paths, band_names, create_gtiff=False, blocksize=256
+):
     # Use order of band_names to create the VRT
     band_paths_ordered = [band_paths[band_name] for band_name in band_names]
 
@@ -142,7 +155,9 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
     try:
         subprocess.run(vrt_build_command, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"gdalbuildvrt failed (exit {e.returncode}): {e.stderr.decode()}") from e
+        raise RuntimeError(
+            f"gdalbuildvrt failed (exit {e.returncode}): {e.stderr.decode()}"
+        ) from e
     except OSError as e:
         raise RuntimeError(f"Failed to launch gdalbuildvrt: {e}") from e
 
@@ -175,7 +190,9 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
         raise FileNotFoundError(f"Output VRT file was not created: {output_file_path}")
 
     if create_gtiff and not os.path.exists(output_file_path_gtiff):
-        raise FileNotFoundError(f"Output GeoTIFF file was not created: {output_file_path_gtiff}")
+        raise FileNotFoundError(
+            f"Output GeoTIFF file was not created: {output_file_path_gtiff}"
+        )
 
     return output_file_path
 
@@ -215,7 +232,9 @@ def process_scene(
     if metadata_asset_names:
         for metadata_asset_name in metadata_asset_names:
             if metadata_asset_name not in item.assets:
-                raise ValueError(f"Metadata asset '{metadata_asset_name}' not found in item.")
+                raise ValueError(
+                    f"Metadata asset '{metadata_asset_name}' not found in item."
+                )
 
             metadata_url = item.assets[metadata_asset_name].href
             metadata_ext = os.path.splitext(metadata_url)[1]
@@ -229,7 +248,9 @@ def process_scene(
     mask = None
     if mask_bands:
         if len(mask_bands) > 1 and not mask_band_processor:
-            raise ValueError("Maskband processing func required for multiple mask bands")
+            raise ValueError(
+                "Maskband processing func required for multiple mask bands"
+            )
 
         logger.info("Downloading mask bands and resampling to target resolution...")
         maskbands = {}
@@ -243,7 +264,9 @@ def process_scene(
             mask_metadata, mask = maskbands[mask_bands[0]]
         else:
             logger.info("Processing mask bands to binary mask.")
-            mask_metadata, mask = mask_band_processor(maskbands, resolution, item, output_folder)
+            mask_metadata, mask = mask_band_processor(
+                maskbands, resolution, item, output_folder
+            )
 
         # Validate that the mask is binary
         if not np.isin(np.unique(mask), [0, 1]).all():
@@ -263,7 +286,9 @@ def process_scene(
         band_paths[band_name] = out_path
 
     if save_mask:
-        mask_band_path = save_band(mask_metadata, mask, item, "mask", resolution, output_folder)
+        mask_band_path = save_band(
+            mask_metadata, mask, item, "mask", resolution, output_folder
+        )
         band_paths["mask"] = mask_band_path
         band_names.append("mask")
 
@@ -272,13 +297,20 @@ def process_scene(
     if custom_band_processor:
         logger.info("Applying custom band processing...")
         band_paths, band_names = custom_band_processor(
-            item, band_paths, band_names, resolution, mask, metadata_file_paths, output_folder
+            item,
+            band_paths,
+            band_names,
+            resolution,
+            mask,
+            metadata_file_paths,
+            output_folder,
         )
 
     # Step 5: Combine band into a vrt (or GTiff if requested)
     logger.info(f"Combining bands into single file for tile {item.id}...")
     vrt_path = os.path.join(
-        output_folder, f"{item.id}_{resolution}m_{item.datetime.strftime('%Y-%m-%d')}.vrt"
+        output_folder,
+        f"{item.id}_{resolution}m_{item.datetime.strftime('%Y-%m-%d')}.vrt",
     )
     combine_bands(vrt_path, band_paths, band_names)
 
@@ -289,7 +321,9 @@ def execution_wrapper(args):
     try:
         return process_scene(*args)
     except Exception as e:
-        item_id = args[0].id if args and args[0] and hasattr(args[0], "id") else "unknown"
+        item_id = (
+            args[0].id if args and args[0] and hasattr(args[0], "id") else "unknown"
+        )
         raise type(e)(f"Error processing item {item_id}: {str(e)}") from e
 
 
@@ -405,13 +439,19 @@ def run_pipeline(
         num_workers,
     )
 
-    logger.info(f"\n Downloaded data and created {len(output_paths)} files in {output_folder}")
+    logger.info(
+        f"\n Downloaded data and created {len(output_paths)} files in {output_folder}"
+    )
     logger.info(f"\nTotal runtime: {time.time() - t1:.2f} seconds")
 
 
 @click.command()
-@click.option("--start-date", type=str, required=True, help="Start date in YYYY-MM-DD format")
-@click.option("--end-date", type=str, required=True, help="End date in YYYY-MM-DD format")
+@click.option(
+    "--start-date", type=str, required=True, help="Start date in YYYY-MM-DD format"
+)
+@click.option(
+    "--end-date", type=str, required=True, help="End date in YYYY-MM-DD format"
+)
 @click.option(
     "--resolution",
     required=True,
@@ -505,7 +545,9 @@ def main(
     # - Handle download failures, retries
 
     bands = bands.split(",")
-    metadata_asset_names = metadata_asset_names.split(",") if metadata_asset_names else None
+    metadata_asset_names = (
+        metadata_asset_names.split(",") if metadata_asset_names else None
+    )
     mask_bands = mask_bands.split(",") if mask_bands else None
 
     # Ensure output folder exists
@@ -515,17 +557,23 @@ def main(
     if num_workers is None:
         num_workers = max(1, int(multiprocessing.cpu_count() - 1))
     multiprocessing.set_start_method("spawn")
-    logger.info(f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores")
+    logger.info(
+        f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores"
+    )
 
     # Read area of interest
     logger.info("Reading GeoDataFrame")
     try:
         gdf = gpd.read_file(geojson_path).to_crs(epsg=4326)
     except Exception as e:
-        raise RuntimeError(f"Failed to read and reproject GeoJSON {geojson_path}: {e}") from e
+        raise RuntimeError(
+            f"Failed to read and reproject GeoJSON {geojson_path}: {e}"
+        ) from e
 
     if gdf.empty:
-        raise ValueError(f"GeoDataFrame is empty. Please check the input file {geojson_path}.")
+        raise ValueError(
+            f"GeoDataFrame is empty. Please check the input file {geojson_path}."
+        )
 
     if len(gdf) > 1:
         raise ValueError(

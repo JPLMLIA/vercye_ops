@@ -1,8 +1,9 @@
 """Helper to take in a template apsimx file and update the .met file (containing weather information)"""
 
-import click
 import json
 from pathlib import Path
+
+import click
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -34,7 +35,11 @@ def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=F
 
     if isinstance(json_data, dict):
         for key, value in json_data.items():
-            if key == key_to_update and isinstance(value, str) and value.endswith(file_suffix):
+            if (
+                key == key_to_update
+                and isinstance(value, str)
+                and value.endswith(file_suffix)
+            ):
                 logger.info('Replacing entry "%s:%s"', key, value)
                 json_data[key] = new_value
             elif isinstance(value, (dict, list)):
@@ -44,28 +49,44 @@ def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=F
             if isinstance(item, (dict, list)):
                 recursive_update(item, key_to_update, new_value, file_suffix, verbose)
 
-                
+
 @click.command()
-@click.option('--apsimx_template_fpath', type=click.Path(exists=True, dir_okay=False), required=True, help="Path to the .apsimx file which is a JSON.")
-@click.option('--apsimx_output_fpath', type=click.Path(writable=True, dir_okay=False), required=True, help="Location to save the modified .apsimx file.")
-@click.option('--new_met_fpath', type=click.Path(writable=True, dir_okay=False), required=True, help="Filepath to the new .met data.")
-@click.option('--verbose', is_flag=True, help="Enable verbose output.")
+@click.option(
+    "--apsimx_template_fpath",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="Path to the .apsimx file which is a JSON.",
+)
+@click.option(
+    "--apsimx_output_fpath",
+    type=click.Path(writable=True, dir_okay=False),
+    required=True,
+    help="Location to save the modified .apsimx file.",
+)
+@click.option(
+    "--new_met_fpath",
+    type=click.Path(writable=True, dir_okay=False),
+    required=True,
+    help="Filepath to the new .met data.",
+)
+@click.option("--verbose", is_flag=True, help="Enable verbose output.")
 def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, verbose):
     """Update an .apsimx file with new fields and save the updated version."""
     if verbose:
-        logger.setLevel('INFO')
+        logger.setLevel("INFO")
 
     apsimx_template_fpath = Path(apsimx_template_fpath)
-    with open(apsimx_template_fpath, 'r') as file:
-        json_data = json.load(file)   
-    
-    recursive_update(json_data, 'FileName', '.met', new_met_fpath, verbose)
+    with open(apsimx_template_fpath, "r") as file:
+        json_data = json.load(file)
+
+    recursive_update(json_data, "FileName", ".met", new_met_fpath, verbose)
 
     # Save out updated .apsimx json to disk
-    with open(apsimx_output_fpath, 'w') as file:
+    with open(apsimx_output_fpath, "w") as file:
         json.dump(json_data, file, indent=2)
 
     logger.info("Updated file saved to %s", apsimx_output_fpath)
+
 
 if __name__ == "__main__":
     cli()

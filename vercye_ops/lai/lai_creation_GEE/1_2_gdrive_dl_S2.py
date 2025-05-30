@@ -61,9 +61,7 @@ def main(secret_json, folder_id, outdir):
     drive_downloader = build("drive", "v3", credentials=creds)
 
     # query = f"Folder ID '{folder_id}'"  # you may get error for this line
-    query = (
-        f"'{folder_id}' in parents"  # this works  ref https://stackoverflow.com/q/73119251/248616
-    )
+    query = f"'{folder_id}' in parents"  # this works  ref https://stackoverflow.com/q/73119251/248616
 
     results = drive_downloader.files().list(q=query, pageSize=1000).execute()
     items = results.get("files", [])

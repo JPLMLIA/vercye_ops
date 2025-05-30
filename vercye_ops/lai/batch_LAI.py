@@ -1,33 +1,35 @@
-import os.path as op
-from pathlib import Path
-from datetime import datetime, timedelta
-import time
-import click
 import csv
+import os.path as op
+import time
+from datetime import datetime, timedelta
 
+import click
 import numpy as np
-from scipy.interpolate import CubicSpline
+import rasterio as rio
 import torch
 import torch.nn as nn
-import rasterio as rio
+from scipy.interpolate import CubicSpline
+
 
 class Scale2d(nn.Module):
     def __init__(self, n_ch):
         super(Scale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1,n_ch,1,1))
-        self.bias = nn.Parameter(torch.Tensor(1,n_ch,1,1))
+        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
+        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
 
     def forward(self, x):
         return x * self.weight + self.bias
 
+
 class UnScale2d(nn.Module):
     def __init__(self, n_ch):
         super(UnScale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1,n_ch,1,1))
-        self.bias = nn.Parameter(torch.Tensor(1,n_ch,1,1))
+        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
+        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
 
     def forward(self, x):
         return (x - self.bias) / self.weight
+
 
 class LAI_CNN(nn.Module):
     def __init__(self, in_ch, h1_dim, out_ch):
@@ -46,16 +48,43 @@ class LAI_CNN(nn.Module):
         x = self.output(x)
         return x
 
+
 @click.command()
-@click.argument('S2_dir', type=click.Path(exists=True))
-@click.argument('LAI_dir', type=click.Path(exists=True))
-@click.argument('geometry_name', type=str)
-@click.option('--adjustment', options=["none", "wheat", "maize"], default="none", help='Adjustment to apply to the LAI estimate')
-@click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='Start date for the image collection')
-@click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), help='End date for the image collection')
-@click.option('--model_weights', type=click.Path(exists=True), default='s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth', help='Local Path to the model weights')
-def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model_weights="s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"):
-    """ Main LAI batch prediction function
+@click.argument("S2_dir", type=click.Path(exists=True))
+@click.argument("LAI_dir", type=click.Path(exists=True))
+@click.argument("geometry_name", type=str)
+@click.option(
+    "--adjustment",
+    options=["none", "wheat", "maize"],
+    default="none",
+    help="Adjustment to apply to the LAI estimate",
+)
+@click.option(
+    "--start_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="Start date for the image collection",
+)
+@click.option(
+    "--end_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="End date for the image collection",
+)
+@click.option(
+    "--model_weights",
+    type=click.Path(exists=True),
+    default="s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
+    help="Local Path to the model weights",
+)
+def main(
+    s2_dir,
+    lai_dir,
+    geometry_name,
+    adjustment,
+    start_date,
+    end_date,
+    model_weights="s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
+):
+    """Main LAI batch prediction function
 
     S2_dir: Local Path to the Sentinel-2 images
     LAI_dir: Local Path to the LAI estimates
@@ -83,7 +112,9 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
     model.eval()
 
     # Iterate through each date
-    dates = [start_date + timedelta(days=i) for i in range((end_date-start_date).days+1)]
+    dates = [
+        start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)
+    ]
     dates = [date.strftime("%Y-%m-%d") for date in dates]
 
     statistics = []
@@ -97,7 +128,7 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
         raster_path = op.join(s2_dir, f"{geometry_name}_{d}.tif")
         if not op.exists(raster_path):
             print(f"Skipping {d} because {raster_path} does not exist")
-            
+
             stat = {
                 "Date": d_slash,
                 "n_pixels": 0,
@@ -105,11 +136,11 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
                 "LAI Mean": None,
                 "LAI Stddev": None,
                 "LAI Mean Adjusted": None,
-                "LAI Stddev Adjusted": None
+                "LAI Stddev Adjusted": None,
             }
             statistics.append(stat)
             continue
-            
+
         # Load the image
         src = rio.open(raster_path)
         array = src.read()
@@ -125,7 +156,7 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
                 "LAI Mean": None,
                 "LAI Stddev": None,
                 "LAI Mean Adjusted": None,
-                "LAI Stddev Adjusted": None
+                "LAI Stddev Adjusted": None,
             }
             statistics.append(stat)
             continue
@@ -150,32 +181,36 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
         # Export as GeoTIFF
         filename = op.join(lai_dir, f"{geometry_name}_{d}_LAI_{adjustment}-adj.tif")
         profile = src.profile
-        profile.update(count=3, dtype='float32', compress='lzw', nodata=np.nan, driver='GTiff')
-        with rio.open(filename, 'w', **profile) as dst:
+        profile.update(
+            count=3, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff"
+        )
+        with rio.open(filename, "w", **profile) as dst:
             dst.write(LAI_estimate, 1)
             dst.write(LAI_adjusted, 2)
             # Set band description to estimateLAI
             dst.set_band_description(1, "estimateLAI")
             dst.set_band_description(2, "adjustedLAI")
         print(f"Exported {filename}")
-        
+
         # Calculate statistics
-        statistics.append({
-            "Date": d_slash,
-            "n_pixels": np.sum(~np.isnan(LAI_estimate)),
-            "interpolated": 0,
-            "LAI Mean": np.nanmean(LAI_estimate),
-            "LAI Stddev": np.nanstd(LAI_estimate),
-            "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
-            "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
-        })
+        statistics.append(
+            {
+                "Date": d_slash,
+                "n_pixels": np.sum(~np.isnan(LAI_estimate)),
+                "interpolated": 0,
+                "LAI Mean": np.nanmean(LAI_estimate),
+                "LAI Stddev": np.nanstd(LAI_estimate),
+                "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
+                "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
+            }
+        )
 
         # Update running maximum
         if lai_max is None:
             lai_max = LAI_estimate
         else:
             lai_max = np.nanmax([lai_max, LAI_estimate], axis=0)
-        
+
         if lai_adjusted_max is None:
             lai_adjusted_max = LAI_adjusted
         else:
@@ -196,25 +231,26 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
             else:
                 real_X.append(i)
                 real_Y.append(stat[col])
-        
-        cs = CubicSpline(np.array(real_X), np.array(real_Y), bc_type='not-a-knot')
+
+        cs = CubicSpline(np.array(real_X), np.array(real_Y), bc_type="not-a-knot")
         for i in nan_X:
-            statistics[i][col] = max(cs(i),0)
+            statistics[i][col] = max(cs(i), 0)
             statistics[i]["interpolated"] = 1
 
-
     # Write statistics to CSV
-    filename = op.join(lai_dir, f"{geometry_name}_{start_date}_{end_date}_STATS_{adjustment}-adj.csv")
+    filename = op.join(
+        lai_dir, f"{geometry_name}_{start_date}_{end_date}_STATS_{adjustment}-adj.csv"
+    )
     with open(filename, "w") as f:
         writer = csv.DictWriter(f, fieldnames=statistics[0].keys())
         writer.writeheader()
         writer.writerows(statistics)
     print(f"Exported {filename}")
-    
+
     # Export running maximum
     # Set 0 to nan
     filename = op.join(lai_dir, f"{geometry_name}_{start_date}_{end_date}_STATS.csv")
-    with rio.open(filename, 'w', **profile) as dst:
+    with rio.open(filename, "w", **profile) as dst:
         dst.write(lai_max, 1)
         dst.write(lai_adjusted_max, 2)
         dst.set_band_description(1, "estimateLAImax")
@@ -222,6 +258,7 @@ def main(s2_dir, lai_dir, geometry_name, adjustment, start_date, end_date, model
     print(f"Exported {filename}")
 
     print(f"Finished in {time.time()-start:.2f} seconds")
+
 
 if __name__ == "__main__":
     main()

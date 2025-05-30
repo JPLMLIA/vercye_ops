@@ -1,12 +1,12 @@
 from datetime import datetime
-from pathlib import Path
-import click
-from collections import defaultdict
 from glob import glob
+from pathlib import Path
 
+import click
 import rasterio as rio
-from rasterio.warp import reproject, Resampling
 from rasterio.transform import from_origin
+from rasterio.warp import Resampling, reproject
+
 
 def is_within_date_range(vf, start_date, end_date):
     # files have pattern f"{lai_dir}/{prefix}_{resolution}m_{date}_LAI.vrt"
@@ -14,14 +14,26 @@ def is_within_date_range(vf, start_date, end_date):
     date = datetime.strptime(date, "%Y-%m-%d")
     return start_date <= date <= end_date
 
-def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: int, lai_file_ext: rio.coords.BoundingBox, start_date=None, end_date=None):
+
+def find_union_extent_LAI_info(
+    lai_dir: str,
+    lai_region: str,
+    lai_resolution: int,
+    lai_file_ext: rio.coords.BoundingBox,
+    start_date=None,
+    end_date=None,
+):
     lai_files = sorted(glob(f"{lai_dir}/{lai_region}_{lai_resolution}*.{lai_file_ext}"))
 
     if start_date and end_date:
-        lai_files = [f for f in lai_files if is_within_date_range(f, start_date, end_date)]
+        lai_files = [
+            f for f in lai_files if is_within_date_range(f, start_date, end_date)
+        ]
 
     if not lai_files:
-        raise Exception(f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution} and extension {lai_file_ext}")
+        raise Exception(
+            f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution} and extension {lai_file_ext}"
+        )
 
     union_bounds = None
     lai_crs = None
@@ -37,7 +49,9 @@ def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: in
                 res_x, res_y = ds.res
             else:
                 if ds.res != (res_x, res_y):
-                    raise Exception(f"LAI files have different resolutions: {ds.res} vs {(res_x, res_y)}.")
+                    raise Exception(
+                        f"LAI files have different resolutions: {ds.res} vs {(res_x, res_y)}."
+                    )
 
                 b = ds.bounds
                 union_bounds = rio.coords.BoundingBox(
@@ -50,8 +64,19 @@ def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: in
     return union_bounds, lai_crs, (res_x, res_y)
 
 
-def handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path, start_date, end_date):
-    union_bounds, lai_crs, (res_x, res_y) = find_union_extent_LAI_info(lai_dir, lai_region, lai_resolution, lai_file_ext, start_date, end_date)
+def handle_identify_extent_reproject(
+    lai_dir,
+    lai_region,
+    lai_resolution,
+    lai_file_ext,
+    mask_path,
+    out_path,
+    start_date,
+    end_date,
+):
+    union_bounds, lai_crs, (res_x, res_y) = find_union_extent_LAI_info(
+        lai_dir, lai_region, lai_resolution, lai_file_ext, start_date, end_date
+    )
 
     # Calculate transform and dimensions
     width = int((union_bounds.right - union_bounds.left) / res_x)
@@ -64,14 +89,14 @@ def handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_fi
 
         with rio.open(
             out_path,
-            'w',
-            driver='GTiff',
+            "w",
+            driver="GTiff",
             height=height,
             width=width,
             count=1,
             dtype=rio.uint8,
             crs=lai_crs,
-            transform=transform
+            transform=transform,
         ) as dst_ds:
             reproject(
                 source=rio.band(mask_ds, 1),
@@ -80,9 +105,10 @@ def handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_fi
                 src_crs=mask_crs,
                 dst_transform=transform,
                 dst_crs=lai_crs,
-                resampling=Resampling.nearest
+                resampling=Resampling.nearest,
             )
     return
+
 
 def handle_reprojection_to_specified_raster(lai_path, mask_path, out_path):
     with rio.open(mask_path) as mask_ds:
@@ -99,14 +125,14 @@ def handle_reprojection_to_specified_raster(lai_path, mask_path, out_path):
             # Write reprojected
             with rio.open(
                 out_path,
-                'w',
-                driver='GTiff',
+                "w",
+                driver="GTiff",
                 height=lai_height,
                 width=lai_width,
                 count=1,
                 dtype=rio.uint8,
                 crs=lai_crs,
-                transform=lai_transform
+                transform=lai_transform,
             ) as dst_ds:
                 reproject(
                     source=rio.band(mask_ds, 1),
@@ -115,23 +141,67 @@ def handle_reprojection_to_specified_raster(lai_path, mask_path, out_path):
                     src_crs=mask_crs,
                     dst_transform=lai_transform,
                     dst_crs=lai_crs,
-                    resampling=Resampling.nearest
+                    resampling=Resampling.nearest,
                 )
 
 
 @click.command()
-@click.argument('mask_path', type=click.Path(exists=True))
-@click.argument('out_path', type=click.Path())
-@click.option('--lai_dir', type=click.Path(exists=True), default=None, help='Directory where LAI data is saved. Needs to be used with --lai_region.')
-@click.option('--lai_region', type=str, default=None, help='Region of LAI data to use. Needs to be used with --lai_dir.')
-@click.option('--lai_resolution', type=int, help='Resolution of LAI data to use. Needs to be used if providing --lai_dir')
-@click.option('--lai_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files. Usage with --lai_dir', default='tif')
-@click.option('--lai_path', type=click.Path(exists=True), default=None, help='Path to a specific LAI file. Mutually exclusive with --lai_dir/region.')
-@click.option('--start_date', type=click.DateTime(formats=["%Y-%m-%d"]), default=None, help='Start date for LAI data.')
-@click.option('--end_date', type=click.DateTime(formats=["%Y-%m-%d"]), default=None, help='End date for LAI data.')
-def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext, lai_path, start_date, end_date):
+@click.argument("mask_path", type=click.Path(exists=True))
+@click.argument("out_path", type=click.Path())
+@click.option(
+    "--lai_dir",
+    type=click.Path(exists=True),
+    default=None,
+    help="Directory where LAI data is saved. Needs to be used with --lai_region.",
+)
+@click.option(
+    "--lai_region",
+    type=str,
+    default=None,
+    help="Region of LAI data to use. Needs to be used with --lai_dir.",
+)
+@click.option(
+    "--lai_resolution",
+    type=int,
+    help="Resolution of LAI data to use. Needs to be used if providing --lai_dir",
+)
+@click.option(
+    "--lai_file_ext",
+    type=click.Choice(["tif", "vrt"]),
+    help="File extension of the LAI files. Usage with --lai_dir",
+    default="tif",
+)
+@click.option(
+    "--lai_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a specific LAI file. Mutually exclusive with --lai_dir/region.",
+)
+@click.option(
+    "--start_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    default=None,
+    help="Start date for LAI data.",
+)
+@click.option(
+    "--end_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    default=None,
+    help="End date for LAI data.",
+)
+def main(
+    mask_path,
+    out_path,
+    lai_dir,
+    lai_region,
+    lai_resolution,
+    lai_file_ext,
+    lai_path,
+    start_date,
+    end_date,
+):
     """Reprojects a crop mask to the LAI raster
-    
+
     mask_path is reprojected to match the projection, extent, and resolution of
     LAI_path. It is then saved as out_path.
 
@@ -139,18 +209,28 @@ def main(mask_path, out_path, lai_dir, lai_region, lai_resolution, lai_file_ext,
     """
 
     if not (lai_dir and lai_region and lai_resolution) and not lai_path:
-        raise Exception("Please either specify lai_dir and lai_region or specify lai_path.")
+        raise Exception(
+            "Please either specify lai_dir and lai_region or specify lai_path."
+        )
 
     if (lai_dir or lai_region) and lai_path:
         raise Exception("Please either specify lai_dir and lai_region OR lai_path.")
 
     if lai_dir and lai_region:
         # Sometimes the LAI resolution and extent might be heterogenous, so we need to identify the largest extent.
-        handle_identify_extent_reproject(lai_dir, lai_region, lai_resolution, lai_file_ext, mask_path, out_path, start_date, end_date)
+        handle_identify_extent_reproject(
+            lai_dir,
+            lai_region,
+            lai_resolution,
+            lai_file_ext,
+            mask_path,
+            out_path,
+            start_date,
+            end_date,
+        )
     else:
         handle_reprojection_to_specified_raster(lai_path, mask_path, out_path)
 
-    
 
 if __name__ == "__main__":
     main()

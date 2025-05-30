@@ -1,35 +1,35 @@
-import gzip
-import os.path as op
 import ftplib
+import gzip
+import os
+import os.path as op
+import queue
+import random
+import shutil
+import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
+
 import click
 import pandas as pd
 from tqdm import tqdm
-from vercye_ops.utils.init_logger import get_logger
-import multiprocessing
-import time
-import random
-import queue
-from threading import Lock
-import tempfile
-import os
-import shutil
 
+from vercye_ops.utils.init_logger import get_logger
 
 # Initialize logger
 logger = get_logger()
 
 # Constant to adapt depending on the CHIRPS data version
-CHIRPS_BASEDIR = '/pub/org/chc/products/CHIRPS-2.0/global_daily/cogs/p05'
-CHIRPS_FILE_FORMAT = 'chirps-v2.0.{date}.cog'
+CHIRPS_BASEDIR = "/pub/org/chc/products/CHIRPS-2.0/global_daily/cogs/p05"
+CHIRPS_FILE_FORMAT = "chirps-v2.0.{date}.cog"
 
-CHIRPS_PRELIM_BASEDIR = '/pub/org/chc/products/CHIRPS-2.0/prelim/global_daily/tifs/p05'
-CHIRPS_PRELIM_FILE_FORMAT = 'chirps-v2.0.{date}.tif.gz'
+CHIRPS_PRELIM_BASEDIR = "/pub/org/chc/products/CHIRPS-2.0/prelim/global_daily/tifs/p05"
+CHIRPS_PRELIM_FILE_FORMAT = "chirps-v2.0.{date}.tif.gz"
 
 # Constants
-CHIRPS_URL = 'ftp.chc.ucsb.edu'
-CHIRPS_USER = 'anonymous'
-CHIRPS_PASS = 'your_email_address'
+CHIRPS_URL = "ftp.chc.ucsb.edu"
+CHIRPS_USER = "anonymous"
+CHIRPS_PASS = "your_email_address"
 NUM_RETRIES = 5
 RETRY_WAIT_TIME = 5  # Seconds to wait between retries
 PROGRESS_UPDATE_INTERVAL = 10
@@ -81,7 +81,7 @@ def download_file_ftp(file_name, output_fpath, ftp_connection):
     """
     temp_fpath = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.tif') as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tif") as temp_file:
             temp_fpath = temp_file.name
             ftp_connection.retrbinary(f"RETR {file_name}", temp_file.write)
             temp_file.flush()  # Ensure buffer is flushed
@@ -98,7 +98,8 @@ def download_file_ftp(file_name, output_fpath, ftp_connection):
         if temp_fpath and os.path.exists(temp_fpath):
             os.remove(temp_fpath)  # Ensure temp file is deleted on error
         raise IOError(f"Error downloading file {file_name}: {e}")
-    
+
+
 def file_exists_ftp(file_name, ftp_connection):
     """
     Check if a file exists on the FTP server.
@@ -119,7 +120,7 @@ def file_exists_ftp(file_name, ftp_connection):
         ftp_connection.size(file_name)
         return True
     except ftplib.error_perm as e:
-        if str(e).startswith('550'):
+        if str(e).startswith("550"):
             return False
         else:
             raise e
@@ -141,21 +142,20 @@ def unzip_file(file_path, output_path):
     """
     try:
         # open both in a single with-statement
-        with gzip.open(file_path, 'rb') as in_f, open(output_path, 'wb') as out_f:
+        with gzip.open(file_path, "rb") as in_f, open(output_path, "wb") as out_f:
             shutil.copyfileobj(in_f, out_f)
     except Exception as e:
         # if anything went wrong, remove the partial output
-        logger.warning('REMOVING')
+        logger.warning("REMOVING")
         if op.exists(output_path):
             os.remove(output_path)
-    
+
         raise e
-    
+
     # success: now delete the source .gz
     os.remove(file_path)
 
     return output_path
-
 
 
 def fetch_chirps_files(daterange, output_dir, connection_pool):
@@ -196,7 +196,10 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
         output_fpath = op.join(output_dir, chirps_file_name)
 
         if not op.exists(output_fpath):
-            logger.info(f"Chirps precipitation data not existing locally for date {date}. Fetching and storing to: \n%s", output_fpath)
+            logger.info(
+                f"Chirps precipitation data not existing locally for date {date}. Fetching and storing to: \n%s",
+                output_fpath,
+            )
 
             if not file_exists_ftp(chirps_file_name, ftp_connection):
                 logger.warning("Final CHIRPS product not available for date: %s", date)
@@ -205,27 +208,33 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
 
             try:
                 download_file_ftp(chirps_file_name, output_fpath, ftp_connection)
-                if output_fpath.endswith('.gz'):
+                if output_fpath.endswith(".gz"):
                     output_fpath = unzip_file(output_fpath)
             except Exception as e:
                 logger.error(f"Error downloading file {chirps_file_name}: {e}")
                 failed_downloads.append(date)
 
             # Check if prelim file exists locally
-            chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
-            chirps_prelim_file_name = chirps_prelim_file_name.replace('.tif.gz', '_prelim.tif')
-            chirps_prelim_fpath = op.join(output_dir, chirps_prelim_file_name)                                                                          
+            chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(
+                date=date.strftime("%Y.%m.%d")
+            )
+            chirps_prelim_file_name = chirps_prelim_file_name.replace(
+                ".tif.gz", "_prelim.tif"
+            )
+            chirps_prelim_fpath = op.join(output_dir, chirps_prelim_file_name)
 
             # Remove the prelim file if it exists as it is replaced by the final file now
             if op.exists(chirps_prelim_fpath):
                 logger.warning("REMOVING A")
                 os.remove(chirps_prelim_fpath)
-    
+
     # Try to download the preliminary files for the unavailable dates
     ftp_connection.cwd(CHIRPS_PRELIM_BASEDIR)
     cur_ftp_dir_year = None
     for date in unavailable_dates:
-        chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
+        chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(
+            date=date.strftime("%Y.%m.%d")
+        )
         output_fpath = op.join(output_dir, chirps_prelim_file_name)
         year = date.year
         if cur_ftp_dir_year != year:
@@ -238,18 +247,24 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
                 remaining_dates = daterange[daterange.index(date):]
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
-        
-        unzipped_prelim_filepath = output_fpath.replace('.tif.gz', '_prelim.tif')
+
+        unzipped_prelim_filepath = output_fpath.replace(".tif.gz", "_prelim.tif")
         if not op.exists(unzipped_prelim_filepath):
-            logger.info(f"Chirps preliminary data not existing locally for date {date}. Fetching and storing to: \n%s", output_fpath)
+            logger.info(
+                f"Chirps preliminary data not existing locally for date {date}. Fetching and storing to: \n%s",
+                output_fpath,
+            )
 
             if not file_exists_ftp(chirps_prelim_file_name, ftp_connection):
-                logger.error(f"Neither Final nor Preliminary CHIRPS product available for date: %s", date)
+                logger.error(
+                    f"Neither Final nor Preliminary CHIRPS product available for date: %s",
+                    date,
+                )
                 continue
 
             try:
                 download_file_ftp(chirps_prelim_file_name, output_fpath, ftp_connection)
-                if output_fpath.endswith('.gz'):
+                if output_fpath.endswith(".gz"):
                     output_fpath = unzip_file(output_fpath, unzipped_prelim_filepath)
             except Exception as e:
                 logger.error(f"Error downloading file {chirps_prelim_file_name}: {e}")
@@ -257,6 +272,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
 
     connection_pool.release_connection(ftp_connection)
     return failed_downloads
+
 
 def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers):
     """
@@ -281,13 +297,17 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
     total_files = len(all_dates)
     chunk_size = max(1, total_files // num_workers)
     chunk_size = min(chunk_size, PROGRESS_UPDATE_INTERVAL)
-    daterange_chunks = [all_dates[i:i + chunk_size] for i in range(0, total_files, chunk_size)]
+    daterange_chunks = [
+        all_dates[i:i + chunk_size] for i in range(0, total_files, chunk_size)
+    ]
 
     retries = NUM_RETRIES
 
     logger.info("Initializing %d workers for parallel downloads.", num_workers)
-    ftp_connection_pool = FTPConnectionPool(num_workers, CHIRPS_URL, CHIRPS_USER, CHIRPS_PASS)
-    
+    ftp_connection_pool = FTPConnectionPool(
+        num_workers, CHIRPS_URL, CHIRPS_USER, CHIRPS_PASS
+    )
+
     with tqdm(total=total_files, desc="Total Progress") as progress_bar:
         for attempt in range(retries):
             logger.info("Starting download attempt %d", attempt + 1)
@@ -295,7 +315,9 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
 
             with ThreadPoolExecutor(max_workers=num_workers) as executor:
                 futures = {
-                    executor.submit(fetch_chirps_files, daterange, output_dir, ftp_connection_pool): daterange
+                    executor.submit(
+                        fetch_chirps_files, daterange, output_dir, ftp_connection_pool
+                    ): daterange
                     for daterange in daterange_chunks
                 }
 
@@ -313,13 +335,15 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
                 logger.info("All downloads completed successfully.")
                 return
 
-            logger.warning("Retrying failed downloads (%d remaining)...", len(failed_downloads))
+            logger.warning(
+                "Retrying failed downloads (%d remaining)...", len(failed_downloads)
+            )
 
             # Reduces amount of directory switches
             failed_downloads.sort()
 
             daterange_chunks = [
-                failed_downloads[i:i + chunk_size] 
+                failed_downloads[i:i + chunk_size]
                 for i in range(0, len(failed_downloads), chunk_size)
             ]
 
@@ -328,6 +352,7 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
             time.sleep(RETRY_WAIT_TIME)  # Wait before retrying
 
         logger.error("Maximum retries reached. Some files could not be downloaded.")
+
 
 def chirps_file_exists(date, output_dir):
     """
@@ -349,6 +374,7 @@ def chirps_file_exists(date, output_dir):
     output_fpath = op.join(output_dir, chirps_file_name)
     return op.exists(output_fpath)
 
+
 def chirps_prelim_file_exists(date, output_dir):
     """
     Check if a CHIRPS preliminary file exists locally for a given date.
@@ -365,8 +391,10 @@ def chirps_prelim_file_exists(date, output_dir):
     bool
         True if the file exists, False otherwise.
     """
-    chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
-    chirps_prelim_file_name = chirps_prelim_file_name.replace('.tif.gz', '_prelim.tif')
+    chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(
+        date=date.strftime("%Y.%m.%d")
+    )
+    chirps_prelim_file_name = chirps_prelim_file_name.replace(".tif.gz", "_prelim.tif")
     output_fpath = op.join(output_dir, chirps_prelim_file_name)
     return op.exists(output_fpath)
 
@@ -384,26 +412,51 @@ def validate_chirps_files(start_date, end_date, output_dir):
     output_dir : str
         Directory to save downloaded files.
     """
-    logger.info("Validating downloaded CHIRPS files for range: %s to %s", start_date, end_date)
+    logger.info(
+        "Validating downloaded CHIRPS files for range: %s to %s", start_date, end_date
+    )
     all_dates = pd.date_range(start_date, end_date)
 
     # Validate existence of files
     for date in all_dates:
         if not chirps_file_exists(date, output_dir):
             if not chirps_prelim_file_exists(date, output_dir):
-                logger.error(f"No CHIRPS product could be downloaded for date: %s", date)
+                logger.error(
+                    f"No CHIRPS product could be downloaded for date: %s", date
+                )
             else:
-                logger.warning(f"Final CHIRPS product not available for date: %s. Using preliminary data instead.", date)
+                logger.warning(
+                    f"Final CHIRPS product not available for date: %s. Using preliminary data instead.",
+                    date,
+                )
 
     logger.info("Validation completed. Check for errors above.")
 
 
 @click.command()
-@click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date for CHIRPS data collection in YYYY-MM-DD format.")
-@click.option('--end-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date for CHIRPS data collection in YYYY-MM-DD format.")
-@click.option('--output-dir', required=True, help="Output directory to store the CHIRPS data.")
-@click.option('--num-workers', type=int, default=10, show_default=True, help="Number of parallel processes. Capped at 10 due to server limitations.")
-@click.option('--verbose', is_flag=True, help="Enable verbose logging.", default=False)
+@click.option(
+    "--start-date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    required=True,
+    help="Start date for CHIRPS data collection in YYYY-MM-DD format.",
+)
+@click.option(
+    "--end-date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    required=True,
+    help="End date for CHIRPS data collection in YYYY-MM-DD format.",
+)
+@click.option(
+    "--output-dir", required=True, help="Output directory to store the CHIRPS data."
+)
+@click.option(
+    "--num-workers",
+    type=int,
+    default=10,
+    show_default=True,
+    help="Number of parallel processes. Capped at 10 due to server limitations.",
+)
+@click.option("--verbose", is_flag=True, help="Enable verbose logging.", default=False)
 def cli(start_date, end_date, output_dir, num_workers, verbose):
     """
     CLI wrapper to fetch CHIRPS precipitation data for a given date range.
@@ -423,10 +476,10 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
 
     """
     if verbose:
-        logger.setLevel('INFO')
+        logger.setLevel("INFO")
     else:
-        logger.setLevel('WARNING')
-    
+        logger.setLevel("WARNING")
+
     if not op.exists(output_dir):
         raise FileNotFoundError(f"Output directory {output_dir} does not exist.")
 
@@ -436,5 +489,6 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     # Validate the downloaded files for existence
     validate_chirps_files(start_date, end_date, output_dir)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     cli()

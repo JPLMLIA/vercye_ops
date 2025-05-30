@@ -70,11 +70,17 @@ def addGeometry(image):
 
 def clean_name(name):
     # Remove special characters to avoid GEE export issues
-    return "".join(c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c))
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c)
+    )
 
 
-def process_gdrive_download(drive_service, folder_name, file_description, download_folder):
-    drive_files, drive_folder_id = find_files_in_drive(drive_service, folder_name, file_description)
+def process_gdrive_download(
+    drive_service, folder_name, file_description, download_folder
+):
+    drive_files, drive_folder_id = find_files_in_drive(
+        drive_service, folder_name, file_description
+    )
 
     if drive_files:
         print(f"Found {len(drive_files)} files for export task")
@@ -108,7 +114,9 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
 )
 @click.option("--region", help="Region name (without apostrophes)")
 @click.option(
-    "--shpfile", type=click.Path(exists=True), help="Local Path to the shapefile to override region"
+    "--shpfile",
+    type=click.Path(exists=True),
+    help="Local Path to the shapefile to override region",
 )
 @click.option(
     "--start-date",
@@ -120,16 +128,23 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
     type=click.DateTime(formats=["%Y-%m-%d"]),
     help="End date for the image collection",
 )
-@click.option("--resolution", type=int, default=20, help="Spatial resolution in meters per pixel.")
+@click.option(
+    "--resolution", type=int, default=20, help="Spatial resolution in meters per pixel."
+)
 @click.option(
     "--export-mode",
     type=click.Choice(["gdrive", "gcs"]),
     default="gdrive",
     help="Export mode: Google Drive or Google Cloud Storage. Attention: GCS will come with egress costs!",
 )
-@click.option("--export-bucket", type=str, help="Google Cloud Storage bucket name", required=False)
 @click.option(
-    "--gcs-folder-path", type=str, help="Google Cloud Storage folder path in bucket", required=False
+    "--export-bucket", type=str, help="Google Cloud Storage bucket name", required=False
+)
+@click.option(
+    "--gcs-folder-path",
+    type=str,
+    help="Google Cloud Storage folder path in bucket",
+    required=False,
 )
 @click.option(
     "--gdrive-credentials",
@@ -239,7 +254,9 @@ def main(
         current_datestr = current_date.strftime("%Y-%m-%d")
         next_datestr = next_date.strftime("%Y-%m-%d")
         # Filter on geometry and date
-        S2_filtered = S2.filterBounds(geometry).filterDate(current_datestr, next_datestr)
+        S2_filtered = S2.filterBounds(geometry).filterDate(
+            current_datestr, next_datestr
+        )
 
         # Filter on cloudy percentage and cloud score and snow percentage
         csPlus = ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
@@ -248,7 +265,11 @@ def main(
             S2_filtered.linkCollection(csPlus, csPlusBands)
             .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloudy_threshold))
             .map(lambda image: image.updateMask(image.select("cs").gte(cs_threshold)))
-            .map(lambda image: image.updateMask(image.select("MSK_SNWPRB").lt(snow_threshold)))
+            .map(
+                lambda image: image.updateMask(
+                    image.select("MSK_SNWPRB").lt(snow_threshold)
+                )
+            )
         )
 
         if S2_filtered.size().getInfo() == 0:
@@ -332,7 +353,9 @@ def main(
 
         # Wait for the task to complete - only want to have one task running at a time per region
         while task.active():
-            print(f"Task {task.id} is {task.status()['state']} ({time.time()-start:.2f}s elapsed)")
+            print(
+                f"Task {task.id} is {task.status()['state']} ({time.time()-start:.2f}s elapsed)"
+            )
             time.sleep(3)
 
         task_status = task.status()
@@ -342,8 +365,12 @@ def main(
         # While this will prevent the next task from starting, this is a good way to avoid running out of space in GDrive
         # If this is too slow, we can do the downloading with a seperate background process
         if task_status["state"] == "COMPLETED" and drive_service is not None:
-            print(f"Task completed successfully, launching download task from Google Drive...")
-            process_gdrive_download(drive_service, folder_name, file_description, download_folder)
+            print(
+                f"Task completed successfully, launching download task from Google Drive..."
+            )
+            process_gdrive_download(
+                drive_service, folder_name, file_description, download_folder
+            )
 
         current_date = next_date
 

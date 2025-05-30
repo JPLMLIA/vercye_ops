@@ -7,6 +7,7 @@ import click
 import geopandas as gpd
 import numpy as np
 import rasterio as rio
+
 from vercye_ops.lai.lai_creation_STAC.stac_downloader import run_pipeline
 
 
@@ -21,13 +22,17 @@ def get_s2_geometry_data(metadata_xml):
     azimuth_angle_el = xml_root.findall(".//Mean_Sun_Angle/AZIMUTH_ANGLE")[0]
     azimuth_angle_units = azimuth_angle_el.attrib["unit"]
     if azimuth_angle_units != "deg":
-        raise Exception(f"azimuth_angle_units must be 'deg', but it is {azimuth_angle_units}.")
+        raise Exception(
+            f"azimuth_angle_units must be 'deg', but it is {azimuth_angle_units}."
+        )
     azimuth_angle = float(azimuth_angle_el.text)
 
     zenith_angle_el = xml_root.findall(".//Mean_Sun_Angle/ZENITH_ANGLE")[0]
     zenith_angle_units = zenith_angle_el.attrib["unit"]
     if zenith_angle_units != "deg":
-        raise Exception(f"zenith_angle_units must be 'deg', but it is {zenith_angle_units}.")
+        raise Exception(
+            f"zenith_angle_units must be 'deg', but it is {zenith_angle_units}."
+        )
     zenith_angle = float(zenith_angle_el.text)
 
     # Extract mean viewing incidence angles for band 8A
@@ -59,12 +64,17 @@ def get_s2_geometry_data(metadata_xml):
 
 
 def compute_cos_angles(
-    zenith_angle, azimuth_angle, mean_incidence_zenith_angle_b8a, mean_incidence_azimuth_angle_b8a
+    zenith_angle,
+    azimuth_angle,
+    mean_incidence_zenith_angle_b8a,
+    mean_incidence_azimuth_angle_b8a,
 ):
     cos_vza = np.uint16(np.cos(np.deg2rad(mean_incidence_zenith_angle_b8a)) * 10000)
     cos_sza = np.uint16(np.cos(np.deg2rad(zenith_angle)) * 10000)
     # Converting to int16 to match GEE script
-    cos_raa = np.int16(np.cos(np.deg2rad(azimuth_angle - mean_incidence_azimuth_angle_b8a)) * 10000)
+    cos_raa = np.int16(
+        np.cos(np.deg2rad(azimuth_angle - mean_incidence_azimuth_angle_b8a)) * 10000
+    )
     return {
         "cos_vza": cos_vza,
         "cos_sza": cos_sza,
@@ -79,7 +89,9 @@ def create_geometry_bands(item, cos_angles, metadata, output_folder, blocksize=2
     for angle_name, angle_value in cos_angles.items():
         geo_dtype = np.int16
         # Create empty array with same dimensions as other bands
-        band_data = np.full((metadata["height"], metadata["width"]), angle_value, dtype=geo_dtype)
+        band_data = np.full(
+            (metadata["height"], metadata["width"]), angle_value, dtype=geo_dtype
+        )
 
         # Save the geometry band
         output_path = os.path.join(
@@ -143,7 +155,9 @@ def add_geometry_bands(
         }
 
     # Create the geometry bands using the reference metadata
-    geometry_band_paths = create_geometry_bands(item, cos_angles, reference_metadata, output_folder)
+    geometry_band_paths = create_geometry_bands(
+        item, cos_angles, reference_metadata, output_folder
+    )
 
     # Ensure correct bandorder for output
     band_paths["cos_vza"] = geometry_band_paths["cos_vza"]
@@ -155,7 +169,13 @@ def add_geometry_bands(
 
 
 def s2_mask_processor(
-    maskbands, resolution, item, output_folder, scl_keep_classes, cloud_thresh, snowprob_thresh
+    maskbands,
+    resolution,
+    item,
+    output_folder,
+    scl_keep_classes,
+    cloud_thresh,
+    snowprob_thresh,
 ):
     mask = None
 
@@ -202,8 +222,12 @@ def build_s2_mask_processor(
     default="S2",
     help="Satellite source to use. Currently supported 'S2' (Sentinel-2)",
 )
-@click.option("--start-date", type=str, required=True, help="Start date in YYYY-MM-DD format")
-@click.option("--end-date", type=str, required=True, help="End date in YYYY-MM-DD format")
+@click.option(
+    "--start-date", type=str, required=True, help="Start date in YYYY-MM-DD format"
+)
+@click.option(
+    "--end-date", type=str, required=True, help="End date in YYYY-MM-DD format"
+)
 @click.option("--resolution", type=int, help="Target resolution in meters.")
 @click.option(
     "--geojson-path",
@@ -300,7 +324,9 @@ def main(
     # Set up parallel processing
     if num_workers is None:
         num_workers = max(1, int(multiprocessing.cpu_count() - 1))
-    print(f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores")
+    print(
+        f"Using {num_workers} workers out of {multiprocessing.cpu_count()} available cores"
+    )
 
     # Read area of interest
     print("Reading GeoDataFrame")

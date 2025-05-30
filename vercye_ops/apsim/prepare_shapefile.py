@@ -1,6 +1,8 @@
 from pathlib import Path
+
 import click
 import geopandas as gpd
+
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
@@ -65,11 +67,9 @@ def filter_by_admin_level(gdf, admin_column_name, admin_column_names):
 
     # check if there are duplicate values in the admin_column_name
 
-    # Drop all column that have a value other than null in a admin level column deeper 
+    # Drop all column that have a value other than null in a admin level column deeper
     # than the admin_column_name, as these are from smaller admin levels
-    deeper_admin_columns = admin_column_names[
-        admin_column_names.index(admin_column_name) + 1 :
-    ]
+    deeper_admin_columns = admin_column_names[admin_column_names.index(admin_column_name)+1:]
     for col in deeper_admin_columns:
         gdf = gdf[gdf[col].isnull()]
 

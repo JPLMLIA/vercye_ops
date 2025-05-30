@@ -1,7 +1,9 @@
 import concurrent
+import logging
 import os
 import os.path as op
 import time
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from glob import glob
 from pathlib import Path
@@ -12,9 +14,6 @@ import rasterio as rio
 import torch
 import torch.nn as nn
 
-import xml.etree.ElementTree as ET
-
-import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -141,7 +140,9 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         with torch.no_grad():
             LAI_estimate = model(s2_tensor)
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
-        logger.info(f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds")
+        logger.info(
+            f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds"
+        )
 
         # set NODATA to nan
         LAI_estimate[s2_array[-1] == nodata_val] = np.nan
@@ -152,15 +153,23 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     if os.path.exists(filename):
         os.remove(filename)
 
-    profile.update(count=1, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff", blockxsize=256, blockysize=256)
+    profile.update(
+        count=1,
+        dtype="float32",
+        compress="lzw",
+        nodata=np.nan,
+        driver="GTiff",
+        blockxsize=256,
+        blockysize=256,
+    )
     with rio.open(filename, "w", **profile) as dst:
         dst.write(LAI_estimate, 1)
         # Set band description to estimateLAI
         dst.set_band_description(1, "estimateLAI")
 
     if remove_original:
-       # Accumulate all files linked to the VRT
-       delete_vrt_and_linked_tifs(vrt_path)
+        # Accumulate all files linked to the VRT
+        delete_vrt_and_linked_tifs(vrt_path)
 
     return filename
 
@@ -201,11 +210,19 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     help="Remove original VRT files AND linked tifs after processing",
     default=False,
 )
-
-def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_weights, remove_original):
+def main(
+    s2_dir,
+    lai_dir,
+    resolution,
+    start_date,
+    end_date,
+    num_cores,
+    model_weights,
+    remove_original,
+):
     """
     Main function to process Sentinel-2 VRT files and generate LAI estimates.
-    
+
     """
 
     start = time.time()
@@ -221,15 +238,17 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
 
     if start_date is not None and end_date is not None:
-        vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
+        vrt_files = [
+            vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)
+        ]
 
     logger.info(f"Found {len(vrt_files)} VRT files at {resolution}m in {s2_dir}")
 
     # Divide files into batches for each worker
     file_batches = []
     n = len(vrt_files)
-    base_size  = n // num_cores
-    remainder  = n % num_cores
+    base_size = n // num_cores
+    remainder = n % num_cores
 
     start = 0
     for i in range(num_cores):
@@ -251,7 +270,7 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
                     file_batch,
                     model_weights,
                     lai_dir,
-                    remove_original
+                    remove_original,
                 )
             )
 
@@ -261,13 +280,18 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
             try:
                 result = future.result()
                 if result:
-                    logger.info(f"Worker {i} processed {len(result)} files successfully")
+                    logger.info(
+                        f"Worker {i} processed {len(result)} files successfully"
+                    )
                     all_results.append(result)
             except Exception as e:
                 logger.info(f"Error in worker {i}: {e}")
 
     output_files = [
-        file for batch_result in all_results for file in batch_result if file is not None
+        file
+        for batch_result in all_results
+        for file in batch_result
+        if file is not None
     ]
 
     logger.info(f"Processed {len(output_files)} files successfully")

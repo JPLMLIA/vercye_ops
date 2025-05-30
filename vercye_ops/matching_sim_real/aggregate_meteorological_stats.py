@@ -32,7 +32,7 @@ def read_met_file(filepath):
             lon = float(line.split("=")[1].strip().split()[0])
 
     header_line = next(i for i, line in enumerate(lines) if line.startswith("year"))
-    data_lines = lines[header_line + 2 :]  # Skip header and unit lines
+    data_lines = lines[header_line+2:]  # Skip header and unit lines
 
     data = []
     for line in data_lines:
@@ -60,7 +60,6 @@ def read_met_file(filepath):
 def plot_map(gdf, column, cmap, title, legend_label, pdf_pages):
     fig, ax = plt.subplots(1, 1, figsize=(14, 14))
     gdf.boundary.plot(ax=ax, linewidth=1, edgecolor="black")
-    plot = gdf.plot(column=column, ax=ax, cmap=cmap, alpha=0.6, edgecolor="k")
 
     # Add colorbar
     divider = make_axes_locatable(ax)
