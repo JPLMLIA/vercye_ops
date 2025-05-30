@@ -9,10 +9,8 @@
       
       
       
-        <link rel="prev" href="../../LAI/running/">
+        <link rel="prev" href="../metdata/">
       
-      
-        <link rel="next" href="../running/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -20,7 +18,7 @@
     
     
       
-        <title>Introduction - VeRCYE Documentation</title>
+        <title>Architecture - VeRCYE Documentation</title>
       
     
     
@@ -61,6 +59,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#vercye-architecture-documentation" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -93,7 +96,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              Architecture
             
           </span>
         </div>
@@ -341,17 +344,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
         
   
   
@@ -362,7 +358,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -464,10 +459,32 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Architecture
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -478,6 +495,218 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔍 Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      📂 Scripts
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-execution-with-snakemake" class="md-nav__link">
+    <span class="md-ellipsis">
+      ⚙️ Pipeline Execution with Snakemake
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      🧾 Config File
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔄 Pipeline Logic
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔄 Pipeline Logic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-cropmask-reprojection" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Cropmask Reprojection
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-region-masking" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Region Masking
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-region-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Region Validation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-meteorological-data-acquisition" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Meteorological Data Acquisition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-lai-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. LAI Analysis
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-apsim-simulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. APSIM Simulation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-simulation-matching" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. Simulation Matching
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-yield-map-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. Yield Map Generation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-yield-estimation-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. Yield Estimation &amp; Aggregation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. Evaluation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#11-final-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. Final Outputs
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Final Outputs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-timepoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      Per-Timepoint:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#across-years" class="md-nav__link">
+    <span class="md-ellipsis">
+      Across Years:
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#understanding-the-snakefile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Understanding the Snakefile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      📎 Pipeline Diagram
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -506,9 +735,139 @@
 
 
 
-  <h1>Introduction</h1>
-
-
+<h1 id="vercye-architecture-documentation">📘 Vercye Architecture Documentation</h1>
+<h2 id="overview">🔍 Overview</h2>
+<p>The <strong>Vercye system</strong> orchestrates a modular, region-based crop yield simulation pipeline using <strong>Snakemake</strong> for dependency resolution and scalability. Each processing step is encapsulated in a standalone script, executed conditionally and in the correct order.</p>
+<hr />
+<h2 id="scripts">📂 Scripts</h2>
+<p>Each script is self-documented via CLI help using the <code>--help</code> flag. For additional specifics, you can run the script directly in the terminal.</p>
+<hr />
+<h2 id="pipeline-execution-with-snakemake">⚙️ Pipeline Execution with Snakemake</h2>
+<p>Snakemake defines workflows as rules. Each rule specifies expected inputs and outputs, enabling:</p>
+<ul>
+<li><strong>Automatic dependency resolution</strong> – Only missing or outdated outputs are recomputed.</li>
+<li><strong>Resumability</strong> – Failed executions can resume from the point of failure.</li>
+<li><strong>Parallelization</strong> – Regions and timepoints are processed independently, increasing efficiency.</li>
+</ul>
+<hr />
+<h2 id="config-file">🧾 Config File</h2>
+<p>Every pipeline run uses a configuration file (YAML), which defines key parameters like:</p>
+<ul>
+<li>Data sources (e.g., LAI, meteorology)</li>
+<li>Resolution and CRS specs</li>
+<li>Simulation ranges (years, timepoints)</li>
+<li>Runtime limits and job parallelization caps</li>
+<li>Regions</li>
+</ul>
+<p>This design ensures reproducibility and clean separation of configuration from logic.</p>
+<hr />
+<h2 id="pipeline-logic">🔄 Pipeline Logic</h2>
+<p>The following lists a high level overview of some of the most important features of the snakemake based pipeline steps (non-exhaustive).
+The complete logic is defined in <code>vecrye_ops/snakemake/Snakefile</code>.</p>
+<h3 id="1-cropmask-reprojection">1. Cropmask Reprojection</h3>
+<ul>
+<li><strong>Rule</strong>: <code>reproject_cropmask</code></li>
+<li>Aligns the cropmask to match CRS and resolution of LAI data.</li>
+<li><strong>Requirement</strong>: All LAI files in a year must have the same resolution and CRS.</li>
+</ul>
+<hr />
+<h3 id="2-region-masking">2. Region Masking</h3>
+<ul>
+<li><strong>Rule</strong>: <code>constrain_cropmask</code></li>
+<li>Crops the reprojected cropmask to each region for spatial filtering.</li>
+</ul>
+<hr />
+<h3 id="3-region-validation">3. Region Validation</h3>
+<ul>
+<li><strong>Rule</strong>: <code>validate_region_has_cropland</code></li>
+<li>Skips regions with too few cropland pixels to avoid wasting compute.</li>
+<li>Followed by a <strong>checkpoint</strong>: <code>all_regions_validated</code>, ensuring only valid regions are processed further. This enforces snakemake to first execute all validation jobs before continuing with processing the valid regions only.</li>
+</ul>
+<hr />
+<h3 id="4-meteorological-data-acquisition">4. Meteorological Data Acquisition</h3>
+<p><strong>Supported Sources</strong>:
+- <strong>ERA5</strong> (via Google Earth Engine): Max 10 concurrent jobs.
+- <strong>NASAPower</strong>: Uses a global cache to avoid API rate limits.
+    - First job: One-time cache fill per region for its full date range (single job per region to avoid race conditions in cache write).
+    - Followed by region-timepoint-specific fetches.
+- <strong>CHIRPS</strong>: Requires global files to be locally available.</p>
+<hr />
+<h3 id="5-lai-analysis">5. LAI Analysis</h3>
+<ul>
+<li><strong>Rule</strong>: <code>lai_analysis</code></li>
+<li>Computes daily LAI stats for the cropland pixels per region (e.g., mean LAI).</li>
+<li>Optimized with windowed reading for performance.</li>
+</ul>
+<hr />
+<h3 id="6-apsim-simulation">6. APSIM Simulation</h3>
+<ul>
+<li><strong>Rule</strong>: <code>run_apsim</code></li>
+<li>Simulates many parameter combinations to model yield/LAI curves through APSIM.</li>
+<li>Supports both <strong>Dockerized</strong> and <strong>local APSIM</strong> installations depending on config parameter.</li>
+</ul>
+<hr />
+<h3 id="7-simulation-matching">7. Simulation Matching</h3>
+<ul>
+<li><strong>Rule</strong>: <code>match_sim_real</code></li>
+<li>Compares simulated outputs with observed LAI stats.</li>
+<li>Selects best-matching simulations based on curve similarity.</li>
+</ul>
+<hr />
+<h3 id="8-yield-map-generation">8. Yield Map Generation</h3>
+<ul>
+<li><strong>Rule</strong>: <code>generate_converted_lai_map</code></li>
+<li>Uses conversion factors to transform predicted yield into pixel-level raster maps.</li>
+</ul>
+<hr />
+<h3 id="9-yield-estimation-aggregation">9. Yield Estimation &amp; Aggregation</h3>
+<ul>
+<li><strong>Rule</strong>: <code>estimate_total_yield</code></li>
+<li>Aggregates pixel-level predictions into total yield per region.</li>
+<li>Additional <strong>aggregate rules</strong> summarize results across all regions and timepoints.</li>
+</ul>
+<hr />
+<h3 id="10-evaluation">10. Evaluation</h3>
+<ul>
+<li><strong>Rule</strong>: <code>evaluate_yield_estimates</code></li>
+<li>Compares predictions to ground truth using metrics like:</li>
+<li>Mean Absolute Error (MAE)</li>
+<li>Root Mean Squared Error (RMSE)</li>
+<li>R² (coefficient of determination)</li>
+<li>Relative RMSE</li>
+</ul>
+<hr />
+<h3 id="11-final-outputs">11. Final Outputs</h3>
+<h4 id="per-timepoint">Per-Timepoint:</h4>
+<ul>
+<li>PDF report (via <code>generate_final_report</code>)</li>
+<li>Aggregated CSVs and maps</li>
+</ul>
+<h4 id="across-years">Across Years:</h4>
+<ul>
+<li><strong>Rule</strong>: <code>generate_multiyear_comparison</code></li>
+<li>Creates multi-year overviews and trend visualizations</li>
+</ul>
+<h3 id="understanding-the-snakefile">Understanding the Snakefile</h3>
+<p>In some parts you might find the <code>Snakefile</code> hard to interpret directly, which is mainly due to two factors:</p>
+<ul>
+<li>
+<p>Conditional Logic: Such as only running the evaluation rule if reference data files are found in the directories.
+This is implemented a bit hacky through a the <code>get_evaluation_results_path_func</code> that checks which timepoints have reference data,
+and creating a dependancy for the final rule (<code>final_report</code>).</p>
+</li>
+<li>
+<p>Checkpointing: This feature from <code>Snakemake</code> allows us, to not run all downstream jobs on every region.
+By first validating which region has sufficient cropland to be considered for analysis, the pipeline is split into a two-step approach.
+However, this comes at the cost of making the Snakefile slightly harder to follow:
+For ensuring dependancies only on valid regions instead of all regions in the snakefile,
+downstream jobs use <code>get_valid_regions</code> helper functions, which requires the checkpoint to have passed.
+Additionally, if other outputs should be produced, this becomes slightly hacky due to the way <code>Snakemake</code> handles things
+(see the <code>sim_match_report_workaround</code> input in the rule <code>all</code> as an example for how to deal with such cases).</p>
+</li>
+</ul>
+<hr />
+<h2 id="pipeline-diagram">📎 Pipeline Diagram</h2>
+<p>See the pipeline diagram <code>vercye_pipeline_highlevel.png</code> for a visual reference of the individual rules and their dependancies / outputs.</p>
 
 
 

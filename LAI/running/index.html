@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../..">
+        <link rel="prev" href="../intro/">
       
       
-        <link rel="next" href="../running/">
+        <link rel="next" href="../../Vercye/intro/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Introduction - VeRCYE Documentation</title>
+        <title>Generating LAI Data - VeRCYE Documentation</title>
       
     
     
@@ -62,7 +62,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#vercye-lai-generation" class="md-skip">
+        <a href="#lai-generation" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              Generating LAI Data
             
           </span>
         </div>
@@ -255,6 +255,29 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Introduction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -272,7 +295,7 @@
   
   
   <span class="md-ellipsis">
-    Introduction
+    Generating LAI Data
     
   </span>
   
@@ -285,7 +308,7 @@
   
   
   <span class="md-ellipsis">
-    Introduction
+    Generating LAI Data
     
   </span>
   
@@ -308,35 +331,29 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#lai-generation" class="md-nav__link">
+  <a href="#prequisites" class="md-nav__link">
     <span class="md-ellipsis">
-      LAI Generation
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="LAI Generation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#a-google-earth-engine-exported" class="md-nav__link">
-    <span class="md-ellipsis">
-      A: Google Earth Engine Exported
+      Prequisites
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#b-stac-aws-export" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#a-google-earth-engine-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
-      B: STAC &amp; AWS Export
+      A - Google Earth Engine Pipeline
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#b-stac-catalog-aws-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      B - STAC Catalog &amp; AWS Pipeline
+    </span>
+  </a>
   
 </li>
       
@@ -344,29 +361,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../running/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Generating LAI Data
-    
-  </span>
-  
-
-      </a>
     </li>
   
 
@@ -578,36 +572,155 @@
 
 
 
-<h1 id="vercye-lai-generation">VeRCYe LAI Generation</h1>
-<p>VeRCYE is designed to identify best matching APSIM simulations with actual remotely sensed Leaf Area Index (LAI) data. This documentation covers the LAI data generation pipeline, which is a separate but essential component of the VeRCYE workflow. The LAI is not a true remotely sensed value, but is rather estimated from a 
-combination of bands using neural networks that were converted to Pytorch from the <a href="https://github.com/rfernand387/LEAF-Toolbox">Leaf Toolbox</a>.</p>
-<p>The LAI creation pipeline described in this documentation transforms Sentinel-2 satellite imagery into LAI estimates that can be used by the VeRCYE algorithm. Currently only Sentinel-2 data is supported, but a version using Harmonized Landsat-Sentinel Imagery is planned.</p>
-<p>We've intentionally decoupled the LAI generation from the standard VeRCYE pipeline for several practical reasons:
-1. It requires downloading and processing substantial amounts of satellite data
-2. Once generated, LAI data for a region can be reused with different VeRCYE configurations</p>
-<h2 id="lai-generation">LAI Generation</h2>
-<p>We provide two methods for exporting remotely sensed imagery and deriving LAI products:</p>
-<p>A: Exporting RS imagery from <strong>Google Earth Engine</strong>
-B: Downloading RS imagery through an open source <strong>STAC catalog</strong> and data hosted on AWS.</p>
-<h3 id="a-google-earth-engine-exported">A: Google Earth Engine Exported</h3>
-<p>This approach lets Google Earth Engine handle the majority of data preprocessing and exports daily Sentinel-2 Mosaics from Google Earth Engine to either a
-Google Drive or a Google Cloud Storage Bucket, from which it can be downloaded to the HPC environment for deriving the LAI product. The data in Google Earth Engine is the <code>S2_SR_Harmonized</code> collection, in which all data is harmonized to be in the same range, even if different processing baselines are used.</p>
-<p><strong>Pro:</strong>
-- Directly Export Mosaics with bands resampled to the same resolution and CRS
-- Strong Cloud Masking Algorithm (Google Cloud Score Plus)</p>
-<p><strong>Con</strong>
-- Slow for large regions, due to limited number of parallel export processes
-- Exported data is exported to either Google Drive (Free) or Google Cloud Storage (Fees apply), and downloaded from there, but requires more manual setup which might be tedious especially on remote systems.</p>
-<h3 id="b-stac-aws-export">B: STAC &amp; AWS Export</h3>
-<p>This approach queries a STAC catalog hosted by Element84 on AWS to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS bucket. This data uses the <code>Sentinel-2 L2A Colection 1</code> data in which all historial data was processed using <code>Processing Baseline 5.0</code>.</p>
-<p><strong>Pro</strong>:
-- Very Fast Download in HPC environment due to high level of parallelism
-- Completely free download of data
-- Harmonized to data in <code>Sentinel-2 L2A Colection 1</code> - all data processed using modern Baseline 5.0.</p>
-<p><strong>Con</strong>:
-- Less Accurate Cloudmask in comparison to Google Cloud Score Plus. Cloud mask is based on SCL + S2-Cloudless.
-- As of May 27th 2025, <code>Sentinel-2 L2A Colection 1</code> does not contain data for 2022 and parts of 2023. According to ESA this backfill is scheduled to be completed until Q2 2025.</p>
-<p>Instructions on how to run each LAI creation pieline are detailed in <a href="../running/">LAI Generation Instructions</a>.</p>
+<h1 id="lai-generation">🌿 LAI Generation</h1>
+<p>The pipeline produces LAI products for VERCYe and is intended for scaled deployment on servers or HPC with minimal human intervention. The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox. We provide two methods for exporting remotely sensed imagery and deriving LAI products:</p>
+<p>A: Exporting RS imagery from <strong>Google Earth Engine</strong> (slow, more setup required, better cloudmasks)
+B: Downloading RS imagery through an open source <strong>STAC catalog</strong> and data hosted on AWS (fast, inferior cloudmasking).</p>
+<p>The individual advantages are detailed in the <a href="../intro/#lai-generation">introduction</a>. This document details the instruction on how to download remotely sensed imagery and derive LAI data. For both approaches we provide pipelines that simply require specifying a configuration and then handle the complete process from exporting and downloading remotely sensed imagery to cloudmasking and deriving LAI estimates. Details of the invididual components of the pipelines can be found in the readme of the corresponding folders.</p>
+<h3 id="prequisites">Prequisites</h3>
+<p>Install the requirements as detailed in <a href="../../#setup">Introduction - Setup</a></p>
+<h3 id="a-google-earth-engine-pipeline">A - Google Earth Engine Pipeline</h3>
+<p><strong>Step 1: GeoJSON Extraction</strong>
+Extract geosjsons from a shapefile for each region of interest. Typically, you will want to break down large areas into individual geometries, such as from the <code>Admin 1 or 2</code> level depending on their size in the country of interest.</p>
+<p>While it is possible, to also provide a national scale geometry directly, in the past we noticed the export through GEE to be significantly slower then when processing multiple e.g <code>admin2</code> geometries in parallel. We therefore do not reccomend providing a single national geometry.</p>
+<p>Use the <code>vercye_ops/lai/0_build_library.py</code> helper script to extract individual GeoJSONS from a shapefile. Ensure that the shapefile only contains geometries at the same administrative level (e.g do NOT mix polygons for states and districts in the same shapefile).</p>
+<pre><code class="language-bash">python 0_build_library.py --help
+Usage: 0_build_library.py [OPTIONS] SHP_FPATH
+
+  Wrapper around geojson generation func
+
+Options:
+  --admin_name_col [str]  Column name in the shapefile\'s attribute table
+                          containg the geometries administrative name (e.g NAME_1).
+  --output_head_dir DIRECTORY   Head directory where the region output dirs
+                                will be created.
+  --verbose                     Print verbose output.
+  --help                        Show this message and exit.
+</code></pre>
+<p><strong>Step2: Create your Google Earth Engine Credentials</strong>
+Follow the Google Drive Python Quickstart to download a <code>client_secret.json</code>: https://developers.google.com/drive/api/quickstart/python</p>
+<blockquote>
+<p>[!NOTE]<br />
+Google OAuth requires accessing a server-side browser via X11 forwarding to produce a <code>token.json</code>. This can get complicated, involving Xming or Xquartz along with the appropriate <code>$DISPLAY</code> and <code>.ssh/config</code> parameters. It may be easier to just run this locally to produce the <code>token.json</code>, then transfer the token to the server. For this, you will have to run <code>vercye_ops/vercye_ops/lai/lai_creation_GEE/1_1_gee_export_S2.py</code> with <code>--export_mode drive</code> and <code>--gdrive_credentials /path.to/your/credentials.json</code> and some other dummy parameters. You can cancel the run, once you see that the earth engine login is completed. This will then produce the token that you have to transfer to the server. Otherwise, please discuss with your system administrator.</p>
+</blockquote>
+<p><strong>Step 3: Setup the GEE-LAI Pipeline Configuration</strong>
+Create a LAI config file that defines the parameters of your study.</p>
+<p><strong>3.1 Copy</strong> <code>vercye_ops/lai/lai_creation_GEE/example_config.yaml</code> to <code>vercye_ops/lai/lai_creation_GEE/custom_configs/your_config_name.yaml</code></p>
+<p><strong>3.2 Set the parameters</strong> in <code>vercye_ops/lai/lai_creation_GEE/custom_configs/your_config_name.yaml</code>:</p>
+<pre><code class="language-yaml"># Folder where GeoJSONS from Step1 are stored (output_head_dir from 0_build_library.py)
+geojsons_dir: 'lai/regions/'
+
+# Your Earth Engine project ID
+ee_project: 'ee-project-id'
+
+# Output directory for the LAI data and intermediate files
+output_base_dir: 'outputdir'
+
+# Path to the Google Earth Engine service account credentials
+gdrive_credentials_path: '/path/to/client_secret.json'
+
+# Timepoints for which to create LAI
+timepoints:
+  2023:
+      start_date: '2023-10-10'
+      end_date: '2024-04-03'
+  2024:
+    start_date: '2024-10-10'
+    end_date: '2025-04-03'
+
+# Spatial resolution in meters. Should typically be 10 or 20.
+resolution: 20
+
+# Set to True to merge the LAI produced for each region into single regions daily VRT files
+merge_regions_lai: True
+combined_region_name: 'merged_regions'
+</code></pre>
+<blockquote>
+<p>[!NOTE]<br />
+If you only have very few regions and timepoints it might make sense to split a timepoint into multiple timepoints. E.g instead of having a timepoint with <code>start_date: '2023-10-10', end_date: '2024-04-03'</code> you would create multiple timepoints such as <code>start_date: '2023-10-10', end_date: '2023-12-01'</code>, <code>start_date: '2023-12-01', end_date: '2024-02-01'</code>, and <code>start_date: '2024-02-01', end_date: '2023-04-03'</code>. This allows to leverage more parallel processing capabilities, since you are able to submit about 10 jobs in parallel.</p>
+</blockquote>
+<p><strong>Step 4: Navigate to the Pipeline</strong></p>
+<pre><code class="language-bash">cd vercye_ops/lai/lai_creation_GEE
+</code></pre>
+<p><strong>Step 5: Run the Pipeline</strong></p>
+<pre><code class="language-bash">snakemake --configfile /your/configfile.yaml --cores 10
+</code></pre>
+<p>Replace <code>/your/configfile.yaml</code> with the actual path to your configuration file from Step 2.</p>
+<p><strong>What Happens In The Pipeline?</strong>
+The pipeline orchestrates a sophisticated workflow:</p>
+<ul>
+<li>Export Management: Submits up to 10 parallel jobs to GEE for Sentinel-2 mosaic exports from your regions and date ranges</li>
+<li>Smart Downloads: Automatically downloads exported data from Google Drive to your local machine</li>
+<li>Storage Cleanup: Frees up Google Drive storage immediately after download</li>
+<li>Data Standardization: Processes and standardizes the imagery data if it was split into multiple files from GEE</li>
+<li>LAI Generation: Creates LAI products for each processed file</li>
+<li>Optional Merging: Combines regional data into single daily files if specified in your config</li>
+</ul>
+<p><strong>Performance Tuning</strong>
+The --cores parameter controls parallel processing. While you can adjust this based on your system resources, there's usually no benefit to going beyond 10 cores - that's the maximum number of simultaneous export jobs allowed under GEE's educational and non-profit licenses.</p>
+<p><strong>Output Structure</strong>
+Your LAI products will land in different locations depending on your configuration:</p>
+<ul>
+<li>Merged regional data: output_base_dir/merged_regions_lai (single daily files covering all regions)</li>
+<li>Individual regional data: output_base_dir/lai (separate files per region)</li>
+</ul>
+<h3 id="b-stac-catalog-aws-pipeline">B - STAC Catalog &amp; AWS Pipeline</h3>
+<p>The STAC pipeline fetches Sentinel-2 Imagery from an AWS bucket hosted by Element84. It uses data from <code>Sentinel-2 L2A Collection 1</code>.
+All this data has been processed with <code>Baseline 5.0</code>.</p>
+<p>To generate daily LAI data for your region of interest follow the steps blow:</p>
+<p><strong>Step 1: Prepare Your Area of Interest</strong>
+Prepare a <strong>GeoJSON</strong> file representing the convex hull of your region.</p>
+<p>In <strong>QGIS</strong>, this can be done by:</p>
+<ol>
+<li><code>Vector → Geoprocessing Tools → Dissolve</code></li>
+<li>Then: <code>Vector → Geoprocessing Tools → Convex Hull</code></li>
+<li>Export the resulting layer as <strong>GeoJSON</strong></li>
+</ol>
+<p><strong>Step 2: Define Your Configuration</strong></p>
+<p>Here's an example of how you'd process a multiple years of Morocco data at 20m resolution (Save as <code>config.yaml</code>):</p>
+<pre><code class="language-yaml">date_ranges:
+  - start_date: &quot;2019-04-01&quot;
+    end_date: &quot;2019-06-30&quot;
+  - start_date: &quot;2020-03-15&quot;
+    end_date: &quot;2020-07-15&quot;
+  - start_date: &quot;2021-05-01&quot;
+    end_date: &quot;2021-09-30&quot;
+
+resolution: 20
+geojson_path: /data/morocco.geojson
+out_dir: /data/morocco/lai
+region_out_prefix: morocco
+from_step: 0
+num_cores: 64
+chunk_days: 30
+</code></pre>
+<ul>
+<li>
+<p><code>date_ranges</code>: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).</p>
+</li>
+<li>
+<p><code>resolution</code>: Spatial resolution in meters. (Typically 10 or 20)</p>
+</li>
+<li><code>geojson-path</code>: Path to your convex hull geojson.</li>
+<li><code>out_dir</code>: Output directory for all generated data.</li>
+<li><code>region_out_prefix</code>: Prefix for the output VRT filenames - typically the name of the GeoJSON region.</li>
+<li><code>from_step</code>: Controls which part of the pipeline to resume from (0–3). Should be at 0 if not trying to recover a crashed run.</li>
+<li><code>chunk_days</code>: Number of days to process in each batch. Default is 30 days. Can be used to control storage usage by avoiding to keep more than chunk-days of original tile data on disk at once.</li>
+<li><code>num_cores</code>: Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems.</li>
+</ul>
+<p><strong>Step 3: Navigate to the Pipeline</strong></p>
+<pre><code class="language-bash">cd vercye_ops/lai/lai_creation_STAC
+</code></pre>
+<p><strong>Step 3: Run the LAI Generation Pipeline</strong></p>
+<pre><code class="language-bash">python run_stac_dl_pipeline.py /path/to/your/config.yaml
+</code></pre>
+<p><strong>Pipeline Steps Breakdown</strong>
+- Step 0: Download imagery from AWS
+- Step 1: Generate LAI for individual tiles
+- Step 2: Clean up temporary files
+- Step 3: Build final VRT mosaics</p>
+<p>After the pipeline finishes , you'll find a <code>merged-lai</code> directory in your <code>out_dir</code> packed with daily .vrt files. Each file contains LAI data for your entire region, covering all tiles that had usable imagery on that date.</p>
+<p>Happy LAI generating! 🛰️🌱</p>
 
 
 
