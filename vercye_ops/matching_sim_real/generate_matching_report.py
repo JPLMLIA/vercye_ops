@@ -42,14 +42,10 @@ def generate_report(
     logger.info("Loading APSIM filtered data from CSV.")
     apsim_filtered = pd.read_csv(apsim_filtered_fpath)
     if not len(apsim_filtered):
-        logger.error(
-            f"Simulation matches in {apsim_filtered_fpath} contains no valid matches."
-        )
+        logger.error(f"Simulation matches in {apsim_filtered_fpath} contains no valid matches.")
 
     logger.info("Loading Sentinel-2 RS CSV.")
-    rs_df = pd.read_csv(
-        rs_lai_csv_fpath, index_col="Date", parse_dates=["Date"], dayfirst=True
-    )
+    rs_df = pd.read_csv(rs_lai_csv_fpath, index_col="Date", parse_dates=["Date"], dayfirst=True)
 
     logger.info("Loading report data from database.")
     report_data = load_simulation_data(apsim_db_fpath, crop_name)
@@ -158,9 +154,7 @@ def generate_report(
             row=1,
             col=1,
         )
-        style["show_group"] = (
-            False  # Set this to False so only the first group is shown
-        )
+        style["show_group"] = False  # Set this to False so only the first group is shown
 
         # Add Yield line
         fig.add_trace(
@@ -187,9 +181,7 @@ def generate_report(
     logger.info("Plotting RS data.")
     lai_agg_type_name = "Mean" if lai_agg_type.lower() == "mean" else "Median"
     lai_column = (
-        f"LAI {lai_agg_type_name}"
-        if not use_adjusted_lai
-        else f"LAI {lai_agg_type_name} Adjusted"
+        f"LAI {lai_agg_type_name}" if not use_adjusted_lai else f"LAI {lai_agg_type_name} Adjusted"
     )
     fig.add_trace(
         go.Scatter(
@@ -218,17 +210,9 @@ def generate_report(
     )
 
     ###################################
-    logger.info(
-        "Calculating and plotting mean series for simulations not filtered out."
-    )
-    good_sim_ids = apsim_filtered[apsim_filtered["StepFilteredOut"].isna()][
-        "SimulationID"
-    ]
-    mean_data = (
-        report_data[report_data["SimulationID"].isin(good_sim_ids)]
-        .groupby("Date")
-        .mean()
-    )
+    logger.info("Calculating and plotting mean series for simulations not filtered out.")
+    good_sim_ids = apsim_filtered[apsim_filtered["StepFilteredOut"].isna()]["SimulationID"]
+    mean_data = report_data[report_data["SimulationID"].isin(good_sim_ids)].groupby("Date").mean()
 
     fig.add_trace(
         go.Scatter(
@@ -259,9 +243,7 @@ def generate_report(
 
     # Add y-labels for both subplots
     fig.update_yaxes(title_text="LAI", row=1, col=1, secondary_y=False)
-    fig.update_yaxes(
-        title_text="Cloud or Snow Coverage (%)", row=1, col=1, secondary_y=True
-    )
+    fig.update_yaxes(title_text="Cloud or Snow Coverage (%)", row=1, col=1, secondary_y=True)
     fig.update_yaxes(title_text="Yield Rate (kg/ha)", row=1, col=2)
     fig.update_xaxes(title_text="Date", row=1, col=1)
     fig.update_xaxes(title_text="Date", row=2, col=1)
@@ -307,9 +289,7 @@ def generate_report(
             if trace.name == "RS Cloud Coverage %":
                 trace.visible = False
 
-        fig.update_layout(
-            width=1000, height=1200
-        )  # Adjust the top margin to avoid overlap
+        fig.update_layout(width=1000, height=1200)  # Adjust the top margin to avoid overlap
         fig.write_image(png_fpath)
 
 

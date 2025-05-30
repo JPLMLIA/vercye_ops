@@ -30,9 +30,7 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_crs):
 
         # Ensure the input CRS is in degrees (should be in EPSG:4326) before we do pixel area calculations
         if not src.crs.units_factor[0] == "degree":
-            raise ValueError(
-                "Input CRS is not in degrees. Cannot convert LAI to m2/pixel."
-            )
+            raise ValueError("Input CRS is not in degrees. Cannot convert LAI to m2/pixel.")
 
         # Compute the pixel size using the center coordinates and projecting to the target CRS
         center_lon = (src.bounds.left + src.bounds.right) / 2

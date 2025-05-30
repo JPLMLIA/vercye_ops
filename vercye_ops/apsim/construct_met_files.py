@@ -73,12 +73,7 @@ def parse_weather_filename(filename):
     # Split the filename into parts based on underscores
     parts = basename.split("_")
 
-    if (
-        parts[1] != "lon"
-        or parts[3] != "lat"
-        or parts[5] != "start"
-        or parts[7] != "end"
-    ):
+    if parts[1] != "lon" or parts[3] != "lat" or parts[5] != "start" or parts[7] != "end":
         raise RuntimeError("Error in the format of the input weather csv file")
 
     # Extract the values based on their positions
@@ -101,9 +96,7 @@ def load_chirps_precipitation(start_date, end_date, chirps_file, column_name):
     parquet_file = pq.ParquetFile(chirps_file)
     column_names = parquet_file.schema.names
     if column_name not in column_names:
-        raise KeyError(
-            f"CHIRPS data incomplete. {column_name} not found in CHIRPS data."
-        )
+        raise KeyError(f"CHIRPS data incomplete. {column_name} not found in CHIRPS data.")
 
     chirps_data_unfiltered = pd.read_parquet(chirps_file, columns=[column_name])
     chirps_data = chirps_data_unfiltered.loc[required_dates.strftime("%Y-%m-%d")]
@@ -175,13 +168,9 @@ def load_prep_project_data(
 
             df["PRECTOTCORR"] = chirps_data
         elif chirps_data is None and fallback_precipitation:
-            logger.warning(
-                "CHIRPS data not found, falling back to original precipitation data."
-            )
+            logger.warning("CHIRPS data not found, falling back to original precipitation data.")
         else:
-            raise KeyError(
-                "CHIRPS data not found and fallback precipitation is not enabled."
-            )
+            raise KeyError("CHIRPS data not found and fallback precipitation is not enabled.")
 
     # Add year and day of year columns to prep for .met export
     df.insert(0, "YEAR", df.index.year)
@@ -203,9 +192,7 @@ def load_prep_project_data(
 
     # Generate average weather data from past years, tack on year and day of year
     past_years_inds = df["YEAR"] < sim_end_date.year
-    yearly_avg_data = (
-        df.loc[past_years_inds, :].groupby("DOY").mean().drop(columns="YEAR")
-    )
+    yearly_avg_data = df.loc[past_years_inds, :].groupby("DOY").mean().drop(columns="YEAR")
 
     # Handle leap year edge case, and detect too little data for projection
     if len(yearly_avg_data) == 365:
@@ -215,16 +202,9 @@ def load_prep_project_data(
         raise RuntimeError()
 
     # Get projected days, years, and dt (for index)
-    proj_days = [
-        d.dayofyear for d in pd.date_range(last_date, sim_end_date, inclusive="right")
-    ]
-    proj_years = [
-        d.year for d in pd.date_range(last_date, sim_end_date, inclusive="right")
-    ]
-    proj_dt = [
-        datetime.strptime(f"{y}-{doy:03}", "%Y-%j")
-        for y, doy in zip(proj_years, proj_days)
-    ]
+    proj_days = [d.dayofyear for d in pd.date_range(last_date, sim_end_date, inclusive="right")]
+    proj_years = [d.year for d in pd.date_range(last_date, sim_end_date, inclusive="right")]
+    proj_dt = [datetime.strptime(f"{y}-{doy:03}", "%Y-%j") for y, doy in zip(proj_years, proj_days)]
 
     # Extract the weather day for all DOYs. Construct projected_df
     proj_dicts = [
@@ -235,9 +215,7 @@ def load_prep_project_data(
     projected_df.insert(1, "DOY", proj_days)
 
     # Round data to desired number of decimals
-    round_dict = {
-        key: val for key, val in APSIM_DECIMALS.items() if key in projected_df.columns
-    }
+    round_dict = {key: val for key, val in APSIM_DECIMALS.items() if key in projected_df.columns}
     projected_df = projected_df.round(round_dict)
     df = df.round(round_dict)
 
@@ -278,9 +256,7 @@ def get_tav_amp(df):
 
     # Add month of year column, then get average of T2M for each month
     relevant_data["month"] = relevant_data.index.month.to_list()
-    monthly_means = (
-        relevant_data.loc[:, ("T2M", "month")].groupby("month").mean().to_numpy()
-    )
+    monthly_means = relevant_data.loc[:, ("T2M", "month")].groupby("month").mean().to_numpy()
 
     # Compute average temp and temp amplitude according to APSIM docs:
     tav = np.mean(monthly_means)
@@ -354,25 +330,18 @@ def create_met_file(
         def format_row(row):
             """Helper to format each row into a string that matches the APSIM .met file format."""
             line = " ".join(
-                [
-                    f"{str(row[col]):<8}" if col in POWER_TO_APSIM else ""
-                    for col in df.columns
-                ]
+                [f"{str(row[col]):<8}" if col in POWER_TO_APSIM else "" for col in df.columns]
             )
             return f"{line}\n"
 
         formatted_data_lines = []
-        for row in df.itertuples(
-            index=False
-        ):  # Iter over tuples to preserve the integer datatypes
+        for row in df.itertuples(index=False):  # Iter over tuples to preserve the integer datatypes
             formatted_data_lines.append(format_row(row._asdict()))
 
         # Write all lines at once
         file.writelines(formatted_data_lines)
 
-    logger.info(
-        "Wrote .met file (containing %i data records) to\n%s", len(df), output_fpath
-    )
+    logger.info("Wrote .met file (containing %i data records) to\n%s", len(df), output_fpath)
 
 
 @click.command()

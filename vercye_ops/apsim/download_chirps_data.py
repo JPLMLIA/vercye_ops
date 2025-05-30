@@ -218,9 +218,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
             chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(
                 date=date.strftime("%Y.%m.%d")
             )
-            chirps_prelim_file_name = chirps_prelim_file_name.replace(
-                ".tif.gz", "_prelim.tif"
-            )
+            chirps_prelim_file_name = chirps_prelim_file_name.replace(".tif.gz", "_prelim.tif")
             chirps_prelim_fpath = op.join(output_dir, chirps_prelim_file_name)
 
             # Remove the prelim file if it exists as it is replaced by the final file now
@@ -232,9 +230,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
     ftp_connection.cwd(CHIRPS_PRELIM_BASEDIR)
     cur_ftp_dir_year = None
     for date in unavailable_dates:
-        chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(
-            date=date.strftime("%Y.%m.%d")
-        )
+        chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
         output_fpath = op.join(output_dir, chirps_prelim_file_name)
         year = date.year
         if cur_ftp_dir_year != year:
@@ -297,16 +293,12 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
     total_files = len(all_dates)
     chunk_size = max(1, total_files // num_workers)
     chunk_size = min(chunk_size, PROGRESS_UPDATE_INTERVAL)
-    daterange_chunks = [
-        all_dates[i : i + chunk_size] for i in range(0, total_files, chunk_size)
-    ]
+    daterange_chunks = [all_dates[i : i + chunk_size] for i in range(0, total_files, chunk_size)]
 
     retries = NUM_RETRIES
 
     logger.info("Initializing %d workers for parallel downloads.", num_workers)
-    ftp_connection_pool = FTPConnectionPool(
-        num_workers, CHIRPS_URL, CHIRPS_USER, CHIRPS_PASS
-    )
+    ftp_connection_pool = FTPConnectionPool(num_workers, CHIRPS_URL, CHIRPS_USER, CHIRPS_PASS)
 
     with tqdm(total=total_files, desc="Total Progress") as progress_bar:
         for attempt in range(retries):
@@ -335,9 +327,7 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
                 logger.info("All downloads completed successfully.")
                 return
 
-            logger.warning(
-                "Retrying failed downloads (%d remaining)...", len(failed_downloads)
-            )
+            logger.warning("Retrying failed downloads (%d remaining)...", len(failed_downloads))
 
             # Reduces amount of directory switches
             failed_downloads.sort()
@@ -391,9 +381,7 @@ def chirps_prelim_file_exists(date, output_dir):
     bool
         True if the file exists, False otherwise.
     """
-    chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(
-        date=date.strftime("%Y.%m.%d")
-    )
+    chirps_prelim_file_name = CHIRPS_PRELIM_FILE_FORMAT.format(date=date.strftime("%Y.%m.%d"))
     chirps_prelim_file_name = chirps_prelim_file_name.replace(".tif.gz", "_prelim.tif")
     output_fpath = op.join(output_dir, chirps_prelim_file_name)
     return op.exists(output_fpath)
@@ -412,18 +400,14 @@ def validate_chirps_files(start_date, end_date, output_dir):
     output_dir : str
         Directory to save downloaded files.
     """
-    logger.info(
-        "Validating downloaded CHIRPS files for range: %s to %s", start_date, end_date
-    )
+    logger.info("Validating downloaded CHIRPS files for range: %s to %s", start_date, end_date)
     all_dates = pd.date_range(start_date, end_date)
 
     # Validate existence of files
     for date in all_dates:
         if not chirps_file_exists(date, output_dir):
             if not chirps_prelim_file_exists(date, output_dir):
-                logger.error(
-                    f"No CHIRPS product could be downloaded for date: %s", date
-                )
+                logger.error(f"No CHIRPS product could be downloaded for date: %s", date)
             else:
                 logger.warning(
                     f"Final CHIRPS product not available for date: %s. Using preliminary data instead.",
@@ -446,9 +430,7 @@ def validate_chirps_files(start_date, end_date, output_dir):
     required=True,
     help="End date for CHIRPS data collection in YYYY-MM-DD format.",
 )
-@click.option(
-    "--output-dir", required=True, help="Output directory to store the CHIRPS data."
-)
+@click.option("--output-dir", required=True, help="Output directory to store the CHIRPS data.")
 @click.option(
     "--num-workers",
     type=int,

@@ -173,9 +173,7 @@ def main(
     vrt_files = sorted(glob(f"{s2_dir}/{region}_{resolution}m_*.vrt"))
 
     if start_date is not None and end_date is not None:
-        vrt_files = [
-            vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)
-        ]
+        vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
 
     print(f"Found {len(vrt_files)} VRT files for {region} at {resolution}m in {s2_dir}")
 
@@ -212,9 +210,7 @@ def main(
         # Export as GeoTIFF
         filename = op.join(lai_dir, Path(vf).stem + "_LAI.tif")
         profile = s2_ds.profile
-        profile.update(
-            count=1, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff"
-        )
+        profile.update(count=1, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff")
         with rio.open(filename, "w", **profile) as dst:
             dst.write(LAI_estimate, 1)
             dst.set_band_description(1, "estimateLAI")

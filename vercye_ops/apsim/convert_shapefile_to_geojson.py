@@ -26,9 +26,7 @@ def clean_region_name(region_name):
     return region_name
 
 
-def convert_shapefile_to_geojson(
-    shp_fpath, projection_crs, admin_name_col, output_head_dir
-):
+def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, output_head_dir):
     """
     Read a shapefile using Geopandas, add centroid information to each polygon, and export each as a geojson file.
 
@@ -108,9 +106,7 @@ def convert_shapefile_to_geojson(
 
 
 @click.command()
-@click.option(
-    "--shp_fpath", type=click.Path(exists=True), help="Path to the .shp file."
-)
+@click.option("--shp_fpath", type=click.Path(exists=True), help="Path to the .shp file.")
 @click.option(
     "--projection_crs",
     type=str,
@@ -132,9 +128,7 @@ def cli(shp_fpath, projection_crs, admin_name_col, output_head_dir, verbose):
 
     if verbose:
         logger.setLevel("INFO")
-    convert_shapefile_to_geojson(
-        shp_fpath, projection_crs, admin_name_col, output_head_dir
-    )
+    convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, output_head_dir)
 
 
 if __name__ == "__main__":

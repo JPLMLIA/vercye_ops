@@ -76,17 +76,13 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
 
     lai_files = sorted(glob(f"{lai_dir}/*_{resolution}m_*_LAI_tile_standardized.tif"))
     if start_date is not None and end_date is not None:
-        lai_files = [
-            f for f in lai_files if is_within_date_range(f, start_date, end_date)
-        ]
+        lai_files = [f for f in lai_files if is_within_date_range(f, start_date, end_date)]
 
     if not lai_files:
         print(f"No LAI files found in {lai_dir} with resolution {resolution}m")
         return
 
-    print(
-        f"Found {len(lai_files)} LAI files in {lai_dir} with resolution {resolution}m"
-    )
+    print(f"Found {len(lai_files)} LAI files in {lai_dir} with resolution {resolution}m")
     print("Validating CRS and Resolution...")
     for lai_file in lai_files:
         with rio.open(lai_file) as lai_ds:
@@ -105,9 +101,7 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
 
     if len(crs_set) > 1:
         print(f"CRS found: {crs_set}")
-        raise Exception(
-            f"LAI files have different CRS. Please use the same CRS for all LAI files."
-        )
+        raise Exception(f"LAI files have different CRS. Please use the same CRS for all LAI files.")
 
     # Group files by date
     date_groups = defaultdict(list)
@@ -120,12 +114,8 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
 
     # Create vrt per group
     for date, paths in date_groups.items():
-        out_file = os.path.join(
-            out_dir, f"{region_out_prefix}_{resolution}m_{date}_LAI.vrt"
-        )
-        subprocess.run(
-            ["gdalbuildvrt", "-tr", str(res_x), str(res_y), out_file] + paths
-        )
+        out_file = os.path.join(out_dir, f"{region_out_prefix}_{resolution}m_{date}_LAI.vrt")
+        subprocess.run(["gdalbuildvrt", "-tr", str(res_x), str(res_y), out_file] + paths)
 
     print(f"VRTS created successfully in {out_dir} with prefix {region_out_prefix}")
 

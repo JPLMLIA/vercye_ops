@@ -35,11 +35,7 @@ def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=F
 
     if isinstance(json_data, dict):
         for key, value in json_data.items():
-            if (
-                key == key_to_update
-                and isinstance(value, str)
-                and value.endswith(file_suffix)
-            ):
+            if key == key_to_update and isinstance(value, str) and value.endswith(file_suffix):
                 logger.info('Replacing entry "%s:%s"', key, value)
                 json_data[key] = new_value
             elif isinstance(value, (dict, list)):

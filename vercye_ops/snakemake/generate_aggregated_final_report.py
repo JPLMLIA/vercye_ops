@@ -43,15 +43,12 @@ def compute_global_summary(regions_summary):
         else:
             cropmask_areas_ha = reported_regions_data["total_area_ha"].sum()
             reported_total_production_kg = (
-                regions_summary["reported_mean_yield_kg_ha"]
-                * regions_summary["total_area_ha"]
+                regions_summary["reported_mean_yield_kg_ha"] * regions_summary["total_area_ha"]
             ).sum()
             reported_total_production_ton = reported_total_production_kg / 1000
             mean_reported_yield_kg = reported_total_production_kg / cropmask_areas_ha
     elif "reported_production_kg" in regions_summary.columns:
-        reported_regions_data = regions_summary[
-            ~regions_summary["reported_production_kg"].isna()
-        ]
+        reported_regions_data = regions_summary[~regions_summary["reported_production_kg"].isna()]
 
         if regions_summary["reported_production_kg"].isna().any():
             logger.warning("Some regions have NaN reported yield. Not reporting.")
@@ -62,9 +59,7 @@ def compute_global_summary(regions_summary):
             reported_total_production_ton = None
             mean_reported_yield_kg = None
         else:
-            reported_total_production_kg = reported_regions_data[
-                "reported_production_kg"
-            ].sum()
+            reported_total_production_kg = reported_regions_data["reported_production_kg"].sum()
             reported_total_production_ton = reported_total_production_kg / 1000
             cropmap_areas_ha = reported_regions_data["total_area_ha"].sum()
             mean_reported_yield_kg = reported_total_production_kg / cropmap_areas_ha
@@ -99,9 +94,7 @@ def create_map(regions_summary, combined_geojson):
     # Merge geometry with summary data
     combined_geojson["region"] = combined_geojson["region"].astype(str)
     regions_summary["region"] = regions_summary["region"].astype(str)
-    merged = combined_geojson.merge(
-        regions_summary, left_on="region", right_on="region"
-    )
+    merged = combined_geojson.merge(regions_summary, left_on="region", right_on="region")
 
     # Define colormap and normalization
     cmap = plt.get_cmap("viridis")
@@ -160,9 +153,7 @@ def combine_geojsons(regions_geometry_paths, admin_column_name):
             gdf["region"] = region
             geo_dfs.append(gdf)
 
-    combined_gdf = gpd.GeoDataFrame(
-        pd.concat(geo_dfs, ignore_index=True), crs=geo_dfs[0].crs
-    )
+    combined_gdf = gpd.GeoDataFrame(pd.concat(geo_dfs, ignore_index=True), crs=geo_dfs[0].crs)
 
     # case 2: This is the aggregated geojsons - we need to merge them based on the admin column
     if admin_column_name is not None:
@@ -172,9 +163,7 @@ def combine_geojsons(regions_geometry_paths, admin_column_name):
     return combined_gdf
 
 
-def convert_geotiff_to_png_with_legend(
-    geotiff_path, output_png_path, width=3840, height=2160
-):
+def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840, height=2160):
     with rasterio.open(geotiff_path) as src:
         data = src.read(1)
 
@@ -206,9 +195,7 @@ def convert_geotiff_to_png_with_legend(
     )
     cbar.set_label("Yield kg/ha")
 
-    ax.set_title(
-        "Crop Productivity Pixel-Level - Estimated Yield in kg/ha", fontsize=16
-    )
+    ax.set_title("Crop Productivity Pixel-Level - Estimated Yield in kg/ha", fontsize=16)
     fig.savefig(output_png_path, format="PNG", bbox_inches="tight", dpi=450)
     plt.close(fig)
     return output_png_path
@@ -238,8 +225,7 @@ def build_section_params(
 
         if "reported_mean_yield_kg_ha" in gt.columns:
             regions_summary["mean_err_kg_ha"] = (
-                regions_summary["reported_mean_yield_kg_ha"]
-                - regions_summary["mean_yield_kg_ha"]
+                regions_summary["reported_mean_yield_kg_ha"] - regions_summary["mean_yield_kg_ha"]
             )
 
     logger.info("Loading and combining region geometries...")
@@ -333,7 +319,9 @@ def fill_section_template(
 
     html_content += "</div>" if evaluation_results is not None else ""
 
-    html_content += f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield Map">'
+    html_content += (
+        f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield Map">'
+    )
 
     html_content += f"""
         <table class="table table-striped table-bordered">
@@ -573,12 +561,8 @@ def create_final_report(input, output, params, log, wildcards):
 
     logger.info("Creating downsampled yieldmap preview...")
     aggregated_yield_map_preview_fname = "aggregated_yield_map_preview.png"
-    aggregated_yield_map_preview_path = op.join(
-        regions_dir, aggregated_yield_map_preview_fname
-    )
-    convert_geotiff_to_png_with_legend(
-        pixel_level_yieldmap_path, aggregated_yield_map_preview_path
-    )
+    aggregated_yield_map_preview_path = op.join(regions_dir, aggregated_yield_map_preview_fname)
+    convert_geotiff_to_png_with_legend(pixel_level_yieldmap_path, aggregated_yield_map_preview_path)
 
     logger.info(f"Generating final report for regions in: {regions_dir}")
     report = generate_final_report(

@@ -67,16 +67,12 @@ def error_checking_function(df):
 
     # Check WS2M
     if ((df["WS2M"] < WS2M_MIN_LIMIT) | (df["WS2M"] > WS2M_MAX_LIMIT)).any():
-        logger.error(
-            f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}"
-        )
+        logger.error(f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}")
 
     # Check PRECTOTCORR
     cols_to_check = ["PRECTOTCORR"]
     for col in cols_to_check:
-        if (
-            (df[col] < PRECTOTCORR_MIN_LIMIT) | (df[col] > PRECTOTCORR_MAX_LIMIT)
-        ).any():
+        if ((df[col] < PRECTOTCORR_MIN_LIMIT) | (df[col] > PRECTOTCORR_MAX_LIMIT)).any():
             logger.error(
                 f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}"
             )
@@ -216,9 +212,7 @@ def fetch_from_cache(cache_fpath, start_date, end_date, variables, lon, lat):
             chunk[-1].date(),
         )
 
-        chunk_data, nodata_val = fetch_nasa_power_data(
-            chunk[0], chunk[-1], variables, lon, lat
-        )
+        chunk_data, nodata_val = fetch_nasa_power_data(chunk[0], chunk[-1], variables, lon, lat)
         missing_data.append(chunk_data)
         nodata_vals.append(nodata_val)
 
@@ -266,9 +260,7 @@ def validate_aggregation_options(met_agg_method):
     """Helper to check that no unsupported combination is run"""
 
     if met_agg_method != "centroid":
-        raise Exception(
-            "NasaPower only supports centroid as the met_aggregation option."
-        )
+        raise Exception("NasaPower only supports centroid as the met_aggregation option.")
 
 
 @click.command()
@@ -365,9 +357,7 @@ def cli(
             start_date.date(),
             end_date.date(),
         )
-        df, nodata_val = fetch_nasa_power_data(
-            start_date, end_date, variables, lon, lat
-        )
+        df, nodata_val = fetch_nasa_power_data(start_date, end_date, variables, lon, lat)
         df = clean_nasa_power_data(df, nodata_val)
         error_checking_function(df)
 

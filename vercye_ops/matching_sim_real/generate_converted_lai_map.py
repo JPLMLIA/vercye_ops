@@ -86,9 +86,7 @@ def process_geotiff(tif_path, csv_path, output_tif_fpath, use_adjusted):
     type=click.Path(),
     help="Filepath where the output geotiff will be saved.",
 )
-@click.option(
-    "--use_adjusted", is_flag=True, help="Use the adjusted LAI values (second band)."
-)
+@click.option("--use_adjusted", is_flag=True, help="Use the adjusted LAI values (second band).")
 @click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 def cli(tif_fpath, csv_fpath, output_tif_fpath, use_adjusted, verbose):
     """CLI for processing a geotiff image with a conversion factor."""

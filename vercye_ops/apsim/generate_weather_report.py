@@ -159,9 +159,7 @@ def plot_weather_data(
     # Create DataFrame, convert types
     df = pd.DataFrame(data, columns=columns)
     df = df.astype(MET_FILE_DTYPES)
-    df["date"] = pd.to_datetime(
-        df["year"].astype(str) + df["day"].astype(str), format="%Y%j"
-    )
+    df["date"] = pd.to_datetime(df["year"].astype(str) + df["day"].astype(str), format="%Y%j")
 
     # Set precipitation Metadata
     metadata["precipitation_source"] = precipitation_source
@@ -235,9 +233,7 @@ def create_plots(df, metadata):
         elif data_type == "projected":
             line_dash = "dot"
         else:
-            raise ValueError(
-                "Data type not understood. Expected `measured` or `projected`."
-            )
+            raise ValueError("Data type not understood. Expected `measured` or `projected`.")
 
         df = entire_df[entire_df["data_type"] == data_type].copy()
 

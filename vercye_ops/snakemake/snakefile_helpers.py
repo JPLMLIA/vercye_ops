@@ -77,12 +77,8 @@ def get_met_max_range(config):
 
     for year in config["apsim_params"]["time_bounds"]:
         for timepoint in config["apsim_params"]["time_bounds"][year]:
-            met_start = config["apsim_params"]["time_bounds"][year][timepoint][
-                "met_start_date"
-            ]
-            met_end = config["apsim_params"]["time_bounds"][year][timepoint][
-                "met_end_date"
-            ]
+            met_start = config["apsim_params"]["time_bounds"][year][timepoint]["met_start_date"]
+            met_end = config["apsim_params"]["time_bounds"][year][timepoint]["met_end_date"]
 
             if met_min_start is None or met_start < met_min_start:
                 met_min_start = met_start
@@ -120,12 +116,8 @@ def get_required_yield_report_suffix(config):
 
 
 def get_lai_date_range(timepoints):
-    all_start_dates = [
-        datetime.strptime(bounds[0], "%Y-%m-%d") for bounds in timepoints.values()
-    ]
-    all_end_dates = [
-        datetime.strptime(bounds[1], "%Y-%m-%d") for bounds in timepoints.values()
-    ]
+    all_start_dates = [datetime.strptime(bounds[0], "%Y-%m-%d") for bounds in timepoints.values()]
+    all_end_dates = [datetime.strptime(bounds[1], "%Y-%m-%d") for bounds in timepoints.values()]
 
     min_date = min(all_start_dates).strftime("%Y-%m-%d")
     max_date = max(all_end_dates).strftime("%Y-%m-%d")

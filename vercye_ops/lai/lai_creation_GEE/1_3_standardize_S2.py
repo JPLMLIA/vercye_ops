@@ -39,14 +39,7 @@ def main(region, in_dir, vrt_dir, resolution):
 
     # date parsing magic
     dates = sorted(
-        list(
-            set(
-                [
-                    "-".join(Path(f).stem.split("_")[-1].split("-")[:3])
-                    for f in downloaded_files
-                ]
-            )
-        )
+        list(set(["-".join(Path(f).stem.split("_")[-1].split("-")[:3]) for f in downloaded_files]))
     )
     for d in dates:
         print(d)

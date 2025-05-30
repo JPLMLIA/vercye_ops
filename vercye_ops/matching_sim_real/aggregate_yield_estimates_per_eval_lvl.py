@@ -40,12 +40,8 @@ def aggregate(estimation_data, col_name):
                 "median_yield_kg_ha": weighted_median(
                     group["mean_yield_kg_ha"], group["total_area_ha"]
                 ),
-                "total_yield_production_kg": group["total_yield_production_kg"]
-                .astype(int)
-                .sum(),
-                "total_yield_production_ton": round(
-                    group["total_yield_production_ton"].sum(), 3
-                ),
+                "total_yield_production_kg": group["total_yield_production_kg"].astype(int).sum(),
+                "total_yield_production_ton": round(group["total_yield_production_ton"].sum(), 3),
                 "total_area_ha": group["total_area_ha"].sum(),
             }
         )
@@ -63,9 +59,7 @@ def aggregate(estimation_data, col_name):
     type=click.Path(exists=True),
     help="Filepath to the csv containing the estimations per region.",
 )
-@click.option(
-    "--aggregation_col", required=True, type=str, help="Column name to aggregate by."
-)
+@click.option("--aggregation_col", required=True, type=str, help="Column name to aggregate by.")
 @click.option(
     "--out_fpath",
     required=True,

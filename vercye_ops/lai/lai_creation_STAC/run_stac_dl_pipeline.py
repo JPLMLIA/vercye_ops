@@ -96,9 +96,7 @@ def run_pipeline(config):
 
             logger.info(f"Processing date range {i+1}: {start_date} to {end_date}")
 
-            for start, end in batch_date_range(
-                start_date, end_date, chunk_days=chunk_days
-            ):
+            for start, end in batch_date_range(start_date, end_date, chunk_days=chunk_days):
                 if from_step <= 0:
                     os.makedirs(tiles_out_dir, exist_ok=True)
                     cmd = [

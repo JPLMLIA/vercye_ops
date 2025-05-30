@@ -53,16 +53,14 @@ def find_files_in_drive(service, folder_name, file_description):
 
     # Now find all files in that folder that match the description
     # Note: Exported large files will be split, so we use a pattern instead of exact match
-    file_query = f"name contains '{file_description}' and '{folder_id}' in parents and trashed = false"
-    file_results = (
-        service.files().list(q=file_query, fields="files(id, name, size)").execute()
+    file_query = (
+        f"name contains '{file_description}' and '{folder_id}' in parents and trashed = false"
     )
+    file_results = service.files().list(q=file_query, fields="files(id, name, size)").execute()
     file_items = file_results.get("files", [])
 
     if not file_items:
-        print(
-            f"No files containing '{file_description}' found in folder '{folder_name}'"
-        )
+        print(f"No files containing '{file_description}' found in folder '{folder_name}'")
         return []
 
     return file_items, folder_id  # Return all matching files and folder_id

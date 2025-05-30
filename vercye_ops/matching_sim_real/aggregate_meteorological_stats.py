@@ -109,9 +109,7 @@ def aggregate_data(data):
     )
 
     # Merging the average annual rainfall with the aggregated data
-    aggregated_data = pd.merge(
-        aggregated_data, annual_rainfall, on=["latitude", "longitude"]
-    )
+    aggregated_data = pd.merge(aggregated_data, annual_rainfall, on=["latitude", "longitude"])
 
     # Converting wind speed from m/s to km/h
     aggregated_data["wind"] = aggregated_data["wind"] * 3.6
@@ -161,9 +159,7 @@ def aggregate_met_stats(regions_base_dir, year, num_last_years):
     geometries = []
     for geometry_file in valid_gemoetry_files:
         gdf = gpd.read_file(geometry_file)
-        centroid_geom = loads(
-            gdf["centroid"].iloc[0]
-        )  # Extract the first (and only) centroid
+        centroid_geom = loads(gdf["centroid"].iloc[0])  # Extract the first (and only) centroid
         gdf["latitude"] = centroid_geom.y
         gdf["longitude"] = centroid_geom.x
         geometries.append(gdf)
@@ -174,19 +170,13 @@ def aggregate_met_stats(regions_base_dir, year, num_last_years):
     gdf_polygons["latitude"] = gdf_polygons["latitude"].round(2)
     gdf_polygons["longitude"] = gdf_polygons["longitude"].round(2)
 
-    gdf_last_n_years = gdf_polygons.merge(
-        aggregated_last_n_years, on=["latitude", "longitude"]
-    )
-    gdf_single_year = gdf_polygons.merge(
-        aggregated_single_year, on=["latitude", "longitude"]
-    )
+    gdf_last_n_years = gdf_polygons.merge(aggregated_last_n_years, on=["latitude", "longitude"])
+    gdf_single_year = gdf_polygons.merge(aggregated_single_year, on=["latitude", "longitude"])
 
     return {"multiyear": gdf_last_n_years, "single_year": gdf_single_year}
 
 
-def plot_stats_and_save(
-    single_year_data, multi_year_data, year, num_last_years, out_file_path
-):
+def plot_stats_and_save(single_year_data, multi_year_data, year, num_last_years, out_file_path):
     with PdfPages(out_file_path) as pdf_pages:
         plot_map(
             single_year_data,
@@ -414,9 +404,7 @@ def cli(
     else:
         logger.setLevel("WARNING")
 
-    if (reference_tif_path and not output_tif_path) or (
-        output_tif_path and not reference_tif_path
-    ):
+    if (reference_tif_path and not output_tif_path) or (output_tif_path and not reference_tif_path):
         raise Exception(
             "'reference_tif_path' and 'output_tif_path' must be both set or not set at all."
         )
@@ -430,9 +418,7 @@ def cli(
         raise Exception("Failed to aggregate met stats.")
 
     logger.info(f"Saving aggregated met stats to: {output_pdf_path}")
-    plot_stats_and_save(
-        single_year_stats, multiyear_stats, year, num_last_years, output_pdf_path
-    )
+    plot_stats_and_save(single_year_stats, multiyear_stats, year, num_last_years, output_pdf_path)
 
     if output_tif_path and reference_tif_path:
         logger.info(f"Saving additional tif output to {output_tif_path}.")

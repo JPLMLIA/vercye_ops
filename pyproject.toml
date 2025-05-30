@@ -10,3 +10,14 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 write_to = "vercye_ops/version.py"
 write_to_template = "__version__ = '{version}'\n"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[flake8]
+max-line-length = 88
+exclude = ".git,__pycache__,build,dist,.venv"

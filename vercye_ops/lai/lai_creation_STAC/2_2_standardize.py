@@ -58,9 +58,7 @@ def determine_target_resolution(lai_file, target_crs="EPSG:4326"):
         y_res = (src.bounds.top - src.bounds.bottom) / src.height
 
         # Get sample points for resolution calculation
-        left, bottom, right, top = rio.warp.transform_bounds(
-            src.crs, target_crs, *src.bounds
-        )
+        left, bottom, right, top = rio.warp.transform_bounds(src.crs, target_crs, *src.bounds)
 
         # Calculate equivalent resolution in target CRS
         x_res_target = (right - left) / dst_width
@@ -68,9 +66,7 @@ def determine_target_resolution(lai_file, target_crs="EPSG:4326"):
 
         logger.info(f"Sample file: {Path(lai_file).name}")
         logger.info(f"Original resolution: {x_res:.8f}, {y_res:.8f} in {src.crs}")
-        logger.info(
-            f"Target resolution: {x_res_target:.8f}, {y_res_target:.8f} in {target_crs}"
-        )
+        logger.info(f"Target resolution: {x_res_target:.8f}, {y_res_target:.8f} in {target_crs}")
         src = None  # Explicitely Close the file
     src = None  # Explicitely Close the file
     return (round(x_res_target, 6), round(y_res_target, 6))
@@ -97,15 +93,12 @@ def standardize_lai(args):
         with rio.open(lai_file) as src:
             # Create output filename
             output_file = (
-                Path(lai_file).stem.replace("_LAI_tile", "_LAI_tile_standardized")
-                + ".tif"
+                Path(lai_file).stem.replace("_LAI_tile", "_LAI_tile_standardized") + ".tif"
             )
             output_file = Path(output_dir) / output_file
 
             # Calculate transform to target CRS
-            left, bottom, right, top = rio.warp.transform_bounds(
-                src.crs, target_crs, *src.bounds
-            )
+            left, bottom, right, top = rio.warp.transform_bounds(src.crs, target_crs, *src.bounds)
             xres, yres = target_resolution
 
             dst_width = int((right - left) / xres)
@@ -200,9 +193,7 @@ def main(
 
     lai_files = sorted(glob(f"{input_dir}/*_{resolution}m_*_LAI_tile.tif"))
     if start_date is not None and end_date is not None:
-        lai_files = [
-            vf for vf in lai_files if is_within_date_range(vf, start_date, end_date)
-        ]
+        lai_files = [vf for vf in lai_files if is_within_date_range(vf, start_date, end_date)]
 
     logger.info(f"Found {len(lai_files)} VRT files at {resolution}m in {input_dir}")
 

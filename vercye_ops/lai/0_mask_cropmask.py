@@ -16,9 +16,7 @@ def main(mask_path, shp_path, out_path):
     src = rio.open(mask_path)
 
     # Zero out pixels outside the input geometry
-    masked_src, masked_transform = mask(
-        src, shp.geometry, crop=True, nodata=0, indexes=1
-    )
+    masked_src, masked_transform = mask(src, shp.geometry, crop=True, nodata=0, indexes=1)
 
     # Get metadata from the source file
     out_meta = src.meta.copy()

@@ -113,9 +113,7 @@ def generate_lai_figure(filepaths, lai_agg_type):
     type=click.Path(exists=True),
     help="Directory containing the input files.",
 )
-@click.option(
-    "--output-fpath", type=click.Path(), help="Path to the output file (.html)."
-)
+@click.option("--output-fpath", type=click.Path(), help="Path to the output file (.html).")
 @click.option(
     "--lai_agg_type",
     required=True,
@@ -125,9 +123,7 @@ def generate_lai_figure(filepaths, lai_agg_type):
 def cli(input_dir, output_fpath, lai_agg_type):
     all_lai_files = load_lai_files(input_dir)
     if not all_lai_files:
-        raise ValueError(
-            f"No LAI files found in {input_dir}. Please check the directory."
-        )
+        raise ValueError(f"No LAI files found in {input_dir}. Please check the directory.")
 
     fig = generate_lai_figure(all_lai_files, lai_agg_type)
 

@@ -9,9 +9,12 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from vercye_ops.matching_sim_real.evaluate_yield_estimates import (
-    compute_metrics, create_scatter_plot, get_preds_obs, load_csv)
-from vercye_ops.matching_sim_real.generate_lai_plot import (load_lai_files,
-                                                            parse_lai_file)
+    compute_metrics,
+    create_scatter_plot,
+    get_preds_obs,
+    load_csv,
+)
+from vercye_ops.matching_sim_real.generate_lai_plot import load_lai_files, parse_lai_file
 
 # Use Plotly's qualitative palette
 color_palette = px.colors.qualitative.Plotly
@@ -304,13 +307,10 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
             obs, preds, yrs = data["obs_preds"]
             if obs:
                 scatter = create_scatter_plot(preds, obs, yrs)
-                scatter_html = pio.to_html(
-                    scatter, include_plotlyjs="cdn", full_html=False
-                )
+                scatter_html = pio.to_html(scatter, include_plotlyjs="cdn", full_html=False)
                 metrics = compute_metrics(np.array(preds), np.array(obs))
                 metrics_rows = "".join(
-                    f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>"
-                    for k, v in metrics.items()
+                    f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>" for k, v in metrics.items()
                 )
 
                 metrics_html = f"""

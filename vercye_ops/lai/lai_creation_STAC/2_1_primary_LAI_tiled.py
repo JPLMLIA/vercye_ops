@@ -85,9 +85,7 @@ def delete_vrt_and_linked_tifs(vrt_path):
             logger.info(f"Not found: {f}")
 
 
-def worker_process_files(
-    worker_id, file_batch, model_weights, lai_dir, remove_original
-):
+def worker_process_files(worker_id, file_batch, model_weights, lai_dir, remove_original):
     """Worker function that processes a batch of files with a single model instance"""
     logger.info(f"Worker {worker_id} starting, processing {len(file_batch)} files")
 
@@ -140,9 +138,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         with torch.no_grad():
             LAI_estimate = model(s2_tensor)
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
-        logger.info(
-            f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds"
-        )
+        logger.info(f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds")
 
         # set NODATA to nan
         LAI_estimate[s2_array[-1] == nodata_val] = np.nan
@@ -238,9 +234,7 @@ def main(
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
 
     if start_date is not None and end_date is not None:
-        vrt_files = [
-            vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)
-        ]
+        vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
 
     logger.info(f"Found {len(vrt_files)} VRT files at {resolution}m in {s2_dir}")
 
@@ -280,18 +274,13 @@ def main(
             try:
                 result = future.result()
                 if result:
-                    logger.info(
-                        f"Worker {i} processed {len(result)} files successfully"
-                    )
+                    logger.info(f"Worker {i} processed {len(result)} files successfully")
                     all_results.append(result)
             except Exception as e:
                 logger.info(f"Error in worker {i}: {e}")
 
     output_files = [
-        file
-        for batch_result in all_results
-        for file in batch_result
-        if file is not None
+        file for batch_result in all_results for file in batch_result if file is not None
     ]
 
     logger.info(f"Processed {len(output_files)} files successfully")

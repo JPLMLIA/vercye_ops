@@ -139,9 +139,7 @@ def weight_dict_to_torch(w_dict, n_ch_in, outpath):
             torch.tensor(w_dict["h1"]["weights"]).reshape(5, n_ch_in, 1, 1)
         )
         model.h1.bias = nn.Parameter(torch.tensor(w_dict["h1"]["biases"]).reshape(5))
-        model.h2.weight = nn.Parameter(
-            torch.tensor(w_dict["h2"]["weights"]).reshape(1, 5, 1, 1)
-        )
+        model.h2.weight = nn.Parameter(torch.tensor(w_dict["h2"]["weights"]).reshape(1, 5, 1, 1))
         model.h2.bias = nn.Parameter(torch.tensor(w_dict["h2"]["biases"]).reshape(1))
         model.output.weight = nn.Parameter(
             torch.tensor(w_dict["output"]["weights"]).reshape(1, 1, 1, 1)

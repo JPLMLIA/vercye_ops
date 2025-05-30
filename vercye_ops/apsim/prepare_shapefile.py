@@ -15,9 +15,7 @@ def log_shapefile_columns(gdf):
         if col == "geometry":
             continue
         entries_to_log = min(5, len(gdf[col].unique()))
-        logger.info(
-            f'Column name: "{col}". Examples: {gdf[col].unique()[:entries_to_log]}'
-        )
+        logger.info(f'Column name: "{col}". Examples: {gdf[col].unique()[:entries_to_log]}')
 
 
 def input_admin_column_name(gdf):
@@ -69,9 +67,7 @@ def filter_by_admin_level(gdf, admin_column_name, admin_column_names):
 
     # Drop all column that have a value other than null in a admin level column deeper
     # than the admin_column_name, as these are from smaller admin levels
-    deeper_admin_columns = admin_column_names[
-        admin_column_names.index(admin_column_name) + 1 :
-    ]
+    deeper_admin_columns = admin_column_names[admin_column_names.index(admin_column_name) + 1 :]
     for col in deeper_admin_columns:
         gdf = gdf[gdf[col].isnull()]
 

@@ -30,9 +30,7 @@ def all_chirps_data_exists(dates, chirps_dir):
     Validate that the CHIRPS data files exist for the given date range.
     """
     for date in dates:
-        chirps_file_path = op.join(
-            chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog'
-        )
+        chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
         chirps_prelim_file_path = op.join(
             chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}_prelim.tif'
         )
@@ -52,9 +50,7 @@ def is_bbox_within_bounds(inner_bbox, outer_bbox):
     Check if an inner bounding box is completely within an outer bounding box.
     """
     minx, miny, maxx, maxy = inner_bbox
-    outer_bbox_lon_min, outer_bbox_lat_min, outer_bbox_lon_max, outer_bbox_lat_max = (
-        outer_bbox
-    )
+    outer_bbox_lon_min, outer_bbox_lat_min, outer_bbox_lon_max, outer_bbox_lat_max = outer_bbox
 
     return (
         outer_bbox_lon_min <= minx <= outer_bbox_lon_max
@@ -68,9 +64,7 @@ def is_coord_within_bounds(lon, lat, bounds):
     """
     Validate that the given coordinates are within the bounds.
     """
-    return (
-        lon >= bounds[0] and lon <= bounds[2] and lat >= bounds[1] and lat <= bounds[3]
-    )
+    return lon >= bounds[0] and lon <= bounds[2] and lat >= bounds[1] and lat <= bounds[3]
 
 
 def load_geometry(geometry_path, epsg=4326):
@@ -84,9 +78,7 @@ def load_geometry(geometry_path, epsg=4326):
 
 def read_chirps_file(chirps_dir, date):
     """Generate the file path for a given date and read the CHIRPS data file."""
-    chirps_file_path = op.join(
-        chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog'
-    )
+    chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
 
     if not op.exists(chirps_file_path):
         chirps_file_path = op.join(
@@ -118,9 +110,7 @@ def get_centroid(gdf):
             '"centroid" not in the attributes of the shape. Please ensure you have used the convert_shapefile_to_geojson script.'
         )
     # Convert WKT string to a Shapely Point object
-    centroid_geom = loads(
-        gdf["centroid"].iloc[0]
-    )  # Extract the first (and only) centroid
+    centroid_geom = loads(gdf["centroid"].iloc[0])  # Extract the first (and only) centroid
 
     # Extract (longitude, latitude) from the Point
     return (centroid_geom.x, centroid_geom.y)
@@ -164,16 +154,12 @@ def process_mean_data(chirps_dir, date, geometry_masks):
     return mean_values
 
 
-def construct_chirps_precipitation_files(
-    dates, aggregation_method, regions_base_dir, chirps_dir
-):
+def construct_chirps_precipitation_files(dates, aggregation_method, regions_base_dir, chirps_dir):
     region_names = [
         region_name
         for region_name in os.listdir(regions_base_dir)
         if op.isdir(op.join(regions_base_dir, region_name))
-        and os.path.exists(
-            op.join(regions_base_dir, region_name, f"{region_name}.geojson")
-        )
+        and os.path.exists(op.join(regions_base_dir, region_name, f"{region_name}.geojson"))
     ]
     region_geometry_files = [
         op.join(regions_base_dir, region_name, f"{region_name}.geojson")
@@ -192,9 +178,7 @@ def construct_chirps_precipitation_files(
     ]
 
     if aggregation_method == "centroid":
-        centroids_unfiltered = [
-            get_centroid(geometry) for geometry in region_gdfs_unfiltered
-        ]
+        centroids_unfiltered = [get_centroid(geometry) for geometry in region_gdfs_unfiltered]
         valid_indices = [
             i
             for i, c in enumerate(centroids_unfiltered)
@@ -225,9 +209,7 @@ def construct_chirps_precipitation_files(
     with logging_redirect_tqdm():
         for date in tqdm(dates, desc="Aggregating Chirps Data"):
             if aggregation_method == "centroid":
-                regional_results = process_centroid_data(
-                    chirps_dir, date, region_centroids
-                )
+                regional_results = process_centroid_data(chirps_dir, date, region_centroids)
             elif aggregation_method == "mean":
                 regional_results = process_mean_data(chirps_dir, date, geometry_masks)
             prec_data.append(regional_results)
@@ -250,9 +232,7 @@ def construct_chirps_precipitation_files(
     required=True,
     help="End date for data collection in YYYY-MM-DD format.",
 )
-@click.option(
-    "--regions_base_dir", help="Regions directory", type=click.Path(exists=True)
-)
+@click.option("--regions_base_dir", help="Regions directory", type=click.Path(exists=True))
 @click.option("--chirps_dir", help="CHIRPS directory", type=click.Path(exists=True))
 @click.option(
     "--aggregation_method",

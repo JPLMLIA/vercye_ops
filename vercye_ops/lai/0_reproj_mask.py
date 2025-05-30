@@ -26,9 +26,7 @@ def find_union_extent_LAI_info(
     lai_files = sorted(glob(f"{lai_dir}/{lai_region}_{lai_resolution}*.{lai_file_ext}"))
 
     if start_date and end_date:
-        lai_files = [
-            f for f in lai_files if is_within_date_range(f, start_date, end_date)
-        ]
+        lai_files = [f for f in lai_files if is_within_date_range(f, start_date, end_date)]
 
     if not lai_files:
         raise Exception(
@@ -209,9 +207,7 @@ def main(
     """
 
     if not (lai_dir and lai_region and lai_resolution) and not lai_path:
-        raise Exception(
-            "Please either specify lai_dir and lai_region or specify lai_path."
-        )
+        raise Exception("Please either specify lai_dir and lai_region or specify lai_path.")
 
     if (lai_dir or lai_region) and lai_path:
         raise Exception("Please either specify lai_dir and lai_region OR lai_path.")

@@ -77,13 +77,9 @@ def validate_consistency_across_products(file_groups):
         for file_path in file_paths:
             with rio.open(file_path) as ds:
                 if ds.crs != product_crs:
-                    raise ValueError(
-                        f"CRS mismatch within {label} TIF files: {file_path}"
-                    )
+                    raise ValueError(f"CRS mismatch within {label} TIF files: {file_path}")
                 if ds.transform[0] != product_res:
-                    raise ValueError(
-                        f"Resolution mismatch within {label} TIF files: {file_path}"
-                    )
+                    raise ValueError(f"Resolution mismatch within {label} TIF files: {file_path}")
 
     logger.info("All products validated successfully.")
 
@@ -271,29 +267,20 @@ def cli(
     logger.info(f"Starting map aggregation for regions in {roi_base_dir}...")
 
     output_fpaths = {
-        "yield": output_yield_tif_fpath
-        or op.join(roi_base_dir, f"aggregated_yield_map.tif"),
+        "yield": output_yield_tif_fpath or op.join(roi_base_dir, f"aggregated_yield_map.tif"),
         "LAI": output_lai_tif_fpath or op.join(roi_base_dir, f"aggregated_LAI_MAX.tif"),
-        "cropmask": output_cropmask_tif_fpath
-        or op.join(roi_base_dir, f"aggregated_cropmask.tif"),
+        "cropmask": output_cropmask_tif_fpath or op.join(roi_base_dir, f"aggregated_cropmask.tif"),
         "shapefile": output_shapefile_fpath
         or op.join(roi_base_dir, "aggregated_region_boundaries.geojson"),
     }
 
     # Only considering directories that contain all required files.
-    regions = [
-        d for d in os.listdir(roi_base_dir) if is_valid_region_dir(roi_base_dir, d)
-    ]
+    regions = [d for d in os.listdir(roi_base_dir) if is_valid_region_dir(roi_base_dir, d)]
 
-    yield_files = [
-        get_file_path(roi_base_dir, region, "_yield_map.tif") for region in regions
-    ]
-    lai_files = [
-        get_file_path(roi_base_dir, region, "_LAI_MAX.tif") for region in regions
-    ]
+    yield_files = [get_file_path(roi_base_dir, region, "_yield_map.tif") for region in regions]
+    lai_files = [get_file_path(roi_base_dir, region, "_LAI_MAX.tif") for region in regions]
     cropmask_files = [
-        get_file_path(roi_base_dir, region, "_cropmask_constrained.tif")
-        for region in regions
+        get_file_path(roi_base_dir, region, "_cropmask_constrained.tif") for region in regions
     ]
 
     file_groups = {"yield": yield_files, "LAI": lai_files, "cropmask": cropmask_files}

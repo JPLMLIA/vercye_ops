@@ -112,9 +112,7 @@ def main(
     model.eval()
 
     # Iterate through each date
-    dates = [
-        start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)
-    ]
+    dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     dates = [date.strftime("%Y-%m-%d") for date in dates]
 
     statistics = []
@@ -181,9 +179,7 @@ def main(
         # Export as GeoTIFF
         filename = op.join(lai_dir, f"{geometry_name}_{d}_LAI_{adjustment}-adj.tif")
         profile = src.profile
-        profile.update(
-            count=3, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff"
-        )
+        profile.update(count=3, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff")
         with rio.open(filename, "w", **profile) as dst:
             dst.write(LAI_estimate, 1)
             dst.write(LAI_adjusted, 2)

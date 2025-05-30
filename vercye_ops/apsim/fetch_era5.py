@@ -69,14 +69,11 @@ def error_checking_function(df):
 
     # Check WS2M
     if ((df["WS2M"] < WS2M_MIN_LIMIT) | (df["WS2M"] > WS2M_MAX_LIMIT)).any():
-        logger.error(
-            f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}"
-        )
+        logger.error(f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}")
 
     # Check PRECTOTCORR
     if (
-        (df["PRECTOTCORR"] < PRECTOTCORR_MIN_LIMIT)
-        | (df["PRECTOTCORR"] > PRECTOTCORR_MAX_LIMIT)
+        (df["PRECTOTCORR"] < PRECTOTCORR_MIN_LIMIT) | (df["PRECTOTCORR"] > PRECTOTCORR_MAX_LIMIT)
     ).any():
         logger.error(
             f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}"
@@ -138,9 +135,7 @@ def get_consecutive_date_chunks(dates):
     return chunks
 
 
-def fetch_era5_data(
-    start_date, end_date, ee_project, lon=None, lat=None, polygon_path=None
-):
+def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygon_path=None):
     """
     Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
     """
@@ -210,9 +205,7 @@ def fetch_era5_data(
             all_records.extend(records)
 
         except Exception as e:
-            logger.warning(
-                f"Failed to fetch data from {chunk_start} to {chunk_end}: {e}"
-            )
+            logger.warning(f"Failed to fetch data from {chunk_start} to {chunk_end}: {e}")
             raise e
 
     df = pd.DataFrame(all_records)
@@ -285,9 +278,7 @@ def fetch_era5_data(
         missing_dates = missing_dates.sort_values()
         # check if it is the newest dates that are missing
         if missing_dates[0] > df["date"].max():
-            logger.warning(
-                f"Missing dates are at the end of the data. Not filling them."
-            )
+            logger.warning(f"Missing dates are at the end of the data. Not filling them.")
         else:
             raise Exception("Missing dates - Not yet handled, this shouldnt occur.")
 
@@ -303,9 +294,7 @@ def fetch_era5_data(
     return df
 
 
-def fetch_from_cache(
-    start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath
-):
+def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath):
     # Read existing data
     df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
 
@@ -324,9 +313,7 @@ def fetch_from_cache(
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
 
-    logger.info(
-        f"Missing dates found: {from_missing.date()} to {to_missing.date()}. Fetching..."
-    )
+    logger.info(f"Missing dates found: {from_missing.date()} to {to_missing.date()}. Fetching...")
     missing_data = []
 
     missing_date_chunks = get_consecutive_date_chunks(missing_dates)
@@ -339,9 +326,7 @@ def fetch_from_cache(
             chunk[-1].date(),
         )
 
-        chunk_data = fetch_era5_data(
-            chunk[0], chunk[-1], ee_project, lon, lat, polygon_path
-        )
+        chunk_data = fetch_era5_data(chunk[0], chunk[-1], ee_project, lon, lat, polygon_path)
         missing_data.append(chunk_data)
 
     # Combine existing data with newly fetched data and bring in correct order
@@ -364,18 +349,14 @@ def validate_aggregation_options(met_agg_method):
     """Helper to check that no unsupported combination is run"""
 
     if met_agg_method not in ["mean", "centroid"]:
-        raise Exception(
-            "ERA5 only supports centroid and mean as the met_aggregation options."
-        )
+        raise Exception("ERA5 only supports centroid and mean as the met_aggregation options.")
 
 
 def clean_era5(df):
     # Clip negative precipitation values, if any
     neg_precip = df["PRECTOTCORR"] < 0
     if neg_precip.any():
-        logger.warning(
-            f"Clipping {neg_precip.sum()} negative precipitation values to 0."
-        )
+        logger.warning(f"Clipping {neg_precip.sum()} negative precipitation values to 0.")
         df.loc[neg_precip, "PRECTOTCORR"] = 0
     return df
 
@@ -488,15 +469,11 @@ def cli(
             "Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s",
             cache_fpath,
         )
-        df = fetch_from_cache(
-            start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath
-        )
+        df = fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath)
     else:
         # Get mean or centroid data
         if met_agg_method == "mean":
-            df = fetch_era5_data(
-                start_date, end_date, ee_project, None, None, polygon_path
-            )
+            df = fetch_era5_data(start_date, end_date, ee_project, None, None, polygon_path)
         elif met_agg_method == "centroid":
             df = fetch_era5_data(start_date, end_date, ee_project, lon, lat, None)
         else:

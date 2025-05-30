@@ -36,9 +36,7 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
     for region_dir in Path(yield_dir).iterdir():
         if region_dir.is_dir():
             region_name = region_dir.name
-            yield_estimate_csv_path = (
-                region_dir / f"{region_name}_converted_map_yield_estimate.csv"
-            )
+            yield_estimate_csv_path = region_dir / f"{region_name}_converted_map_yield_estimate.csv"
             conv_factor_csv_path = region_dir / f"{region_name}_conversion_factor.csv"
             lai_stats_csv_path = region_dir / f"{region_name}_LAI_STATS.csv"
             geojson_path = region_dir / f"{region_name}.geojson"
@@ -80,16 +78,10 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
                 conv_df["apsim_mean_yield_estimate_kg_ha"] = conv_df[
                     "apsim_mean_yield_estimate_kg_ha"
                 ].astype(int)
-                conv_df["apsim_max_matched_lai"] = conv_df[
-                    "apsim_max_matched_lai"
-                ].round(2)
+                conv_df["apsim_max_matched_lai"] = conv_df["apsim_max_matched_lai"].round(2)
                 conv_df["apsim_max_all_lai"] = conv_df["apsim_max_all_lai"].round(2)
-                conv_df["apsim_matched_maxlai_std"] = conv_df[
-                    "apsim_matched_maxlai_std"
-                ].round(2)
-                conv_df["apsim_all_maxlai_std"] = conv_df["apsim_all_maxlai_std"].round(
-                    2
-                )
+                conv_df["apsim_matched_maxlai_std"] = conv_df["apsim_matched_maxlai_std"].round(2)
+                conv_df["apsim_all_maxlai_std"] = conv_df["apsim_all_maxlai_std"].round(2)
                 conv_df["apsim_matched_std_yield_estimate_kg_ha"] = conv_df[
                     "apsim_matched_std_yield_estimate_kg_ha"
                 ].astype(int)
@@ -99,35 +91,27 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
                 conv_df["region"] = region_name
             else:
                 conv_df = pd.DataFrame()  # Empty DataFrame as a fallback
-                logger.warning(
-                    f"Conversion factor CSV file not found for region: {region_name}"
-                )
+                logger.warning(f"Conversion factor CSV file not found for region: {region_name}")
 
             if yield_df.empty and conv_df.empty:
-                logger.warning(
-                    f"No yield data found for region {region_name}. Skipping."
-                )
+                logger.warning(f"No yield data found for region {region_name}. Skipping.")
                 continue
 
             # Merge the DataFrames
             combined_df = pd.merge(yield_df, conv_df, on="region", how="outer")
 
             # Add additional information for easier analysis
-            precipitation_src = (
-                "CHIRPS" if region_name in regions_using_chirps else "Met Source"
-            )
+            precipitation_src = "CHIRPS" if region_name in regions_using_chirps else "Met Source"
 
             n_days_with_rs_data_valid = None
             mean_cloud_snow_percentage = None
             if lai_stats_csv_path.exists():
                 rs_df = pd.read_csv(lai_stats_csv_path)
                 n_days_with_rs_data_valid = rs_df[
-                    (rs_df["interpolated"] == 0)
-                    & (rs_df["Cloud or Snow Percentage"] < 100)
+                    (rs_df["interpolated"] == 0) & (rs_df["Cloud or Snow Percentage"] < 100)
                 ].shape[0]
                 mean_cloud_snow_percentage = rs_df[
-                    (rs_df["interpolated"] == 0)
-                    & (rs_df["Cloud or Snow Percentage"] < 100)
+                    (rs_df["interpolated"] == 0) & (rs_df["Cloud or Snow Percentage"] < 100)
                 ]["Cloud or Snow Percentage"].mean()
 
             extra_info_df = pd.DataFrame(
@@ -143,9 +127,7 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
 
             # Add columns from geojson if specified
             if columns_to_keep is not None and not combined_df.empty:
-                columns_to_keep_list = [
-                    col.strip() for col in columns_to_keep.split(",")
-                ]
+                columns_to_keep_list = [col.strip() for col in columns_to_keep.split(",")]
                 if geojson_path.exists():
                     gdf = gpd.read_file(geojson_path)
 
@@ -173,9 +155,7 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
 
     # Move 'region' to be the first column and sort alphabetically
     columns = ["region"] + [col for col in aggregated_yields.columns if col != "region"]
-    aggregated_yields = (
-        aggregated_yields[columns].sort_values("region").reset_index(drop=True)
-    )
+    aggregated_yields = aggregated_yields[columns].sort_values("region").reset_index(drop=True)
 
     return aggregated_yields
 

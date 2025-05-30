@@ -21,29 +21,19 @@ def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
 
     if not rio.coords.disjoint_bounds(src.bounds, geometry.total_bounds):
-        left_pad = int(
-            np.round((src.bounds.left - geometry.total_bounds[0]) / src.res[0])
-        )
+        left_pad = int(np.round((src.bounds.left - geometry.total_bounds[0]) / src.res[0]))
         left_pad = int(max(left_pad, 0))
-        bottom_pad = int(
-            np.round((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1])
-        )
+        bottom_pad = int(np.round((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1]))
         bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(
-            np.round((geometry.total_bounds[2] - src.bounds.right) / src.res[0])
-        )
+        right_pad = int(np.round((geometry.total_bounds[2] - src.bounds.right) / src.res[0]))
         right_pad = int(max(right_pad, 0))
-        top_pad = int(
-            np.round((geometry.total_bounds[3] - src.bounds.top) / src.res[1])
-        )
+        top_pad = int(np.round((geometry.total_bounds[3] - src.bounds.top) / src.res[1]))
         top_pad = int(max(top_pad, 0))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
             return masked_src, False
         else:
-            print(
-                f"Padding {masked_src.shape} by {[top_pad, bottom_pad, left_pad, right_pad]}"
-            )
+            print(f"Padding {masked_src.shape} by {[top_pad, bottom_pad, left_pad, right_pad]}")
             padded_src = np.pad(
                 masked_src,
                 pad_width=((top_pad, bottom_pad), (left_pad, right_pad)),
@@ -179,9 +169,7 @@ def main(
     geometries = []
     if mode == "raster":
         print("MODE: raster")
-        print(
-            f"{geometry_name} will be read as a raster and used to 0/1 mask the primary raster."
-        )
+        print(f"{geometry_name} will be read as a raster and used to 0/1 mask the primary raster.")
         print(
             "NOTE: Preprocessing to project the raster mask to the primary LAI raster is required."
         )
@@ -232,10 +220,7 @@ def main(
         print(f"Processing {idx+1} of {len(geometries)} geometries")
 
         # Iterate through each date
-        dates = [
-            start_date + timedelta(days=i)
-            for i in range((end_date - start_date).days + 1)
-        ]
+        dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
         dates = [date.strftime("%Y-%m-%d") for date in dates]
 
         # Keep track of statistics
@@ -250,9 +235,7 @@ def main(
             d_slash = datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y")
 
             # See if the LAI raster exists
-            LAI_path = op.join(
-                lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.{lai_file_ext}"
-            )
+            LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.{lai_file_ext}")
             if not op.exists(LAI_path):
                 print(f"{Path(LAI_path).name} [DOES NOT EXIST]")
 
@@ -337,9 +320,7 @@ def main(
 
                 intersection = bbox_lai.intersection(bbox_cropmask)
                 if intersection.is_empty:
-                    print(
-                        f"{Path(LAI_path).name} [NO INTERSECTION OF CROPMASK AND LAI]"
-                    )
+                    print(f"{Path(LAI_path).name} [NO INTERSECTION OF CROPMASK AND LAI]")
                     stat = {
                         "Date": d_slash,
                         "n_pixels": 0,
@@ -356,9 +337,7 @@ def main(
                     continue
 
                 # Read the intersection from the cropmask and LAI
-                window_lai = rio.windows.from_bounds(
-                    *intersection.bounds, transform=src.transform
-                )
+                window_lai = rio.windows.from_bounds(*intersection.bounds, transform=src.transform)
                 window_cropmask = rio.windows.from_bounds(
                     *intersection.bounds, transform=geometry["transform"]
                 )
@@ -372,9 +351,7 @@ def main(
                 # Currently keeping this to ensure the windowing logic does not have a missed edge case
                 with rio.open(geometry_path) as src_cropmask:
                     # Read the cropmask windowcropmask_bounds
-                    cropmask_window_array_debug = src_cropmask.read(
-                        1, window=window_cropmask
-                    )
+                    cropmask_window_array_debug = src_cropmask.read(1, window=window_cropmask)
 
                 # Check if the cropmask and LAI windows are the same size
                 if cropmask_window_array_debug.shape != lai_window_array.shape:
@@ -402,9 +379,7 @@ def main(
                 cropmask_array = cropmask_array.astype(float)
 
                 # Computing the percentage of pixels that are clouds or snow (and thus are nan)
-                cloud_snow_pixels = np.sum(
-                    np.isnan(lai_window_array_padded) & cropmask_array_bool
-                )
+                cloud_snow_pixels = np.sum(np.isnan(lai_window_array_padded) & cropmask_array_bool)
                 total_pixels_in_region = np.sum(cropmask_array_bool)
                 cloud_snow_percentage = (
                     cloud_snow_pixels / total_pixels_in_region * 100
@@ -432,10 +407,7 @@ def main(
                     )
 
             should_skip = False
-            if (
-                cloudcov_threshold is not None
-                and cloud_snow_percentage > cloudcov_threshold * 100
-            ):
+            if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold * 100:
                 print(f"{Path(LAI_path).name} [INSUFFICIENT DATA IN GEOMETRY]")
                 should_skip = True
 
@@ -507,9 +479,7 @@ def main(
                 if lai_adjusted_max is None:
                     lai_adjusted_max = LAI_adjusted
                 else:
-                    lai_adjusted_max = np.nanmax(
-                        [lai_adjusted_max, LAI_adjusted], axis=0
-                    )
+                    lai_adjusted_max = np.nanmax([lai_adjusted_max, LAI_adjusted], axis=0)
 
             print(f"{Path(LAI_path).name} [SUCCESS]")
 
