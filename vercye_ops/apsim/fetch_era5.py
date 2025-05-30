@@ -58,10 +58,8 @@ def error_checking_function(df):
         logger.error(f"WS2M is not within the range {WS2M_MIN_LIMIT} to {WS2M_MAX_LIMIT}")
 
     # Check PRECTOTCORR
-    cols_to_check = ['PRECTOTCORR', 'PRECTOTCORR_CHIRPS'] if 'PRECTOTCORR_CHIRPS' in df.columns else ['PRECTOTCORR']
-    for col in cols_to_check:
-        if ((df[col] < PRECTOTCORR_MIN_LIMIT) | (df[col] > PRECTOTCORR_MAX_LIMIT)).any():
-            logger.error(f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}")
+    if ((df['PRECTOTCORR'] < PRECTOTCORR_MIN_LIMIT) | (df['PRECTOTCORR'] > PRECTOTCORR_MAX_LIMIT)).any():
+        logger.error(f"PRECTOTCORR is not within the range {PRECTOTCORR_MIN_LIMIT} to {PRECTOTCORR_MAX_LIMIT}")
 
     # Check ALLSKY_SFC_SW_DWN
     if ((df['ALLSKY_SFC_SW_DWN'] < ALLSKY_SFC_SW_DWN_MIN_LIMIT) | (df['ALLSKY_SFC_SW_DWN'] > ALLSKY_SFC_SW_DWN_MAX_LIMIT)).any():
@@ -237,7 +235,7 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
     # set date as index
     df.set_index('date', inplace=True)
-    df.index = pd.to_datetime(df.index).date
+    df.index = pd.to_datetime(df.index)
     df = df.sort_index()
 
     # check for duplicates
@@ -246,7 +244,7 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
     return df
 
-def fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath):
+def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath):
     # Read existing data
     df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
 
@@ -256,14 +254,15 @@ def fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_pro
     missing_dates = all_dates.difference(existing_dates)
 
     # Identify blocks of missing dates
-    if missing_dates.empty:
+    if not missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
-        return df_existing
+        df_filtered = df_existing.loc[start_date:end_date]
+        return df_filtered
     
+    # Fetch data for the missing dates
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
 
-    # Fetch data for the missing dates
     logger.info(f"Missing dates found: {from_missing.date()} to {to_missing.date()}. Fetching...")
     missing_data = []
 
@@ -279,7 +278,16 @@ def fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_pro
     df_combined = pd.concat([df_existing] + missing_data)
     df_combined.sort_index(inplace=True)
 
-    return df_combined
+    df_combined = clean_era5(df_combined)
+    error_checking_function(df_combined)
+
+    logger.info("Updating cache file: %s", cache_fpath)
+    write_met_data_to_csv(df_combined, cache_fpath)
+
+    # Return only the data from the requested date range
+    df_filtered = df_combined.loc[start_date:end_date]
+    
+    return df_filtered
 
 
 def validate_aggregation_options(met_agg_method):
@@ -339,7 +347,7 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
     
     if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
         logger.info("Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s", cache_fpath)
-        df = fetch_missing_era5_data(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath)
+        df = fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath)
     else:
         # Get mean or centroid data
         if met_agg_method == 'mean':
@@ -349,13 +357,15 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
         else:
             raise ValueError(f"Unsupported met_agg_method: {met_agg_method}")
 
-    # Clean the data
-    df = clean_era5(df)
+        # Clean the data
+        df = clean_era5(df)
+        error_checking_function(df)
 
-    if cache_dir is not None:
-        logger.info("Writing fetched data to cache file: %s", cache_fpath)
-        os.makedirs(cache_dir, exist_ok=True)
-        write_met_data_to_csv(df, cache_fpath)
+        # Update the cache if specified
+        if cache_dir is not None:
+            logger.info("Writing fetched data to cache file: %s", cache_fpath)
+            os.makedirs(cache_dir, exist_ok=True)
+            write_met_data_to_csv(df, cache_fpath)
     
     error_checking_function(df)
     if output_dir is not None:

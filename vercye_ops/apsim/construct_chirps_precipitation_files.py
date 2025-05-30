@@ -138,14 +138,16 @@ def process_mean_data(chirps_dir, date, geometry_masks):
     return mean_values
 
 def construct_chirps_precipitation_files(dates, aggregation_method, regions_base_dir, chirps_dir):
-    region_names = [region_name for region_name in os.listdir(regions_base_dir) if op.isdir(op.join(regions_base_dir, region_name))]
+    region_names = [region_name for region_name in os.listdir(regions_base_dir) if op.isdir(op.join(regions_base_dir, region_name)) and os.path.exists(op.join(regions_base_dir, region_name, f'{region_name}.geojson'))]
     region_geometry_files = [op.join(regions_base_dir, region_name, f'{region_name}.geojson') for region_name in region_names]
     chirps_epsg = 4326 # Could be read dynamically from CHIRPS data in the future
-    region_names = [get_region_name(region_geometry_file) for region_geometry_file in region_geometry_files]
+    region_names = [region_name for region_name in region_names]
+
+    # Only keep those regions that have a valid geometry file
     prec_data = []
     chirps_bounds = [-180.0, -50.0, 180.0, 50.0]
 
-    region_gdfs_unfiltered = [load_geometry(region_geometry_file, chirps_epsg) for region_geometry_file in region_geometry_files]
+    region_gdfs_unfiltered = [load_geometry(region_geometry_file, chirps_epsg) for region_geometry_file in region_geometry_files ]
 
     if aggregation_method == 'centroid':
         centroids_unfiltered = [get_centroid(geometry) for geometry in region_gdfs_unfiltered]

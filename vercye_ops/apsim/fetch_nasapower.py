@@ -144,14 +144,14 @@ def get_consecutive_date_chunks(dates):
     
     return chunks
 
-def fetch_missing_nasa_power_data(output_fpath, start_date, end_date, variables, lon, lat):
+def fetch_from_cache(cache_fpath, start_date, end_date, variables, lon, lat):
     """
     Fetches missing weather data from the NASA POWER API for a given latitude and longitude between start_date and end_date,
     for the desired variables, based on an existing CSV file.
     """
 
     # Read existing data
-    df_existing = pd.read_csv(output_fpath, index_col=0, parse_dates=True)
+    df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
 
     # Determine the date range to fetch
     existing_dates = df_existing.index
@@ -161,7 +161,8 @@ def fetch_missing_nasa_power_data(output_fpath, start_date, end_date, variables,
     # Identify blocks of missing dates
     if missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
-        return df_existing, None
+        df_filtered = df_existing.loc[start_date:end_date]
+        return df_filtered
     
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
@@ -186,7 +187,19 @@ def fetch_missing_nasa_power_data(output_fpath, start_date, end_date, variables,
     df_combined = pd.concat([df_existing] + missing_data)
     df_combined.sort_index(inplace=True)
 
-    return df_combined, nodata_vals[0]
+    nodata_val = nodata_vals[0]  # Use the first nodata value as they are consistent
+    df_combined = clean_nasa_power_data(df_combined, nodata_val)
+    error_checking_function(df_combined)
+
+    # Update cache with newly fetched data
+    logger.info("Updating cache file: %s", cache_fpath)
+    write_met_data_to_csv(df_combined, cache_fpath)
+
+    # Return only the data from the requested date range
+    df_filtered = df_combined.loc[start_date:end_date]
+    
+    return df_filtered
+
 
 def get_grid_aligned_coordinates(lat, lon):
     return lat, lon
@@ -248,20 +261,21 @@ def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, c
         cache_fpath = Path(cache_dir) / f'{cache_region}_{met_agg_method}_nasapower.csv'
 
     if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
-        logger.info("Weather data already exists locally. Will fetch and append only missing dates to if necessary: \n%s", cache_fpath)
-        df, nodata_val = fetch_missing_nasa_power_data(cache_fpath, start_date, end_date, variables, lon, lat)
+        logger.info("Weather data already exists locally. Will fetch and append only missing dates if necessary to : \n%s", cache_fpath)
+        df = fetch_from_cache(cache_fpath, start_date, end_date, variables, lon, lat)
     else:
         logger.info("Fetching weather data from NASA POWER for %s to %s", start_date.date(), end_date.date())
         df, nodata_val = fetch_nasa_power_data(start_date, end_date, variables, lon, lat)
-    
-    df = clean_nasa_power_data(df, nodata_val)
+        df = clean_nasa_power_data(df, nodata_val)
+        error_checking_function(df)
 
-    if cache_dir is not None:
-        logger.info("Writing fetched data to cache file: %s", cache_fpath)
-        os.makedirs(cache_dir, exist_ok=True)
-        write_met_data_to_csv(df, cache_fpath)
+        # Write to cache if specified
+        if cache_dir is not None:
+            logger.info("Writing fetched data to cache file: %s", cache_fpath)
+            os.makedirs(cache_dir, exist_ok=True)
+            write_met_data_to_csv(df, cache_fpath)
     
-    error_checking_function(df)
+    
     if output_dir is not None:
         region = Path(output_dir).stem
         output_fpath = Path(output_dir) / f'{region}_met.csv'

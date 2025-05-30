@@ -192,6 +192,7 @@ rule fetch_met_data:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
         np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasapower' else [],
+        era5_cached_data = op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'era5' else [],
     params:
         met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
         met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
@@ -301,8 +302,8 @@ rule construct_plot_met_files:
         --output_fpath {output.plot_fpath} \
         --precipitation_source {params.precipitation_source} \
         --precipitation_agg {params.precipitation_agg_method} \
-        --fallback_precipitation {params.fallback_precipitation} \
-        --met_fpath {input.csv} > {log}
+        {params.chirps_arg} \
+        --fallback_precipitation {params.fallback_precipitation} > {log}
         """
         
 
@@ -624,11 +625,13 @@ rule match_sim_real_quicklook:
 rule aggregate_yield_estimates:
     input:
         total_yield_csvs = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=get_valid_regions(wildcards)),
-        conversion_factor_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=get_valid_regions(wildcards))
+        conversion_factor_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=get_valid_regions(wildcards)),
+        chirps_file = lambda wildcards: op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else [],
     params:
         executable_fpath = config['scripts']['aggregate_yield_estimates'],
         yield_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
         columns_to_keep_cmd = ' --columns_to_keep ' + ','.join(config['eval_params']['aggregation_levels'].values()) if config['eval_params']['aggregation_levels'] else '',
+        chirps_file_cmd = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else '',
     log:
         'logs_aggregate_yield_estimates/{year}_{timepoint}.log'
     output:
@@ -639,6 +642,7 @@ rule aggregate_yield_estimates:
         --yield_dir {params.yield_dir} \
         {params.columns_to_keep_cmd} \
         --output_csv {output.aggregated_csv} \
+        {params.chirps_file_cmd} \
         --verbose > {log}
         """
 

@@ -197,6 +197,7 @@ def load_prep_project_data(weather_data_fpath, sim_end_date, precipitation_src, 
     round_dict = {key: val for key, val in APSIM_DECIMALS.items() 
                   if key in projected_df.columns}
     projected_df = projected_df.round(round_dict)
+    df = df.round(round_dict)
     
     # Add tag for type of data and return concatenated data
     df['data_type'] = 'measured'
