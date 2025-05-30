@@ -2,7 +2,7 @@ name: Testing Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, feature/ci ]
   pull_request:
     branches: [ main, develop ]
 
