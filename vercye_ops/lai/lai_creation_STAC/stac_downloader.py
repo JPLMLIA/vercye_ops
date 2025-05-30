@@ -13,8 +13,12 @@ import requests
 from pystac.extensions.eo import EOExtension
 from rasterio.env import Env
 from rasterio.warp import Resampling, calculate_default_transform, reproject
-from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
-                      wait_exponential)
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

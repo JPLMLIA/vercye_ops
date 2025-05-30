@@ -38,52 +38,52 @@ def csv_to_weight_dict(csvpath, product):
     pointer += 1
     # Read input weights
     w_dict["input"] = {}
-    w_dict["input"]["weights"] = w[pointer:pointer + n]
+    w_dict["input"]["weights"] = w[pointer : pointer + n]
     pointer += n
     # Number of input biases
     n = int(w[pointer])
     pointer += 1
     # Read input biases
-    w_dict["input"]["biases"] = w[pointer:pointer + n]
+    w_dict["input"]["biases"] = w[pointer : pointer + n]
     pointer += n
     # Number of weights in first hidden layer
     n = int(w[pointer])
     pointer += 1
     # Read hidden1 weights
     w_dict["h1"] = {}
-    w_dict["h1"]["weights"] = w[pointer:pointer + n]
+    w_dict["h1"]["weights"] = w[pointer : pointer + n]
     pointer += n
     # Number of biases in first hidden layer
     n = int(w[pointer])
     pointer += 1
     # Read hidden1 biases
-    w_dict["h1"]["biases"] = w[pointer:pointer + n]
+    w_dict["h1"]["biases"] = w[pointer : pointer + n]
     pointer += n
     # Number of weights in second hidden layer
     n = int(w[pointer])
     pointer += 1
     # Read hidden2 weights
     w_dict["h2"] = {}
-    w_dict["h2"]["weights"] = w[pointer:pointer + n]
+    w_dict["h2"]["weights"] = w[pointer : pointer + n]
     pointer += n
     # Number of biases in second hidden layer
     n = int(w[pointer])
     pointer += 1
     # Read hidden2 biases
-    w_dict["h2"]["biases"] = w[pointer:pointer + n]
+    w_dict["h2"]["biases"] = w[pointer : pointer + n]
     pointer += n
     # Number of weights inoutput layer
     n = int(w[pointer])
     pointer += 1
     # Read output weights
     w_dict["output"] = {}
-    w_dict["output"]["weights"] = w[pointer:pointer + n]
+    w_dict["output"]["weights"] = w[pointer : pointer + n]
     pointer += n
     # Number of biases in output layer
     n = int(w[pointer])
     pointer += 1
     # Read output biases
-    w_dict["output"]["biases"] = w[pointer:pointer + n]
+    w_dict["output"]["biases"] = w[pointer : pointer + n]
 
     return w_dict, n_ch_input
 

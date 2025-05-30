@@ -32,7 +32,7 @@ def read_met_file(filepath):
             lon = float(line.split("=")[1].strip().split()[0])
 
     header_line = next(i for i, line in enumerate(lines) if line.startswith("year"))
-    data_lines = lines[header_line+2:]  # Skip header and unit lines
+    data_lines = lines[header_line + 2 :]  # Skip header and unit lines
 
     data = []
     for line in data_lines:

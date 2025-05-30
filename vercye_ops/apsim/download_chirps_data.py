@@ -188,7 +188,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
             except ftplib.all_errors as e:
                 logger.error(f"Error changing directory to year {year}: {e}")
                 ftp_connection.quit()
-                remaining_dates = daterange[daterange.index(date):]
+                remaining_dates = daterange[daterange.index(date) :]
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
 
@@ -244,7 +244,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
             except ftplib.all_errors as e:
                 logger.error(f"Error changing directory to year {year}: {e}")
                 ftp_connection.quit()
-                remaining_dates = daterange[daterange.index(date):]
+                remaining_dates = daterange[daterange.index(date) :]
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
 
@@ -298,7 +298,7 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
     chunk_size = max(1, total_files // num_workers)
     chunk_size = min(chunk_size, PROGRESS_UPDATE_INTERVAL)
     daterange_chunks = [
-        all_dates[i:i + chunk_size] for i in range(0, total_files, chunk_size)
+        all_dates[i : i + chunk_size] for i in range(0, total_files, chunk_size)
     ]
 
     retries = NUM_RETRIES
@@ -343,7 +343,7 @@ def fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_worker
             failed_downloads.sort()
 
             daterange_chunks = [
-                failed_downloads[i:i + chunk_size]
+                failed_downloads[i : i + chunk_size]
                 for i in range(0, len(failed_downloads), chunk_size)
             ]
 

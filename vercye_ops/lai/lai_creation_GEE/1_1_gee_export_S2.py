@@ -9,10 +9,13 @@ from pathlib import Path
 import click
 import ee
 import geopandas as gpd
-from gdrive_download_helpers import (delete_files_from_drive,
-                                     delete_folder_from_drive,
-                                     download_files_from_drive,
-                                     find_files_in_drive, get_drive_service)
+from gdrive_download_helpers import (
+    delete_files_from_drive,
+    delete_folder_from_drive,
+    download_files_from_drive,
+    find_files_in_drive,
+    get_drive_service,
+)
 
 
 def json_to_fc(json_path):
