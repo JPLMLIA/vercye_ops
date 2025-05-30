@@ -387,14 +387,14 @@ def save_as_tif(layers, layer_names, out_tif_path, transform, crs):
 )
 @click.option(
     "--reference_tif_path",
-    required=True,
+    required=False,
     type=click.Path(),
     default=None,
     help="Path to a tif file containing the target crs and resolution.",
 )
 @click.option(
     "--output_tif_path",
-    required=True,
+    required=False,
     type=click.Path(),
     default=None,
     help="Path to the output .tif file.",

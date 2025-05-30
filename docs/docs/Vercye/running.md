@@ -24,6 +24,7 @@ While the individual steps are detailed in other pages of this living document, 
 
 
 If you already have prepared a base directory and a configuration file, you can skip to step 4.
+Otherwise follow the steps below. You will typically want to run this on **your local machine** and not a remote cluster. You can transfer the final setup to the cluster after creation.
 
 ## 1. Defining Regions of Interest
 
@@ -34,7 +35,7 @@ Your yield study will run simulations for each defined region, typically specifi
 - Contains geometries at the same administrative level only (e.g., all geometries are districts OR all counties)
 - Includes an attribute column with region names (e.g., `NAME_2` containing "Cook County", "Orleans Parish")
 
-If your shapefile contains mixed administrative levels, use the interactive helper script to normalize it to a single level:
+[Experimental] If your shapefile contains mixed administrative levels, use the interactive helper script to normalize it to a single level:
 ```
 python apsim/prepare_shapefile.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
 ```
@@ -43,7 +44,7 @@ python apsim/prepare_shapefile.py --shp_fpath /path/to/your.shp --output_dir /pa
 
 Create a configuration file that controls simulation parameters:
 
-0. Create an empty directory `new_basedir_path` that will be your basediretory of your study.
+0. Create an empty directory `new_basedir_path` that will be your basediretory of your study. Recommended to give it a meaningfull name.
 1. Navigate to `snakemake/example_setup/` and copy one of the example configurations to `new_basedir_path/config_template.yaml`.
 2. Modify parameters according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper.
 
@@ -53,9 +54,9 @@ The full configuration options are documented in the [Inputs documentation (Sect
 
 ## 3. Setting Up Your Base Directory
 
-The **base directory** (your study head dir) organizes region-specific geometries and APSIM simulations by year, timepoint, and region [Details](inputs.md)
+The **base directory** (your `study head dir`) organizes region-specific geometries and APSIM simulations by year, timepoint, and region [(See Details)](inputs.md).
 
-Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this structure – just set the parameters below and run it.
+Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this structure - just set the parameters below in the first cell and run it.
 
 1. **Input shapefile & region names**
 
@@ -111,6 +112,8 @@ Once all parameters are defined, run the notebook. It will:
 - Create your `year/timepoint/region` directory tree under `OUTPUT_DIR`.  
 - Generate a final `config.yaml` that merges your Snakemake settings with the selected regions.
 
+**Note**: Sometimes, you might want to add some custom conditionals or processing, that is why we have provided this code in a jupyter notebook. In that case make sure to read the [input documentation](inputs.md), to understand the required structure.
+
 ## 4. Adding Reported Validation Data
 
 The VeRCYE pipeline can automatically generate validation metrics (e.g., R², RMSE) if reported data is available. To enable this, you must manually add validation data for each year.
@@ -124,27 +127,29 @@ For each year and aggregation level, create a CSV file named: `{year}/groundtrut
 Example: For 2024 state-level data, the file should be: `basedirectory/2024/groundtruth_State-2024.csv`
 For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/groundtruth_primary-2024.csv`
 
-Each CSV must include:
+**CSV Structure**
 
 - `region`: Name matching GeoJSON folder (for `primary aggregation level`) or matching attribute table column values for custom aggregation level (Column as specified under `eval_params.aggregation_levels` in tour `config.yaml`)
 - `reported_mean_yield_kg_ha`: Mean yield in kg/ha
 If unavailable, provide `reported_production_kg` instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
-- If your reference data contains area, it is reccomended to also include this under `reported_area` even though this is not yet used in the evaluation pipeline.
+- If your reference data contains area, it is recommended to also include this under `reported_area` even though this is not yet used in the evaluation pipeline.
 
 
 ## 5. Running the Yield Study
 
 Once your setup is complete:
 
-1. Transfer your base directory to your HPC cluster (if using one)
-2. Verify the `sim_study_head_dir` path in `config.yaml` matches your the location you copied the directory to
-3. Navigate to the snakemake directory: `cd vercye_ops/vercye_ops/snakemake`
-4. Run the simulation (This will expect to use 120 CPU cores.):
+1. Transfer your base directory to your HPC cluster (if using one).
+2. Adjust the `sim_study_head_dir` path in `config.yaml` to match the location you copied the directory to.
+3. Navigate to the snakemake directory: `cd vercye_ops/vercye_ops/snakemake`.
+4. Open a `tmux` session or similar to start the long running job: `tmux new -s vercye`
+6. Ensure you have activated your virtual environment if applicable.
+7. Run the simulation in the tmux shell (This example will expect to use 110 CPU cores as defined in the `profile` file.):
    ```bash
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml
    ```
 
-5. For custom CPU core allocation, add the `-c` flag (e.g with 20 cores):
+  For custom CPU core allocation, add the `-c` flag (e.g with 20 cores) or adapt the `profiles/hpc/config.yaml` file:
    ```bash
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml -c 20
    ```

@@ -39,6 +39,7 @@ This design ensures reproducibility and clean separation of configuration from l
 ## 🔄 Pipeline Logic
 
 The following lists a high level overview of some of the most important features of the snakemake based pipeline steps (non-exhaustive).
+The complete logic is defined in `vecrye_ops/snakemake/Snakefile`.
 
 ### 1. Cropmask Reprojection
 - **Rule**: `reproject_cropmask`
@@ -125,6 +126,21 @@ The following lists a high level overview of some of the most important features
 #### Across Years:
 - **Rule**: `generate_multiyear_comparison`
 - Creates multi-year overviews and trend visualizations
+
+### Understanding the Snakefile
+In some parts you might find the `Snakefile` hard to interpret directly, which is mainly due to two factors:
+
+- Conditional Logic: Such as only running the evaluation rule if reference data files are found in the directories.
+This is implemented a bit hacky through a the `get_evaluation_results_path_func` that checks which timepoints have reference data,
+and creating a dependancy for the final rule (`final_report`).
+
+- Checkpointing: This feature from `Snakemake` allows us, to not run all downstream jobs on every region.
+By first validating which region has sufficient cropland to be considered for analysis, the pipeline is split into a two-step approach.
+However, this comes at the cost of making the Snakefile slightly harder to follow:
+For ensuring dependancies only on valid regions instead of all regions in the snakefile,
+downstream jobs use `get_valid_regions` helper functions, which requires the checkpoint to have passed.
+Additionally, if other outputs should be produced, this becomes slightly hacky due to the way `Snakemake` handles things
+(see the `sim_match_report_workaround` input in the rule `all` as an example for how to deal with such cases).
 
 ---
 

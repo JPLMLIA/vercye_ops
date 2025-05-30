@@ -8,7 +8,7 @@ import glob
 from types import SimpleNamespace
 
 
-from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_lai_date_range
+from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range
 from generate_aggregated_final_report import create_final_report
 
 #######################################
@@ -95,44 +95,36 @@ rule construct_chirps_data:
         --output_file {output.csv} > {log}
         """
 
-# Rule to fetch weather data from NASAPower or ERA5 and save as CSV
-rule fetch_met_data:
+# Before creating the met.csv files with the data per region and timepoint, we fetch the cache with the NASA Power data for the region and all timepoints.
+# This needs to be done to avoid multiple calls to the NASA Power API for the same region, which leads to rate limiting.
+# This rule fills the cache with the necessary data for the region by taking the min and max date and avoids multiple processes writing to the same cache file.
+rule fill_nasapower_cache:
+    priority: 1 # This might be a longer running job without dependencies, want to start as early as possible
     input:
-        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
-        chirps_file = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else []
+        geometry = op.join(config['sim_study_head_dir'], str(config['years'][0]), str(config['timepoints'][0]), '{region}', '{region}.geojson'),
     params:
-        met_source = lambda wildcards: config['apsim_params']['met_source'],
-        met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
-        met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
-        precipitation_source = config['apsim_params']['precipitation_source'],
-        fallback_precipitation = config['apsim_params']['fallback_precipitation'],
-        precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
-        chirps_dir = config['apsim_params']['chirps_dir'],
-        script_fpath = config['scripts']['fetch_met_data'],
+        met_start_date = get_met_max_range(config)[0],
+        met_end_date = get_met_max_range(config)[1],
+        script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
-        chirps_file = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', f'{wildcards.year}_{wildcards.timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else '',
-        ee_project = config['apsim_params']['ee_project'],
         met_agg_method = config['apsim_params']['met_agg_method'],
-        polygon_path_cmd = lambda wildcards: f"--polygon_path {op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, wildcards.region, f'{wildcards.region}.geojson')}" if config['apsim_params']['met_agg_method'].lower() == 'mean' else '',
+        np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
     log: 
-        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
+        'logs_fetch_np_data_cache/{region}.log',
     output:
-        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
+        temp(op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt')),
     resources:
-        nasa_power_calls = 1 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 0,
-        era5_calls = 1 if config['apsim_params']['met_source'].lower() == 'era5' else 0,
-    retries: 3
+        nasa_power_calls = 1
+    retries: 2
     shell:
         """
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
-        python {params.script_fpath} \
-        --met_source {params.met_source} \
+        python {params.script_fpath_nasapower} \
         --met_agg_method {params.met_agg_method} \
-        {params.polygon_path_cmd} \
         --start_date {params.met_start_date} \
         --end_date {params.met_end_date} \
         --variables ALLSKY_SFC_SW_DWN \
@@ -143,15 +135,129 @@ rule fetch_met_data:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
-        --precipitation_source {params.precipitation_source} \
-        --precipitation_agg_method {params.precipitation_agg_method} \
-        --chirps_column_name {params.region_name} \
-        --fallback_precipitation {params.fallback_precipitation} \
-        {params.chirps_file} \
-        --ee_project {params.ee_project} \
-        --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
-        --overwrite \
+        --cache_dir {params.np_cache_dir} \
         --verbose > {log}
+
+        echo "all missing dates fetched" > {output}
+        """
+
+# Same as for NASA Power cache filling
+rule fill_era5_cache:
+    input:
+        geometry = op.join(config['sim_study_head_dir'], str(config['years'][0]), str(config['timepoints'][0]), '{region}', '{region}.geojson'),
+    params:
+        met_start_date = get_met_max_range(config)[0],
+        met_end_date = get_met_max_range(config)[1],
+        script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
+        head_dir = config['sim_study_head_dir'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        region_name = lambda wildcards: wildcards.region,
+        ee_project = config['apsim_params']['ee_project'],
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        era5_cache_dir = config['apsim_params']['era5_cache_dir'],
+        met_source = config['apsim_params']['met_source'].lower(),
+    log:
+        'logs_fetch_era5_data_cache/{region}.log',
+    output:
+        temp(op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt')),
+    resources:
+        era5_calls = 1
+    retries: 5 # ERA5 on GEE can be flaky
+    shell:
+        """
+        {params.jq_load_statement}
+        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+
+        POLYGON_PATH=""
+        if [ "{params.met_agg_method}" = "mean" ]; then
+            POLYGON_PATH="--polygon_path {input.geometry}"
+        fi
+
+        python {params.script_fpath_era5} \
+        --met_agg_method {params.met_agg_method} \
+        $POLYGON_PATH \
+        --start_date {params.met_start_date} \
+        --end_date {params.met_end_date} \
+        --lon ${{LON}} \
+        --lat ${{LAT}} \
+        --ee_project {params.ee_project} \
+        --cache_dir {params.era5_cache_dir} \
+        --verbose > {log}
+
+        echo "all missing dates fetched" > {output}
+        """
+
+# Rule to fetch weather data either from ERA5 or NASAPower and save as CSV
+rule fetch_met_data:
+    input:
+        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasapower' else [],
+        era5_cached_data = op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'era5' else [],
+    params:
+        met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
+        met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
+        script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
+        script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
+        head_dir = config['sim_study_head_dir'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        region_name = lambda wildcards: wildcards.region,
+        ee_project = config['apsim_params']['ee_project'],
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        era5_cache_dir = config['apsim_params']['era5_cache_dir'],
+        np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
+        met_source = config['apsim_params']['met_source'].lower(),
+        platform = config['platform'],
+    log: 
+        'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
+    output:
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
+    resources:
+        era5_calls = 1 if config['apsim_params']['met_source'].lower() == 'era5' else 0,
+        nasa_power_calls = 1 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 0,
+    retries: 5 if config['apsim_params']['met_source'].lower() == 'era5' else 2,  # ERA5 on GEE can be flaky
+    shell:
+        """
+        # Load geometry centroid
+        {params.jq_load_statement}
+        read LON LAT <<< $(cat {input.geometry} | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
+
+        # Set script and run based on met source
+        if [ "{params.met_source}" = "nasa_power" ]; then
+            python {params.script_fpath_nasapower} \
+            --met_agg_method {params.met_agg_method} \
+            --start_date {params.met_start_date} \
+            --end_date {params.met_end_date} \
+            --variables ALLSKY_SFC_SW_DWN \
+            --variables T2M_MAX \
+            --variables T2M_MIN \
+            --variables T2M \
+            --variables PRECTOTCORR \
+            --variables WS2M \
+            --lon $LON \
+            --lat $LAT \
+            --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
+            --cache_dir {params.np_cache_dir} \
+            --verbose > {log}
+        elif [ "{params.met_source}" = "era5" ]; then
+            POLYGON_PATH=""
+            if [ "{params.met_agg_method}" = "mean" ]; then
+                POLYGON_PATH="--polygon_path {input.geometry}"
+            fi
+            python {params.script_fpath_era5} \
+            --met_agg_method {params.met_agg_method} \
+            $POLYGON_PATH \
+            --start_date {params.met_start_date} \
+            --end_date {params.met_end_date} \
+            --lon $LON \
+            --lat $LAT \
+            --ee_project {params.ee_project} \
+            --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
+            --cache_dir {params.era5_cache_dir} \
+            --verbose > {log}
+        else
+            echo "Invalid met source: {params.met_source}" >&2
+            exit 1
+        fi
         """
 
 # Rule to generate .met files from weather CSVs
@@ -159,6 +265,7 @@ rule construct_plot_met_files:
     input:
         csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
         geojson = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        chirps_file = lambda wildcards: op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else [],
     params:
         met_gen_script_fpath = config['scripts']['construct_met_files'],
         met_plot_script_fpath = config['scripts']['plot_met_files'],
@@ -168,6 +275,7 @@ rule construct_plot_met_files:
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        chirps_arg = lambda wildcards, input: f"--chirps_file {input.chirps_file}" if input.get("chirps_file") else "",
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
     output:
@@ -184,6 +292,7 @@ rule construct_plot_met_files:
         --lat ${{LAT}} \
         --sim_end_date {params.sim_end_date} \
         --precipitation_source {params.precipitation_source} \
+        {params.chirps_arg} \
         --fallback_precipitation {params.fallback_precipitation} \
         --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region} \
         --verbose > {log}
@@ -193,8 +302,8 @@ rule construct_plot_met_files:
         --output_fpath {output.plot_fpath} \
         --precipitation_source {params.precipitation_source} \
         --precipitation_agg {params.precipitation_agg_method} \
-        --fallback_precipitation {params.fallback_precipitation} \
-        --met_fpath {input.csv} > {log}
+        {params.chirps_arg} \
+        --fallback_precipitation {params.fallback_precipitation} > {log}
         """
         
 
@@ -402,6 +511,8 @@ rule match_sim_real:
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
+    resources:
+        kaleido_resources = 1,  # Poltly-Kaleido uses 40+ threads internally for image generation. Used to avoid nproc limitations on shared cluster
     output:
         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
         conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
@@ -514,11 +625,13 @@ rule match_sim_real_quicklook:
 rule aggregate_yield_estimates:
     input:
         total_yield_csvs = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=get_valid_regions(wildcards)),
-        conversion_factor_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=get_valid_regions(wildcards))
+        conversion_factor_fpath = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=get_valid_regions(wildcards)),
+        chirps_file = lambda wildcards: op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if config['apsim_params']['precipitation_source'].lower() == 'chirps' else [],
     params:
         executable_fpath = config['scripts']['aggregate_yield_estimates'],
         yield_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
         columns_to_keep_cmd = ' --columns_to_keep ' + ','.join(config['eval_params']['aggregation_levels'].values()) if config['eval_params']['aggregation_levels'] else '',
+        chirps_file_cmd = lambda wildcards: f"--chirps_file {op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')}" if config['apsim_params']['precipitation_source'].lower() == 'chirps' else '',
     log:
         'logs_aggregate_yield_estimates/{year}_{timepoint}.log'
     output:
@@ -529,6 +642,7 @@ rule aggregate_yield_estimates:
         --yield_dir {params.yield_dir} \
         {params.columns_to_keep_cmd} \
         --output_csv {output.aggregated_csv} \
+        {params.chirps_file_cmd} \
         --verbose > {log}
         """
 
@@ -544,15 +658,13 @@ rule aggregate_met_stats:
         'logs_aggregate_met_stats/{year}_{timepoint}.log'
     output:
         aggregated_met_stats_pdf = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-        aggregated_met_stats_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        # aggregated_met_stats_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     shell:
         """
         python {params.executable_fpath} \
         --regions_base_dir {params.roi_base_dir} \
         --year {params.year} \
         --output_pdf_path {output.aggregated_met_stats_pdf} \
-        --reference_tif_path {input.reference_tif_path} \
-        --output_tif_path {output.aggregated_met_stats_tif} \
         --verbose > {log}
         """
 

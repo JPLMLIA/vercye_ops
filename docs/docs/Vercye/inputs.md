@@ -13,6 +13,9 @@ To run a yieldstudy, you will need two things:
 
 We provide an example setup under [Example Setup](vercye_ops/snakemake/example_setup).
 
+
+In this document we detail the steps for the input setup. However, we recommend using the `setup_helper.ipynb` as outlined in [Running VeRCYe](running.md).
+
 ### Simulation Head Directory
 Your yield study is structured within a single directory, referred to as the **simulation head directory**. This directory must follow a predefined structure to ensure compatibility with the pipeline.
 
@@ -95,8 +98,7 @@ cd path/to/apsim_simulation_20240607/2021/T-0  # Path where regions exist (e.g.,
 source_file="/path/to/my/template.apsimx"; for dir in *; do cp "$source_file" "${dir}/${dir}_template.apsimx"; done
 ```
 
-Adjustments for soil properties and simulation constraints must be manually configured with domain knowledge.
-
+Adjustments for e.g soil properties and simulation constraints must be manually configured with domain knowledge.
 
 ---
 
@@ -149,6 +151,8 @@ This file defines the study parameters and links the **simulation head directory
 - `precipitation_agg_method`: Aggregation method for precipitation data (`mean` or `centroid`). `'NASA_POWER'` only supporting `centroid` currently.
 - `fallback_precipitation`: Set `True` to use the original precipitation data (`NASAPower or ERA5`) if `CHIRPS` is unavailable. CHIRPS only provides coverage from -50 to 50 degrees.
 - `chirps_dir`: Directory containing global CHIRPS precipitation data (tiffs).
+- `nasapower_cache_dir`: Directory (typically outside of your yieldstudy, globally) containing already fetched dates of nasapower met data per region.
+- `era5_cache_dir`: Directory (typically outside of your yieldstudy, globally) containing already fetched dates of nasapower met data per region.
 - `ee_project`: Project ID in google earth engine. Required if using ERA5 meteorological data.
 - `time_bounds`: Defines timepoint parameters:
   - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
@@ -189,4 +193,3 @@ run at Admin3. So all predictions that share the same Admin2 region would be agg
 
 #### Scripts Configuration
 - Paths to scripts used within the Snakemake pipeline. See the example for details
-

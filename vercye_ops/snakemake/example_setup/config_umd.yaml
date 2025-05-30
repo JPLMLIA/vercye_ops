@@ -6,6 +6,7 @@ platform: 'umd'
 # Simulation Parameters
 
 # Directory containing each region. Update this for each new snakemake run
+# Can be left empty during the setup helper script.
 sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
 
 # Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
@@ -18,6 +19,7 @@ description: 'Poltava Oblast, Ukraine for 2021-2023. Yield study created using t
 lai_shp_name: 'ukraine_adm1.shp'
 
 # Simulation Regions shapefile name. Not used for processing, but useful to keep all metadata contained
+# Can be left empty during the setup helper script, as it will be overwritten.
 regions_shp_name: 'ukraine_adm2.shp'
 
 # For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
@@ -30,6 +32,7 @@ create_per_region_html_report: True
 
 
 # Specify one or more simulations
+# Can be left empty during the setup helper script, as it will be overwritten.
 regions:
   - 'Chornukhynskyi'
   - 'Chutivskyi'
@@ -63,7 +66,7 @@ years:  # For any years, be sure to set APSIM/LAI params below
 #  - 2022
 #  - 2023
 
-timepoints:  # Days relative to harvest
+timepoints:  # Days relative to harvest. Needs to be defined in lai_params and apsim_params.
   - T-0
 #   - T-30
 #   - T-60
@@ -71,12 +74,14 @@ timepoints:  # Days relative to harvest
 ########################################
 # APSIM Parameters
 apsim_params:
-  met_source: 'NASA_POWER' # 'NASA_POWER' or 'ERA5'
-  precipitation_source: 'NASA_POWER' # 'NASA_POWER', 'CHIRPS' or 'ERA5'
-  precipitation_agg_method: 'centroid' # 'mean' or 'centroid'. Mean is currently only supported for CHIRPS.
+  met_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'ERA5']
+  precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS' | 'ERA5']
+  precipitation_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
-  chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'
-  ee_project: '' # Earth Engine project name. Only required to set if met_source is 'ERA5'.
+  chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'. Path to your downloaded CHIRPS data.
+  nasapower_cache_dir : '/nasapower_cache' # Directory to cache NASA POWER data. Avoids heavy rate limiting from NP.
+  era5_cache_dir: '/era5_cache' # Directory to cache ERA5 data. Avoids fetching data from GEE multuple times.
+  ee_project: '' # Earth Engine project name. Only required to be set if met_source is 'ERA5'.
   time_bounds:
     2021:
       T-0:
@@ -134,23 +139,23 @@ apsim_execution:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
   local: 
-    executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models'
-    n_jobs: 7  # Number of threads to spawn. -1 is default in APSIM. Only change if you wish to control APSIM parallelization
+    executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models' # Path to your local APSIM executble
+    n_jobs: 7  # Number of threads to spawn. -1 is default in APSIM. Might need experimentation to find the best value for your system.
 
 ########################################
 # LAI parameters
 lai_params:
-  lai_aggregation: 'median' # 'median' or 'mean'
-  lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI'
-  lai_region: 'Poltava'
-  lai_resolution: 20 # meters/pixel
+  lai_aggregation: 'median' # How to aggregate pixels from a region. Options: ['median' | 'mean']
+  lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI' # Path to your LAI data.
+  lai_region: 'Poltava' # Prefix of the LAI data files
+  lai_resolution: 20 # Spatial resolution in meters/pixel. Must match the specification of the LAI data
   smoothed: False # Whether to apply savgol smoothing to the RS LAI timeseries
-  crop_name: 'wheat'  # "wheat", "maize"
+  crop_name: 'wheat'  # Used for Crop Adjustment and Reporting. Options: ['wheat' | 'maize']
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
-  lai_analysis_mode: 'raster'
-  file_ext: 'tif' # File extension of the LAI data. Currently only supports 'tif' or 'vrt'. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
-  min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at scale of lai_resolution
-  cloudcov_threshold: 0.99 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
+  lai_analysis_mode: 'raster' # Don't change this unless you know what you are doing. Options: ['raster' | 'vector'].
+  file_ext: 'tif' # File extension of the LAI data. Options: ['tif' | 'vrt']. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
+  min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at the resolution of lai_resolution
+  cloudcov_threshold: 0.95 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
   time_bounds: 
     2021: 
       T-0: ['2020-08-20', '2021-08-01']
@@ -174,6 +179,7 @@ lai_params:
 # Sim/Real Matching Parameters
 
 matching_params:
+  # If providing a proj string ensure to enclose it in double quotes like: '"your proj string"'
   target_crs: 'EPSG:9854'  # For Poltava Oblast, Ukraine. Used in pixel area calculations during yield estimation
 
 ########################################
@@ -191,11 +197,13 @@ eval_params:
   
 ########################################
 # Local paths to the python/APSIM scripts
+# Typically no need to change
 
 scripts:
   construct_met_files: '../apsim/construct_met_files.py'
   plot_met_files: '../apsim/generate_weather_report.py'
-  fetch_met_data: '../apsim/fetch_met_data.py'
+  fetch_met_data_nasapower: '../apsim/fetch_nasapower.py'
+  fetch_met_data_era5: '../apsim/fetch_era5.py'
   update_apsimx_template: '../apsim/update_apsimx_template.py'
   constrain_lai_cropmask: '../lai/0_mask_cropmask.py'
   check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'

@@ -1,12 +1,10 @@
 import click
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy import stats
 from sklearn.metrics import mean_squared_error, r2_score
 import plotly.express as px
 import plotly.graph_objects as go
-import scipy
 
 from vercye_ops.utils.init_logger import get_logger
 
