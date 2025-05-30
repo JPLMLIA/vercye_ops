@@ -70,8 +70,8 @@ This document details all output artifacts and their computation methods.
     - LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in `3_analysis_LAI.py`.
     - LAI stddev adjusted: Analogous to `LAI stddev` for the adjusted LAI.
 
-- **`met.csv`**: Meteorological data fetched for each date in the daterange. If CHIRPS was used for precipitation data, then an additional column `PRECTOTCORR_CHIRPS`  will be present. This column holds the actual CHIRPS precipitation data, while the `PRECTOTCORR` column holds the precipitation data from the original method (e.g NASAPower or ERA5). Documentation of other columns will be added soon. The Column names follow the NASAPower output format. If ERA5 data is fetched it is converted to the same output format as NASAPower has.
-- **`weather.met`**: Met file generated from `met.csv*` that follows the format that APSIM expects.
+- **`met.csv`**: Meteorological data fetched for each date in the daterange. If CHIRPS was used for precipitation data, it is **NOT** included here. Documentation of other columns will be added soon. The Column names follow the NASAPower output format. If ERA5 data is fetched it is converted to the same output format as NASAPower has.
+- **`weather.met`**: Met file generated from `met.csv*` that follows the format that APSIM expects. Includes the CHIRPS data in the rain column if CHIPRS is used.
 
 - **`cropmask_constrained.tif`**: Binary cropmask (raster) constrained to the region.
 - **`LAI_MAX.tif`**: Raster of the remotely sensed LAI given as the maximum value per pixel troughout the date range.
