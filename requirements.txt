@@ -2,6 +2,7 @@ click
 colorlog
 earthengine-api
 ee
+earthengine-api
 gdal
 geopandas
 joblib
@@ -9,15 +10,20 @@ kaleido  # For static image plots in plotly
 matplotlib
 numpy
 pandas
+pathvalidate
 pillow
 plotly
 pulp==2.7.0  # Pinned for snakemake
+pystac_client
 pytest
-rasterio
+pyarrow
+rasterio[s3]
 requests
+ruamel.yaml
 scipy>=1.14  # For Akima interpolator
 scikit-learn
 snakemake  # If using mamba/conda, install from the bioconda channel
+tenacity
 torch
 tqdm
 xhtml2pdf

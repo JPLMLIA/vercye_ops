@@ -10,7 +10,7 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, html_fpath=None, png_fpath=None):
+def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath=None, png_fpath=None):
     """
     Generate a plot report from APSIM and database time series data.
 
@@ -68,7 +68,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     # Create figure with two subplots: one for LAI and one for Yield
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         vertical_spacing = 0.1,
-                        subplot_titles=("APSIM and RS LAI", "APSIM Yield"))
+                        subplot_titles=("APSIM and RS LAI", "APSIM Yield"),
+                        specs=[[{"secondary_y": True}], [{"secondary_y": False}]])
 
     ###################################
     logger.info("Plotting individual SimulationID series.")
@@ -98,28 +99,33 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     ###################################
     logger.info("Plotting RS data.")
-    fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df['LAI Mean'], mode='lines', name='RS Mean LAI', 
+    lai_agg_type_name = 'Mean' if lai_agg_type.lower() == 'mean' else 'Median'
+    lai_column = f'LAI {lai_agg_type_name}' if not use_adjusted_lai else f'LAI {lai_agg_type_name} Adjusted'
+    fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column], mode='lines', name=f'RS {lai_agg_type_name} LAI', 
                              line=dict(color='black', width=3)), row=1, col=1)
     
-    fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
-                             line=dict(color='gray', width=3), visible='legendonly'), row=1, col=1)
+    cloud_data = rs_df[rs_df['Cloud or Snow Percentage'] < 100]
+    fig.add_trace(go.Scatter(x=cloud_data.index, y=cloud_data['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
+                             line=dict(color='red', width=3)), row=1, col=1, secondary_y=True)
 
     ###################################
     logger.info("Calculating and plotting mean series for simulations not filtered out.")
     good_sim_ids = apsim_filtered[apsim_filtered['StepFilteredOut'].isna()]['SimulationID']
     mean_data = report_data[report_data['SimulationID'].isin(good_sim_ids)].groupby('Date').mean()
 
-    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data[f'{crop_name}.Leaf.LAI'], mode='lines', name='Mean LAI',
+    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data[f'{crop_name}.Leaf.LAI'], mode='lines', name='Mean Matched LAI',
                              line=dict(color='chartreuse', width=4)), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Yield'], mode='lines', name='Mean Yield',
+    fig.add_trace(go.Scatter(x=mean_data.index, y=mean_data['Yield'], mode='lines', name='Mean Matched Yield',
                              line=dict(color='deepskyblue', width=4)), row=2, col=1)
 
     ###################################
     # Set hovermode to compare across all traces (this enables syncing between subplots)
+    
 
     # Add y-labels for both subplots
-    fig.update_yaxes(title_text="LAI", row=1, col=1)
+    fig.update_yaxes(title_text="LAI", row=1, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Cloud or Snow Coverage (%)", row=1, col=1, secondary_y=True)
     fig.update_yaxes(title_text="Yield Rate (kg/ha)", row=1, col=2)
     fig.update_xaxes(title_text="Date", row=1, col=1)
     fig.update_xaxes(title_text="Date", row=2, col=1)
@@ -128,8 +134,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     start_date = mean_data.index.min().strftime('%Y-%m-%d')
     end_date = mean_data.index.max().strftime('%Y-%m-%d')
     n_simulations = len(good_sim_ids)
-    n_days_with_rs_data = rs_df[rs_df['interpolated'] == 0].shape[0]
-    cloud_snow_percentage = rs_df['Cloud or Snow Percentage'].mean()
+    n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)].shape[0]
+    cloud_snow_percentage = rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)]['Cloud or Snow Percentage'].mean()
     
     title_text = (f"<b>Sim/Real (APSIM/S2-LAI) Matching</b><br>"
                   f"Input CSV: <i>{apsim_filtered_fpath}</i><br>"
@@ -138,8 +144,8 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
                   f"Date range: {start_date} to {end_date}<br>"
                   f"Mean yield rate: {mean_yield_kg_ha:0.0f} kg/ha<br>"
                   f"Production: <b>{total_yield_metric_tons:0.0f} metric tons</b><br>"
-                  f"Days with RS data: {n_days_with_rs_data} days<br>"
-                  f"Average Cloud/Snow coverage per non-interpolated RS date: {cloud_snow_percentage:0.2f}%")
+                  f"Valid Days with RS data (< 100% cloud coverage): {n_days_with_rs_data_valid} days<br>"
+                  f"Average Cloud/Snow coverage per non-interpolated valid RS date: {cloud_snow_percentage:0.2f}%")
 
     fig.update_layout(title=dict(text=title_text, font=dict(size=10)),
                       margin={'t': 275})  # Adjust the top margin to avoid overlap
@@ -152,6 +158,12 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     if png_fpath:
         logger.info(f"Saving PNG report to {png_fpath}")
+
+        # Hide cloud coverage in png as it becomes to crowded
+        for trace in fig.data:
+            if trace.name == 'RS Cloud Coverage %':
+                trace.visible = False 
+
         fig.update_layout(width=1000, height=1200)  # Adjust the top margin to avoid overlap
         fig.write_image(png_fpath)
 
@@ -161,11 +173,13 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 @click.option('--rs_lai_csv_fpath', required=True, type=click.Path(exists=True), help='Path to remotely sensed LAI CSV file')
 @click.option('--apsim_db_fpath', required=True, type=click.Path(exists=True), help='Filepath to the APSIM SQLite database.')
 @click.option('--crop_name', required=True, type=click.Choice(['wheat', 'maize']), help='Crop name to use for LAI lookup in APSIM')
+@click.option('--use_adjusted_lai', is_flag=True, help='Whether or not to used the adjusted LAI values')
+@click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']), help='Type of how the LAI was aggregated over a ROI. "mean" or "median" supported.')
 @click.option('--total_yield_csv_fpath', required=True, type=click.Path(exists=True), help='Filepath to CSV with the conversion factor and total yield.')
-@click.option('--html_fpath', type=click.Path(), help='Optional filepath to save the HTML report.')
-@click.option('--png_fpath', type=click.Path(), help='Optional filepath to save the PNG report.')
+@click.option('--html_fpath', required=False, type=click.Path(), help='Optional filepath to save the HTML report.', default=None)
+@click.option('--png_fpath', required=False, type=click.Path(), help='Optional filepath to save the PNG report.', default=None)
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, html_fpath, png_fpath, verbose):
+def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath, png_fpath, verbose):
     """
     CLI wrapper for generating the APSIM report from a CSV and SQLite database.
 
@@ -175,7 +189,7 @@ def cli(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_
     if verbose:
         logger.setLevel('INFO')
 
-    generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, html_fpath, png_fpath)
+    generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, total_yield_csv_fpath, crop_name, use_adjusted_lai, lai_agg_type, html_fpath, png_fpath)
 
 
 if __name__ == "__main__":

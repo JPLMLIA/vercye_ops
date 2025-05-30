@@ -172,9 +172,20 @@ vercye_ops/snakemake/logs*
 vercye_ops/snakemake/benchmarks*
 vercye_ops/snakemake/custom_configs/*
 !vercye_ops/snakemake/custom_configs/.gitkeep
+vercye_ops/lai/GEE_pipeline/logs*
+vercye_ops/lai/snakemake/custom_configs/*
+vercye_ops/lai/GEE_pipeline/custom_configs
+
+*__pycache__
+*.snakemake
+*custom_configs
+
 
 # Packaged release
 *.tar.gz
+
+# Profiling
+*.lprof
 
 # Private matching script 
 vercye_ops/matching_sim_real/match_sim_rs_lai.py

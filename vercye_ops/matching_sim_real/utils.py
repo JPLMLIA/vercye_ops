@@ -24,6 +24,16 @@ def load_simulation_data(db_path, crop_name):
     df = pd.read_sql_query(query, conn, parse_dates='Clock.Today')
     conn.close()
 
+    # check for duplicates and drop only those where all columns are the same
+    # Note: In theory this should not happen, but in practice it does, need to investigate why!
+    if df.duplicated(subset=['SimulationID', 'Clock.Today']).any():
+        logger.warning(f"Duplicate entries found for {crop_name} in the simulation data. Dropping duplicates.")
+        df = df.drop_duplicates(subset=df.columns, keep='first')
+
+    if df.duplicated(subset=['SimulationID', 'Clock.Today']).any():
+        logger.error(f"Duplicate entries for the same date in simulation still found after dropping duplicates.")
+        raise ValueError("Duplicate entries still found in the simulation data.")
+
     # Cleanup date and set as index
     df['Date'] = df['Clock.Today'].dt.floor('D')
     df.drop(columns='Clock.Today', inplace=True)
@@ -46,11 +56,11 @@ def load_simulation_units(db_path):
     return df
 
 
-def compute_pixel_area(lon, lat, pixel_width_deg, pixel_height_deg, output_epsg, input_epsg=4326):
+def compute_pixel_area(lon, lat, pixel_width_deg, pixel_height_deg, output_crs, input_crs='EPSG:4326'):
     """Compute the area of a pixel in square meters given a latitude and pixel size in degrees"""
 
     # Create a transformer object
-    transformer = Transformer.from_crs(input_epsg, output_epsg, always_xy=True)
+    transformer = Transformer.from_crs(input_crs, output_crs, always_xy=True)
     
     # Convert the corners of the pixel to Web Mercator
     x1, y1 = transformer.transform(lon, lat)

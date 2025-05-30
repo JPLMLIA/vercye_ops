@@ -1,5 +1,6 @@
 ## Overview
 The VeRCYe pipeline generates outputs at multiple levels of abstraction, including:
+
 - **Pixel-wise yield predictions**
 - **Predictions for each region of interest (ROI)**
 - **Aggregated insights across multiple ROIs**
@@ -69,28 +70,34 @@ This document details all output artifacts and their computation methods.
     - LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in `3_analysis_LAI.py`.
     - LAI stddev adjusted: Analogous to `LAI stddev` for the adjusted LAI.
 
-- **`nasapower.csv`**: Meteorological data fetched from nasapower for each date in the daterange. If CHIRPS was used for precipitation data, then `PRECTOTCORR` is replaced by CHIRPS data and an additional `NASA_POWER_PRECTOTCORR_UNUSED` column is added for comparison, which is not used for the simulation. Documentation of other columns will be added soon.
-- **`weather.met`**: Met file generated from `nasapower.csv*` for the APSIM simulations.
+- **`met.csv`**: Meteorological data fetched for each date in the daterange. If CHIRPS was used for precipitation data, it is **NOT** included here. Documentation of other columns will be added soon. The Column names follow the NASAPower output format. If ERA5 data is fetched it is converted to the same output format as NASAPower has.
+- **`weather.met`**: Met file generated from `met.csv*` that follows the format that APSIM expects. Includes the CHIRPS data in the rain column if CHIPRS is used.
 
-- **c`ropmask_constrained.tif`**: Binary cropmask (raster) constrained to the region.
+- **`cropmask_constrained.tif`**: Binary cropmask (raster) constrained to the region.
 - **`LAI_MAX.tif`**: Raster of the remotely sensed LAI given as the maximum value per pixel troughout the date range.
+- **`VALID`** This file simply indicates whether the region meets the minimum cropland pixel requirements and is only used by `Snakemake`.
 
 
 ## 2. Aggregated Outputs
-The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as `yieldstudyname_totalROIname_year_timepoint`, to allow easier sharing of these results.
+The aggregated outputs are produced for each year-timepoint combination. They combine the artifacts from the indival regions into single files that are easier to work with. The filenames will contain suffixed defined as `studyID_year_timepoint`, to allow easier sharing of these results.
 
 - **`final_report_suffix.pdf`**: This document gives a final, simple to understand overview of all regional results and preview images of the maps. The description of values not listed below is either documented under the regional output section or the validation outputs section.
 
     - date range: Simulation start and end date
+    - Met-data Cutoff Date: Date specified in the config file for last data to provide met data to APSIM predictions. Not necessarily the true last date, as data might be unavailable from an earlier timepoint already.
     - total yield: The sum of the estimated yield of all regions.
-    - weighted mean yield: The total yield divided by the total cropland area.
-    - total cropland area: The sum of all the area of all ROIs in ha.
-    - crop productivity pixel level: Visualizes the crop productivity in kg/ha per pixel. Derived from the remotely sensed LAI data coupled with the APSIM simulation trough the conversion factor.
+    - Estimated Yield (Weighted Mean): Sum of predicted production of all simulation level ROIs / sum of total cropland from all simulation level ROIs.
+    - Estimated Total Production: Sum of the prediction production from all the simulation level ROIs.
+    - Total cropland area: The sum of all the ropland area of all ROIs in ha.
+    - Crop productivity pixel level: Visualizes the crop productivity in kg/ha per pixel. Derived from the remotely sensed LAI data coupled with the APSIM simulation trough the conversion factor.
+
+- **`agg_yield_estimates_{agglevel}_suffix.csv`**: The detailed predictions with debug data from all simulation ROIs aggregated by the specified column from the config aggregation level. If `primary`, it is the simulation level data.
+
+- **`agg_laicurves_suffix.html`**: Interactive visualization of the LAI data from all regions in the yield study. Enables quicker debugging.
 
 ### Aggregated Maps
-
-- **`yield_map_suffix.png`**: Preview image of all ROI boundaries with the corresponding mean and median yield in kg/ha.
-- **`aggregated_yield_map_preview_suffix.png`**: Downsampled image preview of the all regional pixel-level yieldmaps merged into one.
+- **`yield_map_{aggregation-level}.png`**: Preview image of all ROI boundaries with the corresponding mean and median yield in kg/ha. The aggregation level defines the name specified in the config by which the simulation level data was aggregated. If `primary`, it is the simulation level.
+- **`aggregated_yield_map_preview.png`**: Downsampled image preview of the all regional pixel-level yieldmaps merged into one.
 
 - **`aggregated_yield_map_suffix.tif`**: Spatially aggregated yield maps from all regions (See regional `yield_map.tif`).
 - **`aggregated_LAI_max_suffix.tif`**: Spatially aggregated LAI_MAX maps from all regions (See regional `LAI_MAX.tif`).
@@ -104,11 +111,14 @@ The aggregated outputs are produced for each year-timepoint combination. They co
 
 
 ## 3. Validation Outputs
-If reported (ground truth) data was provided, common metrics are written to the `final_report.html`.
+If reported data was provided, common metrics are written to the `final_report.html` and `evaluation-{agglevel}.csv`.
+Details regarding the computation are implemented in `vercye_ops/matching_sim_real/evaluate_yield_estimates.py`.
 
 ### Error Metrics
-- **Mean Error (`mean_err_kg_ha`)**: The mean error computed as the mean over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
-- **Median Error (`median_err_kg_ha`)**: The median error computed as the median over the yield errors (predicted_mean_yield - reported__mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
+- **Mean Error (`mean_err_kg_ha`)**: The mean error computed as the mean over the yield errors (reported_mean_yield - predicted_mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
+- **Median Error (`median_err_kg_ha`)**: The median error computed as the median over the yield errors (reported_mean_yield - predicted_mean_yield) of all study regions. Hereby the predicted and reported yield are the mean yield of the region in kg/ha.
+- **Absolute Mean Error (`mean_err_kg_ha`)**: Absolute mean error, see above.
+- **Absolute Median Error (`median_err_kg_ha`)**: Absolute median errorm see above.
 - **Root Mean Square Error (`rmse`)**: The root mean square error of the predicted and reported mean yields of all study regions in kg/ha.
 - **Relative RMSE (`rrmse`)**: In percent. Computed as `rmse / mean(reported_mean_yield) * 100`
 - **R² Score Scikit (`r2_scikit`)**: The R2 score of the predicted and reported mean yield per region. Computed as the coefficient of determination with [scikit-learn](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html)

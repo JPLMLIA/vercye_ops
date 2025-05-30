@@ -43,15 +43,15 @@ def read_met_file(filepath):
                 "year": int(parts[0]),
                 "day": int(parts[1]),
                 "radn": float(parts[2]) if float(parts[2]) != -999 else 0,
-                "maxt": float(parts[3]) if float(parts[3]) != -999 else 0,
-                "mint": float(parts[4]) if float(parts[4]) != -999 else 0,
-                "rain": float(parts[5]) if float(parts[5]) != -999 else 0,
-                "wind": float(parts[6]) if float(parts[6]) != -999 else 0,
+                "meant": float(parts[3]) if float(parts[3]) != -999 else 0,
+                "maxt": float(parts[4]) if float(parts[3]) != -999 else 0,
+                "mint": float(parts[5]) if float(parts[4]) != -999 else 0,
+                "rain": float(parts[6]) if float(parts[5]) != -999 else 0,
+                "wind": float(parts[7]) if float(parts[6]) != -999 else 0,
             }
         )
 
     df = pd.DataFrame(data)
-    df["meant"] = (df["maxt"] + df["mint"]) / 2
     df["latitude"] = lat
     df["longitude"] = lon
     return df
@@ -387,14 +387,14 @@ def save_as_tif(layers, layer_names, out_tif_path, transform, crs):
 )
 @click.option(
     "--reference_tif_path",
-    required=True,
+    required=False,
     type=click.Path(),
     default=None,
     help="Path to a tif file containing the target crs and resolution.",
 )
 @click.option(
     "--output_tif_path",
-    required=True,
+    required=False,
     type=click.Path(),
     default=None,
     help="Path to the output .tif file.",

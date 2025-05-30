@@ -1,9 +1,12 @@
 """CLI to generate a weather report from CSV of weather"""
 
+from pathlib import Path
 import click
 import pandas as pd
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
+import pyarrow.parquet as pq
+
 
 MET_FILE_DTYPES = {
     'year': int,
@@ -20,13 +23,17 @@ MET_FILE_DTYPES = {
 @click.command()
 @click.option('--input_fpath', required=True, type=click.Path(exists=True), help='Path to the input .met file.')
 @click.option('--output_fpath', required=True, type=click.Path(writable=True), help='Path to save the output HTML plot.')
+@click.option('--precipitation_source', required=True, type=click.Choice(['NASA_POWER', 'CHIRPS', 'ERA5']), help='Source of precipitation data. "NASA_Power" or "CHIRPS".')
+@click.option('--precipitation_agg', required=True, type=click.Choice(['centroid', 'mean']), help='Aggregation method for precipitation data. "centroid" or "mean".')
+@click.option('--fallback_precipitation', default=False, help='Boolean specifying whether to fallback on nasapower/era5 precipitation data if chirps data is not available.')
+@click.option('--chirps_file', required=False, type=click.Path(exists=True), default=None, help='Path to the chirps parquet file if using chirps.')
 @click.option('--header_lines', default=8, show_default=True, help='Number of lines in the header.')
 @click.option('--column_line', default=6, show_default=True, help='Line number of the column headers (1-based index).')
-def cli(input_fpath, output_fpath, header_lines, column_line):
+def cli(input_fpath, output_fpath, precipitation_source, precipitation_agg, fallback_precipitation, chirps_file, header_lines, column_line):
     """
     CLI wrapper to plot weather data from a .met file and save as an interactive HTML plot.
     """
-    data, metadata = plot_weather_data(input_fpath, header_lines, column_line)
+    data, metadata = plot_weather_data(input_fpath, precipitation_source, precipitation_agg, fallback_precipitation, chirps_file, header_lines, column_line)
     
     metadata.update({'input_fpath': input_fpath,
                      'output_fpath': output_fpath})
@@ -34,7 +41,7 @@ def cli(input_fpath, output_fpath, header_lines, column_line):
     fig.write_html(output_fpath)
 
 
-def plot_weather_data(file_path, header_lines=8, column_line=6):
+def plot_weather_data(file_path, precipitation_source, precipitation_agg, fallback_precipitation, chirps_fpath=None, header_lines=8, column_line=6):
     """
     Plot weather data from a .met file and save as an interactive HTML plot.
 
@@ -42,6 +49,14 @@ def plot_weather_data(file_path, header_lines=8, column_line=6):
     ----------
     file_path : str
         Path to the input .met file.
+    precipitation_source : str
+        Source of precipitation data. "NASA_POWER" or "CHIRPS".
+    precipitation_agg : str
+        Aggregation method for precipitation data. "centroid" or "mean".
+    fallback_precipitation: bool
+        Flag if original precipitation is used if CHIRPS not available for ROI
+    chirps_fpath : str
+        Optional: Path to the chirps parquet file if chirps is being used.
     header_lines : int
         Number of lines in the header.
     column_line : int
@@ -79,6 +94,26 @@ def plot_weather_data(file_path, header_lines=8, column_line=6):
     df = pd.DataFrame(data, columns=columns)
     df = df.astype(MET_FILE_DTYPES)
     df['date'] = pd.to_datetime(df['year'].astype(str) + df['day'].astype(str), format='%Y%j')
+
+    # Set precipitation Metadata
+    metadata['precipitation_source'] = precipitation_source
+    metadata['precipitation_agg'] = precipitation_agg
+
+    # CHIRPS is not available globally - need to identify if CHIRPS or fallback was used
+    regions_using_chirps = []
+    if chirps_fpath is not None:
+        parquet_file = pq.ParquetFile(chirps_fpath)
+        regions_using_chirps = parquet_file.schema.names
+        region_name = "_".join(Path(file_path).stem.split('_')[:-1])  # Extract region name from file path
+        if region_name in regions_using_chirps:
+            metadata['precipitation_source'] = 'CHIRPS'
+            metadata['precipitation_agg'] = precipitation_agg
+        else:
+            if not fallback_precipitation:
+                raise ValueError(f'No CHIRPS data found for region {region_name}. Please provide a valid region or set fallback_precipitation to True.')
+            metadata['precipitation_source'] = 'Precipitation Fallback (Met data)'
+            metadata['precipitation_agg'] = 'Met data aggregation method'
+            
     
     # Extract date information
     metadata['met_start_date'] = df.iloc[0]['date']
@@ -136,7 +171,7 @@ def create_plots(df, metadata):
 
         # Precipitation
         fig.add_trace(go.Scatter(x=df['date'], y=df['rain'], mode='lines', name=f'Precipitation (Corrected) ({data_type})',
-                                 line=dict(color='dodgerblue', dash=line_dash, width=1.5)), row=3, col=1)
+                                    line=dict(color='navy', dash=line_dash, width=1.5)), row=3, col=1)
 
         # Wind
         fig.add_trace(go.Scatter(x=df['date'], y=df['wind'], mode='lines', name=f'Surface Wind ({data_type})',
@@ -156,7 +191,7 @@ def create_plots(df, metadata):
                   annotation_position='top left')
 
     # Update text, layout, and hover details
-    sim_date_information = f"Met File Start Date: {metadata['met_start_date'].date()}<br>Met File Last Measurement Date: {metadata['met_meas_end_date'].date()}<br>Met File End Date: {metadata['met_end_date'].date()}"
+    sim_date_information = f"Met File Start Date: {metadata['met_start_date'].date()}<br>Met File Last Measurement Date: {metadata['met_meas_end_date'].date()}<br>Met File End Date: {metadata['met_end_date'].date()}<br>Precipitation Config: {metadata['precipitation_source']}, {metadata['precipitation_agg']}"
     met_header_information = f"Lat {metadata['latitude']}, Lon {metadata['longitude']}, Tav {metadata['tav']}°C, Amp {metadata['amp']}°C"
 
     fig.update_layout(

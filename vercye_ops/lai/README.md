@@ -440,19 +440,23 @@ Options:
 
 ### 0_reproj_mask.py
 
-This script reprojects a cropmask to match the CRS, resolution, and extent of a given LAI raster.
+This script reprojects a cropmask to match the CRS, resolution, and extent of a given LAI raster. It is reccomended
+to provide a LAI dir (and region), to let the script identify the maximum extent of all LAI files as these may vary.
 
 ```
 $ python 0_reproj_mask.py --help
-Usage: 0_reproj_mask.py [OPTIONS] MASK_PATH LAI_PATH OUT_PATH
+Usage: 0_reproj_mask.py [OPTIONS] MASK_PATH OUT_PATH --lai_dir --lai_region --lai_path
 
   Reprojects a crop mask to the LAI raster
 
   mask_path is reprojected to match the projection, extent, and resolution of
-  LAI_path. It is then saved as out_path.
+  LAI_path or the LAI file with the maximum extent in lai_dir matching the lai_region. It is then saved as out_path.
 
 Options:
-  --help  Show this message and exit.
+  --help          Show this message and exit.
+  --lai_dir       Base directory containing LAI files. If used, lai_region must be provided
+  --lai_region    Name of the region, used to match LAI file names. Must be used with lai_dir
+  --lai_path      Path to a specific reference LAI file. Mutually exclusive with lai_dir/region 
 ```
 
 **Example:**
@@ -465,7 +469,8 @@ $ python 0_reproj_mask.py \
 
 ### 0_build_library.py
 
-This script takes a single `shp` file of region-defining polygons and exports each one to a `geojson` for future reference. It is currently Ukraine-specific.
+This script takes a single `.shp` file of region-defining polygons and exports each one to a `geojson` for future reference.
+The shapefile is only allowed to contain entries that specify geometries at the desired administrative level. You can also use the `prepare_shapefile.py` script in the `apsim` directory to preprocess your shapefile to follow these conventions. If using the script, ensure you use the newly created file from the script in the following steps. We recommend to additionally manually ensure that your shapefile does not mix entries from different administrative levels.
 
 ```
 $ python 0_build_library.py --help
@@ -474,11 +479,9 @@ Usage: 0_build_library.py [OPTIONS] SHP_FPATH
   Wrapper around geojson generation func
 
 Options:
-  --admin_level [oblast|raion]  Level of administration to process. `oblast`
-                                corresponds to Level 1, `raion` corresponds to
-                                Level 2
   --output_head_dir DIRECTORY   Head directory where the region output dirs
                                 will be created.
+  --admin_name_col              Column name containing the administrative division level names for the level of interest.
   --verbose                     Print verbose output.
   --help                        Show this message and exit.
 ```

@@ -8,11 +8,13 @@ theme:
 
 nav:
   - 'Home': 'index.md'
-  - 'Vercye':
-    - 'Introduction': 'Vercye/intro.md'
-    - 'Quickstart': 'Vercye/quickstart.md'
-    - 'Inputs': 'Vercye/inputs.md'
-    - 'Outputs': 'Vercye/outputs.md'
-    - 'Architecture': 'Vercye/architecture.md'
   - 'LAI':
     - 'Introduction': 'LAI/intro.md'
+    - 'Generating LAI Data': 'LAI/running.md'
+  - 'Vercye':
+    - 'Introduction': 'Vercye/intro.md'
+    - 'Yield Study Quickstart': 'Vercye/running.md'
+    - 'Inputs': 'Vercye/inputs.md'
+    - 'Outputs': 'Vercye/outputs.md'
+    - 'Meteorological Data': 'Vercye/metdata.md'
+    - 'Architecture': 'Vercye/architecture.md'
