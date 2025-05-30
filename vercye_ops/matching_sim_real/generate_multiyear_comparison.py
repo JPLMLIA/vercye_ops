@@ -9,15 +9,9 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from vercye_ops.matching_sim_real.evaluate_yield_estimates import (
-    compute_metrics,
-    create_scatter_plot,
-    get_preds_obs,
-    load_csv,
-)
-from vercye_ops.matching_sim_real.generate_lai_plot import (
-    load_lai_files,
-    parse_lai_file,
-)
+    compute_metrics, create_scatter_plot, get_preds_obs, load_csv)
+from vercye_ops.matching_sim_real.generate_lai_plot import (load_lai_files,
+                                                            parse_lai_file)
 
 # Use Plotly's qualitative palette
 color_palette = px.colors.qualitative.Plotly
