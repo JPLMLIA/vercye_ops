@@ -139,9 +139,9 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
 @click.option('--yield_dir', required=True, type=click.Path(exists=True), help='Path to the yield directory (e.g., year, timepoint) containing region subdirectories.')
 @click.option('--output_csv', required=True, type=click.Path(), help='Path to save the aggregated yield estimates CSV.')
 @click.option('--columns_to_keep', required=False, default=None, type=str, help='Comma-separated list of geojsons-columns to keep in the output CSV. If not provided, no additional columns from the geojsons will be kept.')
-@click.option('--chirps_path', required=False, type=click.Path(exists=True), default=None, help='Path to the CHIRPS Parquet file for precipitation data. Used to identify if fallback or chirps was used for precipitation.')
+@click.option('--chirps_file', required=False, type=click.Path(exists=True), default=None, help='Path to the CHIRPS Parquet file for precipitation data. Used to identify if fallback or chirps was used for precipitation.')
 @click.option('--verbose', is_flag=True, help='Enable verbose logging.')
-def cli(yield_dir, output_csv, columns_to_keep, chirps_path, verbose):
+def cli(yield_dir, output_csv, columns_to_keep, chirps_file, verbose):
     """Aggregate yield estimates from multiple regions within a directory."""
     if verbose:
         logger.setLevel('INFO')
@@ -149,7 +149,7 @@ def cli(yield_dir, output_csv, columns_to_keep, chirps_path, verbose):
         logger.setLevel('WARNING')
 
     logger.info(f"Processing directory: {yield_dir}")
-    aggregated_yields = aggregate_yields(yield_dir, columns_to_keep, chirps_path)
+    aggregated_yields = aggregate_yields(yield_dir, columns_to_keep, chirps_file)
     
     if aggregated_yields is not None:
         aggregated_yields.to_csv(output_csv, index=False)
