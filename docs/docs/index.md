@@ -27,7 +27,12 @@ The **VeRCYe** pipeline is split into two main components:
 git clone https://github.com/JPLMLIA/vercye_ops.git
 ```
 
-#### 1. Install the requirements
+#### 1. Check Python Version and GDAL
+
+This repository has been tested and run with `python 3.10.16` and with `gdal==3.1.0`. Ensure you have installed the corresponding versions (`python --version` and `gdalinfo --version`).
+If you are running your code on a shared cluster, you might have to run `module load gdal/3.1.0`, before being able to use `GDAL`.
+
+#### 2. Install the requirements
 
 Navigate to this package's root directory and run:
 
@@ -43,7 +48,7 @@ pip install -r requirements.txt
 > pip install snakemake pulp==2.7.0
 > ```
 
-#### 2. Install the VeRCYe package
+#### 3. Install the VeRCYe package
 
 From the root directory, run:
 
@@ -51,7 +56,7 @@ From the root directory, run:
 pip install -e .
 ```
 
-#### 3. Install APSIMX
+#### 4. Install APSIMX
 
 There are two options for running APSIM:
 
@@ -64,7 +69,7 @@ There are two options for running APSIM:
 > /gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models
 > ```
 
-#### 4. Install `jq`
+#### 5. Install `jq`
 
 To manipulate JSON files via the command line:
 
