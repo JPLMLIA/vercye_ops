@@ -281,36 +281,45 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#1-install-the-requirements" class="md-nav__link">
+  <a href="#1-check-python-version-and-gdal" class="md-nav__link">
     <span class="md-ellipsis">
-      1. Install the requirements
+      1. Check Python Version and GDAL
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-install-the-vercye-package" class="md-nav__link">
+  <a href="#2-install-the-requirements" class="md-nav__link">
     <span class="md-ellipsis">
-      2. Install the VeRCYe package
+      2. Install the requirements
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-install-apsimx" class="md-nav__link">
+  <a href="#3-install-the-vercye-package" class="md-nav__link">
     <span class="md-ellipsis">
-      3. Install APSIMX
+      3. Install the VeRCYe package
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-install-jq" class="md-nav__link">
+  <a href="#4-install-apsimx" class="md-nav__link">
     <span class="md-ellipsis">
-      4. Install jq
+      4. Install APSIMX
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-install-jq" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Install jq
     </span>
   </a>
   
@@ -666,7 +675,10 @@
 <h4 id="0-clone-this-repository">0. Clone this repository</h4>
 <pre><code class="language-bash">git clone https://github.com/JPLMLIA/vercye_ops.git
 </code></pre>
-<h4 id="1-install-the-requirements">1. Install the requirements</h4>
+<h4 id="1-check-python-version-and-gdal">1. Check Python Version and GDAL</h4>
+<p>This repository has been tested and run with <code>python 3.10.16</code> and with <code>gdal==3.1.0</code>. Ensure you have installed the corresponding versions (<code>python --version</code> and <code>gdalinfo --version</code>).
+If you are running your code on a shared cluster, you might have to run <code>module load gdal/3.1.0</code>, before being able to use <code>GDAL</code>.</p>
+<h4 id="2-install-the-requirements">2. Install the requirements</h4>
 <p>Navigate to this package's root directory and run:</p>
 <pre><code class="language-bash">conda install --yes --file requirements.txt
 # or
@@ -677,11 +689,11 @@ pip install -r requirements.txt
 <p><code>bash
 pip install snakemake pulp==2.7.0</code></p>
 </blockquote>
-<h4 id="2-install-the-vercye-package">2. Install the VeRCYe package</h4>
+<h4 id="3-install-the-vercye-package">3. Install the VeRCYe package</h4>
 <p>From the root directory, run:</p>
 <pre><code class="language-bash">pip install -e .
 </code></pre>
-<h4 id="3-install-apsimx">3. Install APSIMX</h4>
+<h4 id="4-install-apsimx">4. Install APSIMX</h4>
 <p>There are two options for running APSIM:</p>
 <ul>
 <li><strong>Using Docker</strong>: Simply set a parameter during configuration of your yield study. The Docker container will build automatically. (Ensure <code>docker</code> is installed.)</li>
@@ -691,7 +703,7 @@ pip install snakemake pulp==2.7.0</code></p>
 <p><strong>Note</strong>: If running on UMD systems, APSIM is pre-installed at:</p>
 <p><code>/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models</code></p>
 </blockquote>
-<h4 id="4-install-jq">4. Install <code>jq</code></h4>
+<h4 id="5-install-jq">5. Install <code>jq</code></h4>
 <p>To manipulate JSON files via the command line:</p>
 <ul>
 <li>Install from <a href="https://jqlang.github.io/jq/">https://jqlang.github.io/jq/</a></li>
