@@ -66,7 +66,7 @@ years:  # For any years, be sure to set APSIM/LAI params below
 #  - 2022
 #  - 2023
 
-timepoints:  # Days relative to harvest. Needs to be defined in lai_params and apsim_params.
+timepoints:  # Days relative to harvest. The true time bounds needs to be defined in lai_params and apsim_params.
   - T-0
 #   - T-30
 #   - T-60
@@ -77,18 +77,19 @@ apsim_params:
   met_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'ERA5']
   precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS' | 'ERA5']
   precipitation_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for CHIRPS.
-  fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
-  chirps_dir: '/chirps' # Only required to set if precipitation_source is 'CHIRPS'. Path to your downloaded CHIRPS data.
-  nasapower_cache_dir : '/nasapower_cache' # Directory to cache NASA POWER data. Avoids heavy rate limiting from NP.
-  era5_cache_dir: '/era5_cache' # Directory to cache ERA5 data. Avoids fetching data from GEE multuple times.
-  ee_project: '' # Earth Engine project name. Only required to be set if met_source is 'ERA5'.
-  time_bounds:
+  fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent. If set to False, ensure no regions outside of CHIRPS bounds are selected.
+  chirps_dir: 'chirps' # Only required to set if precipitation_source is 'CHIRPS'. Path to your downloaded CHIRPS data.
+  nasapower_cache_dir : 'nasapower_cache' # Path to your directory to cache NASA POWER data. Avoids heavy rate limiting from NP. Should be global, outside of the basefolder, as this is shared with all studies.
+  era5_cache_dir: 'era5_cache' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies.
+  ee_project: '' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
+
+  time_bounds: # Specify the time bounds for each year and timepoint from above. So in total years x timepoints entries.
     2021:
-      T-0:
-        sim_start_date: '2020-08-20'
-        sim_end_date: '2021-08-01'
-        met_start_date: '1991-07-01'
-        met_end_date: '2021-08-01'
+      T-0: 
+        sim_start_date: '2020-08-20' # Start date of the APSIM simulation
+        sim_end_date: '2021-08-01' # End date of the APSIM simulation
+        met_start_date: '1991-07-01' # Start date from when to fetch meteorological data. Will be passed to APSIM
+        met_end_date: '2021-08-01' # End date of the meteorological data to fetch. Will be passed to APSIM
       T-30:
         sim_start_date: '2020-08-20'
         sim_end_date: '2021-08-01'
@@ -145,18 +146,18 @@ apsim_execution:
 ########################################
 # LAI parameters
 lai_params:
-  lai_aggregation: 'median' # How to aggregate pixels from a region. Options: ['median' | 'mean']
-  lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI' # Path to your LAI data.
+  lai_aggregation: 'median' # How to aggregate pixels from a region. Options: ['median' | 'mean']. Reccommended: median.
+  lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI' # Path to your LAI data. If using STAC downloader the generated subdirectory with merged-lai.
   lai_region: 'Poltava' # Prefix of the LAI data files
   lai_resolution: 20 # Spatial resolution in meters/pixel. Must match the specification of the LAI data
-  smoothed: False # Whether to apply savgol smoothing to the RS LAI timeseries
+  smoothed: False # Whether to apply savgol smoothing to the RS LAI timeseries. Reduces outliers e.g from clouded days.
   crop_name: 'wheat'  # Used for Crop Adjustment and Reporting. Options: ['wheat' | 'maize']
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
-  lai_analysis_mode: 'raster' # Don't change this unless you know what you are doing. Options: ['raster' | 'vector'].
+  lai_analysis_mode: 'raster' # Don't change this unless you know what you are doing. Options: ['raster' | 'vector']. Typically keep raster.
   file_ext: 'tif' # File extension of the LAI data. Options: ['tif' | 'vrt']. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
   min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at the resolution of lai_resolution
   cloudcov_threshold: 0.95 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
-  time_bounds: 
+  time_bounds:
     2021: 
       T-0: ['2020-08-20', '2021-08-01']
       T-30: ['2020-08-20', '2021-07-02']
@@ -173,7 +174,7 @@ lai_params:
     2021: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
     2022: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
     2023: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
-  do_cropmask_reprojection: False # If automatically determining the reference fails, manually reproject the cropmask, set the path above and set to False.
+  do_cropmask_reprojection: True # Typically keep this true to reproject the cropmask to match your LAI's resolution and CRS.
 
 ########################################
 # Sim/Real Matching Parameters
@@ -191,8 +192,8 @@ eval_params:
   # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
   # If you do not want additional aggregation level, set aggregation_levels: {}
   aggregation_levels:
-    National: 'Name_0'
-    Oblast: 'Name_1'
+    National: 'NAME_0'
+    Oblast: 'NAME_1'
   
   
 ########################################
