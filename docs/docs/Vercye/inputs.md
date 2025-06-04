@@ -187,9 +187,10 @@ This file defines the study parameters and links the **simulation head directory
 
 
 #### Evaluation Parameters
-- `aggregation_levels`: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are 
-columns in the shapefile allowing to aggregate simulation level results. E.g a the shapefile might have a column Admin2 and the simulations are
-run at Admin3. So all predictions that share the same Admin2 region would be aggregated and metrics would be computed for these.
+- `aggregation_levels`: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results. 
+IMPORTANT: Neither the key nor the value may contain colons! If this is the case, please ensure you rename your shapefile.
+
+E.g a the shapefile might have a column Admin2 and the simulations are run at Admin3. So all predictions that share the same Admin2 region would be aggregated and metrics would be computed for these.
 
 #### Scripts Configuration
 - Paths to scripts used within the Snakemake pipeline. See the example for details

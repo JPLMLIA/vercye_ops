@@ -1,4 +1,5 @@
 from collections import defaultdict
+import click
 import geopandas as gpd
 import pandas as pd
 import json
@@ -9,10 +10,13 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-SIMPLIFY_TOLERANCE = 0.005
+DEFAULT_LAI_COLUMNS = [
+    "LAI Median:Median LAI",
+    "LAI Mean:Mean LAI"
+]
 
 class InteractiveMapGenerator:
-    def __init__(self, shapefile_path: str, lai_basedir_path: str, output_path: str, lai_columns: List[str], lai_column_names: List[str], agg_levels: Dict[str, Tuple[str, str]]):
+    def __init__(self, shapefile_path: str, lai_basedir_path: str, output_path: str, lai_columns: List[str], lai_column_names: List[str], agg_levels: Dict[str, Tuple[str, str]], simplify_tolerance: float = 0.01):
         """Initialize the map generator."""
         self.shapefile_path = shapefile_path
         self.lai_basedir_path = lai_basedir_path
@@ -23,6 +27,7 @@ class InteractiveMapGenerator:
         self.aggregated_estimates = {}
         self.lai_columns = lai_columns
         self.lai_column_names = lai_column_names
+        self.simplify_tolerance = simplify_tolerance
 
         for agg_name, (agg_column, agg_estimates_fpath) in agg_levels.items():
             self.add_aggregation_level(agg_name, agg_column, agg_estimates_fpath)
@@ -140,7 +145,7 @@ class InteractiveMapGenerator:
 
             simplified = self.gdf.copy()
             simplified["geometry"] = simplified["geometry"].simplify(
-                tolerance=SIMPLIFY_TOLERANCE,
+                tolerance=self.simplify_tolerance,
                 preserve_topology=True
             )
             
@@ -191,7 +196,7 @@ class InteractiveMapGenerator:
             for idx, row in grouped.iterrows():
                 merged_geom = row["geometry"]  # this is the full union of raw pieces
                 simplified_geom = merged_geom.simplify(
-                    tolerance=SIMPLIFY_TOLERANCE,
+                    tolerance=self.simplify_tolerance,
                     preserve_topology=True
                 )
                 # Get LAI data for all regions in this group
@@ -1823,52 +1828,72 @@ class InteractiveMapGenerator:
         # Combine all data into single DataFrame
         combined_df = pd.concat(all_lai_data, ignore_index=True)
         return combined_df
-    
+
+def parse_agg_level(ctx, param, value):
+    agg_dict = {}
+    for item in value:
+        try:
+            level_name, column_name, csv_path = item.split(':', 2)
+            csv_path = Path(csv_path)
+            if not csv_path.exists():
+                raise click.BadParameter(f"CSV path does not exist: {csv_path}")
+            agg_dict[level_name] = (column_name, str(csv_path))
+        except ValueError:
+            raise click.BadParameter("Each --agg-level must be in format level:column:path")
+    return agg_dict
+
+def parse_lai_column(ctx, param, value):
+    internal = []
+    display = []
+    for item in value:
+        try:
+            internal_name, display_name = item.split(':', 1)
+            internal.append(internal_name)
+            display.append(display_name)
+        except ValueError:
+            raise click.BadParameter("Each --lai-column must be in format internal_name:display_name")
+    return internal, display
 
 
-def main():
+@click.command()
+@click.option('--shapefile-path', required=True, type=click.Path(exists=True), help='Path to the shapefile (.geojson).')
+@click.option('--lai-basedir-path', required=True, type=click.Path(exists=True), help='Path to the base directory containing LAI data.')
+@click.option('--adjusted/--no-adjusted', default=True, help='Include adjusted LAI columns.')
+@click.option('--smoothed/--no-smoothed', default=True, help='Include smoothed LAI columns.')
+@click.option('--agg-level', multiple=True, callback=parse_agg_level,
+              help='Aggregation level in format level:column:path. Can be used multiple times.')
+@click.option('--lai-column', multiple=True, default=DEFAULT_LAI_COLUMNS, callback=parse_lai_column,
+              help='LAI column in format internal_name:display_name. Can be used multiple times.')
+@click.option('--title', type=str, default='Yield Study', help='Title for the interactive map.')
+@click.option('--output-path', type=click.Path(), default='interactive_map.html', help='Output path for the generated HTML file.')
+def main(shapefile_path, lai_basedir_path, adjusted, smoothed, agg_level, lai_column, title, output_path):
 
-    shapefile_path = "/home/rohan/Downloads/aggregated_region_boundaries_ukr_v4_np_chirps_jsf_2024_T-0.geojson"
-    lai_basedir_path = "/home/rohan/Downloads/lai_data"
-
-    adjusted = True
-    smoothed = True
-    lai_columns = ['LAI Median', 'LAI Mean']
-    lai_column_names = ['Median LAI', 'Mean LAI']
+    lai_columns, lai_column_names = lai_column
 
     if adjusted:
         lai_columns = [col + ' Adjusted' for col in lai_columns]
-        lai_column_names = [col + ' Adjusted' for col in lai_column_names]
+        lai_column_names = [name + ' Adjusted' for name in lai_column_names]
 
     if smoothed:
-        lai_columns = lai_columns + [col + ' Unsmoothed' for col in lai_columns]
-        lai_column_names = [col_name + ' Smoothed' for col_name in lai_column_names] + [col_name + ' Unsmoothed' for col_name in lai_column_names]
-
-    title = 'Ukraine Yield Study'
-
-    # Needs to be in correct order largest -> smallest
-    agg_levels = {
-        'Ukraine': ('NAME_0', '/home/rohan/Downloads/lai_data/agg_yield_estimates_national_ukr_v4_np_chirps_jsf_2024_T-0.csv'),
-        'Oblast': ('NAME_1', '/home/rohan/Downloads/lai_data/agg_yield_estimates_oblast_ukr_v4_np_chirps_jsf_2024_T-0.csv'),
-    }
+        lai_columns += [col + ' Unsmoothed' for col in lai_columns]
+        lai_column_names += [name + ' Smoothed' for name in lai_column_names] + [name + ' Unsmoothed' for name in lai_column_names]
 
     generator = InteractiveMapGenerator(
         shapefile_path=shapefile_path,
         lai_basedir_path=lai_basedir_path,
-        output_path="interactive_yield_map.html",
+        output_path=output_path,
         lai_columns=lai_columns,
         lai_column_names=lai_column_names,
-        agg_levels=agg_levels
+        agg_levels=agg_level
     )
-    
+
     try:
         output_file = generator.generate_map(title)
-        print(f"Map successfully created: {output_file}")
-        print("Open the HTML file in a web browser to view the interactive map.")
+        click.echo(f"Map successfully created: {output_file}")
+        click.echo("Open the HTML file in a web browser to view the interactive map.")
     except Exception as e:
-        print(f"Error generating map: {e}")
+        click.echo(f"Error generating map: {e}", err=True)
         raise e
-
 
 if __name__ == "__main__":
     main()

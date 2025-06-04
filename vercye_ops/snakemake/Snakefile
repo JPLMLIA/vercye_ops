@@ -783,6 +783,35 @@ rule generate_final_report:
         with open(log[0], 'w') as logfile:
             create_final_report(input, output, params, log=logfile, wildcards=wildcards)
 
+rule generate_interactive_viz:
+    input:
+        shapefile = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_region_boundaries_{}_{}_{}.geojson'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))
+    params:
+        lai_basedir_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        executable_fpath = config['scripts']['generate_interactive_viz'],
+        title = config['title'],
+        adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
+        smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',
+        agg_levels = ' '.join([
+            f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
+            for level_name, level_column in config['eval_params']['aggregation_levels'].items()
+        ]),
+    log:
+        op.join('logs_generate_interactive_viz', '{year}_{timepoint}.log')
+    output:
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --shapefile-path {input.shapefile} \
+        --lai-basedir-path {params.lai_basedir_path} \
+        --title "{params.title}" \
+        {params.adjusted_cmd} \
+        {params.smoothed_cmd} \
+        {params.agg_levels} \
+        --output-file {output} > {log}
+        """
+
 rule generate_multiyear_comparison:
     input:
         # Using final reports as a proxy for all dependancies, as this simplifies the rule strongly
