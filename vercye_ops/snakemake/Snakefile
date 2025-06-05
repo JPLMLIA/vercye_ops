@@ -788,7 +788,7 @@ rule generate_interactive_viz:
         shapefile = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_region_boundaries_{}_{}_{}.geojson'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))
     params:
         lai_basedir_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
-        executable_fpath = config['scripts']['generate_interactive_viz'],
+        executable_fpath = config['scripts']['generate_interactive_vizualization'],
         title = config['title'],
         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
         smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',

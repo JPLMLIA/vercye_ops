@@ -1865,7 +1865,7 @@ def parse_lai_column(ctx, param, value):
 @click.option('--lai-column', multiple=True, default=DEFAULT_LAI_COLUMNS, callback=parse_lai_column,
               help='LAI column in format internal_name:display_name. Can be used multiple times.')
 @click.option('--title', type=str, default='Yield Study', help='Title for the interactive map.')
-@click.option('--output-path', type=click.Path(), default='interactive_map.html', help='Output path for the generated HTML file.')
+@click.option('--output-path', type=click.Path(), default='interactive_map.html', help='Output path for the generated HTML file. Must end with .html')
 def main(shapefile_path, lai_basedir_path, adjusted, smoothed, agg_level, lai_column, title, output_path):
 
     lai_columns, lai_column_names = lai_column
