@@ -160,7 +160,6 @@ def s2_mask_processor(
     mask = None
 
     scl_band_meta, scl_band = maskbands["scl"]
-    s2cloudless_band_meta, s2cloudless_band = maskbands["cloud"]
     snowprob_band_meta, snowprob_band = maskbands["snow"]
     mask = np.ones_like(scl_band)  # Start with all valid (1)
 
@@ -168,7 +167,11 @@ def s2_mask_processor(
     mask = np.where(np.isin(scl_band, scl_keep_classes), mask, 0)
 
     # Invalidate pixels based on S2Cloudless
-    mask = np.where(s2cloudless_band >= cloud_thresh, 0, mask)
+    # Currently we are fallingback on S2A-L2A non-collection-1, for 2022/23
+    # This is temporary however it does not include the S2Cloudless band
+    if 'cloud' in maskbands:
+        s2cloudless_band_meta, s2cloudless_band = maskbands["cloud"]
+        mask = np.where(s2cloudless_band >= cloud_thresh, 0, mask)
 
     # Invalidate pixels based on Snowprob
     mask = np.where(snowprob_band >= snowprob_thresh, 0, mask)
@@ -193,6 +196,16 @@ def build_s2_mask_processor(
         cloud_thresh=cloud_thresh,
         snowprob_thresh=snowprob_thresh,
     )
+
+def daterange_in_collection1(start_date, end_date):
+    """
+    Check if the date range is within the Sentinel-2 Collection 1 period.
+    Collection 1 covers data from 2015-06-23 to 2021-12-31.
+    """
+    collection1_start = "2015-06-23"
+    collection1_end = "2021-12-31"
+
+    return start_date >= collection1_start and end_date <= collection1_end
 
 
 @click.command()
@@ -265,10 +278,18 @@ def main(
     # Define satellite specific setup
     satellite = satellite.lower()
     if satellite == "s2":
-        stac_collection_name = "sentinel-2-c1-l2a"
+        if daterange_in_collection1(start_date, end_date):
+            stac_collection_name = "sentinel-2-c1-l2a"
+            mask_bands = ["scl", "cloud", "snow"]
+            print('Using Sentinel-2 Collection 1 (C1) for the date range.')
+        else:
+            stac_collection_name = "sentinel-2-l2a"
+            mask_bands = ["scl", "snow"]
+            print('Using Sentinel-2 NON-C1 for the date range.')
+        
         stack_catalog_url = "https://earth-search.aws.element84.com/v1"
         metadata_asset_names = ["granule_metadata"]
-        mask_bands = ["scl", "cloud", "snow"]
+        
         mask_processor = build_s2_mask_processor(
             cloud_thresh=cloudprob_thresh, snowprob_thresh=snowprob_thresh
         )

@@ -129,7 +129,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         # Built-in scaling
         s2_array = s2_array * 0.0001
 
-        # subtract 0.1 where the array is not nodata (Due to baseline >= 5 and need t match GEE harmonized collection)
+        # subtract 0.1 where the array is not nodata (Due to baseline >= 5 and need to match GEE harmonized collection)
         nodata_val = s2_ds.nodata
         s2_array[s2_array != nodata_val] -= 0.1
 

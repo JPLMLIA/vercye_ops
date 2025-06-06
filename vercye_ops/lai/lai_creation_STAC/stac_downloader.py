@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import multiprocessing
 import os
@@ -114,13 +115,17 @@ def load_resample(tile_path, resolution, mask=None):
             return profile, data
 
 
-def download_resample(tile_path, resolution, item, band_name, mask=None, output_folder=None):
+def download_resample(tile_path, resolution, item, band_name, mask=None, output_folder=None, harmonize_to_baseline5=False):
     """
     Download and resample the tile to the desired resolution entirely in memory.
     If a mask is provided it will be applied to the data.
     """
 
     profile, data = load_resample(tile_path, resolution, mask)
+
+    if harmonize_to_baseline5:
+        # Adjust to match baseline 5 shift. Goal is to have all output like it would be from baseline >=5
+        data = np.where(data != 0, data + 0.1, 0)
 
     out_path = save_band(profile, data, item, band_name, resolution, output_folder)
     return band_name, out_path
@@ -250,6 +255,13 @@ def process_scene(
             raise ValueError(
                 f"Mask must be binary (0 and 1 values only). Values found: {np.unique(mask)}"
             )
+        
+    # Current Workaround to ensure that Sentinel-2 L2A tiles that are not from collection-1 are harmonized to baseline 5
+    # these are all tiles before 2022-12-06
+    tile_date = datetime.strptime(item.properties['datetime'],"%Y-%m-%dT%H:%M:%S.%fZ")
+    collection = item.collection
+    harmonize_to_baseline5 = True if tile_date < datetime(2022, 1, 25) and collection == "sentinel-2-l2a" else False
+
 
     # Step 3: Download and resample bands of interest
     logger.info("Downloading band data and resampling...")
@@ -258,7 +270,7 @@ def process_scene(
         logger.info(f"Downloading and resampling band {band_name}...")
         band_path = item.assets[band_name].href
         band_name, out_path = download_resample(
-            band_path, resolution, item, band_name, mask, output_folder=output_folder
+            band_path, resolution, item, band_name, mask, output_folder=output_folder, harmonize_to_baseline5=harmonize_to_baseline5
         )
         band_paths[band_name] = out_path
 
