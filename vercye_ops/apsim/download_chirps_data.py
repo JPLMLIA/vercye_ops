@@ -427,8 +427,8 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     else:
         logger.setLevel('WARNING')
     
-    if not op.exists(output_dir):
-        raise FileNotFoundError(f"Output directory {output_dir} does not exist.")
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
 
     # Download CHIRPS data for the specified date range if not already present in outputdir
     fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers)

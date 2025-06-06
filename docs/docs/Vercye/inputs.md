@@ -138,7 +138,7 @@ This file defines the study parameters and links the **simulation head directory
 - `study_id`: Id/Name of that identifies the study. Freely choosable up to a length of 25 characters.
 - `keep_apsim_db_files`: Delete actual APSIM DB files after processing and reporting to free space.(`True`/`False`).
 - `create_per_region_html_report`: Create HTML reports of predicted yield curves per region. Requires a lot of space. (`True`/`False`).
-- `title`: Free choice of a title, used in the report.
+- `title`: Free choice of a title, used as the heading in the report.
 - `description`: Custom description (freetext) of the study.
 - `lai_shp_name`: Name of the shapefile used for LAI generation. Not used for processing, simply for reference.
 - `regions_shp_name`: Name of the shapefile from which the GeoJSONs where created. Not used for processing, simply for reference.
@@ -160,7 +160,7 @@ This file defines the study parameters and links the **simulation head directory
 
 #### LAI Parameters (`lai_params`)
 - `lai_dir`: Directory for LAI data.
-- `lai_region`: Region name with naming convention (`{region}_{date}_{resolution}m_LAI.tif`).
+- `lai_region`: Region name prefix matching the LAI-file naming convention (`{region}_{date}_{resolution}m_LAI.tif`).
 - `lai_resolution`: Spatial resolutin, used for matching as above. In meters/pixel.
 - `crop_name`: Specify crop (`wheat` or `maize`). Is related to the cropname defined in APSIM.
 - `use_crop_adjusted_lai`: Adjust LAI data for the crop specified (`True`/`False`).

@@ -12,6 +12,9 @@ sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_202411
 # Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
 study_id: 'Poltava'
 
+# A short title for the simulation.
+title: 'Poltava Oblast, Ukraine Yield Study'
+
 # More detailed description of the simulation.
 description: 'Poltava Oblast, Ukraine for 2021-2023. Yield study created using the internal APSIM file from march 2025.'
 
@@ -75,6 +78,7 @@ timepoints:  # Days relative to harvest. Needs to be defined in lai_params and a
 # APSIM Parameters
 apsim_params:
   met_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'ERA5']
+  met_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for ERA5.
   precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS' | 'ERA5']
   precipitation_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent.
@@ -191,8 +195,8 @@ eval_params:
   # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
   # If you do not want additional aggregation level, set aggregation_levels: {}
   aggregation_levels:
-    National: 'Name_0'
-    Oblast: 'Name_1'
+    National: 'NAME_0'
+    Oblast: 'NAME_1'
   
   
 ########################################

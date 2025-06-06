@@ -33,11 +33,11 @@ Your yield study will run simulations for each defined region, typically specifi
 **Important requirements for your shapefile:**
 
 - Contains geometries at the same administrative level only (e.g., all geometries are districts OR all counties)
-- Includes an attribute column with region names (e.g., `NAME_2` containing "Cook County", "Orleans Parish")
+- Includes an attribute column with region names (could be for example `NAME_2` containing "Cook County", "Orleans"...)
 
-[Experimental] If your shapefile contains mixed administrative levels, use the interactive helper script to normalize it to a single level:
+[Optional] If your shapefile contains **mixed administrative levels**, use the interactive `remove_mixed_admin_levels.py` script to normalize it to a single level. The script will prompt you for a few inputs to remove mixed administrative levels. You do **NOT** need to run this step if your script only contains geometries at the same administrative level.
 ```
-python apsim/prepare_shapefile.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
+python apsim/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
 ```
 
 ## 2. Defining Your Configuration
@@ -45,10 +45,10 @@ python apsim/prepare_shapefile.py --shp_fpath /path/to/your.shp --output_dir /pa
 Create a configuration file that controls simulation parameters:
 
 0. Create an empty directory `new_basedir_path` that will be your basediretory of your study. Recommended to give it a meaningfull name.
-1. Navigate to `snakemake/example_setup/` and copy one of the example configurations to `new_basedir_path/config_template.yaml`.
-2. Modify parameters according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper.
+1. Navigate to `snakemake/example_setup/` and copy one of the example configurations to `new_basedir_path/config_template.yaml`. Ensure you are renaming the copied file to `config_template.yaml`.
+2. Modify parameters in the new configuration copy (`config_template.yaml`) according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper. Ensure you read the description of each parameter in detail and refer to the [Inputs documentation (Section 6)](inputs.md#6-Snakemake-Configuration) for more details on a specific parameter.
 
-**Note** The script for matching remotely sensed LAI and APSIM predicted LAI is not publicly available in this repository. You will have to set the path to the true matching script in your `config` file under `scripts.match_sim_real`.
+**Note** The script for matching remotely sensed LAI and APSIM predicted LAI is not publicly available in this repository. You will have to set the path to the true matching script in your `config_template.yaml` file under `scripts.match_sim_real`.
 
 The full configuration options are documented in the [Inputs documentation (Section 6)](inputs.md#6-Snakemake-Configuration).
 
@@ -73,13 +73,8 @@ Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this s
     - **`FILTER_COL_VALUES`** List of values to keep, e.g. `['Texas', 'Colorado']`.  
       To include *all* regions, set `FILTER_COL_NAME = None` and leave `FILTER_COL_VALUES = []`.
 
-3. **Intermediate & output folders**
-
-    - **`GEOJSONS_FOLDER`** Temporary folder where the notebook extracts each region as a GeoJSON polygon.
-
-    - **`OUTPUT_DIR`** Your new base directory. **Place** `config_template.yaml` (your Snakemake config) here.
-
-    - **`SNAKEFILE_CONFIG`** Path to that prefilled `config_template.yaml` (it lives in `OUTPUT_DIR/config_template.yaml`; you can leave its `regions:` field empty).
+3. **Output folder and Snakefile Config**
+    - **`OUTPUT_DIR`** Your new base directory. **MUST contain** your Snakemake config `config_template.yaml` with exactly this name.
 
 4. **APSIM configuration templates**
 
@@ -149,6 +144,8 @@ Once your setup is complete:
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml
    ```
 
+   Note: In the cli arguments simply specify the path to the folder of the `profile.yaml`m not the `.yaml` file itself. See the example command above.
+
   For custom CPU core allocation, add the `-c` flag (e.g with 20 cores) or adapt the `profiles/hpc/config.yaml` file:
    ```bash
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml -c 20
@@ -159,3 +156,11 @@ Once your setup is complete:
 When the simulation completes, results will be available in your base directory. See the [Outputs Documentation](outputs.md) for details on interpreting the results.
 
 To run the pipeline over the same region(s), either use Snakemake's `-F` flag or delete the log files at `vercye_ops/snakemake/logs_*`. Runtimes are in `vercye_ops/snakemake/benchmarks`.
+
+## Troubleshooting
+This section contains a few tips on what to do if you are encountering errors during pipeline execution.
+
+**Error** ``
+A typical error occurs during the execution of the `LAI_analysis` rule if the LAI parameters were not correctly set. This error indicates that in all of your LAI data there are not two single dates that have sufficient pixels without clouds for the specific region.
+
+However, this rarely should be the case when running with LAI data of multiple months (a typical season).

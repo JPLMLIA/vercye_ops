@@ -419,7 +419,12 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
 
 
         # Akima spline interpolation
-        for col in ["LAI Mean", "LAI Mean Adjusted", "LAI Median", "LAI Median Adjusted"]:
+        interpolation_cols = ["LAI Mean", "LAI Mean Adjusted", "LAI Median", "LAI Median Adjusted"]
+
+        if smoothed:
+            interpolation_cols += ["LAI Mean Unsmoothed", "LAI Mean Adjusted Unsmoothed", "LAI Median Unsmoothed", "LAI Median Adjusted Unsmoothed"]
+
+        for col in interpolation_cols:
             real_X = []
             real_Y = []
             nan_X = []

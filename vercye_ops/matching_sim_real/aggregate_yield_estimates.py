@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import click
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 import pyarrow.parquet as pq
@@ -48,8 +49,8 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
                 yield_df['total_area_ha'] = yield_df['total_area_ha'].round(2)
                 yield_df['region'] = region_name
             else:
-                yield_df = pd.DataFrame()  # Empty DataFrame as a fallback
-                logger.warning(f"Converted map yield estimate CSV file not found for region: {region_name}")
+                logger.warning(f"Converted map yield estimate CSV file not found for region: {region_name}. Dropping from Output.")
+                continue
 
             if conv_factor_csv_path.exists():
                 conv_df = pd.read_csv(conv_factor_csv_path)
@@ -78,21 +79,19 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
                 conv_df['apsim_all_std_yield_estimate_kg_ha'] = conv_df['apsim_all_std_yield_estimate_kg_ha'].astype(int)
                 conv_df['region'] = region_name
             else:
-                conv_df = pd.DataFrame()  # Empty DataFrame as a fallback
-                logger.warning(f"Conversion factor CSV file not found for region: {region_name}")
-
-            if yield_df.empty and conv_df.empty:
-                logger.warning(f'No yield data found for region {region_name}. Skipping.')
+                logger.warning(f"Conversion factor CSV file not found for region: {region_name}. Dropping from Output.")
                 continue
 
             # Merge the DataFrames
             combined_df = pd.merge(yield_df, conv_df, on='region', how='outer')
 
-            # Add additional information for easier analysis
+            # Add additional information for easier analysis, as sometimes we fallback from CHIRPS
             precipitation_src = 'CHIRPS' if region_name in regions_using_chirps else 'Met Source'
             
             n_days_with_rs_data_valid = None
             mean_cloud_snow_percentage = None
+
+            # TODO use parameter from CLI for the threshold
             if lai_stats_csv_path.exists():
                 rs_df = pd.read_csv(lai_stats_csv_path)
                 n_days_with_rs_data_valid =  rs_df[(rs_df['interpolated'] == 0) & (rs_df['Cloud or Snow Percentage'] < 100)].shape[0]
