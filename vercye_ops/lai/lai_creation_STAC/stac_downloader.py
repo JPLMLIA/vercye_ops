@@ -485,7 +485,7 @@ def run_pipeline(
     help="Comma-separated list of mask bands to process.\
         If a single band is provided, it will be used as a mask. This band then has to be binary. \
         If multiple bands are provided, a custom band processor function must be provided. \
-        If you simply want to download mask bands without applying them, specify them in the bands option.",
+        If you simply want to download mask bands without applying them, specify them in the bands option and not here.",
     default=None,
 )
 @click.option(

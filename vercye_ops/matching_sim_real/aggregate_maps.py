@@ -247,7 +247,7 @@ def cli(roi_base_dir, yield_estimates_fpath, val_fpath, output_lai_tif_fpath=Non
     yield_estimates.rename(columns={'mean_yield_kg_ha': 'estimated_mean_yield_kg_ha',
                                     'total_yield_production_kg': 'estimated_yield_kg',
                                     'median_yield_kg_ha': 'estimated_median_yield_kg_ha'}, inplace=True)
-    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'region']], left_on='cleaned_region_name_vercye', right_on='region')
+    merged_gdf = merged_gdf.merge(yield_estimates[['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'estimated_yield_kg', 'total_area_ha', 'region']], left_on='cleaned_region_name_vercye', right_on='region')
 
     if val_fpath:
         val_data = pd.read_csv(val_fpath)

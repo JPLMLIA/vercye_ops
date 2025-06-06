@@ -14,6 +14,9 @@ We provide two methods for exporting remotely sensed imagery and deriving LAI pr
 
 A: Exporting RS imagery from **Google Earth Engine**
 B: Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS.
+C: Using your own LAI data
+
+Instructions on how to run each LAI creation pieline are detailed in [LAI Generation Instructions](running.md).
 
 ### A: Google Earth Engine Exported
 This approach lets Google Earth Engine handle the majority of data preprocessing and exports daily Sentinel-2 Mosaics from Google Earth Engine to either a
@@ -39,4 +42,15 @@ This approach queries a STAC catalog hosted by Element84 on AWS to identify all 
 - Less Accurate Cloudmask in comparison to Google Cloud Score Plus. Cloud mask is based on SCL + S2-Cloudless.
 - As of May 27th 2025, `Sentinel-2 L2A Colection 1` does not contain data for 2022 and parts of 2023. According to ESA this backfill is scheduled to be completed until Q2 2025.
 
-Instructions on how to run each LAI creation pieline are detailed in [LAI Generation Instructions](running.md).
+### C: Bring your own LAI data
+If you already have LAI data or are planning to generate it with a different pipeline this is also possible. Simply ensure the file names match our required format. All files ned to be located in a single folder and the filename needs to satisfy the following format:
+`{prefix}_{resolution}m_{YYYY-MM-DD}_LAI.{ext}`.
+
+- The `prefix` can be anything, however it must be consistent for all LAI files.
+- The `resolution` is the resolution in meters and also must be consistent.
+- The `date` should be in the YYYY-MM-DD format.
+- The `file extension` can be either `.vrt` or `.tif`
+
+Additionally, you will have to ensure all your LAI files have exactly the same resolution and CRS.
+
+

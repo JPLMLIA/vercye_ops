@@ -10,6 +10,7 @@ resolution: 20
 geojson_path: region.geojson
 out_dir: output
 region_out_prefix: "myregion"
-from_step: 0
-num_cores: 64
+from_step: 0 # 0: download&produce LAI, 2: standardize, 3: create daily LAI. Only change if you have a failed job.
+num_cores_download: 120
+num_cores_lai: 64
 chunk_days: 30

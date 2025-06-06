@@ -74,7 +74,7 @@ def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, outp
     
     logger.info('Processing %i %s regions.', len(gdf))
 
-    logger.warning('Ensure all geometries are at the same administrative level! Use the prepare_shapefile.py script to standardize the shapefile if this is not the case.')
+    logger.warning('Ensure all geometries are at the same administrative level! Use the remove_mixed_admin_levels.py script to standardize the shapefile if this is not the case.')
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
     for _, row in gdf.iterrows():

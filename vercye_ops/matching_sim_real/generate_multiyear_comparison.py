@@ -172,6 +172,9 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
             if not est:
                 continue
 
+            if len(est) > 1:
+                raise ValueError(f"Multiple yield estimate files found for {year} at level {lvl}: {est}")
+
             preds_df = load_csv(est[0])
             all_preds.extend(preds_df['mean_yield_kg_ha'])
             all_preds_years.extend([year]*len(preds_df))
@@ -209,13 +212,12 @@ def create_predictions_plot(preds, years):
     return fig
 
 
-def identify_eval_levels(input_dir, years):
+def identify_agg_levels(input_dir, years):
     lvls = set(['primary'])
     for y in years:
-        files = glob(os.path.join(input_dir, y, 'groundtruth*.csv'))
+        files = glob(os.path.join(input_dir, y, '*', 'agg_yield_estimates_*.csv'))
         for f in files:
-            lvl = os.path.basename(f).split('_')[1]
-            lvl = lvl.split('-')[0] # remove year and file extension suffix
+            lvl = os.path.basename(f).split('_')[3]
             lvls.add(lvl)
     return sorted(lvls)
 
@@ -230,7 +232,7 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
     years = get_available_years(input_dir)
     reference = os.path.join(input_dir, years[0])
     timepoints = get_available_timepoints(reference)
-    agg_levels = identify_eval_levels(input_dir, years)
+    agg_levels = identify_agg_levels(input_dir, years)
 
     content = []
     for tp in timepoints:
@@ -253,6 +255,7 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
 
         # Predictions + Metrics per aggregation level
         obs_preds = load_obs_preds(input_dir, tp, years, agg_levels)
+
         for lvl, data in obs_preds.items():
             all_preds, preds_years = data['only_preds']
 

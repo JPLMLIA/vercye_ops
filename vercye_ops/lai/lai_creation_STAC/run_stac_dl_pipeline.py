@@ -68,7 +68,8 @@ def run_pipeline(config):
     out_dir = config["out_dir"]
     region_out_prefix = config["region_out_prefix"]
     from_step = config.get("from_step", 0)
-    num_workers = config.get("num_cores", 1)
+    num_workers_lai = config.get("num_cores_lai", 1)
+    num_workers_download = config.get("num_cores_download", 1)
     chunk_days = config.get("chunk_days", 30)
 
     if from_step not in [0, 2, 3]:
@@ -107,7 +108,8 @@ def run_pipeline(config):
                         "--end-date", end,
                         "--resolution", str(resolution),
                         "--geojson-path", geojson_path,
-                        "--output-dir", tiles_out_dir
+                        "--output-dir", tiles_out_dir,
+                        "--num-workers", str(num_workers_download),
                     ]
                     run_subprocess(cmd, f"Download tiles {start} to {end}")
 
@@ -120,7 +122,7 @@ def run_pipeline(config):
                         str(resolution),
                         "--start-date", start,
                         "--end-date", end,
-                        "--num-cores", str(num_workers),
+                        "--num-cores", str(num_workers_lai),
                         "--remove-original",
                     ]
                     run_subprocess(cmd, f"Compute LAI for {start} to {end}")
@@ -142,7 +144,7 @@ def run_pipeline(config):
             str(resolution),
             "--start-date", overall_start.strftime("%Y-%m-%d"),
             "--end-date", overall_end.strftime("%Y-%m-%d"),
-            "--num-cores", str(num_workers),
+            "--num-cores", str(num_workers_lai),
             "--remove-original",
         ]
         run_subprocess(cmd, "Standardize LAI files")

@@ -2,6 +2,7 @@ import click
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import numpy as np
 
 from vercye_ops.matching_sim_real.utils import (load_simulation_data,
                                                 load_simulation_units)
@@ -75,6 +76,11 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     logger.info("Plotting individual SimulationID series.")
     crop_name = crop_name.lower()
     crop_name = crop_name.capitalize()
+    lai_agg_type_name = 'Mean' if lai_agg_type.lower() == 'mean' else 'Median'
+    lai_column = f'LAI {lai_agg_type_name}' if not use_adjusted_lai else f'LAI {lai_agg_type_name} Adjusted'
+
+    non_interp = rs_df[rs_df['interpolated'] == 0]
+
     for _, row in apsim_filtered.iterrows():
         sim_id = int(row['SimulationID'])
         step_filter = row['StepFilteredOut']
@@ -99,10 +105,15 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     ###################################
     logger.info("Plotting RS data.")
-    lai_agg_type_name = 'Mean' if lai_agg_type.lower() == 'mean' else 'Median'
-    lai_column = f'LAI {lai_agg_type_name}' if not use_adjusted_lai else f'LAI {lai_agg_type_name} Adjusted'
     fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column], mode='lines', name=f'RS {lai_agg_type_name} LAI', 
                              line=dict(color='black', width=3)), row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=non_interp.index, y=non_interp[lai_column], mode='markers',
+                             name='RS Observed (non‐interpolated)',marker=dict(color='red', size=3, symbol='circle')), row=1, col=1)
+
+    if lai_column + ' Unsmoothed' in rs_df.columns:
+        fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column + ' Unsmoothed'], mode='lines', name=f'RS {lai_agg_type_name} LAI Unsmoothed', 
+                                 line=dict(color='blue', width=3, dash='dash')), row=1, col=1)
     
     cloud_data = rs_df[rs_df['Cloud or Snow Percentage'] < 100]
     fig.add_trace(go.Scatter(x=cloud_data.index, y=cloud_data['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 
