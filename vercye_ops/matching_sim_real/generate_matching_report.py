@@ -113,7 +113,7 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
 
     if lai_column + ' Unsmoothed' in rs_df.columns:
         fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column + ' Unsmoothed'], mode='lines', name=f'RS {lai_agg_type_name} LAI Unsmoothed', 
-                                 line=dict(color='blue', width=3, dash='dash')), row=1, col=1)
+                                 line=dict(color='blue', width=3,), opacity=0.5), row=1, col=1)
     
     cloud_data = rs_df[rs_df['Cloud or Snow Percentage'] < 100]
     fig.add_trace(go.Scatter(x=cloud_data.index, y=cloud_data['Cloud or Snow Percentage'], mode='lines', name='RS Cloud Coverage %', 

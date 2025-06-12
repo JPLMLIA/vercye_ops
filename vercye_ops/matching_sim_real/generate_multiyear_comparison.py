@@ -64,7 +64,7 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     combined = []
     for year in years:
         for fp in load_lai_files(os.path.join(input_dir, year, timepoint)):
-            df, region, _ = parse_lai_file(fp, lai_agg_type)
+            df, region, _ = parse_lai_file(fp, lai_agg_type, adjusted)
             df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y')
             start = df['Date'].min()
             df['DaysAfterStart'] = (df['Date'] - start).dt.days

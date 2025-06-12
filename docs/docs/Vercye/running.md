@@ -81,7 +81,7 @@ Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this s
     Rather than manually copying and editing an APSIM file for each year/region, the helper will:
 
     1. Copy a template for each higher-level region (e.g. state) into every year’s folder.  
-    2. Auto-adjust the simulation dates.
+    2. Auto-adjust the simulation dates. NOTE: This will replace the `Models.Clock` parameter in the APSIM simulation to with the value specified in the `config_template.yaml` under `apsim_params.time_bounds`. If you require different simulation start/end-dates for various regions during a season, you will have to configure this manually in the APSIM files in the extracted directories.
 
     Configure this by setting:
 

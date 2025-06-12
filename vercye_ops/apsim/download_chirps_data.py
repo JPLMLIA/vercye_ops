@@ -33,7 +33,7 @@ CHIRPS_PASS = 'your_email_address'
 NUM_RETRIES = 5
 RETRY_WAIT_TIME = 5  # Seconds to wait between retries
 PROGRESS_UPDATE_INTERVAL = 10
-MAX_FTP_CONNECTIONS = 10  # Maximum number of FTP connections to open at once
+MAX_FTP_CONNECTIONS = 9  # Maximum number of FTP connections to open at once
 
 
 class FTPConnectionPool:
@@ -402,7 +402,7 @@ def validate_chirps_files(start_date, end_date, output_dir):
 @click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date for CHIRPS data collection in YYYY-MM-DD format.")
 @click.option('--end-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date for CHIRPS data collection in YYYY-MM-DD format.")
 @click.option('--output-dir', required=True, help="Output directory to store the CHIRPS data.")
-@click.option('--num-workers', type=int, default=10, show_default=True, help="Number of parallel processes. Capped at 10 due to server limitations.")
+@click.option('--num-workers', type=int, default=5, show_default=True, help="Number of parallel processes. Capped at 9 due to server limitations.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.", default=False)
 def cli(start_date, end_date, output_dir, num_workers, verbose):
     """
@@ -417,7 +417,7 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     output-dir : str
         Directory to store the CHIRPS data.
     num-workersn : int
-        Number of parallel processes. Capped at 10 due to server limitations.
+        Number of parallel processes. Capped at 9 due to server limitations.
     verbose : bool
         Enable verbose logging.
 

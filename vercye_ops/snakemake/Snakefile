@@ -52,6 +52,7 @@ rule all:
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_laicurves = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        #interactive_viz = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         multiyear_report = op.join(config['sim_study_head_dir'], 'multiyear_summary_{}.html'.format(sanitize_filename(config['study_id']))),
 
@@ -558,6 +559,7 @@ rule generate_aggregated_lai_curves_plot:
         executable_fpath = config['scripts']['generate_aggregated_lai_curves_plot'],
         head_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
         lai_agg_type = config['lai_params']['lai_aggregation'],
+        adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '',
     output:
         aggregated_lai_curves_plot = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     log:
@@ -567,6 +569,7 @@ rule generate_aggregated_lai_curves_plot:
         python {params.executable_fpath} \
         --input-dir {params.head_dir} \
         --output-fpath {output.aggregated_lai_curves_plot} \
+        {params.adjusted_cmd} \
         --lai_agg_type {params.lai_agg_type} > {log}
         """
 
@@ -810,6 +813,30 @@ rule generate_interactive_viz:
         {params.smoothed_cmd} \
         {params.agg_levels} \
         --output-file {output} > {log}
+        """
+
+rule agg_preds_multiyear:
+    input:
+        agg_yield_estimates = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{agg_lvl}_{study_id}_{year}_{timepoint}.csv'.format('{agg_lvl}', sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            agg_lvl=config['eval_params']['aggregation_levels'].keys()
+            year=config['years'],
+            timepoint=config['timepoints']
+        )
+    params:
+        executable_fpath = config['scripts']['agg_preds_multiyear'],
+        base_dir = config['sim_study_head_dir']
+    log:
+        op.join('logs_agg_pred_multiyear', f"{config['study_id']}.log")
+    output:
+        expand(
+            op.join(config['sim_study_head_dir'], f'all_predictions_{agg_lvl}_{timepoint}.csv'),
+            agg_lvl=config['eval_params']['aggregation_levels'].keys(),
+            timepoint=config['timepoints']
+        )
+    shell:
+        """
+        python {params.executable_fpath} --base-dir {params.base_dir} > {log}
         """
 
 rule generate_multiyear_comparison:

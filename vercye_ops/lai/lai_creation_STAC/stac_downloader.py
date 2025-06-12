@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import multiprocessing
 import os
@@ -54,10 +54,12 @@ def save_band(metadata, data, item, band_name, resolution, output_folder):
 def load_resample(tile_path, resolution, mask=None):
     logger.info(f"Loading and resampling tile {tile_path} to {resolution}m resolution...")
     with Env(AWS_NO_SIGN_REQUEST="YES",
-             GDAL_DISABLE_READDIR_ON_OPEN="YES",
-             GDAL_NUM_THREADS=8,
+             GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
              GDAL_HTTP_MULTIRANGE="YES",
              GDAL_ENABLE_CURL_MULTI="YES",
+             GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES",
+             GDAL_HTTP_MULTIPLEX="YES",
+             GDAL_HTTP_VERSION="2"
             ):
         with rio.open(tile_path) as src:
             crs = src.crs
@@ -125,6 +127,7 @@ def download_resample(tile_path, resolution, item, band_name, mask=None, output_
 
     if harmonize_to_baseline5:
         # Adjust to match baseline 5 shift. Goal is to have all output like it would be from baseline >=5
+        print("Harmonizing to baseline 5 shift...")
         data = np.where(data != 0, data + 0.1, 0)
 
     out_path = save_band(profile, data, item, band_name, resolution, output_folder)
@@ -197,12 +200,17 @@ def download_file(url, output_path):
             with open(output_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
+
+        expected_size = int(response.headers.get("Content-Length", 0))
+        if expected_size > 0 and os.path.getsize(output_path) != expected_size:
+            raise IOError(
+                f"Downloaded file size {os.path.getsize(output_path)} does not match expected size {expected_size}."
+            )
     except (requests.RequestException, IOError) as e:
         logger.error(f"Error downloading {url}: {e}")
         if os.path.exists(output_path):
             os.remove(output_path)
         raise e
-
 
 def process_scene(
     item,
@@ -258,9 +266,11 @@ def process_scene(
         
     # Current Workaround to ensure that Sentinel-2 L2A tiles that are not from collection-1 are harmonized to baseline 5
     # these are all tiles before 2022-12-06
-    tile_date = datetime.strptime(item.properties['datetime'],"%Y-%m-%dT%H:%M:%S.%fZ")
-    collection = item.collection
-    harmonize_to_baseline5 = True if tile_date < datetime(2022, 1, 25) and collection == "sentinel-2-l2a" else False
+    
+    tile_date = item.datetime
+    #tile_date = datetime.strptime(item.properties['datetime'],"%Y-%m-%dT%H:%M:%S.%fZ")
+    collection = item.collection_id
+    harmonize_to_baseline5 = True if tile_date < datetime(2022, 1, 25, tzinfo=timezone.utc) and collection == "sentinel-2-l2a" else False
 
 
     # Step 3: Download and resample bands of interest

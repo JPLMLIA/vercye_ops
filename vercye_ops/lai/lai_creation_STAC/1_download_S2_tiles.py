@@ -160,7 +160,6 @@ def s2_mask_processor(
     mask = None
 
     scl_band_meta, scl_band = maskbands["scl"]
-    snowprob_band_meta, snowprob_band = maskbands["snow"]
     mask = np.ones_like(scl_band)  # Start with all valid (1)
 
     # Invalidate pixels based on SCL
@@ -174,7 +173,9 @@ def s2_mask_processor(
         mask = np.where(s2cloudless_band >= cloud_thresh, 0, mask)
 
     # Invalidate pixels based on Snowprob
-    mask = np.where(snowprob_band >= snowprob_thresh, 0, mask)
+    if 'snow' in maskbands:
+        snowprob_band_meta, snowprob_band = maskbands["snow"]
+        mask = np.where(snowprob_band >= snowprob_thresh, 0, mask)
 
     new_metadata = {}
 
@@ -284,8 +285,8 @@ def main(
             print('Using Sentinel-2 Collection 1 (C1) for the date range.')
         else:
             stac_collection_name = "sentinel-2-l2a"
-            mask_bands = ["scl", "snow"]
-            print('Using Sentinel-2 NON-C1 for the date range.')
+            mask_bands = ["scl"]
+            print('Using Sentinel-2 NON-C1 for the date range. Will only mask based on SCL band.')
         
         stack_catalog_url = "https://earth-search.aws.element84.com/v1"
         metadata_asset_names = ["granule_metadata"]
