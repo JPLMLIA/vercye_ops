@@ -18,6 +18,7 @@ def generate_met_points(gdf_row):
     return centroid
 
 def clean_region_name(region_name):
+    region_name = str(region_name)
     region_name = region_name.replace("'", "").replace('"', "")
     region_name = re.sub(r"[^\w.-]", "_", region_name)
     region_name = region_name.lower()
