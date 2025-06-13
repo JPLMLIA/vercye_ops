@@ -60,7 +60,7 @@ def generate_lai_figure(filepaths, lai_agg_type):
         template='plotly_white'
     )
 
-    fig = fig.update_traces(opacity=0.6)
+    fig = fig.update_traces(opacity=0.5)
 
     # Toggle buttons
     all_visible = [True] * len(fig.data)

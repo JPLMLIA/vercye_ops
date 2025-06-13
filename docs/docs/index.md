@@ -68,6 +68,7 @@ There are two options for running APSIM:
 > ```
 > /gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models
 > ```
+However, you might have to install `dotnet` from source as outlined in [vercye_ops/apsim/README.md](vercye_ops/apsim/README.md). 
 
 #### 5. Install `jq`
 

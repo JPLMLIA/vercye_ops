@@ -168,6 +168,9 @@ def get_preds_obs(estimation_fpath, val_fpath):
 
         combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_production_kg']
 
+    # Drop all entries where the reported mean yield is NaN
+    combined = combined.dropna(subset=['reported_mean_yield_kg_ha', 'mean_yield_kg_ha'])
+
     return {
         'obs': combined['reported_mean_yield_kg_ha'],
         'preds': combined['mean_yield_kg_ha']
