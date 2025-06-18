@@ -40,7 +40,9 @@ class InteractiveMapGenerator:
         self.gdf = gpd.read_file(self.shapefile_path)
 
         # Todo add total_area_ha once fixed in prod
-        keep_cols = ["cleaned_region_name_vercye", "estimated_mean_yield_kg_ha", "estimated_median_yield_kg_ha", "geometry"]
+        keep_cols = ["cleaned_region_name_vercye", "estimated_mean_yield_kg_ha",
+                     "estimated_median_yield_kg_ha", "geometry", "reported_mean_yield_kg_ha",
+                     "error", "relative_error"]
 
         # Append aggregation columns if they exist
         keep_cols += [self.aggregation_levels[i]['column'] for i in range(len(self.aggregation_levels))]
@@ -81,6 +83,34 @@ class InteractiveMapGenerator:
         })
 
         print(f"Added aggregation level: {level_name} (by {column_name})")
+
+    def generate_mock_lai_data(self, regions: List[str], num_days: int = 30) -> pd.DataFrame:
+        """
+        Generate mock LAI data for given regions.
+        
+        Args:
+            regions: List of region names to simulate data for.
+            num_days: Number of days to generate data for.
+
+        Returns:
+            A DataFrame simulating realistic LAI data.
+        """
+        dates = pd.date_range(end=pd.Timestamp.today(), periods=num_days).strftime('%d/%m/%Y')
+        lai_data = []
+
+        for region in regions:
+            for date in dates:
+                base_lai = np.clip(np.sin((pd.to_datetime(date).dayofyear / 365.0) * 2 * np.pi) * 2 + 3, 0.1, 6.0)
+                for col in self.lai_columns:
+                    value = base_lai + np.random.normal(0, 0.2)
+                    lai_data.append({
+                        'cleaned_region_name_vercye': region,
+                        'Date': date,
+                        col: round(value, 2),
+                        'interpolated': np.random.choice([0, 1], p=[0.85, 0.15])
+                    })
+
+        return pd.DataFrame(lai_data)
     
     
     def aggregate_lai_data(self, regions: List[str]) -> Tuple[List[float], List[str], List[bool]]:
@@ -97,7 +127,8 @@ class InteractiveMapGenerator:
         region_data = self.lai_data[self.lai_data['cleaned_region_name_vercye'].isin(regions)]
 
         if region_data.empty:
-            return [], [], []
+            #return [], [], []
+            region_data = self.generate_mock_lai_data(regions)
         
         # Sort by date to ensure chronological order
         region_data = region_data.sort_values('Date')
@@ -161,9 +192,9 @@ class InteractiveMapGenerator:
                     "properties": {
                         "id": f"region_{idx}",
                         "name": str(row['cleaned_region_name_vercye']),
-                        "detail1": float(row['estimated_median_yield_kg_ha']),
-                        "detail2": area,
-                        "heatValue": float(row['estimated_mean_yield_kg_ha']),
+                        "estimated_median_yield_kg_ha": float(row['estimated_median_yield_kg_ha']),
+                        "total_area": area,
+                        "estimated_mean_yield_kg_ha": float(row['estimated_mean_yield_kg_ha']),
                         "timeSeries": lai_values,
                         "dateLabels": date_labels,
                         "interpolationFlags": interpolation_flags,
@@ -171,6 +202,16 @@ class InteractiveMapGenerator:
                     },
                     "geometry": row.geometry.__geo_interface__
                 }
+
+                # Add reference data if available
+                if 'reported_mean_yield_kg_ha' in row:
+                    feature['properties']['reported_mean_yield_kg_ha'] = float(row['reported_mean_yield_kg_ha'])
+                    feature['properties']["error"] = float(row['error']),
+                    feature['properties']["relative_error"] =  float(row['relative_error'])
+                
+                if 'reported_production_kg' in row:
+                    feature['reported_production_kg'] = float(row['reported_production_kg'])
+
                 features.append(feature)
             
             return {
@@ -212,9 +253,9 @@ class InteractiveMapGenerator:
                     "properties": {
                         "id": f"agg_{level_idx}_{idx}",
                         "name": str(row[agg_col]),
-                        "heatValue": float(mean_estimated_yield_kg_ha),
-                        "detail1": float(median_estimated_yield_kg_ha),
-                        "detail2": sum_area,
+                        "estimated_mean_yield_kg_ha": float(mean_estimated_yield_kg_ha),
+                        "estimated_median_yield_kg_ha": float(median_estimated_yield_kg_ha),
+                        "total_area": sum_area,
                         "timeSeries": lai_values,
                         "dateLabels": date_labels,
                         "interpolationFlags": interpolation_flags,
@@ -223,6 +264,17 @@ class InteractiveMapGenerator:
                     },
                     "geometry": simplified_geom.__geo_interface__
                 }
+
+                 # Add reference data if available
+                if 'reported_mean_yield_kg_ha' in  self.aggregated_estimates[level_idx][region_name]:
+                    feature['properties']['reported_mean_yield_kg_ha'] = float(self.aggregated_estimates[level_idx][region_name]['reported_mean_yield_kg_ha'])
+                    feature['properties']["error"] = float(self.aggregated_estimates[level_idx][region_name]['error']),
+                    feature['properties']["relative_error"] =  float(self.aggregated_estimates[level_idx][region_name]['relative_error'])
+                
+                if 'reported_production_kg' in  self.aggregated_estimates[level_idx][region_name]:
+                    feature['properties']['reported_production_kg'] = float(self.aggregated_estimates[level_idx][region_name]['reported_production_kg'])
+
+
                 features.append(feature)
             
             return {
@@ -324,15 +376,27 @@ class InteractiveMapGenerator:
                                             "id": f"child_{parent_id}_{cleaned_region_name_vercye}",
                                             "name": str(cleaned_region_name_vercye),
                                             "parentId": parent_id,
-                                            "heatValue": float(row['estimated_mean_yield_kg_ha']),
-                                            "detail1": float(row['estimated_median_yield_kg_ha']),
-                                            "detail2": area,
+                                            "estimated_mean_yield_kg_ha": float(row['estimated_mean_yield_kg_ha']),
+                                            "estimated_median_yield_kg_ha": float(row['estimated_median_yield_kg_ha']),
+                                            "total_area": area,
                                             "timeSeries": lai_values,
                                             "dateLabels": date_labels,
                                             "interpolationFlags": interpolation_flags,
                                         },
                                         "geometry": row.geometry.__geo_interface__
                                     }
+
+                                    # Add reference data if available
+                                    if 'reported_mean_yield_kg_ha' in row:
+                                        child_feature['properties']['reported_mean_yield_kg_ha'] = float(row['reported_mean_yield_kg_ha'])
+                                        child_feature['properties']["error"] = float(row['error']),
+                                        child_feature['properties']["relative_error"] =  float(row['relative_error'])
+
+                                    
+                                    if 'reported_production_kg' in row:
+                                        child_feature['properties']['reported_production_kg'] = float(row['reported_production_kg'])
+
+
                                     child_features.append(child_feature)
 
                             if child_features:
@@ -354,26 +418,41 @@ class InteractiveMapGenerator:
         Returns:
             Complete HTML string
         """
-        # Calculate value range for color scaling
-        all_values = []
-        for level_key, level_data in data_structure["level_data"].items():
-            for feature in level_data["features"]:
-                all_values.append(feature["properties"]["heatValue"])
-        for mapping_data in data_structure["level_mappings"].values():
-            for feature in mapping_data["features"]:
-                all_values.append(feature["properties"]["heatValue"])
 
-        # Compute min, max, and the 95th percentile in Python
-        min_val = float(np.min(all_values))
-        max_val = float(np.max(all_values))
-        p95_val = float(np.percentile(all_values, 95))
+        value_ranges = {}
+
+        # Calculate value range for color scaling
+        for valueType in ['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'error', 'relative_error']:
+            all_values = []
+            for level_key, level_data in data_structure["level_data"].items():
+                for feature in level_data["features"]:
+                    print(feature["properties"]['relative_error'])
+                    if feature["properties"][valueType] != np.nan:
+                        all_values.append(feature["properties"][valueType])
+            for mapping_data in data_structure["level_mappings"].values():
+                for feature in mapping_data["features"]:
+                    if feature["properties"][valueType] != np.nan:
+                        all_values.append(feature["properties"][valueType])
+
+
+            # Compute min, max, and the 95th percentile
+            min_val = float(np.min(all_values))
+            max_val = float(np.max(all_values))
+            p95_val = float(np.percentile(all_values, 95))
+
+            value_ranges[valueType] = {
+                'min_val': min_val,
+                'max_val': max_val,
+                'p95_val': p95_val
+            }
+
 
         title = title + ' Analysis'
 
         lai_column_options = ''.join(
             f'<option value="{col}">{col}</option>'
             for col in self.lai_column_names
-        ) 
+        )
         
         template = f'''<!DOCTYPE html>
             <html lang="en">
@@ -513,6 +592,32 @@ class InteractiveMapGenerator:
 
                     .comparison-controls {{
                         margin-bottom: 20px;
+                    }}
+
+                    .heatmap-selector {{
+                        margin-bottom: 15px;
+                    }}
+
+                    .heatmap-selector label {{
+                        display: block;
+                        color: #a0aec0;
+                        font-size: 14px;
+                        margin-bottom: 8px;
+                    }}
+
+                    .heatmap-selector select {{
+                        width: 100%;
+                        padding: 8px 12px;
+                        background: rgba(255, 255, 255, 0.1);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        border-radius: 8px;
+                        color: white;
+                        font-size: 14px;
+                    }}
+
+                    .heatmap-selector select option {{
+                        background: #2d3748;
+                        color: white;
                     }}
 
                     .lai-selector {{
@@ -880,6 +985,15 @@ class InteractiveMapGenerator:
                             <div class="legend">
                                 <div class="legend-title">Yield Legend (kg/ha)</div>
                                 <div id="legendItems"></div>
+                                <div class="heatmap-selector">
+                                    <label for="heatmapSelector">Select Heatmap Type:</label>
+                                    <select id="heatmapSelector">
+                                        <option value="estimated_mean_yield_kg_ha">Estimated Mean Yield (kg/ha)</option>
+                                        <option value="estimated_median_yield_kg_ha">Estimated Median Yield (kg/ha)</option>
+                                        <option value="error">Error (kg)</option>
+                                        <option value="relative_error">Relative Error (%)</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="selected-regions">
@@ -945,10 +1059,13 @@ class InteractiveMapGenerator:
                 <script>
                     // Embedded data
                     const mapData = {json.dumps(data_structure, separators=(",", ":"), ensure_ascii=False)};
-                    const valueRange = {{
-                        min: {min_val},
-                        max: {max_val},
-                        p95: {p95_val}
+
+                    const allValueRanges = {json.dumps(value_ranges)}
+
+                    let valueRange = {{
+                        min_val: {value_ranges['estimated_mean_yield_kg_ha']['min_val']},
+                        max_val: {value_ranges['estimated_mean_yield_kg_ha']['max_val']},
+                        p95_val: {value_ranges['estimated_mean_yield_kg_ha']['p95_val']}
                     }};
 
                     const SERIES_COLORS = [
@@ -968,6 +1085,7 @@ class InteractiveMapGenerator:
                     let currentLayer = null;
                     let hoverChart = null;
                     let breadcrumbPath = [];
+                    let heatmapType = 'estimated_mean_yield_kg_ha';
 
                     // Selection state for comparison
                     let selectedRegions = new Map(); // regionId -> name, properties, layer
@@ -975,19 +1093,31 @@ class InteractiveMapGenerator:
                     let availableLaiColumns = [];
 
                     // Color ramp where Chroma.js interpolates smoothly between these stops
-                    const ramp = chroma
+                    const yieldRamp = chroma
                         .scale('viridis')
                         .domain([0, 1])
                         .mode('lrgb');
 
+                    const errorRamp = chroma
+                        .scale(['#2166ac', '#f7f7f7', '#b2182b']) // blue → white → red
+                        .domain([-1, 0, 1])
+                        .mode('lrgb');
+
+                    let ramp = yieldRamp;
+
                     // Color scale function based on actual data range
                     function getColor(value) {{
-                        const min = valueRange.min;
-                        const max = valueRange.p95;
+                        let min = valueRange.min_val;
+                        let max = valueRange.p95_val;
+                        if (heatmapType.includes('error')) {{
+                            const absMax = Math.max(Math.abs(min), Math.abs(max));
+                            min = -absMax;
+                            max = absMax;
+                        }}
 
-
-                        //  Clamp value between min and max
+                        // Clamp value between min and max
                         const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
+                       
 
                         return ramp(t).hex();
                     }}
@@ -995,7 +1125,7 @@ class InteractiveMapGenerator:
                     // Style each feature using getColor(...)
                     function style(feature) {{
                         return {{
-                            fillColor: getColor(feature.properties.heatValue),
+                            fillColor: getColor(feature.properties[heatmapType]),
                             weight: 2,
                             opacity: 1,
                             color: 'white',
@@ -1032,9 +1162,9 @@ class InteractiveMapGenerator:
 
                     function showOverlay(props) {{
                         document.getElementById('overlayTitle').textContent = props.name;
-                        document.getElementById('overlayValue1').textContent = props.heatValue.toFixed(1);
-                        document.getElementById('overlayValue2').textContent = (props.detail1 || 0).toFixed(1);
-                        document.getElementById('overlayValue3').textContent = (props.detail2 || 0).toFixed(1);
+                        document.getElementById('overlayValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
+                        document.getElementById('overlayValue2').textContent = (props.estimated_median_yield_kg_ha || 0).toFixed(1);
+                        document.getElementById('overlayValue3').textContent = (props.total_area || 0).toFixed(1);
 
                         updateOverlayChart(props.timeSeries, props.dateLabels, props.interpolationFlags, props.isAggregated);
 
@@ -1290,8 +1420,8 @@ class InteractiveMapGenerator:
                                 const color = SERIES_COLORS[index % SERIES_COLORS.length];
                                 const name = regionData.name + (props.isAggregated ? ' ★' : '');
 
-                                const mean = props.heatValue?.toFixed(1) || '-';
-                                const median = props.detail1?.toFixed(1) || '-';
+                                const mean = props.estimated_mean_yield_kg_ha?.toFixed(1) || '-';
+                                const median = props.estimated_median_yield_kg_ha?.toFixed(1) || '-';
 
                                 const regionStats = document.createElement('div');
                                 regionStats.style.marginTop = '10px';
@@ -1564,7 +1694,7 @@ class InteractiveMapGenerator:
                     }}
 
                     function updateStats(levelData) {{
-                        const values = levelData.features.map(f => f.properties.heatValue);
+                        const values = levelData.features.map(f => f.properties.estimated_mean_yield_kg_ha);
                         const avgYield = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
                         const minYield = Math.min(...values).toFixed(1);
                         const maxYield = Math.max(...values).toFixed(1);
@@ -1577,12 +1707,30 @@ class InteractiveMapGenerator:
                         `;
                     }}
 
+                    function selectHeatmapType(newHeatmapType) {{
+                        heatmapType = newHeatmapType;
+                        if (newHeatmapType.includes('error')) {{
+                            ramp = errorRamp;
+                        }} else{{
+                            ramp = yieldRamp
+                        }}
+
+                        console.log(allValueRanges);
+                        valueRange = allValueRanges[newHeatmapType];
+                        console.log(valueRange);
+
+                        updateLegend();
+                        if (currentLayer) {{
+                            currentLayer.setStyle(style);
+                        }}
+                    }}
+
                     function updateLegend() {{
                         const legendItems = document.getElementById('legendItems');
                         legendItems.innerHTML = '';
 
-                        const min = valueRange.min.toFixed(0);
-                        const max = valueRange.p95.toFixed(0);
+                        const min = valueRange.min_val.toFixed(0);
+                        const max = valueRange.p95_val.toFixed(0);
 
                         const gradientDiv = document.createElement('div');
                         gradientDiv.style.height = '20px';
@@ -1617,8 +1765,8 @@ class InteractiveMapGenerator:
                     function showHoverInfo(props) {{
                         document.getElementById('hoverInfo').style.display = 'block';
                         document.getElementById('hoverTitle').textContent = props.name;
-                        document.getElementById('hoverValue1').textContent = props.heatValue.toFixed(1);
-                        document.getElementById('hoverValue2').textContent = (props.detail1 || 0).toFixed(1);
+                        document.getElementById('hoverValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
+                        document.getElementById('hoverValue2').textContent = (props.estimated_median_yield_kg_ha || 0).toFixed(1);
                         
                         updateHoverChart(props.timeSeries, props.name, props.dateLabels, props.interpolationFlags, props.isAggregated);
                     }}
@@ -1732,6 +1880,10 @@ class InteractiveMapGenerator:
                     }}
 
                     // Event listeners
+                    document.getElementById('heatmapSelector').addEventListener("change", function () {{
+                        selectHeatmapType(this.value);
+                    }});
+
                     document.getElementById('backButton').onclick = goBack;
                     document.getElementById('clearSelectionBtn').onclick = clearSelection;
                     document.getElementById('laiColumnSelect').onchange = updateCompareButtonState;
@@ -1795,6 +1947,9 @@ class InteractiveMapGenerator:
                 agg_data[region_name] = {
                     'estimated_mean_yield_kg_ha': row['mean_yield_kg_ha'],
                     'estimated_median_yield_kg_ha': row['median_yield_kg_ha'],
+                    'reported_mean_yield_kg_ha': row['reported_mean_yield_kg_ha'],
+                    "error": row["error"], 
+                    "relative_error": row["relative_error"],
                     'total_area_ha': row['total_area_ha']
                 }
 
