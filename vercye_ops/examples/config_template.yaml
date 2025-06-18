@@ -208,9 +208,9 @@ eval_params:
 
 scripts:
   construct_met_files: '../apsim/construct_met_files.py'
-  plot_met_files: '../apsim/generate_weather_report.py'
-  fetch_met_data_nasapower: '../apsim/fetch_nasapower.py'
-  fetch_met_data_era5: '../apsim/fetch_era5.py'
+  plot_met_files: '../reporting/generate_weather_report.py'
+  fetch_met_data_nasapower: '../met_data/fetch_nasapower.py'
+  fetch_met_data_era5: '../met_data/fetch_era5.py'
   update_apsimx_template: '../apsim/update_apsimx_template.py'
   constrain_lai_cropmask: '../lai/0_mask_cropmask.py'
   check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'
@@ -226,7 +226,7 @@ scripts:
   aggregate_met_stats: '../reporting/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../evaluation/evaluate_yield_estimates.py'
   aggregate_yield_estimates_per_eval_lvl: '../reporting/aggregate_yield_estimates_per_eval_lvl.py'
-  construct_chirps_data: '../apsim/construct_chirps_precipitation_files.py'
+  construct_chirps_data: '../met_data/construct_chirps_precipitation_files.py'
   reproject_cropmask: '../lai/0_reproj_mask.py'
   generate_multiyear_comparison: '../reporting/generate_multiyear_comparison.py'
   generate_interactive_vizualization: '../reporting/generate_interactive_visualization.py'
