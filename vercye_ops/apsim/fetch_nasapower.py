@@ -202,11 +202,13 @@ def fetch_from_cache(cache_fpath, start_date, end_date, variables, lon, lat):
     return df_filtered
 
 
-def get_grid_aligned_coordinates(lat, lon):
-    # logger.warning('USING GRID ALIGNED COORDINATEA FOR NP METDATA!')
-    # aligned_lon = round(lon / 0.625) * 0.625
-    # aligned_lat = round(lat / 0.5) * 0.5
-    # return round(aligned_lat, 3), round(aligned_lon, 3)
+def get_grid_aligned_coordinates(lat, lon, align_to_grid):
+    if align_to_grid:
+        logger.warning('Using Grid-aligned (0.5x0.625) Nasapower met data.')
+        aligned_lon = round(lon / 0.625) * 0.625
+        aligned_lat = round(lat / 0.5) * 0.5
+        return round(aligned_lat, 3), round(aligned_lon, 3)
+
     return lat, lon
 
 
@@ -239,9 +241,10 @@ def validate_aggregation_options(met_agg_method):
 @click.option('--met_agg_method', type=click.Choice(['mean', 'centroid'], case_sensitive=False), help="Method to aggregate meteorological data in a ROI.")
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the .csv file will be saved.")
 @click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the downloaded data will be cached to avoid rate limiting. If not provided, no caching will be done.")
+@click.option('--align-to-grid', is_flag=True, default=False, help='Snap coordinate to the centroid of a 0.5x0.625 NasaPower Gridcell. Minor differences in ALLSKY_SFC_SW_DWN might occur.')
 @click.option('--overwrite-cache', is_flag=True, default=False, help="Enable file overwriting if weather data already exists in cache. Otherwise if a file exists, only missing dates will be appended to the existing file.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, cache_dir, overwrite_cache, verbose):
+def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, cache_dir, align_to_grid, overwrite_cache, verbose):
     """Wrapper to fetch_met_data.
     This script is NOT intenden to be run in parallel for different dates for a specific location,
     as this would lead to race conditions."""
@@ -256,7 +259,7 @@ def cli(start_date, end_date, variables, lon, lat, met_agg_method, output_dir, c
         logger.warning("No output_dir specified, data will only be saved to cache.")
 
     # !! Not implemented yet, currently just returns the same coordinates
-    lat, lon = get_grid_aligned_coordinates(lat, lon)
+    lat, lon = get_grid_aligned_coordinates(lat, lon, align_to_grid)
 
     met_agg_method = met_agg_method.lower()
     validate_aggregation_options(met_agg_method)

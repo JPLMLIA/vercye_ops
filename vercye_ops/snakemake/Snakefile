@@ -112,6 +112,7 @@ rule fill_nasapower_cache:
         region_name = lambda wildcards: wildcards.region,
         met_agg_method = config['apsim_params']['met_agg_method'],
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
+        grid_aligned = '--align-to-grid' if config['apsim_params']['align_np_grid'] else ''
     log: 
         'logs_fetch_np_data_cache/{region}.log',
     output:
@@ -136,6 +137,7 @@ rule fill_nasapower_cache:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
+        {params.grid_aligned} \
         --cache_dir {params.np_cache_dir} \
         --verbose > {log}
 

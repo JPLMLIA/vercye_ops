@@ -86,6 +86,7 @@ apsim_params:
   nasapower_cache_dir : 'nasapower_cache' # Path to your directory to cache NASA POWER data. Avoids heavy rate limiting from NP. Should be global, outside of the basefolder, as this is shared with all studies.
   era5_cache_dir: 'era5_cache' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies.
   ee_project: '' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
+  align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation.
 
   time_bounds: # Specify the time bounds for each year and timepoint from above. So in total years x timepoints entries.
     2021:
