@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 
 from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range
-from generate_aggregated_final_report import create_final_report
+from vercye_ops.reporting.generate_aggregated_final_report import create_final_report
 
 #######################################
 # Helper functions to facilitate checkpointing

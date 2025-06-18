@@ -86,7 +86,7 @@ apsim_params:
   nasapower_cache_dir : 'nasapower_cache' # Path to your directory to cache NASA POWER data. Avoids heavy rate limiting from NP. Should be global, outside of the basefolder, as this is shared with all studies.
   era5_cache_dir: 'era5_cache' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies.
   ee_project: '' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
-  align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation.
+  align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation. Should be activated when running at field scale to avoid querying the same met data pixel multiple times.
 
   time_bounds: # Specify the time bounds for each year and timepoint from above. So in total years x timepoints entries.
     2021:
@@ -146,7 +146,7 @@ apsim_execution:
     platform: 'linux/amd64'
   local: 
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models' # Path to your local APSIM executble
-    n_jobs: 7  # Number of threads to spawn. -1 is default in APSIM. Might need experimentation to find the best value for your system.
+    n_jobs: 8  # Number of threads to spawn. -1 is default in APSIM. Might need experimentation to find the best value for your system.
 
 ########################################
 # LAI parameters
@@ -216,19 +216,18 @@ scripts:
   check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'
   lai_analysis: '../lai/3_analysis_LAI.py'
   lai_quicklook: '../lai/4_quicklook.py'
-  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_30-04-25.py' # Adapt to real implementation locally.
-  match_sim_real_quicklook: '../matching_sim_real/generate_matching_report.py'
+  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_17-06-25.py' # Adapt to real implementation locally.
+  match_sim_real_quicklook: '../reporting/generate_matching_report.py'
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
   aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
-  aggregate_maps : '../matching_sim_real/aggregate_maps.py'
-  generate_final_report: '../matching_sim_real/generate_aggregated_final_report.py'
-  generate_aggregated_lai_curves_plot: '../matching_sim_real/generate_lai_plot.py'
-  aggregate_met_stats: '../matching_sim_real/aggregate_meteorological_stats.py'
-  evaluate_yield_estimates: '../matching_sim_real/evaluate_yield_estimates.py'
-  aggregate_yield_estimates_per_eval_lvl: '../matching_sim_real/aggregate_yield_estimates_per_eval_lvl.py'
+  aggregate_maps : '../reporting/aggregate_maps.py'
+  generate_aggregated_lai_curves_plot: '../reporting/generate_lai_plot.py'
+  aggregate_met_stats: '../reporting/aggregate_meteorological_stats.py'
+  evaluate_yield_estimates: '../evaluation/evaluate_yield_estimates.py'
+  aggregate_yield_estimates_per_eval_lvl: '../reporting/aggregate_yield_estimates_per_eval_lvl.py'
   construct_chirps_data: '../apsim/construct_chirps_precipitation_files.py'
   reproject_cropmask: '../lai/0_reproj_mask.py'
-  generate_multiyear_comparison: '../matching_sim_real/generate_multiyear_comparison.py'
+  generate_multiyear_comparison: '../reporting/generate_multiyear_comparison.py'
   generate_interactive_vizualization: '../reporting/generate_interactive_visualization.py'
-  agg_preds_multiyear: '../matching_sim_real/agg_preds_multiyear.py'
+  agg_preds_multiyear: '../reporting/agg_preds_multiyear.py'
