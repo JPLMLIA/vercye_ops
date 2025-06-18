@@ -1,5 +1,6 @@
 """CLI tools for fetching/formatting meteorological data"""
 
+import math
 import os
 from pathlib import Path
 
@@ -202,6 +203,10 @@ def fetch_from_cache(cache_fpath, start_date, end_date, variables, lon, lat):
 
 
 def get_grid_aligned_coordinates(lat, lon):
+    # logger.warning('USING GRID ALIGNED COORDINATEA FOR NP METDATA!')
+    # aligned_lon = round(lon / 0.625) * 0.625
+    # aligned_lat = round(lat / 0.5) * 0.5
+    # return round(aligned_lat, 3), round(aligned_lon, 3)
     return lat, lon
 
 

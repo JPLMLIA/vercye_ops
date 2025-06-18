@@ -279,14 +279,14 @@ def main(
     # Define satellite specific setup
     satellite = satellite.lower()
     if satellite == "s2":
-        if daterange_in_collection1(start_date, end_date):
-            stac_collection_name = "sentinel-2-c1-l2a"
-            mask_bands = ["scl", "cloud", "snow"]
-            print('Using Sentinel-2 Collection 1 (C1) for the date range.')
-        else:
-            stac_collection_name = "sentinel-2-l2a"
-            mask_bands = ["scl"]
-            print('Using Sentinel-2 NON-C1 for the date range. Will only mask based on SCL band.')
+        # if daterange_in_collection1(start_date, end_date):
+        #     stac_collection_name = "sentinel-2-c1-l2a"
+        #     mask_bands = ["scl", "cloud", "snow"]
+        #     print('Using Sentinel-2 Collection 1 (C1) for the date range.')
+        # else:
+        stac_collection_name = "sentinel-2-l2a"
+        mask_bands = ["scl"]
+        print('Using Sentinel-2 NON-C1 for the date range. Will only mask based on SCL band.')
         
         stack_catalog_url = "https://earth-search.aws.element84.com/v1"
         metadata_asset_names = ["granule_metadata"]

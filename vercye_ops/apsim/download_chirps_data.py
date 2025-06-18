@@ -6,7 +6,6 @@ import click
 import pandas as pd
 from tqdm import tqdm
 from vercye_ops.utils.init_logger import get_logger
-import multiprocessing
 import time
 import random
 import queue
@@ -218,7 +217,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
 
             # Remove the prelim file if it exists as it is replaced by the final file now
             if op.exists(chirps_prelim_fpath):
-                logger.warning("REMOVING A")
+                logger.warning("REMOVING Preliminary file and replaced")
                 os.remove(chirps_prelim_fpath)
     
     # Try to download the preliminary files for the unavailable dates

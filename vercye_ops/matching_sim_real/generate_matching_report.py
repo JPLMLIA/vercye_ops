@@ -108,8 +108,9 @@ def generate_report(apsim_filtered_fpath, rs_lai_csv_fpath, apsim_db_fpath, tota
     fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column], mode='lines', name=f'RS {lai_agg_type_name} LAI', 
                              line=dict(color='black', width=3)), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=non_interp.index, y=non_interp[lai_column], mode='markers',
-                             name='RS Observed (non‐interpolated)',marker=dict(color='red', size=3, symbol='circle')), row=1, col=1)
+    observed_dots_col = lai_column + ' Unsmoothed' if lai_column + ' Unsmoothed' in rs_df.columns else lai_column
+    fig.add_trace(go.Scatter(x=non_interp.index, y=non_interp[observed_dots_col], mode='markers',
+                             name='RS Observed (non-interpolated)',marker=dict(color='red', size=3, symbol='circle')), row=1, col=1)
 
     if lai_column + ' Unsmoothed' in rs_df.columns:
         fig.add_trace(go.Scatter(x=rs_df.index, y=rs_df[lai_column + ' Unsmoothed'], mode='lines', name=f'RS {lai_agg_type_name} LAI Unsmoothed', 

@@ -1,4 +1,5 @@
 cores: 110
+retries: 3
 resources:
   - nasa_power_calls=5
   - era5_calls=10

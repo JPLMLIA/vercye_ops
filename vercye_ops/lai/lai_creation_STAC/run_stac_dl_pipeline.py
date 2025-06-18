@@ -38,16 +38,25 @@ def is_within_date_range(file_path: str, start_date: datetime.date, end_date: da
 
 def run_subprocess(cmd: list, step_desc: str):
     """
-    Execute a subprocess and stream its output to the console.
-    If it fails, log error and raise.
+    Execute a subprocess, capturing and logging all output.
+    Raises RuntimeError on failure with full error output.
     """
     logger.info(f"Starting: {step_desc}\n  Command: {' '.join(cmd)}")
     t0 = time.time()
     try:
-        # Inherit stdout/stderr so user sees real-time output
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True)
+        # result = subprocess.run(
+        #     cmd,
+        #     check=True,
+        #     stdout=subprocess.PIPE,
+        #     stderr=subprocess.PIPE,
+        #     text=True
+        # )
+        #logger.info(result.stdout.strip())
     except subprocess.CalledProcessError as e:
         logger.error(f"Error during {step_desc}: return code {e.returncode}")
+        logger.error(f"Stdout:\n{e.stdout}")
+        logger.error(f"Stderr:\n{e.stderr}")
         raise RuntimeError(f"{step_desc} failed (exit code {e.returncode})")
     logger.info(f"Completed: {step_desc} in {time.time() - t0:.2f} seconds")
 
@@ -123,13 +132,13 @@ def run_pipeline(config):
                         "--start-date", start,
                         "--end-date", end,
                         "--num-cores", str(num_workers_lai),
-                        "--remove-original",
+                        "--remove-original"
                     ]
                     run_subprocess(cmd, f"Compute LAI for {start} to {end}")
 
         except Exception as e:
             logger.error(f"Aborting further processing due to error in date range {start_date} to {end_date}: {e}")
-            raise  # Reraise to halt the pipeline
+            raise  e # Reraise to halt the pipeline
 
     # Steps 2 and 3 are run once after all ranges
     overall_start = min(all_starts)

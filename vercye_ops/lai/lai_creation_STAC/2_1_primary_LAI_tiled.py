@@ -14,47 +14,12 @@ import torch.nn as nn
 
 import xml.etree.ElementTree as ET
 
+from vercye_ops.lai.model import load_model
+
+
 import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
-
-class Scale2d(nn.Module):
-    def __init__(self, n_ch):
-        super(Scale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-
-    def forward(self, x):
-        return x * self.weight + self.bias
-
-
-class UnScale2d(nn.Module):
-    def __init__(self, n_ch):
-        super(UnScale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-
-    def forward(self, x):
-        return (x - self.bias) / self.weight
-
-
-class LAI_CNN(nn.Module):
-    def __init__(self, in_ch, h1_dim, out_ch):
-        super(LAI_CNN, self).__init__()
-        self.input = Scale2d(in_ch)
-        self.h1 = nn.Conv2d(in_ch, h1_dim, 1, 1, 0, bias=True)
-        self.h2 = nn.Conv2d(h1_dim, out_ch, 1, 1, 0, bias=True)
-        self.output = UnScale2d(out_ch)
-        self.tanh = nn.Tanh()
-
-    def forward(self, x):
-        x = self.input(x)
-        x = self.h1(x)
-        x = self.tanh(x)
-        x = self.h2(x)
-        x = self.output(x)
-        return x
 
 
 def is_within_date_range(vf, start_date, end_date):
@@ -87,16 +52,14 @@ def delete_vrt_and_linked_tifs(vrt_path):
 
 
 def worker_process_files(
-    worker_id, file_batch, model_weights, lai_dir, remove_original
+    worker_id, file_batch, lai_dir, remove_original, sateillite, resolution
 ):
     """Worker function that processes a batch of files with a single model instance"""
     logger.info(f"Worker {worker_id} starting, processing {len(file_batch)} files")
 
     # Load the model once per worker
-    model = LAI_CNN(11, 5, 1)
-    model.load_state_dict(torch.load(model_weights))
+    model = load_model(sateillite, resolution)
     model.eval()
-
     logger.info("Model loaded")
 
     output_files = []
@@ -117,6 +80,12 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     with rio.open(vrt_path) as s2_ds:
         s2_array = s2_ds.read()
         profile = s2_ds.profile
+
+        # Validate that correct number of input bands is provided.
+        if not s2_array.shape[0] == model.num_in_ch:
+            raise ValueError(
+                f"Number of bands in {vrt_path} does not match the number of input channels. Expected {model.num_in_ch} but got {s2_array.shape[0]}"
+            )
 
         # If the last band of the image is all zeros, skip
         if np.all(s2_array[-1] == 0):
@@ -211,11 +180,8 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
     start = time.time()
     logger.info(f"Using {num_cores} parallel workers")
 
-    if resolution != 20:
-        logger.warning(
-            f"Currently only the 20m model is implemented in the STAC pipeline. If you are sure you want to use {resolution}m, remove this code.."
-        )
-        return
+    # Currently only supporting Sentinel-2 yet
+    sateillite = 'S2'
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
@@ -249,9 +215,10 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_wei
                     worker_process_files,
                     i,
                     file_batch,
-                    model_weights,
                     lai_dir,
-                    remove_original
+                    remove_original,
+                    sateillite,
+                    resolution
                 )
             )
 

@@ -4,6 +4,7 @@ The VeRCYe pipeline generates outputs at multiple levels of abstraction, includi
 - **Pixel-wise yield predictions**
 - **Predictions for each region of interest (ROI)**
 - **Aggregated insights across multiple ROIs**
+- **Aggregated insights across multiple ROIs & Years**
 
 This document details all output artifacts and their computation methods.
 
@@ -108,6 +109,11 @@ The aggregated outputs are produced for each year-timepoint combination. They co
 
 - **`aggregated_met_stats_suffix.pdf`**: Averaged meteorological data per region visualized as a vector map. Includes statistics for the specific year and averaged over the last 20 years. Results are computed as per-year averages (grouped by location lat/lon) from the met files.
 - **`aggregated_met_stats_suffix.tif`**: Same met stats as in the pdf, but as a tif with the same resolution as LAI data. Facilitates analysis for field-scale studies.
+
+### Multiyear Aggregated Outputs
+- **`multiyear_summary_{study_id}.html`**: Contains aggregated LAI curves for every year to enable spotting differenced in LAI throughout time. Contains metrics computed over all predictions from multiple years.
+
+- **`all_predictions_{agg_lvl}_{timepoint}.csv`**: A csv containing all yield + reference data from multiple years per timepoint and aggregation levels. Very helpfull for further analysis of the predictions and additional validation. Also containing LAI & simulation details for the `primary` aggregation level.
 
 
 ## 3. Validation Outputs

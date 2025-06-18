@@ -20,7 +20,7 @@ def compute_metrics(preds, obs):
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
     mean_abs_err_kg_ha = np.mean(np.abs(errors_kg_ha))
-    meadian_abs_err_kg_ha = np.median(np.abs(errors_kg_ha))
+    median_abs_err_kg_ha = np.median(np.abs(errors_kg_ha))
 
     rmse = np.sqrt(mean_squared_error(obs, preds))
     rrmse = rmse / np.mean(obs) * 100 # get percentage
@@ -28,15 +28,15 @@ def compute_metrics(preds, obs):
     r2_rsq_excel = (np.corrcoef(obs, preds)[0, 1]) ** 2
 
     theta = np.polyfit(preds, obs, 1)
-    y_line = theta[1] + theta[0] * obs
-    r2_scikit_bestfit = r2_score(preds, y_line)
+    y_line = theta[1] + theta[0] * preds
+    r2_scikit_bestfit = r2_score(obs, y_line)
 
     aggregated_metrics = {
         'n_regions': len(obs),
         'mean_err_kg_ha': mean_err_kg_ha,
         'median_err_kg_ha': median_err_kg_ha,
         'mean_abs_err_kg_ha': mean_abs_err_kg_ha,
-        'median_abs_err_kg_ha': meadian_abs_err_kg_ha,
+        'median_abs_err_kg_ha': median_abs_err_kg_ha,
         'rmse_kg_ha': rmse,
         'rrmse': rrmse,
         'r2_scikit': r2,
@@ -133,7 +133,7 @@ def create_scatter_plot(preds, obs, obs_years=None):
         )
     )
 
-    fig.update_xaxes(range=xlims)
+    fig.update_xaxes(range=xlims, scaleanchor="y", scaleratio=1)
     fig.update_yaxes(range=ylims)
 
     fig.update_layout(template="simple_white", title="Predicted vs Reference Yield",)
@@ -151,7 +151,7 @@ def get_preds_obs(estimation_fpath, val_fpath):
     gt = load_csv(val_fpath)
     pred = load_csv(estimation_fpath)
 
-    gt["region"]   = gt["region"].astype(str)
+    gt["region"] = gt["region"].astype(str)
     pred["region"] = pred["region"].astype(str)
 
     # Merging to ensure that the regions are in the same order
@@ -164,9 +164,9 @@ def get_preds_obs(estimation_fpath, val_fpath):
     # In this case, we can compute it from the reported yield and the total area.
     if 'reported_mean_yield_kg_ha' not in combined.columns:
         if not 'reported_production_kg' in combined.columns:
-            raise ValueError("Could not compute metrics as neither 'reported_mean_yield_kg_ha' or 'reported_production_kg' are not available in the input csv.")
+            raise ValueError("Could not compute metrics, since neither 'reported_mean_yield_kg_ha' or 'reported_production_kg' are not available in the input csv.")
 
-        combined['reported_mean_yield_kg_ha'] = combined['total_area_ha'] / combined['reported_production_kg']
+        combined['reported_mean_yield_kg_ha'] = combined['reported_production_kg'] / combined['total_area_ha']
 
     # Drop all entries where the reported mean yield is NaN
     combined = combined.dropna(subset=['reported_mean_yield_kg_ha', 'mean_yield_kg_ha'])

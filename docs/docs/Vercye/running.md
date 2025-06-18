@@ -24,7 +24,7 @@ While the individual steps are detailed in other pages of this living document, 
 
 
 If you already have prepared a base directory and a configuration file, you can skip to step 4.
-Otherwise follow the steps below. You will typically want to run this on **your local machine** and not a remote cluster. You can transfer the final setup to the cluster after creation.
+Otherwise follow the steps below. You might find it easier to run the setup (which esentially created a specific directory structure of APSIM templates & GeoJSON files) on **your local machine** and not a remote cluster. You can transfer the final setup to the cluster after creation. In this case, make sure you have installed the python requirements + the vercye package locally, as descriped in the [setup](../index.md#Setup).
 
 ## 1. Defining Regions of Interest
 
@@ -45,7 +45,7 @@ python apsim/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output
 Create a configuration file that controls simulation parameters:
 
 0. Create an empty directory `new_basedir_path` that will be your basediretory of your study. Recommended to give it a meaningfull name.
-1. Navigate to `snakemake/example_setup/` and copy one of the example configurations to `new_basedir_path/config_template.yaml`. Ensure you are renaming the copied file to `config_template.yaml`.
+1. Navigate to `snakemake/example_setup/` and copy the `config_template.yaml` configuration to `new_basedir_path/config_template.yaml`. Ensure you keep the file named `config_template.yaml`.
 2. Modify parameters in the new configuration copy (`config_template.yaml`) according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper. Ensure you read the description of each parameter in detail and refer to the [Inputs documentation (Section 6)](inputs.md#6-Snakemake-Configuration) for more details on a specific parameter.
 
 **Note** The script for matching remotely sensed LAI and APSIM predicted LAI is not publicly available in this repository. You will have to set the path to the true matching script in your `config_template.yaml` file under `scripts.match_sim_real`.
@@ -56,7 +56,7 @@ The full configuration options are documented in the [Inputs documentation (Sect
 
 The **base directory** (your `study head dir`) organizes region-specific geometries and APSIM simulations by year, timepoint, and region [(See Details)](inputs.md).
 
-Use the provided Jupyter notebook (`vercye_setup_helper.ipynb`) to create this structure - just set the parameters below in the first cell and run it.
+Use the provided helper script (`prepare_yieldstudy.py`) to create this structure. For this, simply create an additional `setup_config.yaml` file in your base directory and fill it as described below. You can then run the setup helper with `python prepare_yieldstudy.py /path/to/basedirectory/setup_config.yaml`. For ease of use, start out with the example provided in `examples/setup_config.yaml`.
 
 1. **Input shapefile & region names**
 

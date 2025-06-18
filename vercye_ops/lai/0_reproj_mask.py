@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 from pathlib import Path
 import click
 from collections import defaultdict
@@ -15,7 +16,7 @@ def is_within_date_range(vf, start_date, end_date):
     return start_date <= date <= end_date
 
 def find_union_extent_LAI_info(lai_dir: str, lai_region: str, lai_resolution: int, lai_file_ext: rio.coords.BoundingBox, start_date=None, end_date=None):
-    lai_files = sorted(glob(f"{lai_dir}/{lai_region}_{lai_resolution}*.{lai_file_ext}"))
+    lai_files = sorted(glob(os.path.join(lai_dir, f'{lai_region}_{lai_resolution}*.{lai_file_ext}')))
 
     if start_date and end_date:
         lai_files = [f for f in lai_files if is_within_date_range(f, start_date, end_date)]

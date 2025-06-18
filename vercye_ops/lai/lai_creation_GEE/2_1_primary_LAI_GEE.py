@@ -10,6 +10,8 @@ import rasterio as rio
 import torch
 import torch.nn as nn
 
+from vercye_ops.lai.model import load_model_from_weights, load_model
+
 # See https://code.earthengine.google.com/?accept_repo=users/rfernand387/LEAFToolboxModules for details
 default_model_weights = {
     "S2": {
@@ -145,29 +147,15 @@ def main(
     if model_weights is not None and not channels:
         raise ValueError("channels must be specified if model_weights is provided.")
 
-    if channels is not None:
+    if model_weights is not None and channels is not None:
         channels = [ch.strip() for ch in channels.split(",")]
         num_in_ch = len(channels)
 
-    if model_weights is None:
-        sateillite = "S2"  # Currently only S2 is supported
-        model_resolution = resolution
-        if resolution not in default_model_weights[sateillite]:
-            print(
-                "Warning: No model weights found for this resolution. Using model trained at a resolution of 20m."
-            )
-            model_resolution = 20
-
-        model_options = default_model_weights[sateillite][model_resolution]
-        model_weights = model_options["weights_path"]
-        channels = model_options["channels"]
-
-    # Load the pytorch model
-    num_in_ch = len(channels)
-    print(f"Loading model weights from {model_weights} with {num_in_ch} input channels")
-    model = LAI_CNN(num_in_ch, 5, 1)
-    model.load_state_dict(torch.load(model_weights))
-    model.eval()
+        model = load_model_from_weights(model_weights, channels)
+    else:
+        sateillite = 'S2'
+        model = load_model(sateillite, resolution)
+        model.eval()
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/{region}_{resolution}m_*.vrt"))
@@ -182,7 +170,7 @@ def main(
         s2_ds = rio.open(vf)
         s2_array = s2_ds.read()
 
-        if not s2_array.shape[0] == num_in_ch:
+        if not s2_array.shape[0] == model.num_in_ch:
             raise ValueError(
                 f"Number of bands in {vf} does not match the number of input channels. Expected {num_in_ch} but got {s2_array.shape[0]}"
             )

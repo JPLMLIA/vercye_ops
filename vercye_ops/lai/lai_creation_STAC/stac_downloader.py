@@ -8,6 +8,7 @@ import time
 import click
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pystac_client
 import rasterio as rio
 import requests
@@ -15,6 +16,7 @@ from pystac.extensions.eo import EOExtension
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 from rasterio.env import Env
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+import xml.etree.ElementTree as ET
 
 
 from tqdm import tqdm
@@ -128,7 +130,9 @@ def download_resample(tile_path, resolution, item, band_name, mask=None, output_
     if harmonize_to_baseline5:
         # Adjust to match baseline 5 shift. Goal is to have all output like it would be from baseline >=5
         print("Harmonizing to baseline 5 shift...")
-        data = np.where(data != 0, data + 0.1, 0)
+        mean_before = np.nanmean(data)
+        data = np.where(data != 0, data + 1000, 0)
+        print(f'Mean before {mean_before}, mean after {np.nanmean(data)}')
 
     out_path = save_band(profile, data, item, band_name, resolution, output_folder)
     return band_name, out_path
@@ -189,7 +193,7 @@ def combine_bands(output_file_path, band_paths, band_names, create_gtiff=False, 
 
 
 @retry(
-    retry=retry_if_exception_type((requests.RequestException, IOError)),
+    retry=retry_if_exception_type((Exception)),
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=2, max=10),
 )
@@ -206,6 +210,17 @@ def download_file(url, output_path):
             raise IOError(
                 f"Downloaded file size {os.path.getsize(output_path)} does not match expected size {expected_size}."
             )
+        
+        # Check if xml file is corrupted
+        if os.path.splitext(output_path)[1] == '.xml':
+            try:
+                with open(output_path, "r") as f:
+                    xml_data = f.read()
+                xml_root = ET.fromstring(xml_data)
+            except Exception as e:
+                logger.error('Failed to download xml data in a parsable format. Retrying.')
+                raise e
+
     except (requests.RequestException, IOError) as e:
         logger.error(f"Error downloading {url}: {e}")
         if os.path.exists(output_path):
@@ -366,6 +381,26 @@ def download_process_parallel(
     return output_paths
 
 
+def deduplicate(items):
+    """Filter duplicate IDs - prefer the lowest numeric suffix like _0_L2A over _1_L2A, _2_L2A, etc."""
+    
+    df = pd.DataFrame([{
+        'id': item.id,
+        'item': item
+    } for item in items])
+    
+    # Extract base ID by removing _<num>_L2A suffix
+    df['base_id'] = df['id'].str.replace(r'_\d+_L2A$', '', regex=True)
+    
+    # Extract numeric suffix and convert to integer for sorting
+    df['suffix'] = df['id'].str.extract(r'_(\d+)_L2A$')[0].astype(int)
+    
+    # Sort by suffix ascending and drop duplicates by base_id
+    df = df.sort_values('suffix').drop_duplicates('base_id', keep='first')
+    
+    return df['item'].tolist()
+
+
 def run_pipeline(
     start_date,
     end_date,
@@ -408,6 +443,11 @@ def run_pipeline(
     )
 
     items = search.item_collection()
+
+    # s2a-l2a has items doubl esince it sometimes includes also reprocessed data
+    items = deduplicate(items)
+
+
     logger.info(f"Found {len(items)} items")
     logger.info(f"Search took {time.time() - t0:.2f} seconds")
 

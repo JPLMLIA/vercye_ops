@@ -49,7 +49,7 @@ rule standardize_s2_gee:
         op.join(config['output_base_dir'], 'logs', 's2_export_{region_name}_{start_date}__{end_date}_done.txt')
     params:
         resolution = config['resolution'],
-        input_dir = lambda wildcards: op.join(config['output_base_dir'], 'gee_mosaics', f'{wildcards.region_name}_{config["resolution"]}m'),
+        input_dir = lambda wildcards: op.join(config['output_base_dir'], 'gee_mosaics'),
         output_dir = op.join(config['output_base_dir'], 'standardized_mosaics'),
     output:
         op.join(config['output_base_dir'], 'logs' , 'standardize_s2_gee_{region_name}_{start_date}__{end_date}_done.txt')

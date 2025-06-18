@@ -24,6 +24,7 @@ def aggregate(estimation_data, col_name):
         cumulative_weights = sorted_weights.cumsum()
         
         # Find the median index (where cumulative weight exceeds half total weight)
+        # Selecting the region from the sorted values so that half the total area (weight in ha) is below this value
         median_idx = (cumulative_weights >= cumulative_weights.iloc[-1] / 2).idxmax()
         
         return sorted_values.loc[median_idx]
@@ -39,7 +40,7 @@ def aggregate(estimation_data, col_name):
             'total_area_ha': group['total_area_ha'].sum()
         })
     
-    df =pd.DataFrame(result)
+    df = pd.DataFrame(result)
     df.rename(columns={col_name: 'region'}, inplace=True)
 
     return df

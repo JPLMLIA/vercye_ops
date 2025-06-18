@@ -455,8 +455,9 @@ rule lai_analysis:
         lai_file_ext = config['lai_params']['file_ext'],
         smoothed_flag = '--smoothed' if config['lai_params']['smoothed'] is True else '',
         cloudcov_threshold = config['lai_params']['cloudcov_threshold'],
-    benchmark:
-        "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
+        max_lai_output_band = 'adjustedLAImax' if config['lai_params']['use_crop_adjusted_lai'] else 'estimateLAImax'
+    # benchmark:
+    #     "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
     log:
         'logs_lai_analysis/{year}_{timepoint}_{region}.log'
     output:
@@ -477,6 +478,7 @@ rule lai_analysis:
         --LAI_file_ext {params.lai_file_ext} \
         --end_date {params.end_date} \
         --cloudcov_threshold {params.cloudcov_threshold} \
+        --maxlai_keep_bands {params.max_lai_output_band} \
         {params.smoothed_flag} > {log}
         """
 
@@ -537,7 +539,6 @@ rule generate_converted_lai_map:
         conversion_factor_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
     params:
         executable_fpath = config['scripts']['generate_converted_lai_map'],
-        adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",  # Tells us to use first band (unadjusted) or second band (adjusted)
     log:
         'logs_generate_converted_lai_map/{year}_{timepoint}_{region}.log',
     output:
@@ -548,7 +549,6 @@ rule generate_converted_lai_map:
         --tif_fpath {input.max_lai_tif} \
         --csv_fpath {input.conversion_factor_fpath} \
         --output_tif_fpath {output.converted_lai_map} \
-        {params.adjustment} \
         --verbose > {log}
         """
 
@@ -815,29 +815,29 @@ rule generate_interactive_viz:
         --output-file {output} > {log}
         """
 
-rule agg_preds_multiyear:
-    input:
-        agg_yield_estimates = expand(
-            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{agg_lvl}_{study_id}_{year}_{timepoint}.csv'.format('{agg_lvl}', sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-            agg_lvl=config['eval_params']['aggregation_levels'].keys()
-            year=config['years'],
-            timepoint=config['timepoints']
-        )
-    params:
-        executable_fpath = config['scripts']['agg_preds_multiyear'],
-        base_dir = config['sim_study_head_dir']
-    log:
-        op.join('logs_agg_pred_multiyear', f"{config['study_id']}.log")
-    output:
-        expand(
-            op.join(config['sim_study_head_dir'], f'all_predictions_{agg_lvl}_{timepoint}.csv'),
-            agg_lvl=config['eval_params']['aggregation_levels'].keys(),
-            timepoint=config['timepoints']
-        )
-    shell:
-        """
-        python {params.executable_fpath} --base-dir {params.base_dir} > {log}
-        """
+# rule agg_preds_multiyear:
+#     input:
+#         agg_yield_estimates = expand(
+#             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', f"agg_yield_estimates_{{agg_lvl}}_{sanitize_filename(config['study_id'])}_{{year}}_{{timepoint}}.csv"),
+#             agg_lvl=config['eval_params']['aggregation_levels'],
+#             year=config['years'],
+#             timepoint=config['timepoints']
+#         )
+#     params:
+#         executable_fpath = config['scripts']['agg_preds_multiyear'],
+#         base_dir = config['sim_study_head_dir']
+#     log:
+#         op.join('logs_agg_pred_multiyear', f"{config['study_id']}.log")
+#     output:
+#         expand(
+#             op.join(config['sim_study_head_dir'], "all_predictions_{{agg_lvl}}_{{timepoint}}.csv"),
+#             agg_lvl=config['eval_params']['aggregation_levels'],
+#             timepoint=config['timepoints']
+#         )
+#     shell:
+#         """
+#         python {params.executable_fpath} --base-dir {params.base_dir} > {log}
+#         """
 
 rule generate_multiyear_comparison:
     input:

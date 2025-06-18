@@ -13,12 +13,12 @@ logger = get_logger()
 
 def estimate_yield(tif_path, output_yield_csv_fpath, target_crs):
     """
-    Estimate total yield from a converted LAI geotiff file.
+    Estimate total yield from a converted LAI (yield per pixel) geotiff file.
 
     Parameters
     ----------
     tif_path : str
-        Filepath to the input converted LAI geotiff file.
+        Filepath to the input converted LAI (yield per pixel) geotiff file.
     output_yield_csv_fpath : str
         Filepath where the total yield will be saved as a CSV file.
     target_crs : str
