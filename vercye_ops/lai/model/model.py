@@ -78,7 +78,7 @@ class UnScale2d(nn.Module):
 class LAI_CNN(nn.Module):
     def __init__(self, in_ch, h1_dim, out_ch):
         super(LAI_CNN, self).__init__()
-        self.num_in_channels = in_ch
+        self.num_in_ch = in_ch
         self.input = Scale2d(in_ch)
         self.h1 = nn.Conv2d(in_ch, h1_dim, 1, 1, 0, bias=True)
         self.h2 = nn.Conv2d(h1_dim, out_ch, 1, 1, 0, bias=True)

@@ -14,7 +14,7 @@ import torch.nn as nn
 
 import xml.etree.ElementTree as ET
 
-from vercye_ops.lai.model import load_model
+from vercye_ops.lai.model.model import load_model
 
 
 import logging

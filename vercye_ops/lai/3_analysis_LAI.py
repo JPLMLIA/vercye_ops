@@ -466,6 +466,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             writer.writeheader()
             writer.writerows(statistics)
         print(f"Exported stats to {output_stats_fpath}")
+
+        src_meta.update({"driver": "GTiff"})
         
         # Export running maximum
         # Set 0 to nan

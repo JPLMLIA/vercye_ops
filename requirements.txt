@@ -12,6 +12,7 @@ numpy
 pandas
 pathvalidate
 pillow
+planetary-computer
 plotly
 pulp==2.7.0  # Pinned for snakemake
 pystac_client
@@ -27,3 +28,4 @@ tenacity
 torch
 tqdm
 xhtml2pdf
+STAC-Downloader @ git+https://github.com/rohansaw/STAC-Downloader # Utility for downloading RS imagery

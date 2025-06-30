@@ -62,14 +62,31 @@ def create_scatter_plot(preds, obs, obs_years=None):
             raise ValueError("Length of obs_years must match length of obs")
 
     # determine plot range
-    abs_max = max(preds.max(), obs.max())
-    xlims = [-5, abs_max + 100]
-    ylims = [-5, abs_max + 100]
+    min_plot  = min(0, min(preds.min(), obs.min()) - 100)
+    max_val  = max(preds.max(), obs.max())
+    max_plot = max_val + 100
 
-    # compute regression line
+    xlims = [min_plot, max_plot]
+    ylims = [min_plot, max_plot]
+
+    # Create explicit tick values with 500 or 1000 spacing
+    range_size = max_plot - min_plot
+    if range_size <= 5000:
+        tick_step = 500
+    else:
+        tick_step = 1000
+    
+    # Start from the first multiple of tick_step at or below min_plot
+    tick_start = (min_plot // tick_step) * tick_step
+    tick_values = np.arange(tick_start, max_plot + tick_step, tick_step)
+
+    # compute regression line (use full range for line)
     slope, intercept = np.polyfit(preds, obs, 1)
-    x_line = np.linspace(0, abs_max, 100)
+    x_line = np.linspace(min_plot, max_plot, 100)
     y_line = intercept + slope * x_line
+
+    print('preds', preds)
+    print('reference', obs)
 
     # choose coloring
     if obs_years is None:
@@ -90,15 +107,11 @@ def create_scatter_plot(preds, obs, obs_years=None):
                 color=density,
                 color_continuous_scale=px.colors.sequential.Viridis,
                 labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)", "color": "Point Density"},
-                marginal_x="histogram",
-                marginal_y="histogram",
             )
         else:
             fig = px.scatter(
                 x=preds, y=obs,
                 labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)"},
-                marginal_x="histogram",
-                marginal_y="histogram",
             )
 
     else:
@@ -107,39 +120,49 @@ def create_scatter_plot(preds, obs, obs_years=None):
             x=preds, y=obs, color=obs_years,
             color_discrete_sequence=px.colors.qualitative.Plotly,
             labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)", "color": "Year"},
-            marginal_x="histogram",
-            marginal_y="histogram",
         )
 
-    # add 1:1 line
+    # add 1:1 line (corrected coordinates)
     fig.add_trace(
         go.Scatter(
-            x=[0, abs_max],
-            y=[0, abs_max],
+            x=[min_plot, max_plot],
+            y=[min_plot, max_plot],
             mode="lines",
             name="1:1",
             line=dict(color="gray", dash="dash"),
         )
     )
 
-    # add regression line
-    fig.add_trace(
-        go.Scatter(
-            x=x_line,
-            y=y_line,
-            mode="lines",
-            name=f"y = {slope:.2f}·x + {intercept:.2f}",
-            line=dict(color="magenta"),
+    if len(preds > 1):
+        # add regression line
+        fig.add_trace(
+            go.Scatter(
+                x=x_line,
+                y=y_line,
+                mode="lines",
+                name=f"y = {slope:.2f}·x + {intercept:.2f}",
+                line=dict(color="magenta"),
+            )
+        )
+
+    fig.update_layout(
+        template="simple_white",
+        title="Predicted vs Reference Yield",
+        autosize=True,
+        margin=dict(l=60, r=20, t=60, b=60),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom", y=1.02,
+            xanchor="center",  x=0.5
         )
     )
+    fig.update_xaxes(tickangle=0, tickmode="array", tickvals=tick_values)
+    fig.update_yaxes(tickangle=0, scaleanchor="x", scaleratio=1, tickmode="array", tickvals=tick_values)
 
-    fig.update_xaxes(range=xlims, scaleanchor="y", scaleratio=1)
-    fig.update_yaxes(range=ylims)
-
-    fig.update_layout(template="simple_white", title="Predicted vs Reference Yield",)
     for ax in fig.layout:
         if ax.startswith('xaxis') or ax.startswith('yaxis'):
             fig.layout[ax].update(showgrid=False)
+
     return fig
 
 

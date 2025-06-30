@@ -10,7 +10,7 @@ import rasterio as rio
 import torch
 import torch.nn as nn
 
-from vercye_ops.lai.model import load_model_from_weights, load_model
+from vercye_ops.lai.model.model import load_model_from_weights, load_model
 
 # See https://code.earthengine.google.com/?accept_repo=users/rfernand387/LEAFToolboxModules for details
 default_model_weights = {
