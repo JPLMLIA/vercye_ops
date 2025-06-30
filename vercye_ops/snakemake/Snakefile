@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 
 from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range
-from generate_aggregated_final_report import create_final_report
+from vercye_ops.reporting.generate_aggregated_final_report import create_final_report
 
 #######################################
 # Helper functions to facilitate checkpointing
@@ -112,6 +112,7 @@ rule fill_nasapower_cache:
         region_name = lambda wildcards: wildcards.region,
         met_agg_method = config['apsim_params']['met_agg_method'],
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
+        grid_aligned = '--align-to-grid' if config['apsim_params']['align_np_grid'] else ''
     log: 
         'logs_fetch_np_data_cache/{region}.log',
     output:
@@ -136,6 +137,7 @@ rule fill_nasapower_cache:
         --variables WS2M \
         --lon ${{LON}} \
         --lat ${{LAT}} \
+        {params.grid_aligned} \
         --cache_dir {params.np_cache_dir} \
         --verbose > {log}
 
@@ -758,7 +760,6 @@ rule generate_final_report:
 
         evaluation_results = lambda wildcards: get_evaluation_results_path_func(config)(wildcards)
     params:
-        executable_fpath = config['scripts']['generate_final_report'],
         regions_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
         start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
         end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
@@ -815,29 +816,47 @@ rule generate_interactive_viz:
         --output-file {output} > {log}
         """
 
-# rule agg_preds_multiyear:
-#     input:
-#         agg_yield_estimates = expand(
-#             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', f"agg_yield_estimates_{{agg_lvl}}_{sanitize_filename(config['study_id'])}_{{year}}_{{timepoint}}.csv"),
-#             agg_lvl=config['eval_params']['aggregation_levels'],
-#             year=config['years'],
-#             timepoint=config['timepoints']
-#         )
-#     params:
-#         executable_fpath = config['scripts']['agg_preds_multiyear'],
-#         base_dir = config['sim_study_head_dir']
-#     log:
-#         op.join('logs_agg_pred_multiyear', f"{config['study_id']}.log")
-#     output:
-#         expand(
-#             op.join(config['sim_study_head_dir'], "all_predictions_{{agg_lvl}}_{{timepoint}}.csv"),
-#             agg_lvl=config['eval_params']['aggregation_levels'],
-#             timepoint=config['timepoints']
-#         )
-#     shell:
-#         """
-#         python {params.executable_fpath} --base-dir {params.base_dir} > {log}
-#         """
+rule agg_preds_multiyear:
+    input:
+        agg_yield_estimates = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', f"agg_yield_estimates_{{agg_lvl}}_{sanitize_filename(config['study_id'])}_{{year}}_{{timepoint}}.csv"),
+            agg_lvl=config['eval_params']['aggregation_levels'],
+            year=config['years'],
+            timepoint=config['timepoints']
+        )
+    params:
+        executable_fpath = config['scripts']['agg_preds_multiyear'],
+        base_dir = config['sim_study_head_dir']
+    log:
+        op.join('logs_agg_pred_multiyear', f"{config['study_id']}.log")
+    output:
+        expand(
+            op.join(config['sim_study_head_dir'], "all_predictions_{}_{}_{}.csv".format(sanitize_filename(config['study_id']), '{agg_lvl}', '{timepoint}')),
+            agg_lvl=config['eval_params']['aggregation_levels'],
+            timepoint=config['timepoints']
+        )
+    shell:
+        """
+        python {params.executable_fpath} --base-dir {params.base_dir} > {log}
+        """
+
+rule generate_multiyear_lai_report:
+    input:
+        lai_stats = lambda wildcards: expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
+            year=config['years'],
+            timepoints=config['timepoints'],
+            region=get_valid_regions(wildcards),
+        )
+    params:
+        base_dir = config['sim_study_head_dir'],
+        admin_agg_col = lambda wildcards: '--agg-level {level_name}:{config["eval_params"]["aggregation_levels"][{level_name}]',
+        adjusted = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else ''
+    log:
+        op.join('logs_generate_multiyear_lai_report', "{}_{}multiyearlai.log".format(sanitize_filename(config["study_id"]), '{level_name}'))
+    output:
+        op.join(config['sim_study_head_dir'], 'lai_report_{}_{}.pdf'.format(sanitize_filename(config["study_id"]), '{level_name}'))
+
 
 rule generate_multiyear_comparison:
     input:
@@ -845,6 +864,23 @@ rule generate_multiyear_comparison:
         # True dependancies are LAI_stats, aggregated yield estimates, and evaluation results for all years, and timepoints (and regions)
         final_reports = expand(
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints']
+        ),
+
+        multiyear_predictions = expand(
+            op.join(config['sim_study_head_dir'], "all_predictions_{}_{}_{}.csv".format(sanitize_filename(config['study_id']), '{agg_lvl}', '{timepoint}')),
+            agg_lvl=config['eval_params']['aggregation_levels'],
+            timepoint=config['timepoints']
+        ),
+
+        multiyear_lai_report = expand(
+            op.join(config['sim_study_head_dir'], "lai_report_{}_{}.pdf".format(sanitize_filename(config['study_id']), '{agg_lvl}')),
+            agg_lvl=config['eval_params']['aggregation_levels'],
+        ),
+
+        interactive_vizs = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
             year=config['years'],
             timepoint=config['timepoints']
         )
@@ -855,7 +891,7 @@ rule generate_multiyear_comparison:
         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '',
         title = f"Multiyear Summary {config['title']}",
     log:
-        op.join('logs_generate_multiyear_summary', f"{config['study_id']}.log")
+        op.join('logs_generate_multiyear_summary', f"{config['study_id']}_multiyear_summary.log")
     output:
         op.join(config['sim_study_head_dir'], f"multiyear_summary_{config['study_id']}.html")
     shell:

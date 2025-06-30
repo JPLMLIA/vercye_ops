@@ -37,9 +37,9 @@ def process_geotiff(tif_path, csv_path, output_tif_fpath):
     logger.info(f"Opening geotiff file {tif_path} and applying conversion factor")
     with rasterio.open(tif_path) as src:
         profile = src.profile.copy()  # Make a copy of the profile
-        # if src.count != 1:
-        #     raise ValueError('Expecting a single band in the converted LAI file.')
-        data = src.read(2)
+        if src.count != 1:
+            raise ValueError('Expecting a single band in the converted LAI file.')
+        data = src.read(1)
         
         # Check for negative values. All LAI vals should be nonnegative
         if np.any(data < 0):

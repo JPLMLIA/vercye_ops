@@ -471,6 +471,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
         
         # Export running maximum
         # Set 0 to nan
+        band_count = len(maxlai_keep_bands)
+        src_meta['count'] = band_count
         with rio.open(output_max_tif_fpath, 'w', **src_meta) as dst:
             if 'estimateLAImax' in maxlai_keep_bands:
                 dst.write(lai_max, 1)
