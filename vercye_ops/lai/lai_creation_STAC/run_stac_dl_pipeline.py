@@ -45,14 +45,6 @@ def run_subprocess(cmd: list, step_desc: str):
     t0 = time.time()
     try:
         result = subprocess.run(cmd, check=True)
-        # result = subprocess.run(
-        #     cmd,
-        #     check=True,
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE,
-        #     text=True
-        # )
-        #logger.info(result.stdout.strip())
     except subprocess.CalledProcessError as e:
         logger.error(f"Error during {step_desc}: return code {e.returncode}")
         logger.error(f"Stdout:\n{e.stdout}")
@@ -80,6 +72,15 @@ def run_pipeline(config):
     num_workers_lai = config.get("num_cores_lai", 1)
     num_workers_download = config.get("num_cores_download", 1)
     chunk_days = config.get("chunk_days", 30)
+    source = config["imagery_src"]
+
+    if source.lower() == 'es_s2c1':
+        downloader_script_path = '1_download_S2_earthsearch.py'
+    elif source.lower() == 'mpc':
+        downloader_script_path =  '1_download_S2_MPC.py'
+    else:
+        raise ValueError('Invalid Source Provided')
+
 
     if from_step not in [0, 2, 3]:
         raise ValueError("Invalid from_step value. Must be 0, 2, or 3.")
@@ -112,7 +113,7 @@ def run_pipeline(config):
                 if from_step <= 0:
                     os.makedirs(tiles_out_dir, exist_ok=True)
                     cmd = [
-                        sys.executable, "1_download_S2_tiles.py",
+                        sys.executable, downloader_script_path,
                         "--start-date", start,
                         "--end-date", end,
                         "--resolution", str(resolution),
@@ -174,16 +175,10 @@ def run_pipeline(config):
     logger.info("Pipeline completed successfully.")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python run_pipeline.py <config.yaml>")
-        sys.exit(1)
-
-    config_path = sys.argv[1]
-    if not os.path.exists(config_path):
-        print(f"Config file not found: {config_path}")
-        sys.exit(1)
-
+@click.command()
+@click.argument('config_path', type=click.Path(exists=True))
+def main(config_path):
+    """Run the pipeline with the specified CONFIG_PATH and SOURCE."""
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -192,3 +187,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Pipeline terminated with error: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()

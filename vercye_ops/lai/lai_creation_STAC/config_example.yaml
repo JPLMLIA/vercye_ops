@@ -14,3 +14,4 @@ from_step: 0 # 0: download&produce LAI, 2: standardize, 3: create daily LAI. Onl
 num_cores_download: 120
 num_cores_lai: 64
 chunk_days: 30
+imagery_src: "MPC" # "MPC" for Microsoft Planetary Computer or "ES_S2C1" for Element84 EarthSearch Sentinel-2 Collection 1

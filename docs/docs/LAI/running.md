@@ -3,7 +3,7 @@ The pipeline produces LAI products for VERCYe and is intended for scaled deploym
 
 
 A: Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)
-B: Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS (fast, inferior cloudmasking).
+B: Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS or MPC (fast, inferior cloudmasking).
 
 The individual advantages are detailed in the [introduction](intro.md#lai-generation). This document details the instruction on how to download remotely sensed imagery and derive LAI data. For both approaches we provide pipelines that simply require specifying a configuration and then handle the complete process from exporting and downloading remotely sensed imagery to cloudmasking and deriving LAI estimates. Details of the invididual components of the pipelines can be found in the readme of the corresponding folders.
 
@@ -115,10 +115,9 @@ Your LAI products will land in different locations depending on your configurati
 - Individual regional data: output_base_dir/lai (separate files per region)
 
 
-### B - STAC Catalog & AWS Pipeline
+### B - STAC Catalog & AWS/Azure Pipeline
 
-The STAC pipeline fetches Sentinel-2 Imagery from an AWS bucket hosted by Element84. It uses data from `Sentinel-2 L2A Collection 1`.
-All this data has been processed with `Baseline 5.0`.
+The STAC pipeline fetches Sentinel-2 Imagery either from an AWS bucket hosted by Element84 or from Azure in the Microsoft Planetary Computer. For Element84, it uses data from `Sentinel-2 L2A Collection 1`. All this data has been processed with `Baseline 5.0`. The data from Planetary Computer is processed to match this baseline by applying an offset of +1000 for data produced before 2022-01-25.
 
 To generate daily LAI data for your region of interest follow the steps blow:
 
@@ -152,6 +151,7 @@ region_out_prefix: morocco
 from_step: 0
 num_cores: 64
 chunk_days: 30
+imagery_src: "MPC"
 ```
 
 - `date_ranges`: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).
@@ -163,6 +163,7 @@ chunk_days: 30
 - `from_step`: Controls which part of the pipeline to resume from (0–3). Should be at 0 if not trying to recover a crashed run.
 - `chunk_days`: Number of days to process in each batch. Default is 30 days. Can be used to control storage usage by avoiding to keep more than chunk-days of original tile data on disk at once.
 - `num_cores`: Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems.
+- `imagery_src`: Imagery Source - Either "MPC" for Microsoft Planetary Computer or "ES_S2C1" for element84 earthsearch sentinel-2 l2a collection1.
 
 **Step 3: Navigate to the Pipeline**
 ```bash
@@ -175,7 +176,7 @@ python run_stac_dl_pipeline.py /path/to/your/config.yaml
 ```
 
 **Pipeline Steps Breakdown**
-- Step 0: Download imagery from AWS
+- Step 0: Download imagery.
 - Step 1: Generate LAI for individual tiles
 - Step 2: Clean up temporary files
 - Step 3: Build final VRT mosaics
