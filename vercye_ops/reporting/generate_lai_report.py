@@ -31,7 +31,6 @@ def load_and_process_lai_data(file_path):
 
 def calculate_mean_curve_for_agglvl(file_paths, lai_column):
     """Calculate mean LAI curve across multiple regions within an aggregation lvl"""
-    all_curves = []
     common_dates = None
     
     # Load all files and find common dates
@@ -208,7 +207,5 @@ def main(base_dir, out_path, admin_agg_column, lai_agg_type, adjusted):
 
 if __name__ == "__main__":
     main()
-    basedir = '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
-    outdir = '/gpfs/data1/cmongp2/sawahnr/nasa-harvest/vercye/experiments/validate_LAI_JRC/outs'
     
     

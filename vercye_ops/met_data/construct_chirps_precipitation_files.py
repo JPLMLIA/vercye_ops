@@ -1,20 +1,16 @@
 import click
-import glob
-from collections import defaultdict
 import pandas as pd
 import geopandas as gpd
 import os.path as op
 import os
 import rasterio as rio
-from rasterio.mask import raster_geometry_mask, mask
+from rasterio.mask import raster_geometry_mask
 import numpy as np
 from shapely.wkt import loads
-import re
 from tqdm.contrib.logging import logging_redirect_tqdm
 from tqdm import tqdm
 
 from vercye_ops.utils.init_logger import get_logger
-from shapely.geometry import shape
 
 logger = get_logger()
 
