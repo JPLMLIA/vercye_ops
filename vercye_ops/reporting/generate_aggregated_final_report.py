@@ -505,7 +505,7 @@ def create_final_report(input, output, params, log, wildcards):
     global_summary = None
     for suffix, admin_column_name in aggregationsuffix_admincol.items():
         # Collect predictions
-        # The aggregated yield estimates files have the additional suffix of sudy id year, timepoint so we use wildcards to match
+        # The aggregated yield estimates files have the additional suffix of study id year, timepoint so we use wildcards to match
         aggregated_yield_estimates_patttern = os.path.join(regions_dir, f'agg_yield_estimates_{suffix}_*.csv')
         matching_files = glob.glob(aggregated_yield_estimates_patttern)
         aggregated_yield_estimates_path = matching_files[0] if matching_files else None
@@ -535,11 +535,8 @@ def create_final_report(input, output, params, log, wildcards):
             regions_dir=regions_dir,
             admin_column_name=admin_column_name,
         )
-        logger.info(f'Built section parameters for {suffix}: {section}')
 
         sections[suffix] = fill_section_template(**section, crop_name=metadata['crop_name'], primary_suffix=primary_suffix)
-
-        logger.info(f'Filled section template for {suffix}. Vector yield map path: {section["vector_yield_map_path"]}')
 
         if suffix == primary_suffix:
             global_summary = compute_global_summary(section['regions_summary'])
@@ -551,6 +548,5 @@ def create_final_report(input, output, params, log, wildcards):
     
     logger.info(f'Generating final report for regions in: {regions_dir}')
     report = generate_final_report(sections, global_summary, metadata, met_config, aggregated_yield_map_preview_path)
-    logger.info(f'Saving report to: {out_fpath}')
     save_report(report, out_fpath)
     logger.info('Report generation completed.')

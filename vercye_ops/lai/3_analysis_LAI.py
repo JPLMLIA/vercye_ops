@@ -477,10 +477,14 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             if 'estimateLAImax' in maxlai_keep_bands:
                 dst.write(lai_max, 1)
                 dst.set_band_description(1, "estimateLAImax")
+
+                if 'adjustedLAImax' in maxlai_keep_bands:
+                    dst.write(lai_adjusted_max, 2)
+                    dst.set_band_description(2, "adjustedLAImax")
             
-            if 'adjustedLAImax' in maxlai_keep_bands:
-                dst.write(lai_adjusted_max, 2)
-                dst.set_band_description(2, "adjustedLAImax")
+            elif 'adjustedLAImax' in maxlai_keep_bands :
+                dst.write(lai_adjusted_max, 1)
+                dst.set_band_description(1, "adjustedLAImax")
         print(f"Exported max LAI tif to {output_max_tif_fpath}")
 
     print(f"Finished in {time.time()-start:.2f} seconds")

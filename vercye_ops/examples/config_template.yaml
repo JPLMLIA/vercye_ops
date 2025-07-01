@@ -230,4 +230,4 @@ scripts:
   reproject_cropmask: '../lai/0_reproj_mask.py'
   generate_multiyear_comparison: '../reporting/generate_multiyear_comparison.py'
   generate_interactive_vizualization: '../reporting/generate_interactive_visualization.py'
-  agg_preds_multiyear: '../reporting/agg_preds_multiyear.py'
+  agg_preds_multiyear: '../reporting/aggregate_multiyear_predictions.py'

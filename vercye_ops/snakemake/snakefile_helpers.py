@@ -1,5 +1,6 @@
 from datetime import datetime
 import os.path as op
+from pathlib import Path
 from types import SimpleNamespace
 
 def build_apsim_execution_command(head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file):
@@ -92,3 +93,23 @@ def get_lai_date_range(timepoints):
     max_date = max(all_end_dates).strftime("%Y-%m-%d")
     
     return min_date, max_date
+
+def collect_multiyear_lai_stats(config):
+    all_paths = []
+    for year in config['years']:
+        year = str(year)
+        for timepoint in config['timepoints']:
+            timepoint = str(timepoint)
+            for region in config['regions']:
+                region = str(region)
+                valid_file = op.join(config['sim_study_head_dir'], year, timepoint, region, f'{region}_LAI_STATS.csv')
+                if not op.exists(valid_file):
+                    continue
+
+                with open(valid_file, 'r') as f:
+                    content = f.read().strip()
+                if content == "valid":
+                    lai_file_path = op.join(config['sim_study_head_dir'], year, timepoint, region, f'{region}_VALID')
+                    all_paths.append(lai_file_path)
+
+    return all_paths

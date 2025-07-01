@@ -91,14 +91,15 @@ def aggregate_years(base_dir, agg_lvl_name, timepoint):
 
 @click.command()
 @click.option('--base-dir', required=True, type=click.Path(exists=True), help='Basedirectory with subdirectories being the years, then timepoints.')
-def main(base_dir: str):
+@click.option('--output-suffix', type=str, help='A unique suffix for the output.')
+def main(base_dir: str, output_suffix: str):
     agg_lvls = get_avaiable_agg_levels(base_dir)
     timepoints = get_available_timepoints(base_dir)
 
     for agg_lvl_name in agg_lvls:
         for timepoint in timepoints:
             agg_df = aggregate_years(base_dir, agg_lvl_name, timepoint)
-            out_file = os.path.join(base_dir, f'all_predictions_{agg_lvl_name}_{timepoint}.csv')
+            out_file = os.path.join(base_dir, f'all_predictions_{output_suffix}_{agg_lvl_name}_{timepoint}.csv')
             agg_df.to_csv(out_file)
 
 

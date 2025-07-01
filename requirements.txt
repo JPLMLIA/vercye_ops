@@ -6,14 +6,14 @@ earthengine-api
 gdal
 geopandas
 joblib
-kaleido  # For static image plots in plotly
+kaleido==0.2.1  # For static image plots in plotly
 matplotlib
 numpy
 pandas
 pathvalidate
 pillow
 planetary-computer
-plotly
+plotly==6.0.1
 pulp==2.7.0  # Pinned for snakemake
 pystac_client
 pytest
@@ -23,6 +23,7 @@ requests
 ruamel.yaml
 scipy>=1.14  # For Akima interpolator
 scikit-learn
+seaborn
 snakemake  # If using mamba/conda, install from the bioconda channel
 tenacity
 torch

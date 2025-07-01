@@ -83,34 +83,6 @@ class InteractiveMapGenerator:
         })
 
         print(f"Added aggregation level: {level_name} (by {column_name})")
-
-    def generate_mock_lai_data(self, regions: List[str], num_days: int = 30) -> pd.DataFrame:
-        """
-        Generate mock LAI data for given regions.
-        
-        Args:
-            regions: List of region names to simulate data for.
-            num_days: Number of days to generate data for.
-
-        Returns:
-            A DataFrame simulating realistic LAI data.
-        """
-        dates = pd.date_range(end=pd.Timestamp.today(), periods=num_days).strftime('%d/%m/%Y')
-        lai_data = []
-
-        for region in regions:
-            for date in dates:
-                base_lai = np.clip(np.sin((pd.to_datetime(date).dayofyear / 365.0) * 2 * np.pi) * 2 + 3, 0.1, 6.0)
-                for col in self.lai_columns:
-                    value = base_lai + np.random.normal(0, 0.2)
-                    lai_data.append({
-                        'cleaned_region_name_vercye': region,
-                        'Date': date,
-                        col: round(value, 2),
-                        'interpolated': np.random.choice([0, 1], p=[0.85, 0.15])
-                    })
-
-        return pd.DataFrame(lai_data)
     
     
     def aggregate_lai_data(self, regions: List[str]) -> Tuple[List[float], List[str], List[bool]]:
@@ -127,8 +99,7 @@ class InteractiveMapGenerator:
         region_data = self.lai_data[self.lai_data['cleaned_region_name_vercye'].isin(regions)]
 
         if region_data.empty:
-            #return [], [], []
-            region_data = self.generate_mock_lai_data(regions)
+            return [], [], []
         
         # Sort by date to ensure chronological order
         region_data = region_data.sort_values('Date')
