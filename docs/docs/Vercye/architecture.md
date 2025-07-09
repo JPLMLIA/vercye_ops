@@ -146,5 +146,5 @@ Additionally, if other outputs should be produced, this becomes slightly hacky d
 
 ## Pipeline Diagram
 
-See the pipeline diagram `vercye_pipeline_highlevel.png` for a visual reference of the individual rules and their dependancies / outputs.
+Will be added soon.
 

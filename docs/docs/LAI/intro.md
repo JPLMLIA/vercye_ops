@@ -6,15 +6,19 @@ combination of bands using neural networks that were converted to Pytorch from t
 The LAI creation pipeline described in this documentation transforms Sentinel-2 satellite imagery into LAI estimates that can be used by the VeRCYE algorithm. Currently only Sentinel-2 data is supported, but a version using Harmonized Landsat-Sentinel Imagery is planned.
 
 We've intentionally decoupled the LAI generation from the standard VeRCYE pipeline for several practical reasons:
+
 1. It requires downloading and processing substantial amounts of satellite data
+
 2. Once generated, LAI data for a region can be reused with different VeRCYE configurations
 
 ## LAI Generation
 We provide two methods for exporting remotely sensed imagery and deriving LAI products:
 
-A: Exporting RS imagery from **Google Earth Engine**
-B: Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS.
-C: Using your own LAI data
+**A:** Exporting RS imagery from **Google Earth Engine**
+
+**B:** Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS.
+
+**C:** Using your own LAI data
 
 Instructions on how to run each LAI creation pieline are detailed in [LAI Generation Instructions](running.md).
 

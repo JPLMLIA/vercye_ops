@@ -417,10 +417,10 @@ def _validate_eval_params(config):
     
     # Check for colons in aggregation level names (not allowed)
     for level_name, column_name in aggregation_levels.items():
-        if ':' in level_name:
-            raise ValueError(f"Aggregation level name '{level_name}' contains colon, which is not allowed")
-        if ':' in column_name:
-            raise ValueError(f"Aggregation level column '{column_name}' contains colon, which is not allowed")
+        if ':' in level_name or ' ' in level_name:
+            raise ValueError(f"Aggregation level name '{level_name}' contains colon or space, which is not allowed")
+        if ':' in column_name or ' ' in column_name:
+            raise ValueError(f"Aggregation level column '{column_name}' contains colon or space, which is not allowed")
     
     # Validate aggregation levels exist in GeoJSON files
     _validate_aggregation_levels_in_geojson(config)

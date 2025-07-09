@@ -37,7 +37,7 @@ Your yield study will run simulations for each defined region, typically specifi
 
 [Optional] **Only required if your shapefile contains mixed administrative levels**: Use the interactive `remove_mixed_admin_levels.py` script to normalize it to a single level. The script will prompt you for a few inputs to remove mixed administrative levels:
 ```
-python apsim/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
+python utils/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
 ```
 
 ## 2. Defining Your Configuration

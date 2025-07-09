@@ -1,4 +1,3 @@
-## Overview
 The VeRCYe pipeline generates outputs at multiple levels of abstraction, including:
 
 - **Pixel-wise yield predictions**
