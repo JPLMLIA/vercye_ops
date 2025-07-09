@@ -7,7 +7,7 @@ import numpy as np
 
 from vercye_ops.utils.init_logger import get_logger
 
-from s2_download_hooks import add_geometry_bands, build_s2_masking_hook
+from s2_download_hooks import add_geometry_bands, build_s2_masking_hook, s2_harmonization_processor
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
 
@@ -121,9 +121,13 @@ def main(
     )
     stac_downloader.register_masking_hook(s2_masking_hook)
 
+    # Register hook to harmonize the sentinel-2 data to match baseline < 4.0 (-1000 for newer)
+    stac_downloader.register_bandprocessing_hook(s2_harmonization_processor, band_assets=band_assets)
+
     # Register geometry bands hook to create bands adding cosines of angles from metadata
     stac_downloader.register_postdownload_hook(add_geometry_bands)
 
+    # Query stac catalog
     logger.info(f"Searching for items from {start_date} to {end_date}...")
     t0 = time.time()
     gdf = gpd.read_file(geojson_path)

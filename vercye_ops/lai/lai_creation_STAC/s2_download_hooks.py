@@ -229,12 +229,11 @@ def s2_mask_processor(maskbands, scl_keep_classes, cloud_thresh, snowprob_thresh
     return new_metadata, mask
 
 def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: pyStacItem):
-    # Harmonizes scenes freom before 2022-01-25 to match the baseline >= 4.0 format
+    # Harmonizes scenes to match the baseline >= 4.0 format
     # Adds a shift of +1000 to match the ESA introduced shift
-    tile_date = item.datetime
-
-    if tile_date < datetime(2022, 1, 25, tzinfo=timezone.utc):
+    baseline = float(item.properties['s2:processing_baseline'])
+    if baseline > 4.0:
         nodata_val = raster_profile['nodata']
-        raster = np.where(raster != nodata_val, raster + 1000, nodata_val)
+        raster = np.where(raster != nodata_val, raster - 1000, nodata_val)
 
     return raster, raster_profile

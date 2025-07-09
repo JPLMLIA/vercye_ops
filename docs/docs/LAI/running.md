@@ -117,7 +117,7 @@ Your LAI products will land in different locations depending on your configurati
 
 ### B - STAC Catalog & AWS/Azure Pipeline
 
-The STAC pipeline fetches Sentinel-2 Imagery either from an AWS bucket hosted by Element84 or from Azure in the Microsoft Planetary Computer. For Element84, it uses data from `Sentinel-2 L2A Collection 1`. All this data has been processed with `Baseline 5.0`. The data from Planetary Computer is processed to match this baseline by applying an offset of +1000 for data produced before 2022-01-25.
+The STAC pipeline fetches Sentinel-2 Imagery either from an AWS bucket hosted by Element84 or from Azure in the Microsoft Planetary Computer. For Element84, it uses data from `Sentinel-2 L2A Collection 1`. All this data has been processed with `Baseline 5.0`. However, during downloading we ensure that both the shift in data from `Element84 Earthsearch` and from `Micrososft Planetary Computer` is harmonized to match a baseline < 4.0 to conform the LAI models training data.
 
 To generate daily LAI data for your region of interest follow the steps blow:
 
