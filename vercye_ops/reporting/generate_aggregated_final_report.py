@@ -358,7 +358,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
     study_id = metadata['study_id']
     description = metadata['description']
     title = metadata['title'].capitalize()
-    original_lai_shp = metadata['original_lai_shp']
+    lai_source = metadata['lai_source']
     original_regions_shp = metadata['original_regions_shp']
     crop_name = metadata['crop_name'].lower().capitalize()
 
@@ -439,7 +439,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <strong>Met-data Cutoff Date:</strong> {cutoff_date.date()}</br>
             <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}.<br/> <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
             <strong>Description:</strong> {description}</br>
-            <strong>LAI Shapefile:</strong> {original_lai_shp}</br>
+            <strong>LAI Source:</strong> {lai_source}</br>
             <strong>Regions Shapefile:</strong> {original_regions_shp}</br></br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
@@ -483,7 +483,7 @@ def create_final_report(input, output, params, log, wildcards):
         'study_id': params['study_id'],
         'title': params['title'],
         'description': params['description'],
-        'original_lai_shp': params['original_lai_shp'],
+        'lai_source': params['lai_source'],
         'original_regions_shp': params['original_simregions_shp'],
         'crop_name': params['crop_name'],
         'start_date': datetime.strptime(params['start_date'], "%Y-%m-%d"),

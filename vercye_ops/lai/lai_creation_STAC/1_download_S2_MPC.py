@@ -11,6 +11,8 @@ from vercye_ops.utils.init_logger import get_logger
 from s2_download_hooks import build_geometry_band_adder, build_s2_masking_hook, s2_harmonization_processor
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
+from datetime import datetime
+import pandas as pd
 
 from shapely.validation import make_valid
 
@@ -18,6 +20,28 @@ RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster ass
 SCL_KEEP_CLASSES = [4, 5]
 
 logger = get_logger()
+
+def dedupliate(items):
+    item_entries = [
+        {
+            'mgrs_tile_id': item.id.split('_')[4],
+            'date': datetime.strptime(item.id.split('_')[2], "%Y%m%dT%H%M%S").date(),
+            'processing_date':  datetime.strptime(item.id.split('_')[5], "%Y%m%dT%H%M%S"),
+            'item': item,
+            'invalid_formatting': len(item.id.split('_')[3]) != 4 or item.id.split('_')[3][0] != 'R'
+        } for item in items
+    ]
+
+    df = pd.DataFrame(item_entries)
+
+    if df['invalid_formatting'].any():
+        first_invalid = df[df['invalid_formatting'] == True].iloc[0]
+        raise Exception(f"Can't deduplicate due to unexpected item id formatting. Expecting id like S2B_MSIL2A_20230413T105619_R094_T31UDP_20240829T164929. Got {first_invalid['item'].id}.")
+
+    # Group by tile_id and acuqisition data. Sort by processing date within group and only keep newest.
+    df_grouped = df.sort_values("processing_date").groupby(['mgrs_tile_id', 'date']).tail(1)
+
+    return df_grouped['item'].to_list()
 
 @click.command()
 @click.option(
@@ -155,7 +179,7 @@ def main(
         query={"eo:cloud_cover": {"lt": max_cloud_cover}},
     )
 
-    print([item.id for item in items])
+    items = dedupliate(items)
 
     logger.info(f"Found {len(items)} items")
     logger.info(f"Search took {time.time() - t0:.2f} seconds")

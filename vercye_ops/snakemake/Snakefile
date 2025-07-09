@@ -789,7 +789,7 @@ rule generate_final_report:
         primary_suffix = 'primary', # Simulation level
         suffix_admincols = config['eval_params']['aggregation_levels'],
         description = config['description'],
-        original_lai_shp = config['lai_shp_name'],
+        lai_source = config['lai_source'],
         original_simregions_shp = config['regions_shp_name'],
         title = config['title'],
     log:
@@ -823,7 +823,7 @@ rule generate_interactive_viz:
         agg_levels = ' '.join([
             f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
             for level_name, level_column in config['eval_params']['aggregation_levels'].items()
-        ]) + f" --agg-level primary:cleaned_region_name_vercye:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(sanitize_filename(config['study_id']), '{year}', '{timepoint}')))}",
+        ]) + f" --agg-level primary:cleaned_region_name_vercye:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}",
     log:
         op.join('logs_generate_interactive_viz', '{year}_{timepoint}.log')
     output:

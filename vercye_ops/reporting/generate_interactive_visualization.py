@@ -1811,7 +1811,7 @@ class InteractiveMapGenerator:
                     // Hover info functions
                     function showHoverInfo(props) {{
                         document.getElementById('hoverInfo').style.display = 'block';
-                        document.getElementById('hoverTitle').textContent = props.name;
+                        document.getElementById('hoverTitle').textContent = capitalize(props.name);
                         document.getElementById('hoverValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
                         document.getElementById('hoverValue2').textContent = (props.estimated_median_yield_kg_ha || 0).toFixed(1);
                         

@@ -33,9 +33,6 @@ def init_study(name, dir):
     preparation_config_path = rel_path("examples/setup_config_template.yaml")
     shutil.copy(preparation_config_path, os.path.join(new_study_path, "setup_config.yaml"))
 
-    config_template_path = rel_path("examples/run_config_template.yaml")
-    shutil.copy(config_template_path, new_study_path)
-
     profile_template_path = rel_path("snakemake/profiles/hpc/config.yaml")
     os.makedirs(os.path.join(new_study_path, "profile"))
     shutil.copy(profile_template_path, os.path.join(new_study_path, "profile"))
@@ -58,18 +55,24 @@ def download_imagery(name, dir):
         print(f"Error: Download Pipeline terminated with error: {e}")
 
 
-def run_study(study_dir):
+def validate_run_config(config_file):
+    pass
+
+
+def run_study(study_dir, study_name):
     """Runs the study with snakemake and the specified profile"""
 
-    config_file = os.path.join(study_dir, "run_config.yaml")
-    profile_dir = os.path.join(study_dir, "profile")
+    config_file = os.path.join(study_dir, study_name, study_name, 'config.yaml')
+    profile_dir = os.path.join(study_dir, study_name, "profile")
+
+    validate_run_config(config_file)
 
     success = snakemake(
         snakefile="vercye_ops/snakemake/Snakefile",
         configfiles=[config_file],
+        config_args=["--profile", profile_dir],
         use_conda=True,
         printshellcmds=True,
-        profile=profile_dir,
         workdir="vercye_ops/snakemake",
     )
 
@@ -102,13 +105,13 @@ def main(mode, name, dir):
     vercye init --name ukraine_study_2025-03-20 --dir /home/yieldstudies
     """
     if mode == "init":
-        init_study(name, dir)
+        init_study(name=name, dir=dir)
     elif mode == "prep":
         prepare_config = os.path.join(dir, name, "setup_config.yaml")
         prepare_study(prepare_config)
     elif mode == "dl":
-        download_imagery(name, dir)
+        download_imagery(name=name, dir=dir)
     elif mode == "run":
-        run_study(name, dir)
+        run_study(study_dir= dir, study_name=name)
     else:
         print('Invalid mode. Mode must be "init", "prepare" or "run".')

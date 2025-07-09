@@ -8,12 +8,12 @@ from pathlib import Path
 
 import geopandas as gpd
 from ruamel.yaml import YAML
-from vercye_ops.apsim.convert_shapefile_to_geojson import convert_shapefile_to_geojson
+from vercye_ops.utils.convert_shapefile_to_geojson import convert_shapefile_to_geojson
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def load_yaml(filepath):
-    with open(filepath, "r") as f:
-        return yaml.safe_load(f)
+def rel_path(*path_parts):
+    return os.path.join(BASE_DIR, *path_parts)
 
 
 def load_yaml_ruamel(filepath):
@@ -23,7 +23,7 @@ def load_yaml_ruamel(filepath):
         return yaml_loader.load(f), yaml_loader
     
 def prepare_study(config_path):
-    config = load_yaml(config_path)
+    config, _ = load_yaml_ruamel(config_path)
 
     shapefile_path = config["regions_shp_name"]
     admin_col = config["regions_shp_col"]
@@ -32,14 +32,24 @@ def prepare_study(config_path):
     apsim_template_paths_filter_col = config.get("APSIM_TEMPLATE_PATHS_FILTER_COL_NAME")
     apsim_template_paths = config["APSIM_TEMPLATE_PATHS"]
 
-    output_dir = Path(config_path).parent
+    output_dir = str(Path(config_path).parent / Path(config_path).parent.name)
+    if os.path.exists(output_dir):
+        raise ValueError(f'A basedirectory already exists under {output_dir}.')
+    os.makedirs(output_dir)
 
-    snakefile_template_config_path = os.path.join(output_dir, "run_config_template.yaml")
+    snakefile_template_config_path = rel_path('examples/run_config_template.yaml')
     snakefile_config, ruamel_yaml = load_yaml_ruamel(snakefile_template_config_path)
 
-    projection_crs = snakefile_config['matching_params']['target_crs'].strip('\'"')
+    # Update snakemakefile with values from the template
+    snakefile_config['years'] = config['years']
+    snakefile_config['timepoints'] = config['timepoints']
+    snakefile_config['apsim_params']['time_bounds'] = config['timepoints_config']
+    snakefile_config['matching_params']['target_crs']  = config['target_crs']
+
+    projection_crs = config['target_crs'].strip('\'"')
     geojsons_folder = tempfile.TemporaryDirectory()
 
+    # Create individual geojsons of each shapefile entry
     convert_shapefile_to_geojson(
         shp_fpath=shapefile_path,
         admin_name_col=admin_col,
@@ -47,6 +57,8 @@ def prepare_study(config_path):
         output_head_dir=geojsons_folder.name
     )
 
+    # Filter regions based on provided column + values
+    # and map to APSIM files
     keep_regions = []
     regions_apsimfile = {}
 
@@ -74,6 +86,8 @@ def prepare_study(config_path):
 
         keep_regions.append(region_name)
 
+
+    # Copy all regions into each year/timepoint directory
     years = snakefile_config['years']
     timepoints = snakefile_config['timepoints']
 
@@ -85,6 +99,8 @@ def prepare_study(config_path):
                 os.makedirs(folder, exist_ok=True)
                 shutil.copy(region_file, folder)
 
+    # Copy APSIM file into each year/timepoint/region directory and adapt the 
+    # simulation start and end date for that year
     for year in years:
         for tp in timepoints:
             for region in keep_regions:
@@ -111,12 +127,32 @@ def prepare_study(config_path):
     snakefile_config['regions_shp_filter_values'] = filter_vals
     snakefile_config['APSIM_TEMPLATE_PATHS'] = apsim_template_paths
     snakefile_config['regions_shp_name'] = shapefile_path
+    snakefile_config['sim_study_head_dir'] = str(Path(config_path).parent)
 
-    updated_config_path = snakefile_template_config_path.replace("_template", "")
+    imagery_config_path = str(Path(config_path).parent / 'imagery_config.yaml')
+    if os.path.exists(imagery_config_path):
+        print('imagery found')
+        imagery_config, _ = load_yaml_ruamel(imagery_config_path)
+        snakefile_config['lai_source'] = str(Path(imagery_config['geojson_path']).name)
+        snakefile_config['lai_params']['lai_dir'] =  os.path.join(imagery_config['out_dir'], 'merged-lai')
+        snakefile_config['lai_params']['lai_region'] = imagery_config['region_out_prefix']
+        snakefile_config['lai_params']['lai_resolution'] = imagery_config['resolution']
+
+    lai_dict = {}
+    for year in config['timepoints_config']:
+        lai_dict[year] = {}
+        for timepoint in config['timepoints_config'][year]:
+            lai_dict[year][timepoint] = [
+                config['timepoints_config'][year][timepoint]['lai_start_date'],
+                config['timepoints_config'][year][timepoint]['lai_end_date']]
+
+    snakefile_config['lai_params']['time_bounds'] = lai_dict
+
+    updated_config_path = os.path.join(output_dir, 'config.yaml')
     with open(updated_config_path, "w") as f:
         ruamel_yaml.dump(snakefile_config, f)
-        click.echo(f"Config updated with regions: {keep_regions}")
-        click.echo(f"Written to: {updated_config_path}")
+        click.echo(f"Run configuration created under: {updated_config_path}")
+        click.echo(f"Edit the configuarion with your individual options.")
 
     geojsons_folder.cleanup()
 
