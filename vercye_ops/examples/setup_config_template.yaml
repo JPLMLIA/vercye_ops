@@ -1,0 +1,25 @@
+######################### EXTRACT REGIONS FROM SHAPEFILE ##########################
+# Path to the shapefile containing the regions
+regions_shp_name: "/data/mwi_adm_nso_hotosm_20230405_shp/mwi_admbnda_adm3_nso_hotosm_20230405.shp"
+
+# Column in the shapefile that contains unique region identifiers / admin names (e.g. district names)
+regions_shp_col: "ADM3_EN"
+
+######################### FILTER EXTRACTED REGIONS ##########################
+# Optional: column and values used to filter which regions to include (set to null to disable)
+regions_shp_filter_col: null # e.g ADM2_EN
+regions_shp_filter_values: null # e.g ['region1', 'regions2', 'region3']
+
+######################### APSIM File Mapping ##########################
+
+# Set to null if using a single APSIM template file; otherwise, specify column used to map regions to templates
+APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: null # e.g ADM2_EN
+
+# Paths to APSIM template files.
+# If APSIM_TEMPLATE_PATHS_FILTER_COL_NAME is null, provide a single "all" entry.
+# Otherwise, specify an APSIM file fort each APSIM_TEMPLATE_PATHS_FILTER_COL_NAME value.
+APSIM_TEMPLATE_PATHS:
+  all: "APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
+  # Could be for example:
+  # region1: "APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
+  # region2: "APSIM/Malawi_2023_Maize_22_9_24_Zone_3_Full_Season.apsimx"

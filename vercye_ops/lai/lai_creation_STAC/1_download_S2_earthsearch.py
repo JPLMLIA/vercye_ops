@@ -11,6 +11,8 @@ from s2_download_hooks import add_geometry_bands, build_s2_masking_hook
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
 
+from shapely.validation import make_valid
+
 RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster assets
 SCL_KEEP_CLASSES = [4, 5]
 
@@ -128,7 +130,16 @@ def main(
     t0 = time.time()
     gdf = gpd.read_file(geojson_path)
     gdf = gdf.to_crs(epsg=4326)
-    geometry = gdf.geometry.values[0] if geojson_path else None
+    gdf["geometry"] = gdf["geometry"].apply(lambda geom: make_valid(geom) if not geom.is_valid else geom)
+
+
+    if not gdf.empty:
+        # Combine all geometries into one & get convex hull
+        unified_geometry = gdf.unary_union
+        geometry = unified_geometry.convex_hull
+    else:
+        geometry = None
+
     items = stac_downloader.query_catalog(
         collection_name=stac_collection_name,
         start_date=start_date,

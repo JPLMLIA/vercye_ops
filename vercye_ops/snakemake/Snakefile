@@ -36,6 +36,7 @@ def get_valid_regions(wildcards):
     return regions
 
 def get_all_valid_region_outputs(wildcards, suffix):
+    """Get expected outputs with specific suffix based on valid regions"""
     valid_regions = get_valid_regions(wildcards)
     return [op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, region, f"{region}_{suffix}") for region in valid_regions]
 
@@ -414,6 +415,7 @@ rule constrain_lai_cropmask:
         {output.constrained_cropmask} > {log}
         """
 
+# Validate that the region has more than x pixels considered cropland
 rule validate_region_has_cropland:
     input:
         constrained_cropmask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_cropmask_constrained.tif')
@@ -432,6 +434,8 @@ rule validate_region_has_cropland:
         --px-threshold {params.min_cropland_px}
         """
 
+# Checkpoint to ensure all regions have been validated for having sufficient cropland
+# Downstream rules will only operate on valid regions
 checkpoint all_regions_validated:
     input:
         # This ensures ALL regions have completed validation
@@ -504,6 +508,8 @@ rule lai_quicklook:
 #######################################
 # Match sim/real (APSIM/S2-LAI) outputs
 
+
+# Rule to match the simulated curves with the remotely sensed curves
 rule match_sim_real:
     input:
         stats_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
@@ -535,6 +541,7 @@ rule match_sim_real:
         --verbose > {log}
         """
 
+# Rule to convert the remotely sensed max lai map to yield based on conversion factor
 rule generate_converted_lai_map:
     input:
         max_lai_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_MAX.tif'),
@@ -554,6 +561,7 @@ rule generate_converted_lai_map:
         --verbose > {log}
         """
 
+# Reporting rule: Collect all LAI curves and plot
 rule generate_aggregated_lai_curves_plot:
     input:
         stats_csv = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_LAI_STATS.csv'), region=get_valid_regions(wildcards))
@@ -575,7 +583,7 @@ rule generate_aggregated_lai_curves_plot:
         --lai_agg_type {params.lai_agg_type} > {log}
         """
 
-
+# Rule to estimate the yield in a region based on the predicted yield per pixel
 rule estimate_total_yield:
     input:
         converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
@@ -595,7 +603,7 @@ rule estimate_total_yield:
         --verbose > {log}
         """
 
-
+# Rule to provide an overview of the simulations & estimates of a region
 rule match_sim_real_quicklook:
     input:
         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
@@ -627,6 +635,7 @@ rule match_sim_real_quicklook:
         --png_fpath {output.png_fpath} > {log}
         """
 
+# Rule to collect all predictions within a timepoint as a csv
 rule aggregate_yield_estimates:
     input:
         total_yield_csvs = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_converted_map_yield_estimate.csv'), region=get_valid_regions(wildcards)),
@@ -651,6 +660,7 @@ rule aggregate_yield_estimates:
         --verbose > {log}
         """
 
+# Rule to collect all met data in a timepoint
 rule aggregate_met_stats:
     input:
         met_files = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_weather.met'), region=get_valid_regions(wildcards)),
@@ -673,6 +683,7 @@ rule aggregate_met_stats:
         --verbose > {log}
         """
 
+# Rule to aggregate all kinds of regional maps into a combined crop/lai/yield map
 rule aggregate_maps:
     input:
         cropmasks = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_cropmask_constrained.tif'), region=get_valid_regions(wildcards)),
@@ -702,6 +713,7 @@ rule aggregate_maps:
         --output_shapefile_fpath {output.aggregated_shapefile} > {log}
         """
 
+# Rule to aggregate the regional estimates at different admin levels (weighted by area)
 rule aggregate_yield_estimates_per_eval_lvl:
     input:
         aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
@@ -720,6 +732,7 @@ rule aggregate_yield_estimates_per_eval_lvl:
         --out_fpath {output.lvl_aggregated_yield_estimates} > {log}
         """
 
+# Rule to evaluate predicted yield if groundtruth is available
 rule evaluate_yield_estimates:
     input:
         aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
@@ -732,17 +745,20 @@ rule evaluate_yield_estimates:
         'logs_evaluate_yield_estimates/{year}_{timepoint}_{agg_level_name}.log'
     output:
         evaluation_out_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation_{agg_level_name}.csv'),
+        regional_errors_out_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'errors_{agg_level_name}.csv'),
         scatterplot_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'evaluation_{agg_level_name}.png'),
     shell:
         """
         python {params.executable_fpath} \
-        --val_fpath {input.validation_fpath} \
-        --estimation_fpath {input.aggregated_yield_estimates} \
-        --out_csv_fpath {output.evaluation_out_path} \
-        --out_plot_fpath {output.scatterplot_path} \
+        --val-fpath {input.validation_fpath} \
+        --estimation-fpath {input.aggregated_yield_estimates} \
+        --out-eval-fpath {output.evaluation_out_path} \
+        --out-errors-fpath {output.regional_errors_out_path} \
+        --out-plot-fpath {output.scatterplot_path} \
         --verbose > {log}
         """
 
+# Reporting rule: Generate a final report per timepoint
 rule generate_final_report:
     input:
         region_geojsons = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'), 
@@ -787,35 +803,44 @@ rule generate_final_report:
         with open(log[0], 'w') as logfile:
             create_final_report(input, output, params, log=logfile, wildcards=wildcards)
 
-# rule generate_interactive_viz:
-#     input:
-#         shapefile = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_region_boundaries_{}_{}_{}.geojson'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))
-#     params:
-#         lai_basedir_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
-#         executable_fpath = config['scripts']['generate_interactive_vizualization'],
-#         title = config['title'],
-#         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
-#         smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',
-#         agg_levels = ' '.join([
-#             f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
-#             for level_name, level_column in config['eval_params']['aggregation_levels'].items()
-#         ]),
-#     log:
-#         op.join('logs_generate_interactive_viz', '{year}_{timepoint}.log')
-#     output:
-#         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-#     shell:
-#         """
-#         python {params.executable_fpath} \
-#         --shapefile-path {input.shapefile} \
-#         --lai-basedir-path {params.lai_basedir_path} \
-#         --title "{params.title}" \
-#         {params.adjusted_cmd} \
-#         {params.smoothed_cmd} \
-#         {params.agg_levels} \
-#         --output-file {output} > {log}
-#         """
+# Reporting rule: Generate an interactive visualization of results per timepoint
+rule generate_interactive_viz:
+    input:
+        shapefile = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_region_boundaries_{}_{}_{}.geojson'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        
+        # quick-n-dirty: using final report as a proxy for all other inputs
+        # TODO clean this up with true dependancies
+        final_report = op.join(config['sim_study_head_dir'], 
+                              '{year}',
+                              '{timepoint}', 
+                              'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    params:
+        lai_basedir_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        executable_fpath = config['scripts']['generate_interactive_vizualization'],
+        title = config['title'],
+        adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
+        smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',
+        agg_levels = ' '.join([
+            f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
+            for level_name, level_column in config['eval_params']['aggregation_levels'].items()
+        ]) + f" --agg-level primary:cleaned_region_name_vercye:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(sanitize_filename(config['study_id']), '{year}', '{timepoint}')))}",
+    log:
+        op.join('logs_generate_interactive_viz', '{year}_{timepoint}.log')
+    output:
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --shapefile-path {input.shapefile} \
+        --lai-basedir-path {params.lai_basedir_path} \
+        --title "{params.title}" \
+        {params.adjusted_cmd} \
+        {params.smoothed_cmd} \
+        {params.agg_levels} \
+        --output-path {output} > {log}
+        """
 
+# Rule to collect all predictions from multiple years in a csv for easier exporting
 rule agg_preds_multiyear:
     input:
         agg_yield_estimates = expand(
@@ -841,6 +866,7 @@ rule agg_preds_multiyear:
         python {params.executable_fpath} --base-dir {params.base_dir} --output-suffix {params.output_suffix} > {log}
         """
 
+# Rule to collect LAI from multiple years per region in a single file
 rule generate_multiyear_lai_report:
     input:
         # Require checkpoint to complete first
@@ -870,7 +896,7 @@ rule generate_multiyear_lai_report:
         {params.adjusted} > {log}
         '''
 
-
+# Rule to have a report over multiple years
 rule generate_multiyear_comparison:
     input:
         # Using final reports as a proxy for all dependancies, as this simplifies the rule strongly
@@ -892,11 +918,11 @@ rule generate_multiyear_comparison:
             agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
         ),
 
-        # interactive_vizs = expand(
-        #     op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-        #     year=config['years'],
-        #     timepoint=config['timepoints']
-        # )
+        interactive_vizs = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints']
+        )
     params:
         executable_fpath = config['scripts']['generate_multiyear_comparison'],
         input_dir = config['sim_study_head_dir'],

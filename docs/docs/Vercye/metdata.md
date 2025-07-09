@@ -1,10 +1,14 @@
 # Meteorologcal Data Inputs
 
-TODO description of the different met sources will follow soon.
+Meteorological data can be acquired from `NASA Power`, `ECMWF ERA5` and `CHIRPS`. Hereby the base meteorological data must be acquired from either `NASA Power` or `ERA5` and the precipitation data can be supplemented with `CHIRPS`.
 
 ## NASA Power
+The `NASA Power` meteorological data is fetched through the `NASA Power daily point API` (https://power.larc.nasa.gov/api/temporal/daily/point). 
+The API imposes rather strict limitations on the number of parallel requests and querying the same internal grid cell multiple times. In order to avoid being blacklisted, a caching mechanism is implemented. This represents a polygon by the Nasa Power grid cells centroid of the polygons centroid. So if `(x,y)` is the polygons centroid, we lookup into which `NASA Power` grid cell `(x,y)` would fall and query the grid cells centroid `(x', y')` as a representative of our polygon. The `NASA Power` grid cell is split into cells of `0.5 x 0.625` deg resolution for meteorological products and `1x1` degree resolution for solar parameters. **However, currently we are only using the `0.5 x 0.625`, also for solar parameters, which might possibly lead to misalignment!**
 
 ## ERA5
+The `ERA5` data is fetched through `Google Earth Engine`. Therefore, this requires you to authenticate with your `Earth Engine` project.
+During execution of the pipeline, the meteorological data is then fetched as the centroid or mean of a region from `Earth Engine`.
 
 ## CHIRPS
 

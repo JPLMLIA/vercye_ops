@@ -214,27 +214,26 @@ def s2_mask_processor(maskbands, scl_keep_classes, cloud_thresh, snowprob_thresh
 
     # Invalidate pixels based on cloud probability
     # Currently we are fallingback on S2A-L2A non-collection-1, for 2022/23
-    # This is temporary however it does not include the S2Cloudless band
+    # This is temporary however it does not include the sen2corcloud band
     if "cloud" in maskbands:
-        s2cloudless_band_meta, s2cloudless_band = maskbands[cloudprob_bandname]
-        mask = np.where(s2cloudless_band >= cloud_thresh, 0, mask)
+        sen2cor_cloudprob_band_meta, sen2cor_cloudprob_band = maskbands[cloudprob_bandname]
+        mask = np.where(sen2cor_cloudprob_band >= cloud_thresh, 0, mask)
 
     # Invalidate pixels based on snow probability
     if "snow" in maskbands:
-        snowprob_band_meta, snowprob_band = maskbands[snowprob_bandname]
-        mask = np.where(snowprob_band >= snowprob_thresh, 0, mask)
+        sen2cor_snowprob_band_meta, sen2cor_snowprob_band = maskbands[snowprob_bandname]
+        mask = np.where(sen2cor_snowprob_band >= snowprob_thresh, 0, mask)
 
     new_metadata = {}
 
     return new_metadata, mask
 
 def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: pyStacItem):
-    # Harmonizes scenes freom before 2022-01-25 to match the baseline >= 4.0 format
+    # Harmonizes scenes to match the baseline >= 4.0 format
     # Adds a shift of +1000 to match the ESA introduced shift
-    tile_date = item.datetime
-
-    if tile_date < datetime(2022, 1, 25, tzinfo=timezone.utc):
+    baseline = float(item.properties['s2:processing_baseline'])
+    if baseline > 4.0:
         nodata_val = raster_profile['nodata']
-        raster = np.where(raster != nodata_val, raster + 1000, nodata_val)
+        raster = np.where(raster != nodata_val, raster - 1000, nodata_val)
 
     return raster, raster_profile

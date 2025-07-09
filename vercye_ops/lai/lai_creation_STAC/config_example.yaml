@@ -1,3 +1,7 @@
+# Configuration file for downloading remotely sensed imagery from a STAC catalog
+
+# Date ranges of interest. Can be split into blocks to skip intermediate dates.
+# Format YYYY-MM-DD for start- and end-date
 date_ranges:
   - start_date: "2019-04-01"
     end_date: "2019-06-30"
@@ -5,13 +9,15 @@ date_ranges:
     end_date: "2020-07-15"
   - start_date: "2021-05-01"
     end_date: "2021-09-30"
-  
-resolution: 20
-geojson_path: region.geojson
-out_dir: output
-region_out_prefix: "myregion"
-from_step: 0 # 0: download&produce LAI, 2: standardize, 3: create daily LAI. Only change if you have a failed job.
-num_cores_download: 120
-num_cores_lai: 64
-chunk_days: 30
+
+resolution: 20 # Resolution in meters. Typically 10 or 20
+geojson_path: region.geojson # Path to regions geojson of your ROI. Will use a convex hull of all polygons in the geojson for imagery search.
+out_dir: output # Directory where to store the imagery
+region_out_prefix: "myregion" # Prefix name of all your imagery. Typically the regions name, e.g Ukraine
+
+## Options below typically don't need to be changes on our system
+from_step: 0 # Only change if you have a failed job. 0: download & produce LAI, 2: standardize, 3: create daily LAI. 
+num_cores_download: 120 # Number of cores to use for downloading (typically use all on HPC).
+num_cores_lai: 64 # Number of cores to use for creating LAI. Limit due to memory consumption at high resoution.
+chunk_days: 30 # Number of days to process as one chunk. Will only keep this amount of imagery on disk before creating LAI and deleting original imagery
 imagery_src: "MPC" # "MPC" for Microsoft Planetary Computer or "ES_S2C1" for Element84 EarthSearch Sentinel-2 Collection 1

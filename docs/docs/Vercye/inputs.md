@@ -11,10 +11,10 @@ To run a yieldstudy, you will need two things:
 1. **Base Directory**: A directory that includes all your regions of interest, APSIM configurations and Reference Data.
 2. **Configuration**: A configuration file for VeRCYe, specifying different parameters for the study.
 
-We provide an example setup under [Example Setup](vercye_ops/snakemake/example_setup).
+We provide an example setup under [Example Setup](vercye_ops/examples/example_setup).
 
 
-In this document we detail the steps for the input setup. However, we recommend using the `setup_helper.ipynb` as outlined in [Running VeRCYe](running.md).
+In this document we detail the steps for setting up a yield study and the structure that VeRCYe expects as its input. However, we recommend not doing the setup manually, but instead automating this process by using the `prepare_yieldstudy.py` helper script as outlined in [Running VeRCYe](running.md).
 
 ### Simulation Head Directory
 Your yield study is structured within a single directory, referred to as the **simulation head directory**. This directory must follow a predefined structure to ensure compatibility with the pipeline.

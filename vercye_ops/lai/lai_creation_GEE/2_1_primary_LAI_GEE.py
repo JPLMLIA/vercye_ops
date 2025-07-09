@@ -96,6 +96,7 @@ def main(
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/{region}_{resolution}m_*.vrt"))
 
+    # Filter files within date range
     if start_date is not None and end_date is not None:
         vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
 

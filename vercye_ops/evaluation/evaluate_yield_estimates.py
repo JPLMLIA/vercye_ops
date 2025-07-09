@@ -13,9 +13,11 @@ logger = get_logger()
 def load_csv(fpath):
     return pd.read_csv(fpath)
 
+
 def compute_metrics(preds, obs):
     if len(preds) != len(obs):
         raise ValueError("Length of the predictions and observations do not match.")
+
     errors_kg_ha = obs - preds
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
@@ -47,6 +49,21 @@ def compute_metrics(preds, obs):
     return aggregated_metrics
 
 
+def compute_errors_per_region(preds, obs, region_names):
+    errors_kg_ha = obs - preds
+    rel_errors_percent = errors_kg_ha / obs
+
+    return {
+        'error_kg_ha': errors_kg_ha,
+        'rel_error_percent': rel_errors_percent,
+        'region': region_names
+    }
+
+def write_errors(errors, out_fpath):
+    pd.DataFrame(errors).to_csv(out_fpath, index=False)
+    return out_fpath
+
+
 def write_metrics(metrics, out_fpath):
     pd.DataFrame(metrics, index=[0]).to_csv(out_fpath, index=False)
     return out_fpath
@@ -66,9 +83,6 @@ def create_scatter_plot(preds, obs, obs_years=None):
     max_val  = max(preds.max(), obs.max())
     max_plot = max_val + 100
 
-    xlims = [min_plot, max_plot]
-    ylims = [min_plot, max_plot]
-
     # Create explicit tick values with 500 or 1000 spacing
     range_size = max_plot - min_plot
     if range_size <= 5000:
@@ -84,9 +98,6 @@ def create_scatter_plot(preds, obs, obs_years=None):
     slope, intercept = np.polyfit(preds, obs, 1)
     x_line = np.linspace(min_plot, max_plot, 100)
     y_line = intercept + slope * x_line
-
-    print('preds', preds)
-    print('reference', obs)
 
     # choose coloring
     if obs_years is None:
@@ -170,6 +181,7 @@ def save_scatter_plot(fig, out_fpath, width=800, height=600):
     fig.write_image(out_fpath, width=width, height=height)
     return out_fpath
 
+
 def get_preds_obs(estimation_fpath, val_fpath):
     gt = load_csv(val_fpath)
     pred = load_csv(estimation_fpath)
@@ -196,17 +208,19 @@ def get_preds_obs(estimation_fpath, val_fpath):
 
     return {
         'obs': combined['reported_mean_yield_kg_ha'],
-        'preds': combined['mean_yield_kg_ha']
+        'preds': combined['mean_yield_kg_ha'],
+        'region': combined['region']
     }
 
 
 @click.command()
-@click.option('--val_fpath', required=True, type=click.Path(exists=True), help='Filepath to the csv containing the refernece data per region.')
-@click.option('--estimation_fpath', required=True, type=click.Path(exists=True), help='Filepath to the estimations per region csv.')
-@click.option('--out_csv_fpath', required=True, type=click.Path(), help='Filepath where the resulting metrics should be saved (.csv).')
-@click.option('--out_plot_fpath', required=True, type=click.Path(), help='Filepath where the resulting scatterplot should be saved (.png).')
+@click.option('--val-fpath', required=True, type=click.Path(exists=True), help='Filepath to the csv containing the refernece data per region.')
+@click.option('--estimation-fpath', required=True, type=click.Path(exists=True), help='Filepath to the estimations per region csv.')
+@click.option('--out-eval-fpath', required=True, type=click.Path(), help='Filepath where the overall resulting metrics should be saved (.csv).')
+@click.option('--out-errors-fpath', required=True, type=click.Path(), help='Filepath where the region-wise resulting metrics should be saved (.csv).')
+@click.option('--out-plot-fpath', required=True, type=click.Path(), help='Filepath where the resulting scatterplot should be saved (.png).')
 @click.option('--verbose', is_flag=True, help='Set the logging level to DEBUG.')
-def cli(val_fpath, estimation_fpath, out_csv_fpath, out_plot_fpath, verbose):
+def cli(val_fpath, estimation_fpath, out_eval_fpath, out_errors_fpath, out_plot_fpath, verbose):
     """Wrapper for validation cli"""
 
     if verbose:
@@ -217,7 +231,11 @@ def cli(val_fpath, estimation_fpath, out_csv_fpath, out_plot_fpath, verbose):
 
     logger.info("Computing metrics...")
     metrics = compute_metrics(preds=preds_obs['preds'], obs=preds_obs['obs'])
-    write_metrics(metrics, out_csv_fpath)
+    write_metrics(metrics, out_eval_fpath)
+
+    logger.info("Computing errors...")
+    errors = compute_errors_per_region(preds_obs['preds'], obs=preds_obs['obs'], region_names=preds_obs['region'])
+    write_errors(errors, out_errors_fpath)
 
     logger.info("Creating scatter plot...")
     scatter_plot = create_scatter_plot(preds=preds_obs['preds'], obs=preds_obs['obs'])

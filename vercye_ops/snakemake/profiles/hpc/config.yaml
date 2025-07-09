@@ -1,9 +1,12 @@
-cores: 110
-retries: 3
+# The profile for the execution of the yield study through snakemake
+# If the executon crashes, you might want to reduce the number of cores
+
+cores: 100 # Number of cores to use. Limits paralellism
+retries: 3 # Number of retries of failed rules
+
+# Do not change: Limit in paralellism for specific rules
+# Avoids explosion of threads or blacklisting due to to man requests
 resources:
   - nasa_power_calls=5
   - era5_calls=10
   - kaleido_resources=5
-
-# Might want to add the apsim limitations and match_sim to this aswell
-# Need to experiment with these values

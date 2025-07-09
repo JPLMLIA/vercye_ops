@@ -12,6 +12,8 @@ from s2_download_hooks import build_geometry_band_adder, build_s2_masking_hook, 
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
 
+from shapely.validation import make_valid
+
 RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster assets
 SCL_KEEP_CLASSES = [4, 5]
 
@@ -133,9 +135,18 @@ def main(
 
     logger.info(f"Searching for items from {start_date} to {end_date}...")
     t0 = time.time()
+
     gdf = gpd.read_file(geojson_path)
     gdf = gdf.to_crs(epsg=4326)
-    geometry = gdf.geometry.values[0] if geojson_path else None
+    gdf["geometry"] = gdf["geometry"].apply(lambda geom: make_valid(geom) if not geom.is_valid else geom)
+
+    if not gdf.empty:
+        # Combine all geometries into one & get convex hull
+        unified_geometry = gdf.union_all()
+        geometry = unified_geometry.convex_hull
+    else:
+        raise ValueError('Empty shapefile provided.')
+
     items = stac_downloader.query_catalog(
         collection_name=stac_collection_name,
         start_date=start_date,
@@ -143,6 +154,9 @@ def main(
         geometry=geometry,
         query={"eo:cloud_cover": {"lt": max_cloud_cover}},
     )
+
+    print([item.id for item in items])
+
     logger.info(f"Found {len(items)} items")
     logger.info(f"Search took {time.time() - t0:.2f} seconds")
 

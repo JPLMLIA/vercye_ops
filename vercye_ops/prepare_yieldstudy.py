@@ -4,6 +4,7 @@ import re
 import tempfile
 import yaml
 import click
+from pathlib import Path
 
 import geopandas as gpd
 from ruamel.yaml import YAML
@@ -20,23 +21,20 @@ def load_yaml_ruamel(filepath):
     yaml_loader.preserve_quotes = True
     with open(filepath, "r") as f:
         return yaml_loader.load(f), yaml_loader
-
-
-@click.command()
-@click.argument("config_path", type=click.Path(exists=True))
-def main(config_path):
-    """Generate region folders and APSIM files from a shapefile and YAML config."""
+    
+def prepare_study(config_path):
     config = load_yaml(config_path)
 
     shapefile_path = config["regions_shp_name"]
     admin_col = config["regions_shp_col"]
     filter_col = config.get("regions_shp_filter_col")
     filter_vals = config.get("regions_shp_filter_values", [])
-    output_dir = config["output_dir"]
     apsim_template_paths_filter_col = config.get("APSIM_TEMPLATE_PATHS_FILTER_COL_NAME")
     apsim_template_paths = config["APSIM_TEMPLATE_PATHS"]
 
-    snakefile_template_config_path = os.path.join(output_dir, "config_template.yaml")
+    output_dir = Path(config_path).parent
+
+    snakefile_template_config_path = os.path.join(output_dir, "run_config_template.yaml")
     snakefile_config, ruamel_yaml = load_yaml_ruamel(snakefile_template_config_path)
 
     projection_crs = snakefile_config['matching_params']['target_crs'].strip('\'"')
@@ -121,6 +119,13 @@ def main(config_path):
         click.echo(f"Written to: {updated_config_path}")
 
     geojsons_folder.cleanup()
+
+
+@click.command()
+@click.argument("config_path", type=click.Path(exists=True))
+def main(config_path):
+    """Generate region folders and APSIM files from a shapefile and YAML config."""
+    prepare_study(config_path)
 
 
 if __name__ == "__main__":

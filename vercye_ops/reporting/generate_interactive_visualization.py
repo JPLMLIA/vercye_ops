@@ -1,4 +1,5 @@
 from collections import defaultdict
+import os
 import click
 import geopandas as gpd
 import pandas as pd
@@ -28,6 +29,7 @@ class InteractiveMapGenerator:
         self.lai_columns = lai_columns
         self.lai_column_names = lai_column_names
         self.simplify_tolerance = simplify_tolerance
+        self.simulations_img_dir = "sim_images"
 
         for agg_name, (agg_column, agg_estimates_fpath) in agg_levels.items():
             self.add_aggregation_level(agg_name, agg_column, agg_estimates_fpath)
@@ -39,23 +41,20 @@ class InteractiveMapGenerator:
         print("Loading shapefile...")
         self.gdf = gpd.read_file(self.shapefile_path)
 
-        # Todo add total_area_ha once fixed in prod
-        keep_cols = ["cleaned_region_name_vercye", "estimated_mean_yield_kg_ha",
-                     "estimated_median_yield_kg_ha", "geometry", "reported_mean_yield_kg_ha",
-                     "error", "relative_error"]
+        # Select columns to keep & append aggregation columns if they exist
+        keep_cols = ["cleaned_region_name_vercye", "estimated_mean_yield_kg_ha", "total_area_ha",
+                     "estimated_median_yield_kg_ha", "geometry", "reported_mean_yield_kg_ha"]
+        keep_cols += [self.aggregation_levels[i]['column'] for i in range(len(self.aggregation_levels)) if self.aggregation_levels[i]['column'] not in keep_cols]
+        print(keep_cols)
 
-        # Append aggregation columns if they exist
-        keep_cols += [self.aggregation_levels[i]['column'] for i in range(len(self.aggregation_levels))]
-
+        # Filter columns to reduce file size
         self.gdf = self.gdf[keep_cols]
-        #self.gdf["geometry"] = self.gdf["geometry"].simplify(tolerance=0.01)
         
         # Ensure CRS is WGS84 for web mapping
         if self.gdf.crs != 'EPSG:4326':
             print(f"Reprojecting from {self.gdf.crs} to EPSG:4326...")
             self.gdf = self.gdf.to_crs('EPSG:4326')
         print(f"Loaded {len(self.gdf)} features from shapefile")
-
 
         # Load aggregated estimates
         print("Loading aggregated estimates...")
@@ -75,11 +74,15 @@ class InteractiveMapGenerator:
             level_name: Display name for this level (e.g., "States", "Counties")
             column_name: Column name to aggregate by
         """
+
+        # Currently hardcoded - TODO make dynamic aswell
+        errors_fpath = str(Path(agg_estimate_fpath).parent / f'errors_{Path(agg_estimate_fpath).name.split("_")[3]}.csv')
         
         self.aggregation_levels.append({
             'name': level_name,
             'column': column_name,
-            'agg_estimates_file': agg_estimate_fpath
+            'agg_estimates_file': agg_estimate_fpath,
+            'errors_file': errors_fpath
         })
 
         print(f"Added aggregation level: {level_name} (by {column_name})")
@@ -95,6 +98,7 @@ class InteractiveMapGenerator:
         Returns:
             Tuple of (LAI values, date labels, interpolation flags)
         """
+
         # Filter LAI data for the specified regions
         region_data = self.lai_data[self.lai_data['cleaned_region_name_vercye'].isin(regions)]
 
@@ -128,130 +132,105 @@ class InteractiveMapGenerator:
             else:
                 interpolation_flags.append(0)
 
-        
         return aggregated_values, date_labels, interpolation_flags
+    
+    def load_agg_geometries(self, agg_col):
+        # Group polygon by aggregation column and union into single geom
+        grouped = self.gdf.groupby(agg_col).agg({
+            'cleaned_region_name_vercye': lambda x: list(x),
+            'geometry': lambda x: x.unary_union,
+        }).reset_index()
+
+        grouped['subregions'] = grouped['cleaned_region_name_vercye']
+
+        return grouped
     
     def create_geojson_level(self, level_idx: int) -> Dict[str, Any]:
         """
         Create GeoJSON data for a specific aggregation level.
         
         Args:
-            level_idx: Index of the aggregation level (-1 for base level)
+            level_idx: Index of the aggregation level
             
         Returns:
             GeoJSON FeatureCollection
         """
-        if level_idx == -1:
-            # Base level - use original data. Loading estimated yield from shapefile.
-            features = []
 
-            simplified = self.gdf.copy()
-            simplified["geometry"] = simplified["geometry"].simplify(
+        # Load geometries
+        is_base_level = level_idx == len(self.aggregation_levels) - 1
+        agg_col = self.aggregation_levels[level_idx]['column']
+
+        if is_base_level:
+            geometries = self.gdf
+            geometries['subregions'] = geometries[agg_col].apply(lambda x: [x])
+        else:
+            geometries = self.load_agg_geometries(agg_col)
+
+        # Create feature for every entry
+        features = []
+        for idx, row in geometries.iterrows():
+            geometry = row["geometry"]
+            geometry = geometry.simplify(
                 tolerance=self.simplify_tolerance,
                 preserve_topology=True
             )
-            
-            for idx, row in simplified.iterrows():
-                # Get LAI data for this region
-                lai_values, date_labels, interpolation_flags = self.aggregate_lai_data([row['cleaned_region_name_vercye']])
-                
-                # Calculate additional metrics
-                area = row.get('total_area_ha', 0)
-                
-                feature = {
-                    "type": "Feature",
-                    "properties": {
-                        "id": f"region_{idx}",
-                        "name": str(row['cleaned_region_name_vercye']),
-                        "estimated_median_yield_kg_ha": float(row['estimated_median_yield_kg_ha']),
-                        "total_area": area,
-                        "estimated_mean_yield_kg_ha": float(row['estimated_mean_yield_kg_ha']),
-                        "timeSeries": lai_values,
-                        "dateLabels": date_labels,
-                        "interpolationFlags": interpolation_flags,
-                        "isAggregated": False
-                    },
-                    "geometry": row.geometry.__geo_interface__
-                }
 
-                # Add reference data if available
-                if 'reported_mean_yield_kg_ha' in row:
-                    feature['properties']['reported_mean_yield_kg_ha'] = float(row['reported_mean_yield_kg_ha'])
-                    feature['properties']["error"] = float(row['error']),
-                    feature['properties']["relative_error"] =  float(row['relative_error'])
-                
-                if 'reported_production_kg' in row:
-                    feature['reported_production_kg'] = float(row['reported_production_kg'])
+            # Get LAI data for all regions in this group
+            lai_values, date_labels, interpolation_flags = self.aggregate_lai_data(row['subregions'])
 
-                features.append(feature)
-            
-            return {
-                "type": "FeatureCollection",
-                "features": features
-            }
-        
-        else:
-            # Aggregated level
-            agg_col = self.aggregation_levels[level_idx]['column']
-
-            # Loading aggregated values from already aggregated csv file
-            
-            # Group by aggregation column and aggregate
-            grouped = self.gdf.groupby(agg_col).agg({
-                'cleaned_region_name_vercye': lambda x: list(x),
-                'geometry': lambda x: x.unary_union
-            }).reset_index()
-
-            
-            features = []
-            
-            for idx, row in grouped.iterrows():
-                merged_geom = row["geometry"]  # this is the full union of raw pieces
-                simplified_geom = merged_geom.simplify(
-                    tolerance=self.simplify_tolerance,
-                    preserve_topology=True
-                )
-                # Get LAI data for all regions in this group
-                lai_values, date_labels, interpolation_flags = self.aggregate_lai_data(row['cleaned_region_name_vercye'])
-
-                region_name = str(row[agg_col])
+            # Extract data to display
+            region_name = str(row[agg_col])
+            if region_name in self.aggregated_estimates[level_idx]:
                 mean_estimated_yield_kg_ha = self.aggregated_estimates[level_idx][region_name]['estimated_mean_yield_kg_ha']
                 median_estimated_yield_kg_ha = self.aggregated_estimates[level_idx][region_name]['estimated_median_yield_kg_ha']
                 sum_area = self.aggregated_estimates[level_idx][region_name]['total_area_ha']
-                                                                
-                feature = {
-                    "type": "Feature",
-                    "properties": {
-                        "id": f"agg_{level_idx}_{idx}",
-                        "name": str(row[agg_col]),
-                        "estimated_mean_yield_kg_ha": float(mean_estimated_yield_kg_ha),
-                        "estimated_median_yield_kg_ha": float(median_estimated_yield_kg_ha),
-                        "total_area": sum_area,
-                        "timeSeries": lai_values,
-                        "dateLabels": date_labels,
-                        "interpolationFlags": interpolation_flags,
-                        "subregions": row['cleaned_region_name_vercye'],
-                        "isAggregated": True
-                    },
-                    "geometry": simplified_geom.__geo_interface__
-                }
+            else:
+                mean_estimated_yield_kg_ha = np.nan
+                median_estimated_yield_kg_ha = np.nan
+                sum_area = np.nan
 
-                 # Add reference data if available
-                if 'reported_mean_yield_kg_ha' in  self.aggregated_estimates[level_idx][region_name]:
-                    feature['properties']['reported_mean_yield_kg_ha'] = float(self.aggregated_estimates[level_idx][region_name]['reported_mean_yield_kg_ha'])
-                    feature['properties']["error"] = float(self.aggregated_estimates[level_idx][region_name]['error']),
-                    feature['properties']["relative_error"] =  float(self.aggregated_estimates[level_idx][region_name]['relative_error'])
-                
-                if 'reported_production_kg' in  self.aggregated_estimates[level_idx][region_name]:
-                    feature['properties']['reported_production_kg'] = float(self.aggregated_estimates[level_idx][region_name]['reported_production_kg'])
-
-
-                features.append(feature)
-            
-            return {
-                "type": "FeatureCollection",
-                "features": features
+            # Create polygon feature vector to display              
+            feature = {
+                "type": "Feature",
+                "properties": {
+                    "id": f"agg_{level_idx}_{idx}",
+                    "name": region_name,
+                    "estimated_mean_yield_kg_ha": float(mean_estimated_yield_kg_ha),
+                    "estimated_median_yield_kg_ha": float(median_estimated_yield_kg_ha),
+                    "total_area": sum_area,
+                    "timeSeries": lai_values,
+                    "dateLabels": date_labels,
+                    "interpolationFlags": interpolation_flags,
+                    "subregions": row['subregions'] if not is_base_level else [],
+                    "isAggregated": False if is_base_level else True,
+                    "error": np.nan,
+                    "relative_error": np.nan
+                },
+                "geometry": geometry.__geo_interface__
             }
+            
+            # If base level, link the simulations report
+            if is_base_level:
+                sim_img_path = f"{self.simulations_img_dir}/{str(row['cleaned_region_name_vercye'])}_yield_report.png"
+                feature["properties"]["simulationsImgPath"] =  sim_img_path
+
+            # Add reference data if available
+            if region_name in self.aggregated_estimates[level_idx] and 'reported_mean_yield_kg_ha' in self.aggregated_estimates[level_idx][region_name]:
+                feature['properties']['reported_mean_yield_kg_ha'] = float(self.aggregated_estimates[level_idx][region_name]['reported_mean_yield_kg_ha'])
+            
+            if region_name in self.aggregated_estimates[level_idx] and 'error' in self.aggregated_estimates[level_idx][region_name]:
+                feature['properties']["error"] = float(self.aggregated_estimates[level_idx][region_name]['error']),
+                feature['properties']["relative_error"] =  float(self.aggregated_estimates[level_idx][region_name]['relative_error'])
+
+            if region_name in self.aggregated_estimates[level_idx] and 'reported_production_kg' in  self.aggregated_estimates[level_idx][region_name]:
+                feature['properties']['reported_production_kg'] = float(self.aggregated_estimates[level_idx][region_name]['reported_production_kg'])
+
+            features.append(feature)
+   
+        return {
+            "type": "FeatureCollection",
+            "features": features
+        }
     
     def create_hierarchical_data(self) -> Dict[str, Any]:
         """
@@ -260,162 +239,93 @@ class InteractiveMapGenerator:
         Returns:
             Dictionary with level data and mappings
         """
-        data_structure = {
+        levels = {
             "levels": [],
             "level_data": {},
             "level_mappings": {}
         }
         
         # Add level information
-        if self.aggregation_levels:
-            # Add aggregation levels (highest to lowest)
-            for i, level in enumerate(self.aggregation_levels):
-                data_structure["levels"].append({
-                    "index": i,
-                    "name": level['name'],
-                    "column": level['column']
-                })
-                
-                # Create GeoJSON for this level
-                level_geojson = self.create_geojson_level(i)
-                data_structure["level_data"][f"level_{i}"] = level_geojson
-        
-        # Add base level (most detailed)
-        base_level_idx = len(self.aggregation_levels)
-        data_structure["levels"].append({
-            "index": base_level_idx,
-            "name": "Regions",
-            "column": "cleaned_region_name_vercye"
-        })
-        
-        base_geojson = self.create_geojson_level(-1)
-        data_structure["level_data"][f"level_{base_level_idx}"] = base_geojson
+        for i, level in enumerate(self.aggregation_levels):
+            levels["levels"].append({
+                "index": i,
+                "name": level['name'],
+                "column": level['column']
+            })
+            
+            # Create GeoJSON for this level
+            level_geojson = self.create_geojson_level(i)
+            levels["level_data"][f"level_{i}"] = level_geojson
 
         # Create mappings between levels
-        if self.aggregation_levels:
-            for i in range(len(self.aggregation_levels)):
-                parent_level = self.create_geojson_level(i)
+        if len(self.aggregation_levels) > 1:
+            for i in range(len(self.aggregation_levels) - 1):
+                print(f"level_{i}")
+                print(self.aggregation_levels[i])
+                parent_level = levels["level_data"][f"level_{i}"]
+                next_level_data = levels["level_data"][f"level_{i+1}"]
                 
                 # Create mapping from parent features to child regions
                 for feature in parent_level["features"]:
                     parent_id = feature["properties"]["id"]
+                    parent_regions = feature["properties"].get("subregions", [])
+
+                    child_features = [f for f in next_level_data["features"] if f["properties"]['name'] in parent_regions]
                     
-                    # Determine what the next level should be
-                    if i < len(self.aggregation_levels) - 1:
-                        # Map to next aggregation level
-                        next_level_data = self.create_geojson_level(i + 1)
-                        # Filter features that belong to this parent
-                        child_features = []
-                        parent_column = self.aggregation_levels[i]['column']
-                        next_column = self.aggregation_levels[i + 1]['column']
-                        
-                        # Get the parent region name
-                        parent_name = feature["properties"]["name"]
-                        
-                        # Find all features in next level that belong to this parent
-                        for next_feature in next_level_data["features"]:
-                            # Check if this feature belongs to the parent
-                            # This requires checking the original shapefile data
-                            regions_in_next_feature = next_feature["properties"].get("subregions", [])
-                            
-                            # Check if any of these regions belong to our parent
-                            parent_regions = feature["properties"].get("subregions", [])
-                            if any(region in parent_regions for region in regions_in_next_feature):
-                                child_features.append(next_feature)
-                        
-                        if child_features:
-                            data_structure["level_mappings"][parent_id] = {
-                                "type": "FeatureCollection",
-                                "features": child_features
-                            }
-                    else:
-                        # Map to base level (individual regions)
-                        if "subregions" in feature["properties"]:
-                            child_regions = feature["properties"]["subregions"]
-                            child_features = []
-
-                            for cleaned_region_name_vercye in child_regions:
-                                region_data = self.gdf[self.gdf['cleaned_region_name_vercye'] == cleaned_region_name_vercye]
-                                if not region_data.empty:
-                                    row = region_data.iloc[0]
-                                    lai_values, date_labels, interpolation_flags = self.aggregate_lai_data([cleaned_region_name_vercye])
-                                    
-                                    area = row.get('total_area_ha', 0)                                
-                                    child_feature = {
-                                        "type": "Feature",
-                                        "properties": {
-                                            "id": f"child_{parent_id}_{cleaned_region_name_vercye}",
-                                            "name": str(cleaned_region_name_vercye),
-                                            "parentId": parent_id,
-                                            "estimated_mean_yield_kg_ha": float(row['estimated_mean_yield_kg_ha']),
-                                            "estimated_median_yield_kg_ha": float(row['estimated_median_yield_kg_ha']),
-                                            "total_area": area,
-                                            "timeSeries": lai_values,
-                                            "dateLabels": date_labels,
-                                            "interpolationFlags": interpolation_flags,
-                                        },
-                                        "geometry": row.geometry.__geo_interface__
-                                    }
-
-                                    # Add reference data if available
-                                    if 'reported_mean_yield_kg_ha' in row:
-                                        child_feature['properties']['reported_mean_yield_kg_ha'] = float(row['reported_mean_yield_kg_ha'])
-                                        child_feature['properties']["error"] = float(row['error']),
-                                        child_feature['properties']["relative_error"] =  float(row['relative_error'])
-
-                                    
-                                    if 'reported_production_kg' in row:
-                                        child_feature['properties']['reported_production_kg'] = float(row['reported_production_kg'])
-
-
-                                    child_features.append(child_feature)
-
-                            if child_features:
-                                if parent_id not in data_structure["level_mappings"]:
-                                    data_structure["level_mappings"][parent_id] = {
-                                        "type": "FeatureCollection",
-                                        "features": child_features
-                                    }
+                    if child_features:
+                        levels["level_mappings"][parent_id] = {
+                            "type": "FeatureCollection",
+                            "features": child_features
+                        }
         
-        return data_structure
+        return levels
     
-    def generate_html_template(self, data_structure: Dict[str, Any], title: str) -> str:
-        """
-        Generate HTML template with embedded data.
-        
-        Args:
-            data_structure: Hierarchical data structure
-            
-        Returns:
-            Complete HTML string
-        """
-
+    def compute_value_ranges(self, levels):
         value_ranges = {}
 
         # Calculate value range for color scaling
         for valueType in ['estimated_mean_yield_kg_ha', 'estimated_median_yield_kg_ha', 'error', 'relative_error']:
             all_values = []
-            for level_key, level_data in data_structure["level_data"].items():
+            for level_key, level_data in levels["level_data"].items():
                 for feature in level_data["features"]:
-                    print(feature["properties"]['relative_error'])
-                    if feature["properties"][valueType] != np.nan:
-                        all_values.append(feature["properties"][valueType])
-            for mapping_data in data_structure["level_mappings"].values():
+                    all_values.append(feature["properties"][valueType])
+
+            for mapping_data in levels["level_mappings"].values():
                 for feature in mapping_data["features"]:
-                    if feature["properties"][valueType] != np.nan:
-                        all_values.append(feature["properties"][valueType])
+                    all_values.append(feature["properties"][valueType])
+            
+            all_values = [v for v in all_values if not np.isnan(v)]
 
-
-            # Compute min, max, and the 95th percentile
-            min_val = float(np.min(all_values))
-            max_val = float(np.max(all_values))
-            p95_val = float(np.percentile(all_values, 95))
+            if len(all_values) == 0:
+                min_val = 0
+                max_val = 0
+                p95_val = 0
+            else:
+                # Compute min, max, and the 95th percentile
+                min_val = float(np.min(all_values))
+                max_val = float(np.max(all_values))
+                p95_val = float(np.percentile(all_values, 95))
 
             value_ranges[valueType] = {
                 'min_val': min_val,
                 'max_val': max_val,
                 'p95_val': p95_val
             }
+
+        return value_ranges
+    
+    def generate_html_template(self, levels: Dict[str, Any], title: str) -> str:
+        """
+        Generate HTML template with embedded data.
+        
+        Args:
+            levels: Hierarchical data structure with polygons and data per level
+            
+        Returns:
+            Complete HTML string
+        """
+
+        value_ranges = self.compute_value_ranges(levels)
 
 
         title = title + ' Analysis'
@@ -424,6 +334,17 @@ class InteractiveMapGenerator:
             f'<option value="{col}">{col}</option>'
             for col in self.lai_column_names
         )
+
+        dark_primary = '#324e47'
+        dark_white = '#F5F8F5'
+        dark_gray = ''
+        light_grey = '#4a5568'
+        red = '#f56565'
+        red_dark ='#e52b50'
+        blue = '#4974a5'
+        blue_light = ''
+        white = '#FFF'
+
         
         template = f'''<!DOCTYPE html>
             <html lang="en">
@@ -435,13 +356,22 @@ class InteractiveMapGenerator:
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"></script>
-
+                <link rel="preconnect" href="https://fonts.googleapis.com">
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                <link href="https://fonts.googleapis.com/css2?family=Lexend+Exa:wght@100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+                <link href="https://fonts.googleapis.com/css2?family=Lexend+Exa:wght@100..900&family=Merriweather:ital,opsz,wght@0,18..144,300..900;1,18..144,300..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+                <link href="https://fonts.googleapis.com/css2?family=Lexend+Exa:wght@100..900&family=Merriweather:ital,opsz,wght@0,18..144,300..900;1,18..144,300..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+                
                 <style>
                     body {{
                         margin: 0;
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                        background: #1a1a1a;
-                        color: #fff;
+                        font-family: "Merriweather", serif;
+                        background: #f9f9f9;
+                        color: #2d3748;
+                    }}
+
+                    p {{
+                        font-size: 14px;
                     }}
                     
                     .container {{
@@ -450,7 +380,10 @@ class InteractiveMapGenerator:
                     }}
 
                     .title {{
-                        color: #63b3ed;
+                        color: {dark_primary};
+                        font-family: "Roboto", sans-serif;
+                        weight: 400;
+
                     }}
                     
                     .map-container {{
@@ -465,16 +398,16 @@ class InteractiveMapGenerator:
                     
                     .sidebar {{
                         width: 500px;
-                        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-                        border-left: 2px solid #4a5568;
+                        background: #ffffff;
+                        border-left: 2px solid #e2e8f0;
                         display: flex;
                         flex-direction: column;
                     }}
-                    
+
                     .sidebar-header {{
                         padding: 20px;
-                        border-bottom: 1px solid #4a5568;
-                        background: rgba(0,0,0,0.3);
+                        border-bottom: 1px solid #e2e8f0;
+                        background: {dark_white};
                     }}
                     
                     .sidebar-content {{
@@ -486,9 +419,8 @@ class InteractiveMapGenerator:
                     .breadcrumb {{
                         display: flex;
                         align-items: center;
-                        margin-bottom: 15px;
                         font-size: 14px;
-                        color: #a0aec0;
+                        color: #718096;
                         flex-wrap: wrap;
                     }}
                     
@@ -501,26 +433,24 @@ class InteractiveMapGenerator:
                     }}
                     
                     .breadcrumb-item:hover {{
-                        background: rgba(255,255,255,0.1);
-                        color: #fff;
+                        background: #edf2f7;
+                        color: #2d3748;
                     }}
                     
                     .breadcrumb-separator {{
                         margin: 0 4px;
-                        color: #4a5568;
+                        color: #cbd5e0;
                     }}
 
                     .selected-regions {{
-                        margin-bottom: 30px;
-                        margin-top: 30px;
-                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        margin: 20px 0;
                         border-radius: 12px;
-                        padding: 20px;
-                        background: rgba(255, 255, 255, 0.05);
+                        padding: 15px;
+                        background: {dark_white};
                     }}
 
                     .selected-regions h3 {{
-                        color: #63b3ed;
+                        color: #2b6cb0;
                         margin-bottom: 15px;
                         font-size: 18px;
                         font-weight: 600;
@@ -532,22 +462,18 @@ class InteractiveMapGenerator:
                         align-items: center;
                         padding: 8px 12px;
                         margin-bottom: 8px;
-                        background: rgba(255, 255, 255, 0.1);
+                        background: #e6f0fa;
                         border-radius: 8px;
                         transition: all 0.2s ease;
                     }}
 
-                    .selected-region-item:hover {{
-                        background: rgba(255, 255, 255, 0.15);
-                    }}
-
                     .selected-region-name {{
-                        color: #e2e8f0;
+                        color: #2d3748;
                         font-size: 14px;
                     }}
 
                     .remove-region-btn {{
-                        background: #f56565;
+                        background: {red};
                         color: white;
                         border: none;
                         border-radius: 4px;
@@ -558,37 +484,34 @@ class InteractiveMapGenerator:
                     }}
 
                     .remove-region-btn:hover {{
-                        background: #e53e3e;
-                    }}
-
-                    .comparison-controls {{
-                        margin-bottom: 20px;
-                    }}
-
-                    .heatmap-selector {{
-                        margin-bottom: 15px;
+                        background: {red_dark};
                     }}
 
                     .heatmap-selector label {{
                         display: block;
-                        color: #a0aec0;
+                        color: {light_grey};
                         font-size: 14px;
                         margin-bottom: 8px;
+                        margin-top: 10px;
                     }}
 
                     .heatmap-selector select {{
                         width: 100%;
                         padding: 8px 12px;
-                        background: rgba(255, 255, 255, 0.1);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        background: {white};
+                        border: 1px solid {dark_primary};
                         border-radius: 8px;
-                        color: white;
+                        color: #2d3748;
                         font-size: 14px;
                     }}
 
+                    .heatmap-selector select:focus-visible {{
+                        outline: 0px!important;
+                    }}
+
                     .heatmap-selector select option {{
-                        background: #2d3748;
-                        color: white;
+                        background: {white};
+                        color: {dark_gray};
                     }}
 
                     .lai-selector {{
@@ -597,7 +520,7 @@ class InteractiveMapGenerator:
 
                     .lai-selector label {{
                         display: block;
-                        color: #a0aec0;
+                        color: {light_grey};
                         font-size: 14px;
                         margin-bottom: 8px;
                     }}
@@ -605,22 +528,26 @@ class InteractiveMapGenerator:
                     .lai-selector select {{
                         width: 100%;
                         padding: 8px 12px;
-                        background: rgba(255, 255, 255, 0.1);
-                        border: 1px solid rgba(255, 255, 255, 0.2);
+                        background: {white};
+                        border: 1px solid #4a5568;
                         border-radius: 8px;
-                        color: white;
+                        color: #2d3748;
                         font-size: 14px;
                     }}
 
+                    .lai-selector select:focus-visible {{
+                        outline: 0px!important;
+                    }}
+
                     .lai-selector select option {{
-                        background: #2d3748;
-                        color: white;
+                        background: {white};
+                        color: {dark_gray};
                     }}
 
                     .compare-button {{
                         width: 100%;
                         padding: 12px;
-                        background: linear-gradient(135deg, #63b3ed, #38b2ac);
+                        background: {blue};
                         color: white;
                         border: none;
                         border-radius: 10px;
@@ -636,7 +563,7 @@ class InteractiveMapGenerator:
                     }}
 
                     .compare-button:disabled {{
-                        background: #4a5568;
+                        background: {light_grey};
                         cursor: not-allowed;
                         transform: none;
                         box-shadow: none;
@@ -646,7 +573,7 @@ class InteractiveMapGenerator:
                         width: 100%;
                         padding: 8px;
                         background: transparent;
-                        color: #f56565;
+                        color: {red};
                         border: 1px solid #f56565;
                         border-radius: 8px;
                         cursor: pointer;
@@ -655,24 +582,20 @@ class InteractiveMapGenerator:
                     }}
 
                     .clear-selection-btn:hover {{
-                        background: #f56565;
+                        background: {red};
                         color: white;
                     }}
                     
                     .tooltip-content {{
-                        background: rgba(0,0,0,0.9);
+                        background: {dark_white};
                         padding: 15px;
-                        border-radius: 8px;
-                        border: 1px solid #4a5568;
-                        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                        backdrop-filter: blur(10px);
+                        border-radius: 8px;                      
                     }}
                     
                     .tooltip-title {{
                         font-size: 16px;
                         font-weight: bold;
                         margin-bottom: 10px;
-                        color: #63b3ed;
                     }}
                     
                     .tooltip-stats {{
@@ -692,22 +615,22 @@ class InteractiveMapGenerator:
                     .stat-value {{
                         font-size: 18px;
                         font-weight: bold;
-                        color: #68d391;
+                        color: #38a169;
                     }}
                     
                     .stat-label {{
                         font-size: 12px;
-                        color: #a0aec0;
+                        color: #718096;
                         margin-top: 2px;
                     }}
                     
                     .chart-container {{
-                        height: 150px;
+                        height: 250px;
                         margin-top: 10px;
                     }}
                     
                     .legend {{
-                        background: rgba(0,0,0,0.8);
+                        background: {dark_white};
                         padding: 15px;
                         border-radius: 8px;
                         margin-top: 20px;
@@ -716,7 +639,6 @@ class InteractiveMapGenerator:
                     .legend-title {{
                         font-weight: bold;
                         margin-bottom: 10px;
-                        color: #63b3ed;
                     }}
                     
                     .legend-item {{
@@ -744,22 +666,21 @@ class InteractiveMapGenerator:
                         top: 10px;
                         left: 10px;
                         z-index: 1000;
-                        background: rgba(0,0,0,0.8);
                         padding: 15px;
                         border-radius: 8px;
                         backdrop-filter: blur(10px);
                         min-width: 200px;
+                        background: {dark_white};
                     }}
                     
                     .level-indicator {{
-                        color: #63b3ed;
                         font-weight: bold;
                         font-size: 14px;
                         margin-bottom: 8px;
                     }}
                     
                     .back-button {{
-                        background: #4299e1;
+                        background: {blue};
                         color: white;
                         border: none;
                         padding: 8px 15px;
@@ -767,17 +688,18 @@ class InteractiveMapGenerator:
                         cursor: pointer;
                         transition: all 0.2s;
                         width: 100%;
+                        margin-top: 8px;
                     }}
                     
                     .back-button:hover {{
-                        background: #3182ce;
+                        background: {blue_light};
                         transform: translateY(-1px);
                     }}
                     
                     .stats-summary {{
                         margin-top: 10px;
                         font-size: 12px;
-                        color: #a0aec0;
+                        color: #4a5568;
                     }}
                     
                     .stats-summary div {{
@@ -791,10 +713,13 @@ class InteractiveMapGenerator:
                         left: 0;
                         bottom: 0;
                         width: calc(100% - 500px); /* Sidebar width is 500px */
-                        background: rgba(0, 0, 0, 0.8);
+                        background: rgba(255, 255, 255);
+                        color: #2d3748;
                         backdrop-filter: blur(5px);
                         z-index: 10000;
                         transition: transform 0.3s ease;
+                        overflow-y: auto;
+                        scroll-behavior: smooth;
                     }}
 
                     .detail-overlay.show {{
@@ -805,7 +730,7 @@ class InteractiveMapGenerator:
                         position: absolute;
                         top: 20px;
                         right: 20px;
-                        background: #e53e3e;
+                        background: {red};
                         border: none;
                         color: #fff;
                         font-size: 16px;
@@ -819,22 +744,25 @@ class InteractiveMapGenerator:
                         padding: 40px;
                     }}
 
+                    .detail-overlay-content hr{{
+                        color: {dark_primary}
+                    }}
+
                     .detail-overlay-header {{
                         font-size: 28px;
                         font-weight: 700;
                         margin-bottom: 10px;
-                        color: #63b3ed;
                     }}
 
                     .detail-overlay-stats {{
                         display: flex;
                         gap: 20px;
-                        margin-bottom: 20px;
+                        margin-bottom: 12px;
                     }}
 
                     .detail-overlay-stat-item {{
                         flex: 1;
-                        background: rgba(255,255,255,0.05);
+                        background: rgba(255,255,255,0.5);
                         padding: 15px;
                         border-radius: 6px;
                         text-align: center;
@@ -842,19 +770,23 @@ class InteractiveMapGenerator:
 
                     .detail-overlay-stat-label {{
                         font-size: 14px;
-                        color: #a0aec0;
+                        color: #4a5568;
                         margin-top: 4px;
                     }}
 
                     .detail-overlay-stat-value {{
                         font-size: 20px;
                         font-weight: bold;
-                        color: #68d391;
+                        color: #38a169;
                     }}
 
                     .detail-overlay-chart {{
-                        width: 100%;
-                        height: 250px;
+                        height: 500px;
+                        background: rgba(255, 255, 255, 0.05);
+                        border-radius: 15px;
+                        padding: 20px;
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        margin-top: 12px;
                     }}
 
                     .comparison-overlay {{
@@ -864,16 +796,18 @@ class InteractiveMapGenerator:
                         left: 0;
                         bottom: 0;
                         width: calc(100% - 500px); /* Sidebar width is 500px */
-                        background: rgba(0, 0, 0, 0.8);
+                        background: rgba(255, 255, 255, 0.95);
+                        color: #2d3748;
                         backdrop-filter: blur(5px);
                         z-index: 10000;
+                        overflow-y: auto;
+                        scroll-behavior: smooth;
                     }}
 
                     .comparison-overlay-content {{
                         height: 100%;
                         padding: 40px;
                         overflow-y: auto;
-                        background: rgba(26, 32, 44, 0.95);
                         backdrop-filter: blur(15px);
                         border-radius: 0 20px 20px 0;
                         border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -885,7 +819,6 @@ class InteractiveMapGenerator:
                     .comparison-overlay-header {{
                         font-size: 28px;
                         font-weight: 700;
-                        color: #63b3ed;
                         margin-bottom: 30px;
                     }}
 
@@ -904,6 +837,102 @@ class InteractiveMapGenerator:
                         stroke-dasharray: none !important;
                     }}
 
+                    .simulations-overview {{
+                        margin-top: 30px;
+                        margin-bottom: 30px;
+                    }}
+
+                    .simulations-overview img {{
+                        display: block;
+                        max-width: 100%;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                    }}
+
+                    .help-icon {{
+                        position: relative;
+                        display: inline-block;
+                        cursor: help;
+                    }}
+
+                    .help-button {{
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 50%;
+                        background-color: {dark_primary};
+                        color: white;
+                        border: none;
+                        font-size: 14px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: background-color 0.2s ease;
+                    }}
+
+                    .help-button:hover {{
+                        background-color: #5a6268;
+                    }}
+
+                    .help-tooltip {{
+                        position: absolute;
+                        top: 100%;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        margin-top: 8px;
+                        background-color: #343a40;
+                        color: white;
+                        padding: 12px 16px;
+                        border-radius: 6px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                        z-index: 1000;
+                        width: 280px;
+                        opacity: 0;
+                        visibility: hidden;
+                        transition: opacity 0.2s ease, visibility 0.2s ease;
+                        font-size: 14px;
+                        line-height: 1.4;
+                    }}
+
+                    .help-tooltip::before {{
+                        content: '';
+                        position: absolute;
+                        top: -6px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        width: 0;
+                        height: 0;
+                        border-left: 6px solid transparent;
+                        border-right: 6px solid transparent;
+                        border-bottom: 6px solid #343a40;
+                    }}
+
+                    .help-icon:hover .help-tooltip {{
+                        opacity: 1;
+                        visibility: visible;
+                    }}
+
+                    .help-tooltip ul {{
+                        margin: 0;
+                        padding-left: 16px;
+                    }}
+
+                    .help-tooltip li {{
+                        margin-bottom: 8px;
+                    }}
+
+                    .help-tooltip li:last-child {{
+                        margin-bottom: 0;
+                    }}
+
+                    .title-container {{
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }}
+
+
                 </style>
             </head>
             <body>
@@ -911,7 +940,7 @@ class InteractiveMapGenerator:
                     <div class="map-container">
                         <div id="map"></div>
                         <div class="control-panel">
-                            <div class="level-indicator" id="levelIndicator">Loading...</div>
+                            <div class="level-indicator title" id="levelIndicator">Loading...</div>
                             <div class="stats-summary" id="statsSummary"></div>
                             <button class="back-button" id="backButton" style="display: none;">← Back</button>
                         </div>
@@ -919,21 +948,26 @@ class InteractiveMapGenerator:
                     
                     <div class="sidebar">
                         <div class="sidebar-header">
-                            <h2 class="title">{title}</h2>
-                            <p>
-                                <ul>
-                                    <li>Click on a region to view nested regions.</li>
-                                    <li>Double click on a region to see the regions stat details.</li>
-                                    <li>Use CTRL+Click to select multiple regions for comparing their LAI curves.</li>
-                                </ul>
-                            </p>
+                            <div class="title-container">
+                                <h2 class="title">{title}</h2>
+                                <div class="help-icon">
+                                    <button class="help-button">?</button>
+                                    <div class="help-tooltip">
+                                        <ul>
+                                            <li>Click on a region to view nested regions.</li>
+                                            <li>Double click on a region to see the regions stat details.</li>
+                                            <li>Use CTRL+Click to select multiple regions for comparing their data.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="breadcrumb" id="breadcrumb"></div>
                         </div>
                         
                         <div class="sidebar-content">
                             <div id="hoverInfo" style="display: none;">
                                 <div class="tooltip-content">
-                                    <div class="tooltip-title" id="hoverTitle"></div>
+                                    <div class="tooltip-title title" id="hoverTitle"></div>
                                     <div class="tooltip-stats">
                                         <div class="stat-item">
                                             <div class="stat-value" id="hoverValue1"></div>
@@ -944,17 +978,17 @@ class InteractiveMapGenerator:
                                             <div class="stat-label">Median Yield (kg/ha)</div>
                                         </div>
                                     </div>
-                                    <div class="legend-note" style="font-size: 11px; margin-top: 6px; color: #a0aec0;">
-                                        <p>★ denotes aggregated LAI series computed as the daily mean of all LAI series from subregions.</p>
-                                    </div>
                                     <div class="chart-container">
                                         <canvas id="hoverChart"></canvas>
+                                    </div>
+                                    <div class="legend-note" style="font-size: 11px; margin-top: 6px; color: #4a5568;">
+                                        <p>★ denotes aggregated LAI series computed as the daily mean of all LAI series from subregions.</p>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="legend">
-                                <div class="legend-title">Yield Legend (kg/ha)</div>
+                                <div class="legend-title title">Yield Legend (kg/ha)</div>
                                 <div id="legendItems"></div>
                                 <div class="heatmap-selector">
                                     <label for="heatmapSelector">Select Heatmap Type:</label>
@@ -968,8 +1002,7 @@ class InteractiveMapGenerator:
                             </div>
 
                             <div class="selected-regions">
-                                <h3>Comparison Selection</h3>
-                                <h4>Selected Regions (<span id="selectedCount">0</span>)</h3>
+                                <div class="legend-title title">Selected Regions (<span id="selectedCount">0</span>)</div>
                                 <p>Select a number of regions using CTRL+Click to compare their LAI curves.</p>
                                 <div id="selectedRegionsList"></div>
                                 
@@ -992,7 +1025,7 @@ class InteractiveMapGenerator:
                 <div id="detailOverlay" class="detail-overlay">
                     <div class="detail-overlay-content">
                         <button id="overlayCloseBtn" class="detail-overlay-close">✕ Close</button>
-                        <div class="detail-overlay-header" id="overlayTitle">Region Details</div>
+                        <div class="detail-overlay-header title" id="overlayTitle">Region Details</div>
                         <div class="detail-overlay-stats">
                             <div class="detail-overlay-stat-item">
                                 <div class="detail-overlay-stat-value" id="overlayValue1">0.0</div>
@@ -1004,14 +1037,17 @@ class InteractiveMapGenerator:
                             </div>
                             <div class="detail-overlay-stat-item">
                                 <div class="detail-overlay-stat-value" id="overlayValue3">0.0</div>
-                                <div class="detail-overlay-stat-label">Area (km²)</div>
+                                <div class="detail-overlay-stat-label">Cropland Area (ha)</div>
                             </div>
                         </div>
-                        <div class="legend-note" style="font-size: 11px; margin-top: 6px; color: #a0aec0;">
-                            <p>★ denotes aggregated LAI series computed as the daily mean of all LAI series from subregions.</p>
-                        </div>
+                        <hr></hr>
                         <div class="detail-overlay-chart">
                             <canvas id="overlayChart"></canvas>
+                        </div>
+                         <div class="legend-note" style="font-size: 11px; margin-top: 6px; color: #4a5568;">
+                            <p>★ denotes aggregated LAI series computed as the daily mean of all LAI series from subregions.</p>
+                        </div>
+                        <div id="simulationsOverview" class="simulations-overview" style="margin-top: 30px;">
                         </div>
                     </div>
                 </div>
@@ -1019,7 +1055,7 @@ class InteractiveMapGenerator:
                 <div id="comparisonOverlay" class="comparison-overlay">
                     <div class="comparison-overlay-content">
                         <button id="comparisonCloseBtn" class="detail-overlay-close">✕ Close</button>
-                        <div class="comparison-overlay-header" id="comparisonTitle">Region Comparison</div>
+                        <div class="comparison-overlay-header title" id="comparisonTitle">Region Comparison</div>
                         <div class="comparison-overlay-chart">
                             <canvas id="comparisonChart"></canvas>
                         </div>
@@ -1029,7 +1065,7 @@ class InteractiveMapGenerator:
 
                 <script>
                     // Embedded data
-                    const mapData = {json.dumps(data_structure, separators=(",", ":"), ensure_ascii=False)};
+                    const mapData = {json.dumps(levels, separators=(",", ":"), ensure_ascii=False)};
 
                     const allValueRanges = {json.dumps(value_ranges)}
 
@@ -1093,6 +1129,8 @@ class InteractiveMapGenerator:
                         return ramp(t).hex();
                     }}
 
+                    const capitalize = str => str.charAt(0).toUpperCase() + str.slice(1);
+
                     // Style each feature using getColor(...)
                     function style(feature) {{
                         return {{
@@ -1100,7 +1138,6 @@ class InteractiveMapGenerator:
                             weight: 2,
                             opacity: 1,
                             color: 'white',
-                            dashArray: '3',
                             fillOpacity: 0.85
                         }};
                     }}
@@ -1111,9 +1148,8 @@ class InteractiveMapGenerator:
                         const props = layer.feature.properties;
                         
                         layer.setStyle({{
-                            weight: 4,
-                            color: '#666',
-                            dashArray: '',
+                            weight: 3,
+                            color: '{dark_primary}',
                             fillOpacity: 0.95
                         }});
 
@@ -1138,6 +1174,20 @@ class InteractiveMapGenerator:
                         document.getElementById('overlayValue3').textContent = (props.total_area || 0).toFixed(1);
 
                         updateOverlayChart(props.timeSeries, props.dateLabels, props.interpolationFlags, props.isAggregated);
+
+                        // Show simulation image if present
+                        const simContainer = document.getElementById('simulationsOverview');
+                        simContainer.innerHTML = '';
+                        if (props.simulationsImgPath) {{
+                            const img = document.createElement('img');
+                            img.src = props.simulationsImgPath;
+                            img.alt = 'Simulation Overview';
+                            img.style.maxWidth = '100%';
+                            img.style.borderRadius = '8px';
+                            img.style.marginTop = '20px';
+                            img.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                            simContainer.appendChild(img);
+                        }}
 
                         const overlay = document.getElementById('detailOverlay');
                         overlay.classList.add('show');
@@ -1176,7 +1226,7 @@ class InteractiveMapGenerator:
                                 borderColor: color,
                                 backgroundColor: color.replace(/([0-9a-f]{{6}})$/, '20'), // ~12% opacity
                                 borderWidth: 2,
-                                fill: true,
+                                fill: false,
                                 tension: 0.4,
                                 pointRadius: 0,      // no default points on the line
                                 pointHoverRadius: 0, // no hover points on the curve
@@ -1211,15 +1261,36 @@ class InteractiveMapGenerator:
                                 plugins: {{
                                     legend: {{
                                         display: true,
-                                        position: 'top',
+                                        position: 'bottom',
                                         labels: {{
-                                            color: '#a0aec0',
+                                            color: '#000',
                                             font: {{ size: 11 }},
                                             filter: function(legendItem, chartData) {{
                                                 const txt = legendItem.text || '';
                                                 return !txt.includes('Day with RS');
+                                            }},
+                                            usePointStyle: true,
+                                            pointStyle: 'circle',
+                                            generateLabels: function(chart) {{
+                                                const datasets = chart.data.datasets;
+                                                return datasets
+                                                    .map((dataset, i) => {{
+                                                        const label = dataset.label || '';
+                                                        if (label.includes('Day with RS')) return null;
+
+                                                        return {{
+                                                            text: label,
+                                                            fillStyle: dataset.borderColor,
+                                                            strokeStyle: dataset.borderColor,
+                                                            lineWidth: 1,
+                                                            pointStyle: 'circle',
+                                                            hidden: !chart.isDatasetVisible(i),
+                                                            datasetIndex: i
+                                                        }};
+                                                    }})
+                                                    .filter(Boolean);
                                             }}
-                                        }},
+                                        }}
                                     }},
                                     tooltip: {{
                                         backgroundColor: 'rgba(0,0,0,0.8)',
@@ -1234,7 +1305,7 @@ class InteractiveMapGenerator:
                                             drawBorder: false
                                         }},
                                         ticks: {{
-                                            color: '#a0aec0',
+                                            color: '#4a5568',
                                             font: {{ size: 10 }}
                                         }}
                                     }},
@@ -1244,13 +1315,14 @@ class InteractiveMapGenerator:
                                             drawBorder: false
                                         }},
                                         ticks: {{
-                                            color: '#a0aec0',
-                                            font: {{ size: 10 }}
+                                            color: '#4a5568',
+                                            font: {{ size: 14, weight: 'bold'}}
                                         }},
                                         title: {{
                                             display: true,
-                                            text: 'LAI Value',
-                                            color: '#a0aec0'
+                                            text: 'LAI',
+                                            color: '{dark_primary}',
+                                            font: {{ size: 21, weight: 'bold' }}
                                         }}
                                     }}
                                 }}
@@ -1403,8 +1475,8 @@ class InteractiveMapGenerator:
                                 regionStats.innerHTML = `
                                     <div style="width: 12px; height: 12px; background-color: ${{color}}; border-radius: 2px;"></div>
                                     <strong style="color: ${{color}};">${{name}}</strong>
-                                    <span style="color: #a0aec0;">Mean Yield: <strong>${{mean}}</strong> kg/ha</span>
-                                    <span style="color: #a0aec0;">Median Yield: <strong>${{median}}</strong> kg/ha</span>
+                                    <span style="color: #4a5568;">Mean Yield: <strong>${{mean}}</strong> kg/ha</span>
+                                    <span style="color: #4a5568;">Median Yield: <strong>${{median}}</strong> kg/ha</span>
                                 `;
 
                                 statsContainer.appendChild(regionStats);
@@ -1436,9 +1508,9 @@ class InteractiveMapGenerator:
                                 plugins: {{
                                     legend: {{
                                         display: true,
-                                        position: 'top',
+                                        position: 'bottom',
                                         labels: {{
-                                            color: '#a0aec0',
+                                            color: '#4a5568',
                                             font: {{ size: 12 }},
                                             filter: function(legendItem, chartData) {{
                                                 const txt = legendItem.text || '';
@@ -1459,7 +1531,7 @@ class InteractiveMapGenerator:
                                             drawBorder: false
                                         }},
                                         ticks: {{
-                                            color: '#a0aec0',
+                                            color: '#4a5568',
                                             font: {{ size: 11 }}
                                         }}
                                     }},
@@ -1469,13 +1541,13 @@ class InteractiveMapGenerator:
                                             drawBorder: false
                                         }},
                                         ticks: {{
-                                            color: '#a0aec0',
+                                            color: '#4a5568',
                                             font: {{ size: 11 }}
                                         }},
                                         title: {{
                                             display: true,
                                             text: 'LAI Value',
-                                            color: '#a0aec0'
+                                            color: '#4a5568'
                                         }}
                                     }}
                                 }}
@@ -1495,11 +1567,14 @@ class InteractiveMapGenerator:
                     function drillDown(parentId, parentName) {{
                         clearSelection();
                         // Check if we have child data for this parent (drill into detailed view of same level)
+                        console.log('mapData', mapData);
+                        console.log(parentId);
                         if (mapData.level_mappings[parentId]) {{
+                            console.log('has mappings');
                             // We're drilling into a subset of the current level
                             currentLevel++;
                             currentParent = parentId;
-                            breadcrumbPath.push(parentName);
+                            breadcrumbPath.push(capitalize(parentName));
                             
                             console.log('subset drilldown', parentId, parentName);
                             loadLevel(mapData.level_mappings[parentId]);
@@ -1514,7 +1589,7 @@ class InteractiveMapGenerator:
                             // Move to next aggregation level
                             currentLevel++;
                             currentParent = null; // Reset parent when moving to new level
-                            breadcrumbPath.push(parentName);
+                            breadcrumbPath.push(capitalize(parentName));
                             
                             console.log('subset drilldown', parentId, parentName);
                             loadLevel(mapData.level_data[`level_${{currentLevel}}`]);
@@ -1551,6 +1626,8 @@ class InteractiveMapGenerator:
                                     currentLevel--;
                                     loadLevel(mapData.level_data[`level_${{currentLevel}}`]);
                                 }}
+                                const bounds = L.geoJSON(mapData.level_data[`level_${{currentLevel}}`]).getBounds();
+                                map.fitBounds(bounds, {{ padding: [20, 20] }});
                             }}
                             
                             updateUI();
@@ -1640,7 +1717,7 @@ class InteractiveMapGenerator:
                             
                             const breadcrumbItem = document.createElement('span');
                             breadcrumbItem.className = 'breadcrumb-item';
-                            breadcrumbItem.textContent = item;
+                            breadcrumbItem.textContent = capitalize(item);
                             
                             if (index < fullPath.length - 1) {{
                                 breadcrumbItem.onclick = () => {{
@@ -1659,9 +1736,7 @@ class InteractiveMapGenerator:
                     function updateLevelIndicator() {{
                         const indicator = document.getElementById('levelIndicator');
                         const levelInfo = mapData.levels[currentLevel];
-                        console.log(mapData.levels);
-                        console.log(`Current Level: ${{currentLevel}}, Name: ${{levelInfo.name}}`);
-                        indicator.textContent = `Level ${{currentLevel + 1}}: ${{levelInfo.name}}`;
+                        indicator.textContent = `Level ${{currentLevel + 1}}: ${{capitalize(levelInfo.name)}}`;
                     }}
 
                     function updateStats(levelData) {{
@@ -1672,9 +1747,9 @@ class InteractiveMapGenerator:
                         
                         const statsDiv = document.getElementById('statsSummary');
                         statsDiv.innerHTML = `
-                            <div>Regions: ${{values.length}}</div>
-                            <div>Avg Yield: ${{avgYield}} kg/ha</div>
-                            <div>Range: ${{minYield}} - ${{maxYield}} kg/ha</div>
+                            <div><b>Regions:</b> ${{values.length}}</div>
+                           
+                            <div><b>Range:</b> ${{minYield}} - ${{maxYield}} kg/ha</div>
                         `;
                     }}
 
@@ -1687,6 +1762,7 @@ class InteractiveMapGenerator:
                         }}
 
                         console.log(allValueRanges);
+                        console.log(newHeatmapType);
                         valueRange = allValueRanges[newHeatmapType];
                         console.log(valueRange);
 
@@ -1718,7 +1794,7 @@ class InteractiveMapGenerator:
                         labelContainer.style.display = 'flex';
                         labelContainer.style.justifyContent = 'space-between';
                         labelContainer.style.fontSize = '12px';
-                        labelContainer.style.color = '#a0aec0';
+                        labelContainer.style.color = '#4a5568';
 
                         const minLabel = document.createElement('span');
                         minLabel.textContent = `${{min}} kg/ha`;
@@ -1769,21 +1845,10 @@ class InteractiveMapGenerator:
                                 borderColor: color,
                                 backgroundColor: color.replace(/([0-9a-f]{{6}})$/, '20'),
                                 borderWidth: 2,
-                                fill: true,
+                                fill: false,
                                 tension: 0.4,
                                 pointRadius: 0,
                                 pointHoverRadius: 0
-                            }});
-
-                            datasets.push({{
-                                label: seriesName + ' (Day with RS Data)',
-                                data: rawData.map((val, i) => interpolationFlags?.[i] === 0 ? val : null),
-                                showLine: false,
-                                pointRadius: 3,
-                                pointHoverRadius: 3,
-                                pointBackgroundColor: color,
-                                pointBorderColor: color,
-                                borderWidth: 0
                             }});
                         }});
 
@@ -1803,15 +1868,36 @@ class InteractiveMapGenerator:
                                 plugins: {{
                                     legend: {{
                                         display: true,
-                                        position: 'top',
+                                        position: 'bottom',
                                         labels: {{
-                                            color: '#a0aec0',
-                                            font: {{ size: 10 }},
+                                            color: '#000',
+                                            font: {{ size: 11 }},
                                             filter: function(legendItem, chartData) {{
                                                 const txt = legendItem.text || '';
                                                 return !txt.includes('Day with RS');
+                                            }},
+                                            usePointStyle: true,
+                                            pointStyle: 'circle',
+                                            generateLabels: function(chart) {{
+                                                const datasets = chart.data.datasets;
+                                                return datasets
+                                                    .map((dataset, i) => {{
+                                                        const label = dataset.label || '';
+                                                        if (label.includes('Day with RS')) return null;
+
+                                                        return {{
+                                                            text: label,
+                                                            fillStyle: dataset.borderColor,
+                                                            strokeStyle: dataset.borderColor,
+                                                            lineWidth: 1,
+                                                            pointStyle: 'circle',
+                                                            hidden: !chart.isDatasetVisible(i),
+                                                            datasetIndex: i
+                                                        }};
+                                                    }})
+                                                    .filter(Boolean);
                                             }}
-                                        }},
+                                        }}
                                     }},
                                     tooltip: {{
                                         backgroundColor: 'rgba(0,0,0,0.8)',
@@ -1826,7 +1912,7 @@ class InteractiveMapGenerator:
                                             drawBorder: false
                                         }},
                                         ticks: {{
-                                            color: '#a0aec0',
+                                            color: '#4a5568',
                                             font: {{ size: 10 }}
                                         }}
                                     }},
@@ -1836,13 +1922,13 @@ class InteractiveMapGenerator:
                                             drawBorder: false
                                         }},
                                         ticks: {{
-                                            color: '#a0aec0',
+                                            color: '#4a5568',
                                             font: {{ size: 10 }}
                                         }},
                                         title: {{
                                             display: true,
                                             text: 'LAI Value',
-                                            color: '#a0aec0'
+                                            color: '#4a5568'
                                         }}
                                     }}
                                 }}
@@ -1853,6 +1939,13 @@ class InteractiveMapGenerator:
                     // Event listeners
                     document.getElementById('heatmapSelector').addEventListener("change", function () {{
                         selectHeatmapType(this.value);
+                    }});
+
+                    document.addEventListener('keydown', function(event) {{
+                        if (event.key === 'Escape') {{
+                            hideOverlay();
+                            hideComparisonOverlay();
+                        }}
                     }});
 
                     document.getElementById('backButton').onclick = goBack;
@@ -1867,10 +1960,13 @@ class InteractiveMapGenerator:
                     window.addEventListener('load', function () {{
                         setTimeout(() => {{
                         map = L.map('map');
+                        map.doubleClickZoom.disable();
 
-                        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-                            attribution: '© OpenStreetMap contributors'
-                        }}).addTo(map);
+                        L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+                            attribution: '&copy; OpenStreetMap contributors & Carto',
+                            subdomains: 'abcd',
+                            maxZoom: 19
+                            }}).addTo(map);
 
                         // Load initial (level 0)
                         loadLevel(mapData.level_data.level_0);
@@ -1893,10 +1989,10 @@ class InteractiveMapGenerator:
         """
         
         print("Creating hierarchical data structure...")
-        data_structure = self.create_hierarchical_data()
+        levels = self.create_hierarchical_data()
         
         print("Generating HTML template...")
-        html_content = self.generate_html_template(data_structure, title)
+        html_content = self.generate_html_template(levels, title)
         
         print(f"Writing to {self.output_path}...")
         with open(self.output_path, 'w', encoding='utf-8') as f:
@@ -1911,6 +2007,10 @@ class InteractiveMapGenerator:
             
             agg_estimates_df = pd.read_csv(level['agg_estimates_file'])
 
+            if os.path.exists(level['errors_file']):
+                errors_df = pd.read_csv(level['errors_file'])
+                agg_estimates_df = agg_estimates_df.merge(errors_df, on='region', how='left')
+
             # create dict with region names as keys and aggregated data as values
             agg_data = {}
             for _, row in agg_estimates_df.iterrows():
@@ -1918,11 +2018,16 @@ class InteractiveMapGenerator:
                 agg_data[region_name] = {
                     'estimated_mean_yield_kg_ha': row['mean_yield_kg_ha'],
                     'estimated_median_yield_kg_ha': row['median_yield_kg_ha'],
-                    'reported_mean_yield_kg_ha': row['reported_mean_yield_kg_ha'],
-                    "error": row["error"], 
-                    "relative_error": row["relative_error"],
                     'total_area_ha': row['total_area_ha']
                 }
+
+                if 'error_kg_ha' in row and 'rel_error_percent' in row:
+                    agg_data[region_name]["error"] = row["error_kg_ha"],
+                    agg_data[region_name]["relative_error"] =  row["rel_error_percent"]
+
+                if 'reported_mean_yield_kg_ha' in row: 
+                    agg_data[region_name]['reported_mean_yield_kg_ha'] = row['reported_mean_yield_kg_ha']
+
 
             agg_estimates[idx] = agg_data
         return agg_estimates
@@ -1956,6 +2061,7 @@ class InteractiveMapGenerator:
         return combined_df
 
 def parse_agg_level(ctx, param, value):
+    # Parses CLI parameters for aggregation level in passed order
     agg_dict = {}
     for item in value:
         try:
@@ -1969,6 +2075,7 @@ def parse_agg_level(ctx, param, value):
     return agg_dict
 
 def parse_lai_column(ctx, param, value):
+    # Parses CLI parameters for lai columns
     internal = []
     display = []
     for item in value:

@@ -81,7 +81,6 @@ To manipulate JSON files via the command line:
 module load jq
 ```
 
-
 ### Running your first yield study
 You will first have to generate **LAI** data from remotely sensed imagery. Refer to the [LAI Creation Guide](LAI/running.md) for details.
 

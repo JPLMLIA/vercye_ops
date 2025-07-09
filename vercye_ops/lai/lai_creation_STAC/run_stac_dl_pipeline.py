@@ -20,6 +20,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def rel_path(*path_parts):
+    return os.path.join(BASE_DIR, *path_parts)
+
 
 def is_within_date_range(file_path: str, start_date: datetime.date, end_date: datetime.date) -> bool:
     """
@@ -75,9 +80,9 @@ def run_pipeline(config):
     source = config["imagery_src"]
 
     if source.lower() == 'es_s2c1':
-        downloader_script_path = '1_download_S2_earthsearch.py'
+        downloader_script_path = rel_path('1_download_S2_earthsearch.py')
     elif source.lower() == 'mpc':
-        downloader_script_path =  '1_download_S2_MPC.py'
+        downloader_script_path =  rel_path('1_download_S2_MPC.py')
     else:
         raise ValueError('Invalid Source Provided')
 
@@ -126,7 +131,7 @@ def run_pipeline(config):
                 if from_step <= 1:
                     os.makedirs(lai_dir, exist_ok=True)
                     cmd = [
-                        sys.executable, "2_1_primary_LAI_tiled.py",
+                        sys.executable, rel_path("2_1_primary_LAI_tiled.py"),
                         tiles_out_dir,
                         lai_dir,
                         str(resolution),
@@ -148,7 +153,7 @@ def run_pipeline(config):
     if from_step <= 2:
         os.makedirs(standardize_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_2_standardize.py",
+            sys.executable, rel_path("2_2_standardize.py"),
             lai_dir,
             standardize_lai_dir,
             str(resolution),
@@ -162,7 +167,7 @@ def run_pipeline(config):
     if from_step <= 3:
         os.makedirs(merged_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_3_build_daily_LAI_vrts.py",
+            sys.executable, rel_path("2_3_build_daily_LAI_vrts.py"),
             standardize_lai_dir,
             merged_lai_dir,
             str(resolution),
