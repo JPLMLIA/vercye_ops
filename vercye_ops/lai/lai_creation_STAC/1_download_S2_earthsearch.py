@@ -126,7 +126,9 @@ def main(
 
     logger.info(f"Searching for items from {start_date} to {end_date}...")
     t0 = time.time()
-    geometry = gpd.read_file(geojson_path).geometry.values[0] if geojson_path else None
+    gdf = gpd.read_file(geojson_path)
+    gdf = gdf.to_crs(epsg=4326)
+    geometry = gdf.geometry.values[0] if geojson_path else None
     items = stac_downloader.query_catalog(
         collection_name=stac_collection_name,
         start_date=start_date,
