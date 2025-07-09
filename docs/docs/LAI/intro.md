@@ -31,7 +31,9 @@ Google Drive or a Google Cloud Storage Bucket, from which it can be downloaded t
 - Exported data is exported to either Google Drive (Free) or Google Cloud Storage (Fees apply), and downloaded from there, but requires more manual setup which might be tedious especially on remote systems.
 
 ### B: STAC & AWS Export
-This approach queries a STAC catalog hosted by Element84 on AWS to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS bucket. This data uses the `Sentinel-2 L2A Colection 1` data in which all historial data was processed using `Processing Baseline 5.0`.
+This approach queries a STAC catalog to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS bucket. 
+
+You can choose between selecting data hosted by Element84 on AWS (`Sentinel-2 L2A Colection 1` ), in which all historial data was processed using `Processing Baseline 5.0`, however this collection is currently missing large timespans (e.g 2022,2023). Alternativeley, you can use the Microsoft Planetary Computer (`Sentinel-2 L2A`).
 
 **Pro**:
 - Very Fast Download in HPC environment due to high level of parallelism
@@ -51,6 +53,6 @@ If you already have LAI data or are planning to generate it with a different pip
 - The `date` should be in the YYYY-MM-DD format.
 - The `file extension` can be either `.vrt` or `.tif`
 
-Additionally, you will have to ensure all your LAI files have exactly the same resolution and CRS.
+Additionally, you will have to ensure all your LAI files have exactly the same resolution and CRS and match the scale and offset as used in our inbuilt imagery.
 
 

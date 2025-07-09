@@ -43,6 +43,10 @@ def delete_vrt_and_linked_tifs(vrt_path):
                     filepath = os.path.join(os.path.dirname(vrt_path), filepath)
                 source_files.append(filepath)
 
+    source_files.append(vrt_path)
+
+    # TODO add metadata path for deletion aswell
+
     for f in source_files:
         if os.path.exists(f) and not os.path.isdir(f):
             logger.info(f"Deleting: {f}")
@@ -76,6 +80,7 @@ def worker_process_files(
 def process_single_file(vrt_path, model, lai_dir, remove_original):
     """Process a single VRT file with the provided model and return the output filename"""
     logger.info(f"Processing ... {vrt_path}")
+
     # Load the image
     with rio.open(vrt_path) as s2_ds:
         s2_array = s2_ds.read()
@@ -98,10 +103,6 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         # Built-in scaling
         s2_array = s2_array * 0.0001
 
-        # subtract 0.1 where the array is not nodata (Due to baseline >= 5 and need to match GEE harmonized collection)
-        nodata_val = s2_ds.nodata
-        s2_array[s2_array != nodata_val] -= 0.1
-
         # Input
         t1 = time.time()
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
@@ -112,7 +113,8 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
         logger.info(f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds")
 
-        # set NODATA to nan
+        # Set NODATA to nan
+        nodata_val = s2_ds.nodata
         LAI_estimate[s2_array[-1] == nodata_val] = np.nan
 
     # Write the LAI data
