@@ -8,7 +8,9 @@ from snakemake import snakemake
 from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import (
     run_pipeline as run_imagery_dl_pipeline,
 )
+from vercye_ops.met_data.download_chirps_data import run_chirps_download
 from vercye_ops.prepare_yieldstudy import prepare_study
+from vercye_ops.snakemake.config_validation import validate_run_config
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -55,10 +57,6 @@ def download_imagery(name, dir):
         print(f"Error: Download Pipeline terminated with error: {e}")
 
 
-def validate_run_config(config_file):
-    pass
-
-
 def run_study(study_dir, study_name):
     """Runs the study with snakemake and the specified profile"""
 
@@ -86,31 +84,47 @@ def run_study(study_dir, study_name):
 
 @click.command()
 @click.argument("mode")
-@click.option("--name", required=True, help="Unique name for your yield study.")
-@click.option("--dir", required=True, help="Directory of your yieldstudy.")
-def main(mode, name, dir):
+@click.option("--name", required=False, help="Unique name for your yield study.")
+@click.option("--dir", required=False, help="Directory of your yieldstudy.")
+@click.option("--chirps-dir", required=False, help="Directory to store CHIRPS data.")
+@click.option("--chirps-start", required=False, help="Daterange start for CHIRPS data. Format: YYYY-MM-DD.")
+@click.option("--chirps-end", required=False, help="Daterange end for CHIRPS data. Format: YYYY-MM-DD")
+@click.option("--chirps-cores", required=False, help="Number of cores to use for parallel chirps downloading. Should be max 5.", default=5)
+def main(mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores):
     """
     VeRCYe CLI usage instructions:
 
-    MODE: - "init" to initialize a new study and create templates in dir/name.
+    MODE: - "init" to initialize a new study and create templates in dir/name. Must be used with --name and --dir.
 
-          - "prep" to create the study base structure from the options specified in your dir/name/setup_config.yaml.
+          - "prep" to create the study base structure from the options specified in your dir/name/setup_config.yaml. Must be used with --name and --dir.
 
-          - "dl" to download RS imagery from a STAC source specified in your dir/name/imagery_config.yaml.
+          - "dl-rs" to download RS imagery from a STAC source specified in your dir/name/imagery_config.yaml. Must be used with --name and --dir.
 
-          - "run" to run the yield study with the options specified in your dir/name/run_config.yaml with the profile specified in dir/name/profile.
+          - "dl-chirps" to download CHIRPS precipitation data into a local shared registry. Must be used with --chirps-dir, --chirps-start and --chirps-end.
+
+          - "run" to run the yield study with the options specified in your dir/name/run_config.yaml with the profile specified in dir/name/profile. Must be used with --name and --dir.
 
     Example usage:
 
     vercye init --name ukraine_study_2025-03-20 --dir /home/yieldstudies
     """
+
+    if mode in ['init', 'prep', 'dl-rs', 'run']:
+        if not name or not dir:
+            raise ValueError(f'Must provide --name and --dir for {mode}')
+        
+    if mode == 'dl-chirps' and not (chirps_dir and chirps_start and chirps_end):
+        raise ValueError('Must provide --chirps-dir, --chirps-start, --chirps-end for dl-chirps.')
+
     if mode == "init":
         init_study(name=name, dir=dir)
     elif mode == "prep":
         prepare_config = os.path.join(dir, name, "setup_config.yaml")
         prepare_study(prepare_config)
-    elif mode == "dl":
+    elif mode == "dl-rs":
         download_imagery(name=name, dir=dir)
+    elif mode == "dl-chirps":
+        run_chirps_download(start_date=chirps_start, end_date=chirps_end, output_dir=chirps_dir, num_workers=chirps_cores)
     elif mode == "run":
         run_study(study_dir= dir, study_name=name)
     else:
