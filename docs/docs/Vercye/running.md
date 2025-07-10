@@ -158,6 +158,8 @@ To run the pipeline over the same region(s), either use Snakemake's `-F` flag or
 This section contains a few tips on what to do if you are encountering errors during pipeline execution.
 
 **Errors** 
-A typical error occurs during the execution of the `LAI_analysis` rule if the LAI parameters were not correctly set. This error indicates that in all of your LAI data there are not two single dates that have sufficient pixels without clouds for the specific region.
+- `Missing input files for rule xyz`: Check the output under  `affected files`. This outlines the files that snakemake expects to be present, however they are do not exist. You can manually check the directory if they exist. Typically this points to an error in the configuration, as for example when a `region.geojson` is supposed to be missing, this points to the basedirectory being incorrectly setup / the wrong path being provided to the base directory somewhere in the config.
+
+- A typical error occurs during the execution of the `LAI_analysis` rule if the LAI parameters were not correctly set. This error indicates that in all of your LAI data there are not two single dates that have sufficient pixels without clouds for the specific region.
 
 However, this rarely should be the case when running with LAI data of multiple months (a typical season).

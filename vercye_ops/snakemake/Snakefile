@@ -821,7 +821,7 @@ rule generate_interactive_viz:
         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
         smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',
         agg_levels = ' '.join([
-            f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
+            f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(level_name, sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
             for level_name, level_column in config['eval_params']['aggregation_levels'].items()
         ]) + f" --agg-level primary:cleaned_region_name_vercye:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}",
     log:
