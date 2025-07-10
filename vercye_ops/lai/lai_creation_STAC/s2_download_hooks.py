@@ -229,8 +229,8 @@ def s2_mask_processor(maskbands, scl_keep_classes, cloud_thresh, snowprob_thresh
     return new_metadata, mask
 
 def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: pyStacItem):
-    # Harmonizes scenes to match the baseline >= 4.0 format
-    # Adds a shift of +1000 to match the ESA introduced shift
+    # Harmonizes scenes to match the baseline < 4.0 format.
+    # Subtract a shift of -1000 to match the ESA introduced shift
     baseline = float(item.properties['s2:processing_baseline'])
     if baseline > 4.0:
         nodata_val = raster_profile['nodata']
