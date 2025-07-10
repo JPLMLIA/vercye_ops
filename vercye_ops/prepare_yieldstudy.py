@@ -1,14 +1,16 @@
 import os
-import shutil
 import re
+import shutil
 import tempfile
-import yaml
-import click
 from pathlib import Path
 
+import click
 import geopandas as gpd
+from dotenv import dotenv_values
 from ruamel.yaml import YAML
-from vercye_ops.utils.convert_shapefile_to_geojson import convert_shapefile_to_geojson
+
+from vercye_ops.utils.convert_shapefile_to_geojson import \
+    convert_shapefile_to_geojson
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -21,7 +23,8 @@ def load_yaml_ruamel(filepath):
     yaml_loader.preserve_quotes = True
     with open(filepath, "r") as f:
         return yaml_loader.load(f), yaml_loader
-    
+
+
 def prepare_study(config_path):
     config, _ = load_yaml_ruamel(config_path)
 
@@ -127,17 +130,19 @@ def prepare_study(config_path):
     snakefile_config['regions_shp_filter_values'] = filter_vals
     snakefile_config['APSIM_TEMPLATE_PATHS'] = apsim_template_paths
     snakefile_config['regions_shp_name'] = shapefile_path
-    snakefile_config['sim_study_head_dir'] = str(Path(config_path).parent)
+    snakefile_config['sim_study_head_dir'] = str(output_dir)
 
-    imagery_config_path = str(Path(config_path).parent / 'imagery_config.yaml')
-    if os.path.exists(imagery_config_path):
+    # Fill in LAI section in run_config based on lai creation config 
+    lai_config_path = str(Path(config_path).parent / 'lai_config.yaml')
+    if os.path.exists(lai_config_path):
         print('imagery found')
-        imagery_config, _ = load_yaml_ruamel(imagery_config_path)
-        snakefile_config['lai_source'] = str(Path(imagery_config['geojson_path']).name)
-        snakefile_config['lai_params']['lai_dir'] =  os.path.join(imagery_config['out_dir'], 'merged-lai')
-        snakefile_config['lai_params']['lai_region'] = imagery_config['region_out_prefix']
-        snakefile_config['lai_params']['lai_resolution'] = imagery_config['resolution']
+        lai_config, _ = load_yaml_ruamel(lai_config_path)
+        snakefile_config['lai_source'] = str(Path(lai_config['geojson_path']).name)
+        snakefile_config['lai_params']['lai_dir'] =  os.path.join(lai_config['out_dir'], 'merged-lai')
+        snakefile_config['lai_params']['lai_region'] = lai_config['region_out_prefix']
+        snakefile_config['lai_params']['lai_resolution'] = lai_config['resolution']
 
+    # Transfer LAI start-enddate configuration to run config
     lai_dict = {}
     for year in config['timepoints_config']:
         lai_dict[year] = {}
@@ -147,6 +152,19 @@ def prepare_study(config_path):
                 config['timepoints_config'][year][timepoint]['lai_end_date']]
 
     snakefile_config['lai_params']['time_bounds'] = lai_dict
+
+    # If env file is set, load cache dir presets
+    env_file_path =Path(BASE_DIR).parent / '.env'
+    if (env_file_path).exists():
+        env_vars = dotenv_values(env_file_path)
+        if 'CHIRPS_DIR' in env_vars:
+            snakefile_config['apsim_params']['chirps_dir'] = env_vars['CHIRPS_DIR']
+
+        if 'NP_CACHE_DIR' in env_vars:
+            snakefile_config['apsim_params']['nasapower_cache_dir'] = env_vars['NP_CACHE_DIR']
+
+        if 'ERA5_CACHE_DIR' in env_vars:
+            snakefile_config['apsim_params']['era5_cache_dir'] = env_vars['ERA5_CACHE_DIR']
 
     updated_config_path = os.path.join(output_dir, 'config.yaml')
     with open(updated_config_path, "w") as f:

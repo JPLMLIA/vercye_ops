@@ -149,7 +149,7 @@ imagery_src: "MPC"
 - `date_ranges`: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).
 
 - `resolution`: Spatial resolution in meters. (Typically 10 or 20)
-- `geojson-path`: Path to your regions of interest geojson. Will create a convex hull from all geometries.
+- `geojson-path`: Path to your regions of interest geojson. Will create a bounding box for each geometry and query the intersecting tiles.
 - `out_dir`: Output directory for all generated data.
 - `region_out_prefix`: Prefix for the output VRT filenames - typically the name of the GeoJSON region.
 - `from_step`: Controls which part of the pipeline to resume from (0–3). Should be at 0 if not trying to recover a crashed run.

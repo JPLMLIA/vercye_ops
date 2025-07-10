@@ -27,10 +27,12 @@ This approach lets Google Earth Engine handle the majority of data preprocessing
 Google Drive or a Google Cloud Storage Bucket, from which it can be downloaded to the HPC environment for deriving the LAI product. The data in Google Earth Engine is the `S2_SR_Harmonized` collection, in which all data is harmonized to be in the same range, even if different processing baselines are used.
 
 **Pro:**
-- Directly Export Mosaics with bands resampled to the same resolution and CRS
-- Strong Cloud Masking Algorithm (Google Cloud Score Plus)
+
+- Directly export mosaics with bands resampled to the same resolution and CRS
+- Strong cloud masking algorithm (Google Cloud Score Plus)
 
 **Con**
+
 - Slow for large regions, due to limited number of parallel export processes
 - Exported data is exported to either Google Drive (Free) or Google Cloud Storage (Fees apply), and downloaded from there, but requires more manual setup which might be tedious especially on remote systems.
 
@@ -40,11 +42,13 @@ This approach queries a STAC catalog to identify all Sentinel-2 Tiles intersecti
 You can choose between selecting data hosted by Element84 on AWS (`Sentinel-2 L2A Colection 1` ), in which all historial data was processed using `Processing Baseline 5.0`, however this collection is currently missing large timespans (e.g 2022,2023). Alternativeley, you can use the Microsoft Planetary Computer (`Sentinel-2 L2A`).
 
 **Pro**:
-- Very Fast Download in HPC environment due to high level of parallelism
+
+- Very fast download in HPC environment due to high level of parallelism
 - Completely free download of data
 - Harmonized to data in `Sentinel-2 L2A Colection 1` - all data processed using modern Baseline 5.0.
 
 **Con**:
+
 - Less Accurate Cloudmask in comparison to Google Cloud Score Plus. Cloud mask is based on SCL + S2-Cloudless.
 - As of May 27th 2025, `Sentinel-2 L2A Colection 1` does not contain data for 2022 and parts of 2023. According to ESA this backfill is scheduled to be completed until Q2 2025.
 

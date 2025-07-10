@@ -33,37 +33,37 @@ def validate_run_config(config_file):
     
     print("Validating APSIM configuration...")
     
-    # 1. Validate simulation study head directory
+    # Validate simulation study head directory
     _validate_sim_study_head_dir(config)
-    
-    # 2. Validate study metadata
-    _validate_study_metadata(config)
-    
-    # 3. Validate years and timepoints
-    _validate_years_timepoints(config)
-    
-    # 4. Validate regions and directory structure
-    _validate_regions_structure(config)
-    
-    # 5. Validate APSIM parameters
-    _validate_apsim_params(config)
-    
-    # 6. Validate LAI parameters
-    _validate_lai_params(config)
-    
-    # 7. Validate crop masks
-    _validate_crop_masks(config)
-    
-    # 8. Validate evaluation parameters
-    _validate_eval_params(config)
-    
-    # 9. Validate script paths
-    _validate_script_paths(config)
-    
-    # 10. Check for template placeholders
+
+    # Check for template placeholders
     _check_template_placeholders(config)
     
-    # 11. Validate external dependencies
+    # Validate study metadata
+    _validate_study_metadata(config)
+    
+    # Validate years and timepoints
+    _validate_years_timepoints(config)
+    
+    # Validate regions and directory structure
+    _validate_regions_structure(config)
+    
+    # Validate APSIM parameters
+    _validate_apsim_params(config)
+    
+    # Validate LAI parameters
+    _validate_lai_params(config)
+    
+    # Validate crop masks
+    _validate_crop_masks(config)
+    
+    # Validate evaluation parameters
+    _validate_eval_params(config)
+    
+    # Validate script paths
+    _validate_script_paths(config)
+
+    #  Validate external dependencies
     _validate_external_dependencies(config)
     
 
@@ -121,13 +121,8 @@ def _validate_years_timepoints(config):
     
     # Validate years are integers
     for year in years:
-        if not isinstance(year, int) or year < 1900 or year > 2030:
-            raise ValueError(f"Invalid year: {year}. Must be an integer between 1900 and 2030")
-    
-    # Validate timepoint format
-    for tp in timepoints:
-        if not re.match(r'^T-\d+$', tp):
-            raise ValueError(f"Invalid timepoint format: {tp}. Must be in format 'T-N' where N is a number")
+        if not isinstance(year, int) or year < 1900:
+            raise ValueError(f"Invalid year: {year}. Must be an integer after 1900")
     
     print(f"✓ Years and timepoints validated: {years}, {timepoints}")
 
@@ -224,15 +219,15 @@ def _validate_time_bounds(config):
     time_bounds = config.get('apsim_params', {}).get('time_bounds', {})
     
     for year in years:
-        if str(year) not in time_bounds:
+        if year not in time_bounds:
             raise ValueError(f"Time bounds missing for year {year}")
         
-        year_bounds = time_bounds[str(year)]
+        year_bounds = time_bounds[year]
         
         for timepoint in timepoints:
             if timepoint not in year_bounds:
                 raise ValueError(f"Time bounds missing for year {year}, timepoint {timepoint}")
-            
+
             bounds = year_bounds[timepoint]
             required_dates = ['sim_start_date', 'sim_end_date', 'met_start_date', 'met_end_date']
             
@@ -382,8 +377,8 @@ def _validate_lai_files(config):
     if len(lai_files) == 0:
         raise FileNotFoundError(f"No LAI files found matching pattern {pattern}."
                 f"This typically indicates that either you have provided the wrong "
-                f"lai directory, the wrong lai region name (should be your regions prefix) "
-                f"the wrong resolution or the wrong extension."
+                f"'lai_directory', the wrong 'lai_region' name (should be your regions prefix), "
+                f"the wrong 'lai_resolution' or the wrong 'file_ext' extension."
               )
     
     if len(lai_files) < 5:
@@ -480,16 +475,21 @@ def _validate_script_paths(config):
 
 def _check_template_placeholders(config):
     """Check for template placeholder values."""
+    met_source = config.get("apsim_params", {}).get("met_source", "")
+
     def _check_dict(obj, path=""):
         if isinstance(obj, dict):
             for key, value in obj.items():
                 new_path = f"{path}.{key}" if path else key
                 _check_dict(value, new_path)
+                _check_dict(key, new_path)
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
                 _check_dict(item, f"{path}[{i}]")
         elif isinstance(obj, str):
             if 'XXXX' in obj:
+                if path == "apsim_params.ee_project" and met_source != "ERA5":
+                    return
                 raise ValueError(f"Template placeholder 'XXXX' found in {path}: {obj}")
     
     _check_dict(config)

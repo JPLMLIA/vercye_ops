@@ -1,4 +1,4 @@
-# Quickstart - Yield Study
+# Running VeRCYE manuall
 
 This guide walks you through the process of setting up and running a yield study using our framework, which helps you simulate crop yields across different regions.
 
@@ -155,9 +155,4 @@ When the simulation completes, results will be available in your base directory.
 To run the pipeline over the same region(s), either use Snakemake's `-F` flag or delete the log files at `vercye_ops/snakemake/logs_*`. Runtimes are in `vercye_ops/snakemake/benchmarks`.
 
 ## Troubleshooting
-This section contains a few tips on what to do if you are encountering errors during pipeline execution.
-
-**Errors** 
-A typical error occurs during the execution of the `LAI_analysis` rule if the LAI parameters were not correctly set. This error indicates that in all of your LAI data there are not two single dates that have sufficient pixels without clouds for the specific region.
-
-However, this rarely should be the case when running with LAI data of multiple months (a typical season).
+Check out the troubleshooting page.

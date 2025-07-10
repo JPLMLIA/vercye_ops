@@ -205,6 +205,8 @@ eval_params:
 ########################################
 # Local paths to the python/APSIM scripts
 # Typically no need to change
+# Relative paths are relative to the Snakefile, typically in your vercye installation.
+
 
 scripts:
   construct_met_files: '../apsim/construct_met_files.py'

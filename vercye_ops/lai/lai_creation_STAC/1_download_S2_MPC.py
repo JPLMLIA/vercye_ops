@@ -164,10 +164,15 @@ def main(
     gdf = gdf.to_crs(epsg=4326)
     gdf["geometry"] = gdf["geometry"].apply(lambda geom: make_valid(geom) if not geom.is_valid else geom)
 
+    # Create bounding box of each region to reduce request size and avoid failure
     if not gdf.empty:
-        # Combine all geometries into one & get convex hull
-        unified_geometry = gdf.union_all()
-        geometry = unified_geometry.convex_hull
+        # Create bounding box (envelope) of each geometry
+        envelopes = gdf.geometry.envelope
+
+        # Combine all bounding boxes into a single geometry
+        unified_geometry = envelopes.unary_union
+
+        geometry = unified_geometry
     else:
         raise ValueError('Empty shapefile provided.')
 
