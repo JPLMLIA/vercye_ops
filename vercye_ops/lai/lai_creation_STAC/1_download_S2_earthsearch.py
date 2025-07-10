@@ -3,7 +3,6 @@ import time
 
 import click
 import geopandas as gpd
-import numpy as np
 
 from vercye_ops.utils.init_logger import get_logger
 
