@@ -207,7 +207,7 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
             all_preds.extend(preds_df['mean_yield_kg_ha'])
             all_preds_years.extend([year]*len(preds_df))
             
-            val = glob(os.path.join(input_dir, year, f'groundtruth_{lvl}*.csv'))
+            val = glob(os.path.join(input_dir, year, f'referencedata__{lvl}*.csv'))
             if val:
                 data = get_preds_obs(est[0], val[0])
                 all_obs.extend(data['obs'])

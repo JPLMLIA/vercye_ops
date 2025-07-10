@@ -89,3 +89,19 @@ APSIM_TEMPLATE_PATHS:
   # Could be for example:
   # region1: "APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
   # region2: "APSIM/Malawi_2023_Maize_22_9_24_Zone_3_Full_Season.apsimx"
+
+###############################################################################
+########################### Adding Reference Data ################################
+###############################################################################
+
+# Paths to your reference data
+# For each year add entries for the available aggregation levels
+# For the simulation admin level use the key 'primary', as in the example above!
+# For all other levels you can choose the key freely, it should however be describtive of the admin level.
+REFERENCE_DATA_PATHS:
+  2019:
+    - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin3.csv" # Key: Path
+    - district: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin2.csv" # Paths must be .csv
+  2020:
+    - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2020-admin3.csv"
+    - district: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2020-admin2.csv"

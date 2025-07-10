@@ -419,9 +419,31 @@ def _validate_eval_params(config):
     
     # Validate aggregation levels exist in GeoJSON files
     _validate_aggregation_levels_in_geojson(config)
+
+    _validate_aggregation_names(config)
     
     print("✓ Evaluation parameters validated")
 
+def _validate_aggregation_names(config):
+    """Validate that the aggregation names are matching with reference data"""
+    ref_files_agg_lvls = []
+    for year in config['years']:
+        for timepoint in config['timepoints']:
+            d = os.path.join(config['sim_study_head_dir'], str(year), timepoint)
+            pattern = 'referencedata*.csv'
+            reference_data_files = glob.glob(os.path.join(d, pattern))
+
+            for ref_file in reference_data_files:
+                agg_lvl = Path(ref_file).name.split('_')[1]
+                ref_files_agg_lvls.append(agg_lvl)
+    
+    unused_agg_lvls = set(ref_files_agg_lvls) - set(config['eval_params']['aggregation_levels'])
+
+    if len(unused_agg_lvls) != 0:
+        print(f"⚠️  Found unused reference data at aggregation levels: {unused_agg_lvls}."
+              f"Ensure you have correctly set the eval_params.aggregation_levels keys to match these.")
+
+            
 
 def _validate_aggregation_levels_in_geojson(config):
     """Validate that aggregation levels exist in GeoJSON files."""

@@ -23,7 +23,7 @@ Your yield study is structured within a single directory, referred to as the **s
 head_dir/
 |   config.yaml
 |---Year1/
-|   |   groundtruth-primary-Year1.csv (optional)
+|   |   referencedata_-primary-Year1.csv (optional)
 |   |---TimePoint-1/
 |   |   |---region1/
 |   |   |   |   region1.geojson
@@ -102,7 +102,7 @@ source_file="/path/to/my/template.apsimx"; for dir in *; do cp "$source_file" "$
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth**_**{AggregationLevel}**-**{Year}.csv` in the corresponding year directory.
+If ground-truth yield data is available, it should be included as `referencedata_**_**{AggregationLevel}**-**{Year}.csv` in the corresponding year directory.
 Hereby, `aggregation level`, specifies how the simulation level regions should be aggregated and must align with the `eval_params.aggregation_levels` in your `config.yaml`. The `year` must match the corresponding year directory.
 
 ### Reference CSV Specification

@@ -123,6 +123,19 @@ def prepare_study(config_path):
                 with open(out_path, "w", encoding="utf-8") as f:
                     f.write(data)
 
+    # Copy the reference data
+    for year, path_list in config['REFERENCE_DATA_PATHS'].items():
+        for entry in path_list:
+            for reference_data_name, original_path in entry.items():
+                if not Path(original_path).suffix == '.csv':
+                    raise ValueError(f'Reference data {original_path} must be .csv')
+
+                new_name = f'referencedata_{reference_data_name}-{year}.csv'
+                new_path = os.path.join(str(output_dir), str(year), new_name)
+                shutil.copy(original_path, new_path)
+
+    config.yaml_set_comment_before_after_key('REFERENCE_DATA_PATHS', before=None)
+
     # Update config with the region metadata
     snakefile_config['regions'] = keep_regions
     snakefile_config['regions_shp_col'] = admin_col

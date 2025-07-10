@@ -193,14 +193,14 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     return output_png_path
 
 
-def build_section_params(section_name, aggregated_yield_estimates_path, groundtruth_path, evaluation_results_path, regions_dir, admin_column_name):
+def build_section_params(section_name, aggregated_yield_estimates_path, referencedata__path, evaluation_results_path, regions_dir, admin_column_name):
     logger.info(f'Building section parameters for {section_name}...')
     regions_summary = pd.read_csv(aggregated_yield_estimates_path)
     reference_yield_agg = None
 
-    if groundtruth_path is not None:
-        logger.info('Loading groundtruth data...')
-        gt = pd.read_csv(groundtruth_path)
+    if referencedata__path is not None:
+        logger.info('Loading referencedata_ data...')
+        gt = pd.read_csv(referencedata__path)
         cols = ['region']
         if 'reported_production_kg' in gt.columns:
             cols.append('reported_production_kg')
@@ -514,12 +514,12 @@ def create_final_report(input, output, params, log, wildcards):
            logger.warning(f"Aggregated yield estimates file not found: {aggregated_yield_estimates_patttern}. Skipping.")
            continue
 
-        # Collect groundtruth and evaluation results
+        # Collect referencedata_ and evaluation results
         gt_dir = os.path.os.path.dirname(regions_dir)
-        groundtruth_path = os.path.join(gt_dir, f'groundtruth_{suffix}-{year}.csv')
-        if not os.path.exists(groundtruth_path):
-            logger.warning(f"Groundtruth file not found: {groundtruth_path}. Skipping.")
-            groundtruth_path = None
+        referencedata__path = os.path.join(gt_dir, f'referencedata__{suffix}-{year}.csv')
+        if not os.path.exists(referencedata__path):
+            logger.warning(f"referencedata_ file not found: {referencedata__path}. Skipping.")
+            referencedata__path = None
 
         evaluation_results_path = os.path.join(regions_dir, f'evaluation_{suffix}.csv')
         if not os.path.exists(evaluation_results_path):
@@ -530,7 +530,7 @@ def create_final_report(input, output, params, log, wildcards):
         section = build_section_params(
             section_name=suffix,
             aggregated_yield_estimates_path=aggregated_yield_estimates_path,
-            groundtruth_path=groundtruth_path,
+            referencedata__path=referencedata__path,
             evaluation_results_path=evaluation_results_path,
             regions_dir=regions_dir,
             admin_column_name=admin_column_name,
