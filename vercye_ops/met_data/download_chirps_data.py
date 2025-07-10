@@ -396,6 +396,15 @@ def validate_chirps_files(start_date, end_date, output_dir):
 
     logger.info("Validation completed. Check for errors above.")
 
+def run_chirps_download(start_date, end_date, output_dir, num_workers):
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Download CHIRPS data for the specified date range if not already present in outputdir
+    fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers)
+
+    # Validate the downloaded files for existence
+    validate_chirps_files(start_date, end_date, output_dir)
 
 @click.command()
 @click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date for CHIRPS data collection in YYYY-MM-DD format.")
@@ -426,14 +435,7 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     else:
         logger.setLevel('WARNING')
     
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Download CHIRPS data for the specified date range if not already present in outputdir
-    fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers)
-
-    # Validate the downloaded files for existence
-    validate_chirps_files(start_date, end_date, output_dir)
+    run_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
 
 if __name__ == '__main__':
     cli()

@@ -1,4 +1,4 @@
-# Quickstart - Yield Study
+# Running VeRCYE manuall
 
 This guide walks you through the process of setting up and running a yield study using our framework, which helps you simulate crop yields across different regions.
 
@@ -37,7 +37,7 @@ Your yield study will run simulations for each defined region, typically specifi
 
 [Optional] **Only required if your shapefile contains mixed administrative levels**: Use the interactive `remove_mixed_admin_levels.py` script to normalize it to a single level. The script will prompt you for a few inputs to remove mixed administrative levels:
 ```
-python apsim/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
+python utils/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
 ```
 
 ## 2. Defining Your Configuration
@@ -114,10 +114,10 @@ Validation data can be provided at different geographic scales. It may be availa
 
 Define aggregation levels in your `config file` under `eval_params.aggregation_levels`. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify `State: ADMIN_1`. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.
 
-For each year and aggregation level, create a CSV file named: `{year}/groundtruth_{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive!).
+For each year and aggregation level, create a CSV file named: `{year}/referencedata__{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive!).
 
-Example: For 2024 state-level data, the file should be: `basedirectory/2024/groundtruth_State-2024.csv`
-For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/groundtruth_primary-2024.csv`
+Example: For 2024 state-level data, the file should be: `basedirectory/2024/referencedata__State-2024.csv`
+For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/referencedata__primary-2024.csv`
 
 **CSV Structure**
 
@@ -155,11 +155,4 @@ When the simulation completes, results will be available in your base directory.
 To run the pipeline over the same region(s), either use Snakemake's `-F` flag or delete the log files at `vercye_ops/snakemake/logs_*`. Runtimes are in `vercye_ops/snakemake/benchmarks`.
 
 ## Troubleshooting
-This section contains a few tips on what to do if you are encountering errors during pipeline execution.
-
-**Errors** 
-- `Missing input files for rule xyz`: Check the output under  `affected files`. This outlines the files that snakemake expects to be present, however they are do not exist. You can manually check the directory if they exist. Typically this points to an error in the configuration, as for example when a `region.geojson` is supposed to be missing, this points to the basedirectory being incorrectly setup / the wrong path being provided to the base directory somewhere in the config.
-
-- A typical error occurs during the execution of the `LAI_analysis` rule if the LAI parameters were not correctly set. This error indicates that in all of your LAI data there are not two single dates that have sufficient pixels without clouds for the specific region.
-
-However, this rarely should be the case when running with LAI data of multiple months (a typical season).
+Check out the troubleshooting page.

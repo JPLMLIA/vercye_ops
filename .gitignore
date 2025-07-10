@@ -193,4 +193,5 @@ vercye_ops/lai/GEE_pipeline/custom_configs
 # Private matching script 
 vercye_ops/matching_sim_real/match_sim_rs_lai.py
 
-# Local options
+# Env file
+.env

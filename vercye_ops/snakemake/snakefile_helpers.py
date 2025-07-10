@@ -27,14 +27,14 @@ def get_evaluation_results_path_func(config):
     def get_evaluation_results_path(wildcards):
         output_paths = []
         # Check if the evaluation results at simulation level file exists
-        # This file must always be called groundtruth_primary
-        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, f'groundtruth_primary-{wildcards.year}.csv')):
+        # This file must always be called referencedata__primary
+        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, f'referencedata__primary-{wildcards.year}.csv')):
             primary_eval_file = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'evaluation_primary.csv')
             output_paths.append(primary_eval_file)
         
         # Get all other evaluation results files from the config (wildcards)
         for agg_name in config['eval_params']['aggregation_levels']:
-            gt_file = op.join(config['sim_study_head_dir'], wildcards.year, f'groundtruth_{agg_name}-{wildcards.year}.csv')
+            gt_file = op.join(config['sim_study_head_dir'], wildcards.year, f'referencedata__{agg_name}-{wildcards.year}.csv')
             if op.exists(gt_file):
                 eval_file = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, f'evaluation_{agg_name}.csv')
                 output_paths.append(eval_file)

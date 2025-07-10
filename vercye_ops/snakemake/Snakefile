@@ -693,7 +693,7 @@ rule aggregate_maps:
     params:
         executable_fpath = config['scripts']['aggregate_maps'],
         roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
-        validation_cmd = f"--val_fpath {op.join(config['sim_study_head_dir'], '{year}', 'groundtruth_primary-{year}.csv')}" if op.exists(op.join(config['sim_study_head_dir'], '{year}', 'groundtruth_primary-{year}.csv')) else ''
+        validation_cmd = f"--val_fpath {op.join(config['sim_study_head_dir'], '{year}', 'referencedata__primary-{year}.csv')}" if op.exists(op.join(config['sim_study_head_dir'], '{year}', 'referencedata__primary-{year}.csv')) else ''
     log:
         'logs_aggregate_maps/{year}_{timepoint}.log'
     output:
@@ -732,11 +732,11 @@ rule aggregate_yield_estimates_per_eval_lvl:
         --out_fpath {output.lvl_aggregated_yield_estimates} > {log}
         """
 
-# Rule to evaluate predicted yield if groundtruth is available
+# Rule to evaluate predicted yield if referencedata_ is available
 rule evaluate_yield_estimates:
     input:
         aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-        validation_fpath = op.join(config['sim_study_head_dir'], '{year}', 'groundtruth_{agg_level_name}-{year}.csv')
+        validation_fpath = op.join(config['sim_study_head_dir'], '{year}', 'referencedata__{agg_level_name}-{year}.csv')
     params:
         executable_fpath = config['scripts']['evaluate_yield_estimates'],
         out_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),

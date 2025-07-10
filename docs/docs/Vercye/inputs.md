@@ -1,6 +1,5 @@
 # VeRCYe Pipeline Inputs Documentation
 
-## Overview
 The VeRCYe pipeline enables large-scale yield studies by organizing simulation data within a structured directory and processing it with `snakemake`. This document details the required input files, directory structure, and configurable parameters. 
 
 ---
@@ -22,9 +21,9 @@ Your yield study is structured within a single directory, referred to as the **s
 ### Directory Structure
 ```plaintext
 head_dir/
-|   snakemake_config.yaml
+|   config.yaml
 |---Year1/
-|   |   groundtruth-primary-Year1.csv (optional)
+|   |   referencedata_-primary-Year1.csv (optional)
 |   |---TimePoint-1/
 |   |   |---region1/
 |   |   |   |   region1.geojson
@@ -49,8 +48,8 @@ Each **Region of Interest (ROI)** is represented as a GeoJSON file within its re
 We expect your data to initially be a **shapefile (.shp)**. To extract individual regions into GeoJSONs, we provide a conversion script.
 If your shapefile has
 
-- A: **Mixed Administrative Levels:** Use `apsim/prepare_shapefile.py` to standardize the shapefile before conversion. Then proceed with B.
-- B: **Single Administrative Level:** Use `apsim/convert_shapefile_to_geojson.py` if the shapefile has a uniform administrative level.
+- A: **Geometries from different ddministrative levels:** Use `utils/prepare_shapefile.py` to standardize the shapefile before conversion. Then proceed with B.
+- B: **Geoemtries at a single administrative level:** Use `utils/convert_shapefile_to_geojson.py` if the shapefile has a uniform administrative level.
 
 > [!Warning]
 > Ensure your shapefiles contains only geometries at the same administrative level if skipping `prepare_shapefile.py`!
@@ -65,7 +64,7 @@ For example, if studying California, the file structure would be:
 ```plaintext
 2024/T-0/california/california.geojson
 ```
-If you do not use our conversion from shapefile to GeoJSON, you will need to manually ensure that each GeoJSON contains a centroid column that has the same format as extracted in `convert_shapefile_to_geojson.py`.
+If you do not use our conversion from shapefile to GeoJSON, you will need to manually ensure that each GeoJSON contains a centroid column that has the same format as created in `utils/convert_shapefile_to_geojson.py` and contains a column `cleaned_region_name_vercye`, containing the file's name.
 
 ---
 
@@ -83,28 +82,28 @@ Each timepoint must define:
 - **Meteorological Data Start & End Dates**
 - **LAI (Leaf Area Index) Data Start & End Dates**
 
-Years and Timepoints are referenced in `snakemake_config.yaml` using their respective names. Therefore the folder names must match these.
+Years and Timepoints are referenced in `config.yaml` using their respective names. Therefore the folder names must match these.
 
 ---
 
 ## 4. APSIMX Templates
 
 ### Purpose
-Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop and soil and other parameters for APSIM. The dates (`Models.Clock`) in the APSIM file must align with the simulation dates set in `snakemake_config.yaml`! This is often the only change that needs to be applied for using the same APSIM files for different years.
+Each region and timepoint requires an **APSIMX template** (`regionname_template.apsimx`). This file defines crop and soil and other parameters for APSIM. The dates (`Models.Clock`) in the APSIM file must align with the simulation dates set in `config.yaml`! This is often the only change that needs to be applied for using the same APSIM files for different years.
 
-If you are not using the `setup_helper.ipynb` you will likely want to copy the same file to a number of directories (regions):
+If you are not using the `prepare_yieldstudy.py` helper script, you will likely want to copy the same file to a number of directories (regions):
 ```
 cd path/to/apsim_simulation_20240607/2021/T-0  # Path where regions exist (e.g., from above shapefile conversion)
 source_file="/path/to/my/template.apsimx"; for dir in *; do cp "$source_file" "${dir}/${dir}_template.apsimx"; done
 ```
 
-Adjustments for e.g soil properties and simulation constraints must be manually configured with domain knowledge.
+**Adjustments for e.g soil properties and simulation constraints must be manually configured with domain knowledge.**
 
 ---
 
 ## 5. Validation Data (Optional)
-If ground-truth yield data is available, it should be included as `groundtruth_{AggregationLevel}-{Year}.csv` in the corresponding year directory.
-Hereby, `aggregation level`, specifies how the simulation level regions should be aggregated and must be aliged with the `eval_params.aggregation_levels` in your `snakemake_config.yaml`. The `year` must match the corresponding year directory.
+If ground-truth yield data is available, it should be included as `referencedata_**_**{AggregationLevel}**-**{Year}.csv` in the corresponding year directory.
+Hereby, `aggregation level`, specifies how the simulation level regions should be aggregated and must align with the `eval_params.aggregation_levels` in your `config.yaml`. The `year` must match the corresponding year directory.
 
 ### Reference CSV Specification
 | Column Name               | Description |
@@ -125,7 +124,7 @@ In this case a total reference value is ommited to avoid misinterpretation.
 ---
 
 ## 6. Snakemake Configuration
-This file defines the study parameters and links the **simulation head directory** with the pipeline. You will have to adapt this fill for each yield study. An example configuration can be found here [example configuration file](https://github.com/JPLMLIA/vercye_ops/blob/main/vercye_ops/snakemake/config_local.yaml). We reccomend, to use this as a template for adjustment. The following section describes the meaning of the paramters, but does not represent the syntac for how to organize the config. For this please refer to the example.
+This file defines the study parameters and links the **simulation head directory** with the pipeline. You will have to adapt this for each yield study. An example configuration can be found here [example configuration file](/vercye_ops/examples/run_config_example.yaml). We reccomend, to use this as a template for adjustment. The following section describes the meaning of the paramters, but does not represent the exact syntax for how to organize the config. For this, please refer to the example.
 
 ### Key Parameters
 
@@ -140,7 +139,7 @@ This file defines the study parameters and links the **simulation head directory
 - `create_per_region_html_report`: Create HTML reports of predicted yield curves per region. Requires a lot of space. (`True`/`False`).
 - `title`: Free choice of a title, used as the heading in the report.
 - `description`: Custom description (freetext) of the study.
-- `lai_shp_name`: Name of the shapefile used for LAI generation. Not used for processing, simply for reference.
+- `lai_source`: Name of the shapefile used for LAI generation. Not used for processing, simply for reference.
 - `regions_shp_name`: Name of the shapefile from which the GeoJSONs where created. Not used for processing, simply for reference.
 
 
@@ -154,6 +153,7 @@ This file defines the study parameters and links the **simulation head directory
 - `nasapower_cache_dir`: Directory (typically outside of your yieldstudy, globally) containing already fetched dates of nasapower met data per region.
 - `era5_cache_dir`: Directory (typically outside of your yieldstudy, globally) containing already fetched dates of nasapower met data per region.
 - `ee_project`: Project ID in google earth engine. Required if using ERA5 meteorological data.
+- `align_np_grid`: Weather to query only the closest NASA Power gridcell centroid instead of the exact lat/lon. Improves caching, however, solar radiation is currently incorrect (See met data section in the docs).
 - `time_bounds`: Defines timepoint parameters:
   - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
   - `met_start_date`, `met_end_date`: Start/End date from when to include metereological data into APSIM.
@@ -176,21 +176,22 @@ This file defines the study parameters and links the **simulation head directory
 
 
 #### Matching Parameters (`matching_params`)
-- `target_crs`: CRS string for coordinate reference system used for area calculation. Either a proj string (e.g `'"+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"'`) or authority string (e.g `'epsg:1234'`). Should be choosen with care to minimize distortions. If using a proj string ensure to encolose it with additional quotes as in the example.
+- `target_crs`: CRS string for coordinate reference system used for area calculation. Either a proj string (e.g `'"+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"'`) or authority string (e.g `'epsg:1234'`). Should be choosen with care to ensure **equal area**. If using a proj string ensure to enclose it with additional quotes as in the example.
 
 #### APSIM Execution (`apsim_execution`)
 - `use_docker`: Set `True` to run APSIM in Docker.
-- `docker.image`: Docker image (`apsiminitiative/apsimng`).
+- `docker.image`: Docker image (`apsiminitiative/apsimng`). Should already have been downloaded.
 - `docker.platform`: Device platform (e.g., `'linux/amd64'`).
 - `local.executable_fpath`: Path to the local APSIM executable. Follow the setup instruction to install it and replace this path if not using docker.
 - `local.n_jobs`: Number of threads (`-1` uses APSIM default).
 
 
 #### Evaluation Parameters
-- `aggregation_levels`: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results. 
-IMPORTANT: Neither the key nor the value may contain colons! If this is the case, please ensure you rename your shapefile.
+- `aggregation_levels`: Allows evaluation at multiple administrative levels: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results. 
 
-E.g a the shapefile might have a column Admin2 and the simulations are run at Admin3. So all predictions that share the same Admin2 region would be aggregated and metrics would be computed for these.
+**IMPORTANT**: Neither the key nor the value may contain colons! If this is the case, please ensure you rename your shapefile.
+
+**Example:** The shapefile might have a column `Admin2` and the simulations are run at `Admin3`. So all predictions that share the same Admin2 region would be aggregated and metrics would be additionally computed for this aggregation.
 
 #### Scripts Configuration
-- Paths to scripts used within the Snakemake pipeline. See the example for details
+- Paths to scripts used within the Snakemake pipeline. See the example for details.

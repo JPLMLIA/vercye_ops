@@ -163,6 +163,7 @@ eval_params:
   # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
   # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
   # If you do not want additional aggregation level, set aggregation_levels: {}
+  # Ensure the name (key), matches those of the reference data set in the setup_config.yaml!
   # ATTENTION: The name or column must NOT contain colons!!
   aggregation_levels:
     XXXX1: 'XXXX' # E.g: National: 'NAME_0'
@@ -174,6 +175,8 @@ eval_params:
 ########################################
 
 # Typically no need to change except for match_sim_real
+# Relative paths are relative to the Snakefile, typically in your vercye installation.
+
 scripts:
   construct_met_files: '../apsim/construct_met_files.py'
   plot_met_files: '../reporting/generate_weather_report.py'

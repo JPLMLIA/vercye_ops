@@ -20,6 +20,7 @@ RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster ass
 SCL_KEEP_CLASSES = [4, 5]
 
 logger = get_logger()
+logger.setLevel('INFO')
 
 def dedupliate(items):
     item_entries = [
@@ -164,23 +165,42 @@ def main(
     gdf = gdf.to_crs(epsg=4326)
     gdf["geometry"] = gdf["geometry"].apply(lambda geom: make_valid(geom) if not geom.is_valid else geom)
 
-    if not gdf.empty:
-        # Combine all geometries into one & get convex hull
-        unified_geometry = gdf.union_all()
-        geometry = unified_geometry.convex_hull
-    else:
+    if gdf.empty:
         raise ValueError('Empty shapefile provided.')
 
-    items = stac_downloader.query_catalog(
-        collection_name=stac_collection_name,
-        start_date=start_date,
-        end_date=end_date,
-        geometry=geometry,
-        query={"eo:cloud_cover": {"lt": max_cloud_cover}},
-    )
+    # Query Stac catalog
+
+    # First try using all exact geometries. However, sometimes this is a too large request and might throw an error
+    try:
+        geometry = gdf.geometry.union_all()
+        items = stac_downloader.query_catalog(
+                collection_name=stac_collection_name,
+                start_date=start_date,
+                end_date=end_date,
+                geometry=geometry,
+                query={"eo:cloud_cover": {"lt": max_cloud_cover}},
+        )
+    except Exception as e:
+        # If it throws an error, we simplify each geometry to a bounding box and try again.
+        logger.warning('Not able to query STAC for true intersection. Trying bounding box.')
+        # Create bounding box (envelope) of each geometry
+        envelopes = gdf.geometry.envelope
+
+        # Combine all bounding boxes into a single geometry
+        unified_geometry = envelopes.union_all()
+        geometry = unified_geometry
+
+        items = stac_downloader.query_catalog(
+            collection_name=stac_collection_name,
+            start_date=start_date,
+            end_date=end_date,
+            geometry=geometry,
+            query={"eo:cloud_cover": {"lt": max_cloud_cover}},
+        )
 
     items = dedupliate(items)
 
+    print(f"Found {len(items)} items")
     logger.info(f"Found {len(items)} items")
     logger.info(f"Search took {time.time() - t0:.2f} seconds")
 

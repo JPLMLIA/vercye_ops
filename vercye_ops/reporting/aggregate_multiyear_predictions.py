@@ -55,7 +55,7 @@ def collect_files(base_dir, agg_lvl_name, timepoint):
             pred_paths[year] = (agg_preds_files[0])
 
 
-        gt_path = os.path.join(base_dir, year, f'groundtruth_{agg_lvl_name}-{year}.csv')
+        gt_path = os.path.join(base_dir, year, f'referencedata__{agg_lvl_name}-{year}.csv')
         if os.path.exists(gt_path):
             gt_paths[year] = (gt_path)
 

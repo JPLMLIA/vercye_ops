@@ -1,9 +1,8 @@
 # 🌿 LAI Generation 
 The pipeline produces LAI products for VERCYe and is intended for scaled deployment on servers or HPC with minimal human intervention. The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox. We provide two methods for exporting remotely sensed imagery and deriving LAI products:
 
-
-A: Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)
-B: Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS or MPC (fast, inferior cloudmasking).
+- **A:** Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)
+- **B: **Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS or MPC (fast, inferior cloudmasking).
 
 The individual advantages are detailed in the [introduction](intro.md#lai-generation). This document details the instruction on how to download remotely sensed imagery and derive LAI data. For both approaches we provide pipelines that simply require specifying a configuration and then handle the complete process from exporting and downloading remotely sensed imagery to cloudmasking and deriving LAI estimates. Details of the invididual components of the pipelines can be found in the readme of the corresponding folders.
 
@@ -15,9 +14,10 @@ Install the requirements as detailed in [Introduction - Setup](../index.md#setup
 ### A - Google Earth Engine Pipeline
 
 **Step 1: GeoJSON Extraction**
-Extract geosjsons from a shapefile for each region of interest. Typically, you will want to break down large areas into individual geometries, such as from the `Admin 1 or 2` level depending on their size in the country of interest.
 
-While it is possible, to also provide a national scale geometry directly, in the past we noticed the export through GEE to be significantly slower then when processing multiple e.g `admin2` geometries in parallel. We therefore do not reccomend providing a single national geometry.
+Extract `GeoJSON's` from a shapefile for each region of interest. Typically, you will want to break down large areas into individual geometries, such as from the `Admin 1 or 2` level depending on their size in the country of interest.
+
+While it is possible, to also provide a national scale geometry directly, in the past we noticed the export through GEE to be significantly slower or failing then when processing multiple e.g `admin2` geometries in parallel. We therefore do not reccomend providing a single national geometry.
 
 Use the `vercye_ops/lai/0_build_library.py` helper script to extract individual GeoJSONS from a shapefile. Ensure that the shapefile only contains geometries at the same administrative level (e.g do NOT mix polygons for states and districts in the same shapefile).
 
@@ -36,13 +36,15 @@ Options:
   --help                        Show this message and exit.
 ```
 
-**Step2: Create your Google Earth Engine Credentials**
+**Step 2: Create your Google Earth Engine Credentials**
+
 Follow the Google Drive Python Quickstart to download a `client_secret.json`: https://developers.google.com/drive/api/quickstart/python
 
 > [!NOTE]  
 > Google OAuth requires accessing a server-side browser via X11 forwarding to produce a `token.json`. This can get complicated, involving Xming or Xquartz along with the appropriate `$DISPLAY` and `.ssh/config` parameters. It may be easier to just run this locally to produce the `token.json`, then transfer the token to the server. For this, you will have to run `vercye_ops/vercye_ops/lai/lai_creation_GEE/1_1_gee_export_S2.py` with `--export_mode drive` and `--gdrive_credentials /path.to/your/credentials.json` and some other dummy parameters. You can cancel the run, once you see that the earth engine login is completed. This will then produce the token that you have to transfer to the server. Otherwise, please discuss with your system administrator.
 
 **Step 3: Setup the GEE-LAI Pipeline Configuration**
+
 Create a LAI config file that defines the parameters of your study.
 
 **3.1 Copy** `vercye_ops/lai/lai_creation_GEE/example_config.yaml` to `vercye_ops/lai/lai_creation_GEE/custom_configs/your_config_name.yaml`
@@ -95,8 +97,7 @@ snakemake --configfile /your/configfile.yaml --cores 10
 
 Replace `/your/configfile.yaml` with the actual path to your configuration file from Step 2.
 
-**What Happens In The Pipeline?**
-The pipeline orchestrates a sophisticated workflow:
+This will orchestrates the following workflow:
 
 - Export Management: Submits up to 10 parallel jobs to GEE for Sentinel-2 mosaic exports from your regions and date ranges
 - Smart Downloads: Automatically downloads exported data from Google Drive to your local machine
@@ -106,7 +107,7 @@ The pipeline orchestrates a sophisticated workflow:
 - Optional Merging: Combines regional data into single daily files if specified in your config
 
 **Performance Tuning**
-The --cores parameter controls parallel processing. While you can adjust this based on your system resources, there's usually no benefit to going beyond 10 cores - that's the maximum number of simultaneous export jobs allowed under GEE's educational and non-profit licenses.
+The `--cores` parameter controls parallel processing. While you can adjust this based on your system resources, there's usually no benefit to going beyond 10 cores - that's the maximum number of simultaneous export jobs allowed under GEE's educational and non-profit licenses.
 
 **Output Structure**
 Your LAI products will land in different locations depending on your configuration:
@@ -119,19 +120,10 @@ Your LAI products will land in different locations depending on your configurati
 
 The STAC pipeline fetches Sentinel-2 Imagery either from an AWS bucket hosted by Element84 or from Azure in the Microsoft Planetary Computer. For Element84, it uses data from `Sentinel-2 L2A Collection 1`. All this data has been processed with `Baseline 5.0`. However, during downloading we ensure that both the shift in data from `Element84 Earthsearch` and from `Micrososft Planetary Computer` is harmonized to match a baseline < 4.0 to conform the LAI models training data.
 
-To generate daily LAI data for your region of interest follow the steps blow:
-
-**Step 1: Prepare Your Area of Interest**
-Prepare a **GeoJSON** file representing the convex hull of your region.
-
-In **QGIS**, this can be done by:
-
-1. `Vector → Geoprocessing Tools → Dissolve`
-2. Then: `Vector → Geoprocessing Tools → Convex Hull`
-3. Export the resulting layer as **GeoJSON**
+To generate daily LAI data for your region of interest follow the steps below:
 
 
-**Step 2: Define Your Configuration**
+**Step 1: Define Your Configuration**
 
 Here's an example of how you'd process a multiple years of Morocco data at 20m resolution (Save as `config.yaml`):
 
@@ -157,7 +149,7 @@ imagery_src: "MPC"
 - `date_ranges`: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).
 
 - `resolution`: Spatial resolution in meters. (Typically 10 or 20)
-- `geojson-path`: Path to your convex hull geojson.
+- `geojson-path`: Path to your regions of interest geojson. Will create a bounding box for each geometry and query the intersecting tiles.
 - `out_dir`: Output directory for all generated data.
 - `region_out_prefix`: Prefix for the output VRT filenames - typically the name of the GeoJSON region.
 - `from_step`: Controls which part of the pipeline to resume from (0–3). Should be at 0 if not trying to recover a crashed run.
@@ -175,12 +167,14 @@ cd vercye_ops/lai/lai_creation_STAC
 python run_stac_dl_pipeline.py /path/to/your/config.yaml
 ```
 
-**Pipeline Steps Breakdown**
+This will run the following steps:
+
 - Step 0: Download imagery.
-- Step 1: Generate LAI for individual tiles
-- Step 2: Clean up temporary files
-- Step 3: Build final VRT mosaics
+- Step 1: Generate LAI for individual tiles & Clean up original imagery after creation.
+- Step 2: Reproject all LAI tiles to `EPSG:4326` and ensure exactly the same resolution, by coosing the most frequent expected resolutin after reprojection.
+- Step 3: Build final daily VRT mosaics covering all tiles from this day.
 
-After the pipeline finishes , you'll find a `merged-lai` directory in your `out_dir` packed with daily .vrt files. Each file contains LAI data for your entire region, covering all tiles that had usable imagery on that date.
+**Step 4: Locate your imagery**
+After the pipeline finishes , you'll find a `merged-lai` directory in your `out_dir` filled with daily `.vrt` files. Each file contains LAI data for your entire region, covering all tiles that had usable imagery on that date.
 
-Happy LAI generating! 🛰️🌱
+Happy LAI generating!
