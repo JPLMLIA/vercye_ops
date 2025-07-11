@@ -166,7 +166,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     default=False,
 )
 
-def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, model_weights, remove_original):
+def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_original):
     """
     Main function to process Sentinel-2 VRT files and generate LAI estimates.
     
