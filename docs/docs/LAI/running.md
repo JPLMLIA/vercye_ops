@@ -144,6 +144,7 @@ from_step: 0
 num_cores: 64
 chunk_days: 30
 imagery_src: "MPC"
+keep_imagery: false
 ```
 
 - `date_ranges`: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).
@@ -156,6 +157,7 @@ imagery_src: "MPC"
 - `chunk_days`: Number of days to process in each batch. Default is 30 days. Can be used to control storage usage by avoiding to keep more than chunk-days of original tile data on disk at once.
 - `num_cores`: Number of cores to use. Default is 1 (sequential). Increase for faster processing on multi-core systems.
 - `imagery_src`: Imagery Source - Either "MPC" for Microsoft Planetary Computer or "ES_S2C1" for element84 earthsearch sentinel-2 l2a collection1.
+- `keep_imagery`: Whether to store the original remotely sensed imagery after LAI was generated from it or not. Typically keep false.
 
 **Step 3: Navigate to the Pipeline**
 ```bash
