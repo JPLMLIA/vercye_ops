@@ -29,20 +29,25 @@ git clone https://github.com/JPLMLIA/vercye_ops.git
 
 #### 1. Check Python Version and GDAL
 
-This repository has been tested and run with `python 3.10.16` and with `gdal==3.1.0`. Ensure you have installed the corresponding versions (`python --version` and `gdalinfo --version`).
-If you are running your code on a shared cluster, you might have to run `module load gdal/3.1.0`, before being able to use `GDAL`.
+This repository has been tested and run with `python 3.13.5` and with `gdal==3.11.0`. Ensure you have installed the corresponding versions (`python --version` and `gdalinfo --version`). It might or might not work with other versions.
 
 #### 2. Install the requirements
 
+It is reccomended to use a conda environement. Ensure you have conda installed.
 Navigate to this package's root directory and run:
 
 ```bash
-conda install --yes --file requirements.txt
-# or
-pip install -r requirements.txt
+conda create --name vercye python=3.13.5
+
+conda activate vercye
+
+conda install -c conda-forge gdal=3.11
+
+pip install -r requirements.txt 
 ```
 
-> **Note**: As of June 2024, if using `conda`, you may also need to install `Snakemake` and a specific dependency manually via pip:
+Currently we are mixing pip and conda dependancies.
+> **Note**: As of June 2024, if using `conda`, for all requirements you may also need to install `Snakemake` and a specific dependency manually via pip:
 >
 > ```bash
 > pip install snakemake pulp==2.7.0
