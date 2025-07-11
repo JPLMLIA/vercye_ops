@@ -232,7 +232,7 @@ def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: p
     # Harmonizes scenes to match the baseline < 4.0 format.
     # Subtract a shift of -1000 to match the ESA introduced shift
     baseline = float(item.properties['s2:processing_baseline'])
-    if baseline > 4.0:
+    if baseline >= 4.0:
         nodata_val = raster_profile['nodata']
         raster = np.where(raster != nodata_val, raster - 1000, nodata_val)
 
