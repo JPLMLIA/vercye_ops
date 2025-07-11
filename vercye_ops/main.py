@@ -151,7 +151,7 @@ def read_study_dir_from_env():
 
 def read_lai_dir_from_env():
     env_vars = dotenv_values(get_env_file_path())
-    return env_vars.get('LAI_DIR', None)
+    return env_vars.get('LAI_BASE_DIR', None)
 
 
 @click.command()
