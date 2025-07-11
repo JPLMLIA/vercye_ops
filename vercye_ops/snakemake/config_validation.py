@@ -8,6 +8,11 @@ from pathlib import Path
 import subprocess
 import sys
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def rel_path(*path_parts):
+    return os.path.join(BASE_DIR, *path_parts)
+
 
 def validate_run_config(config_file):
     """
@@ -486,6 +491,7 @@ def _validate_script_paths(config):
     scripts = config.get('scripts', {})
     
     for script_name, script_path in scripts.items():
+        script_path = rel_path(script_path)
         if not os.path.exists(script_path):
             raise FileNotFoundError(f"Script not found: {script_name} at {script_path}")
         
