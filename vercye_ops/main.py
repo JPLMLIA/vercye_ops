@@ -1,11 +1,11 @@
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 import click
 import yaml
-from snakemake import snakemake
 
 from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import (
     run_pipeline as run_imagery_dl_pipeline,
@@ -101,21 +101,26 @@ def run_study(study_dir, study_name, validate_only):
     if validate_only:
         return
     
-    success = snakemake(
-        snakefile="vercye_ops/snakemake/Snakefile",
-        configfiles=[config_file_path],
-        config_args=["--profile", profile_dir],
-        use_conda=True,
-        printshellcmds=True,
-        workdir="vercye_ops/snakemake",
-    )
+    snakefile_path = rel_path('vercye_ops/snakemake/Snakefile')
+    workdir =  rel_path('vercye_ops/snakemake')
+    
+    cmd = [
+        "snakemake",
+        "--snakefile", snakefile_path,
+        "--configfile", config_file_path,
+        "--profile", profile_dir,
+        "--directory", workdir,
+        "--printshellcmds"
+    ]
 
-    if success:
-        print("Workflow completed successfully.")
-    else:
+    try:
+        subprocess.run(cmd, check=True)
+    except Exception as e:
+        print(e)
         print(
-            "Workflow failed. Examine the logs to identify the reasons, fix and continue running by rerunning."
+            "Snakemake workflow failed. Examine the logs to identify the reasons, fix and continue running by rerunning."
         )
+       
 
 def get_env_file_path():
     return Path(BASE_DIR).parent / '.env'
@@ -164,11 +169,11 @@ def main(mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, va
         if env_study_dir:
             dir = env_study_dir
 
-    if mode in ['init', 'prep', 'lai', 'run']:
-        if not name or not dir:
-            raise ValueError(f'Must provide --name and --dir for "{mode}" mode')
-    
     try:
+        if mode in ['init', 'prep', 'lai', 'run']:
+            if not name or not dir:
+                raise ValueError(f'Must provide --name and --dir for "{mode}" mode')
+
         if mode == "init":
             init_study(name=name, dir=dir)
         elif mode == "prep":
