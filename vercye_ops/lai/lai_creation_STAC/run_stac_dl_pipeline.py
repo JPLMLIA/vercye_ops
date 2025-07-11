@@ -78,6 +78,7 @@ def run_pipeline(config):
     num_workers_download = config.get("num_cores_download", 1)
     chunk_days = config.get("chunk_days", 30)
     source = config["imagery_src"]
+    keep_imagery = config["keep_imagery"]
 
     if source.lower() == 'es_s2c1':
         downloader_script_path = rel_path('1_download_S2_earthsearch.py')
@@ -139,7 +140,7 @@ def run_pipeline(config):
                         "--start-date", start,
                         "--end-date", end,
                         "--num-cores", str(num_workers_lai),
-                        "--remove-original"
+                        "--remove-original" if not keep_imagery else ""
                     ]
                     run_subprocess(cmd, f"Compute LAI for {start} to {end}")
 

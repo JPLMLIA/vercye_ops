@@ -20,4 +20,5 @@ from_step: 0 # Only change if you have a failed job. 0: download & produce LAI, 
 num_cores_download: 120 # Number of cores to use for downloading (typically use all on HPC).
 num_cores_lai: 64 # Number of cores to use for creating LAI. Limit due to memory consumption at high resoution.
 chunk_days: 30 # Number of days to process as one chunk. Will only keep this amount of imagery on disk before creating LAI and deleting original imagery
-imagery_src: "MPC" # "MPC" for Microsoft Planetary Computer or "ES_S2C1" for Element84 EarthSearch Sentinel-2 Collection 1
+imagery_src: "MPC" # "MPC" for Microsoft Planetary Computer or "ES_S2C1" for Element84 EarthSearch Sentinel-2 Collection 1. All data will be harmonized to an offset < baseline 4.0.
+keep_imagery: false # Whether to keep the original remotely sensed imagery after generation of LAI

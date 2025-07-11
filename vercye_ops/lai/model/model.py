@@ -1,5 +1,11 @@
+import os
 import torch.nn as nn
 import torch
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def rel_path(*path_parts):
+    return os.path.join(BASE_DIR, *path_parts)
 
 # Specification of required input bands/channels and actual weights
 # All input bands are expected to be in the same format as S2_SR_Harmonized in GEE
@@ -7,11 +13,11 @@ import torch
 default_model_weights = {
     "S2": {
         10: {
-            "weights_path": "../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth",
+            "weights_path": rel_path("../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth"),
             "channels": ["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"],
         },
         20: {
-            "weights_path": "../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
+            "weights_path": rel_path("../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"),
             "channels": [
                 "cosVZA",
                 "cosSZA",

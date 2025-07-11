@@ -10,7 +10,6 @@ import click
 import numpy as np
 import rasterio as rio
 import torch
-import torch.nn as nn
 
 import xml.etree.ElementTree as ET
 
@@ -159,12 +158,6 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     type=int,
     default=64,
     help="Number of workers (cores) to use.",
-)
-@click.option(
-    "--model-weights",
-    type=click.Path(exists=True),
-    default="../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
-    help="Local Path to the model weights",
 )
 @click.option(
     "--remove-original",
