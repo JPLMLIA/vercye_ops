@@ -148,12 +148,14 @@ def prepare_study(config_path):
     # Fill in LAI section in run_config based on lai creation config 
     lai_config_path = str(Path(config_path).parent / 'lai_config.yaml')
     if os.path.exists(lai_config_path):
-        print('imagery found')
         lai_config, _ = load_yaml_ruamel(lai_config_path)
-        snakefile_config['lai_source'] = str(Path(lai_config['geojson_path']).name)
-        snakefile_config['lai_params']['lai_dir'] =  os.path.join(lai_config['out_dir'], 'merged-lai')
-        snakefile_config['lai_params']['lai_region'] = lai_config['region_out_prefix']
-        snakefile_config['lai_params']['lai_resolution'] = lai_config['resolution']
+
+        # Check that the file was actually filled in as in not just the created template
+        if not 'XXXX' in lai_config['out_dir']:
+            snakefile_config['lai_source'] = str(Path(lai_config['geojson_path']).name)
+            snakefile_config['lai_params']['lai_dir'] =  os.path.join(lai_config['out_dir'], 'merged-lai')
+            snakefile_config['lai_params']['lai_region'] = lai_config['region_out_prefix']
+            snakefile_config['lai_params']['lai_resolution'] = lai_config['resolution']
 
     # Transfer LAI start-enddate configuration to run config
     lai_dict = {}

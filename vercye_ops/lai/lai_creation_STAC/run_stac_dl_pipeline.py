@@ -86,6 +86,7 @@ def run_pipeline(config):
     else:
         raise ValueError('Invalid Source Provided')
 
+    os.makedirs(out_dir, exist_ok=True)
 
     if from_step not in [0, 2, 3]:
         raise ValueError("Invalid from_step value. Must be 0, 2, or 3.")

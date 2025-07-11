@@ -34,7 +34,24 @@ def init_study(name, dir):
     os.makedirs(new_study_path)
 
     imagery_template_path = rel_path("lai/lai_creation_STAC/config_example.yaml")
-    shutil.copy(imagery_template_path, os.path.join(new_study_path, "lai_config.yaml"))
+    new_imagery_config_path =  os.path.join(new_study_path, "lai_config.yaml")
+    shutil.copy(imagery_template_path, new_imagery_config_path)
+
+    # Set an initial value from env variable for the LAI storage dir if set.
+    if is_env_set():
+        lai_dir = read_lai_dir_from_env()
+
+        if lai_dir:
+            # Replace the lai dir, if env variable is set
+            with open(new_imagery_config_path, "r") as file:
+                content = file.read()
+
+            lai_dir_placeholder = os.path.join(lai_dir, 'XXXX')
+            content = content.replace("out_dir: output", f"out_dir: {lai_dir_placeholder}")
+
+            # Save the modified content back to the file
+            with open(new_imagery_config_path, "w") as file:
+                file.write(content)
 
     preparation_config_path = rel_path("examples/setup_config_template.yaml")
     shutil.copy(preparation_config_path, os.path.join(new_study_path, "setup_config.yaml"))
@@ -128,9 +145,13 @@ def get_env_file_path():
 def is_env_set():
     return get_env_file_path().exists()
 
-def read_dir_from_env():
+def read_study_dir_from_env():
     env_vars = dotenv_values(get_env_file_path())
     return env_vars.get('STUDY_DIR', None)
+
+def read_lai_dir_from_env():
+    env_vars = dotenv_values(get_env_file_path())
+    return env_vars.get('LAI_DIR', None)
 
 
 @click.command()
@@ -165,7 +186,7 @@ def main(mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, va
 
     # Load study dir from env if available and not set via cli
     if is_env_set() and not dir:
-        env_study_dir = read_dir_from_env()
+        env_study_dir = read_study_dir_from_env()
         if env_study_dir:
             dir = env_study_dir
 
