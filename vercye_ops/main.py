@@ -47,7 +47,7 @@ def init_study(name, dir):
                 content = file.read()
 
             lai_dir_placeholder = os.path.join(lai_dir, 'XXXX')
-            content = content.replace("out_dir: output", f"out_dir: {lai_dir_placeholder}")
+            content = content.replace("out_dir: XXXX", f"out_dir: {lai_dir_placeholder}")
 
             # Save the modified content back to the file
             with open(new_imagery_config_path, "w") as file:
