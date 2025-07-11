@@ -6,7 +6,7 @@ Make sure you have folled the setup instructions and have installed `vercye` wit
 
 **Optional: Set up environemental defaults**
 
-If you have a system wide installation and want all studies to be saved in the same directory, create a `.env` file in the projects root. Add the line `STUDY_DIR=/path/to/studies/store`. You can then always omit the `--dir` option in the cli. You can also set defaults for `CHIRPS_DIR`, `NP_CACHE_DIR`, `ERA5_CACHE_DIR` for your met data storage paths.
+If you have a system wide installation and want all studies to be saved in the same directory, copy the `.env_example` file to `.env` in the projects root. And set the paths to your shared storage and cache directories. Then, you will not have to provide the `--dir` option in the following instructions.
 
 
 0. Activate your virtual environment with the `vercye` instalation (depending on your venv setup). E.g:

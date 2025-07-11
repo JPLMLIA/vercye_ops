@@ -61,14 +61,14 @@ pip install -e .
 There are two options for running APSIM:
 
 - **Using Docker**: Simply set a parameter during configuration of your yield study. The Docker container will build automatically. (Ensure `docker` is installed.)
-- **Building the binary manually**: See instructions in [vercye_ops/apsim/README.md](vercye_ops/apsim/README.md).
+- **Building the binary manually**: See instructions in the [APSIM Section](Vercye/apsim.md).
 
 > **Note**: If running on UMD systems, APSIM is pre-installed at:
 >
 > ```
 > /gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models
 > ```
-However, you might have to install `dotnet` from source as outlined in [vercye_ops/apsim/README.md](vercye_ops/apsim/README.md). 
+However, you might have to install `dotnet` from source as outlined in the [APSIM Section](Vercye/apsim.md). 
 
 #### 5. Install `jq`
 

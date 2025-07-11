@@ -1,4 +1,8 @@
-# Manual APSIM Install
+APSIM is an agricultural modelling framework that can simulate a variety of biophysical processes for differen crops.
+
+VeRCYe relies on the APSIMX framework for generating various simulations in a realistic range.
+
+### Installing APSIMX
 Visit [https://www.apsim.info](https://www.apsim.info) and make sure you have the proper license.
 
 The below instructions show how to install onto RHEL. This involves
