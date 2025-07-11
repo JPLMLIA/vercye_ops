@@ -35,6 +35,8 @@ export DOTNET_ROOT=path/to/dotnet
 # Build APSIM
 module load git  # Might not be needed
 
+git clone https://github.com/APSIMInitiative/ApsimX.git ${APSIM_SRC_ROOT}
+
 cd ${APSIM_SRC_ROOT}
 ${DOTNET_ROOT}/dotnet build -c Release ApsimX.sln
 
