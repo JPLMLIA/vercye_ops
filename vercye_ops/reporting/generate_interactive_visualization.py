@@ -1,5 +1,6 @@
 from collections import defaultdict
 import os
+import shutil
 import click
 import geopandas as gpd
 import pandas as pd
@@ -17,19 +18,22 @@ DEFAULT_LAI_COLUMNS = [
 ]
 
 class InteractiveMapGenerator:
-    def __init__(self, shapefile_path: str, lai_basedir_path: str, output_path: str, lai_columns: List[str], lai_column_names: List[str], agg_levels: Dict[str, Tuple[str, str]], simplify_tolerance: float = 0.01):
+    def __init__(self, shapefile_path: str, basedir_path: str, output_dir: str, lai_columns: List[str], lai_column_names: List[str], agg_levels: Dict[str, Tuple[str, str]], simplify_tolerance: float = 0.01, zip: bool = False):
         """Initialize the map generator."""
         self.shapefile_path = shapefile_path
-        self.lai_basedir_path = lai_basedir_path
-        self.output_path = output_path
+        self.basedir_path = basedir_path
+        self.output_dir = output_dir
         self.gdf = None
         self.lai_data = None
+        self.sim_data = None
         self.aggregation_levels = []
         self.aggregated_estimates = {}
         self.lai_columns = lai_columns
         self.lai_column_names = lai_column_names
         self.simplify_tolerance = simplify_tolerance
-        self.simulations_img_dir = "sim_images"
+        self.zip = zip
+
+        os.makedirs(self.output_dir, exist_ok=True)
 
         for agg_name, (agg_column, agg_estimates_fpath) in agg_levels.items():
             self.add_aggregation_level(agg_name, agg_column, agg_estimates_fpath)
@@ -62,8 +66,11 @@ class InteractiveMapGenerator:
         print('Loaded aggregated estimates for all levels')
         
         print("Loading LAI data...")
-        self.lai_data = self.load_lai_data(self.lai_basedir_path)
+        self.lai_data = self.load_lai_data()
         print(f"Loaded LAI data")
+
+        print("Loading simulations data")
+        self.sim_data = self.load_sim_data()
         
     
     def add_aggregation_level(self, level_name: str, column_name: str, agg_estimate_fpath: str):
@@ -124,7 +131,7 @@ class InteractiveMapGenerator:
                     aggregated_values[display_name].append(mean_lai_)
             
             # Format date for display
-            date_labels.append(pd.to_datetime(date, format='%d/%m/%Y').strftime('%m/%d'))
+            date_labels.append(date.strftime('%m/%d'))
             
             if group['interpolated'].isin([1]).any():
                 # If any value is interpolated, mark as interpolated
@@ -210,20 +217,16 @@ class InteractiveMapGenerator:
             }
             
             # If base level, link the simulations report
-            if is_base_level:
-                sim_img_path = f"{self.simulations_img_dir}/{str(row['cleaned_region_name_vercye'])}_yield_report.png"
-                feature["properties"]["simulationsImgPath"] =  sim_img_path
+            if is_base_level and region_name in self.sim_data:
+                feature["properties"]["simulationsImgPath"] = self.sim_data[region_name]
 
             # Add reference data if available
             if region_name in self.aggregated_estimates[level_idx] and 'reported_mean_yield_kg_ha' in self.aggregated_estimates[level_idx][region_name]:
                 feature['properties']['reported_mean_yield_kg_ha'] = float(self.aggregated_estimates[level_idx][region_name]['reported_mean_yield_kg_ha'])
             
             if region_name in self.aggregated_estimates[level_idx] and 'error' in self.aggregated_estimates[level_idx][region_name]:
-                feature['properties']["error"] = float(self.aggregated_estimates[level_idx][region_name]['error']),
+                feature['properties']["error"] = float(self.aggregated_estimates[level_idx][region_name]['error'])
                 feature['properties']["relative_error"] =  float(self.aggregated_estimates[level_idx][region_name]['relative_error'])
-
-            if region_name in self.aggregated_estimates[level_idx] and 'reported_production_kg' in  self.aggregated_estimates[level_idx][region_name]:
-                feature['properties']['reported_production_kg'] = float(self.aggregated_estimates[level_idx][region_name]['reported_production_kg'])
 
             features.append(feature)
    
@@ -1994,12 +1997,18 @@ class InteractiveMapGenerator:
         print("Generating HTML template...")
         html_content = self.generate_html_template(levels, title)
         
-        print(f"Writing to {self.output_path}...")
-        with open(self.output_path, 'w', encoding='utf-8') as f:
+        output_path = os.path.join(self.output_dir, 'vercye_results_map.html')
+        print(f"Writing to {output_path}...")
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-        
-        print(f"Interactive map generated successfully: {self.output_path}")
-        return self.output_path
+
+        if self.zip:
+            shutil.make_archive(self.output_dir, 'zip', self.output_dir)
+            print(f"Interactive map generated and zipped successfully: {self.output_dir}.zip")
+        else:
+            print(f"Interactive map generated successfully: {output_path}")
+
+        return output_path
     
     def load_aggregated_estimates(self):
         agg_estimates = {}
@@ -2022,30 +2031,31 @@ class InteractiveMapGenerator:
                 }
 
                 if 'error_kg_ha' in row and 'rel_error_percent' in row:
-                    agg_data[region_name]["error"] = row["error_kg_ha"],
+                    agg_data[region_name]["error"] = row["error_kg_ha"]
                     agg_data[region_name]["relative_error"] =  row["rel_error_percent"]
 
                 if 'reported_mean_yield_kg_ha' in row: 
                     agg_data[region_name]['reported_mean_yield_kg_ha'] = row['reported_mean_yield_kg_ha']
 
 
+
             agg_estimates[idx] = agg_data
         return agg_estimates
     
-    def load_lai_data(self, lai_basedir_path: str) -> pd.DataFrame:
+    def load_lai_data(self) -> pd.DataFrame:
         """
         Load LAI data from CSV files in the specified directory.
         
         Args:
-            lai_basedir_path: Directory containing LAI CSV files
+            basedir_path: Study base directory
             
         Returns:
             Combined DataFrame with all LAI data
         """
-        lai_files = list(Path(lai_basedir_path).glob('*_LAI_STATS.csv'))
+        lai_files = list(Path(self.basedir_path).rglob('*_LAI_STATS.csv'))
         
         if not lai_files:
-            raise FileNotFoundError(f"No LAI data files found in {lai_basedir_path}")
+            raise FileNotFoundError(f"No LAI data files found in {self.basedir_path}")
         
         all_lai_data = []
         
@@ -2059,6 +2069,25 @@ class InteractiveMapGenerator:
         # Combine all data into single DataFrame
         combined_df = pd.concat(all_lai_data, ignore_index=True)
         return combined_df
+    
+    def load_sim_data(self):
+        all_sim_data = {}
+
+        sim_pngs = list(Path(self.basedir_path).rglob('*_yield_report.png'))
+        for sim_png in sim_pngs:
+            region_name = sim_png.stem.rsplit('_yield_report', 1)[0]
+
+            if region_name in all_sim_data:
+                raise ValueError(f"Duplicate report for '{region_name}':\n"
+                                 f"  {all_sim_data[region_name]}\n  {sim_png}")
+            
+            # Copy all the simulations pngs to the output folder so it is self contained
+            new_path = Path(self.output_dir) / sim_png.name
+            shutil.copy(sim_png, new_path)
+
+            all_sim_data[region_name] = str(new_path)
+        
+        return all_sim_data
 
 def parse_agg_level(ctx, param, value):
     # Parses CLI parameters for aggregation level in passed order
@@ -2090,7 +2119,7 @@ def parse_lai_column(ctx, param, value):
 
 @click.command()
 @click.option('--shapefile-path', required=True, type=click.Path(exists=True), help='Path to the shapefile (.geojson).')
-@click.option('--lai-basedir-path', required=True, type=click.Path(exists=True), help='Path to the base directory containing LAI data.')
+@click.option('--basedir-path', required=True, type=click.Path(exists=True), help='Path to the base directory of the timepoint in the study.')
 @click.option('--adjusted/--no-adjusted', default=True, help='Include adjusted LAI columns.')
 @click.option('--smoothed/--no-smoothed', default=True, help='Include smoothed LAI columns.')
 @click.option('--agg-level', multiple=True, callback=parse_agg_level,
@@ -2098,8 +2127,9 @@ def parse_lai_column(ctx, param, value):
 @click.option('--lai-column', multiple=True, default=DEFAULT_LAI_COLUMNS, callback=parse_lai_column,
               help='LAI column in format internal_name:display_name. Can be used multiple times.')
 @click.option('--title', type=str, default='Yield Study', help='Title for the interactive map.')
-@click.option('--output-path', type=click.Path(), default='interactive_map.html', help='Output path for the generated HTML file. Must end with .html')
-def main(shapefile_path, lai_basedir_path, adjusted, smoothed, agg_level, lai_column, title, output_path):
+@click.option('--output-dir', type=click.Path(),  help='Output directory.')
+@click.option('--zipped', is_flag=True, help='Add flag for creating a .zip from the output directory.')
+def main(shapefile_path, basedir_path, adjusted, smoothed, agg_level, lai_column, title, output_dir, zipped):
 
     lai_columns, lai_column_names = lai_column
 
@@ -2113,11 +2143,12 @@ def main(shapefile_path, lai_basedir_path, adjusted, smoothed, agg_level, lai_co
 
     generator = InteractiveMapGenerator(
         shapefile_path=shapefile_path,
-        lai_basedir_path=lai_basedir_path,
-        output_path=output_path,
+        basedir_path=basedir_path,
+        output_dir=output_dir,
         lai_columns=lai_columns,
         lai_column_names=lai_column_names,
-        agg_levels=agg_level
+        agg_levels=agg_level,
+        zip=zipped
     )
 
     try:

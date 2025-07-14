@@ -815,7 +815,7 @@ rule generate_interactive_viz:
                               '{timepoint}', 
                               'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     params:
-        lai_basedir_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        basedir_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
         executable_fpath = config['scripts']['generate_interactive_vizualization'],
         title = config['title'],
         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
@@ -824,20 +824,22 @@ rule generate_interactive_viz:
             f"--agg-level {level_name}:{level_column}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(level_name, sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
             for level_name, level_column in config['eval_params']['aggregation_levels'].items()
         ]) + f" --agg-level primary:cleaned_region_name_vercye:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}",
+        output_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_map_{}_{}_{}'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     log:
         op.join('logs_generate_interactive_viz', '{year}_{timepoint}.log')
     output:
-        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_map_{}_{}_{}.zip'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     shell:
         """
         python {params.executable_fpath} \
         --shapefile-path {input.shapefile} \
-        --lai-basedir-path {params.lai_basedir_path} \
+        --basedir-path {params.basedir_path} \
         --title "{params.title}" \
         {params.adjusted_cmd} \
         {params.smoothed_cmd} \
         {params.agg_levels} \
-        --output-path {output} > {log}
+        --output-dir {params.output_dir} \
+        --zipped > {log}
         """
 
 # Rule to collect all predictions from multiple years in a csv for easier exporting
