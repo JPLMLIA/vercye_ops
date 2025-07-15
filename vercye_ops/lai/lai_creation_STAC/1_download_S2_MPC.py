@@ -23,13 +23,16 @@ logger = get_logger()
 logger.setLevel('INFO')
 
 def dedupliate(items):
+    if len (items) == 0:
+        raise ValueError('Empty list of items received.')
+
     item_entries = [
         {
             'mgrs_tile_id': item.id.split('_')[4],
             'date': datetime.strptime(item.id.split('_')[2], "%Y%m%dT%H%M%S").date(),
             'processing_date':  datetime.strptime(item.id.split('_')[5], "%Y%m%dT%H%M%S"),
             'item': item,
-            'invalid_formatting': len(item.id.split('_')[3]) != 4 or item.id.split('_')[3][0] != 'R'
+            'invalid_formatting': len(item.id.split('_')[3]) != 4 or item.id.split('_')[3][0] != 'R' # Ensure filename pattern
         } for item in items
     ]
 
