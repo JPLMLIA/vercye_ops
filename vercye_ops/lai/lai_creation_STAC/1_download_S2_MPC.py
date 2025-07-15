@@ -109,10 +109,10 @@ def main(
     num_workers,
     overwrite
 ):
-    modifier = planetary_computer.sign_inplace # Required from MPC
+    modifier = planetary_computer.sign # Required from MPC
     stac_downloader = STACDownloader(catalog_url="https://planetarycomputer.microsoft.com/api/stac/v1",
                                      logger=logger,
-                                     stac_catalog_modifier=modifier)
+                                     stac_item_modifier=modifier)
 
     satellite = satellite.lower()
     if satellite == "s2":
