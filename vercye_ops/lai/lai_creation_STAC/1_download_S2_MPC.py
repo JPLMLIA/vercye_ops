@@ -24,7 +24,8 @@ logger.setLevel('INFO')
 
 def dedupliate(items):
     if len (items) == 0:
-        raise ValueError('Empty list of items received.')
+        print('Empty list of items received. Exiting')
+        return items
 
     item_entries = [
         {

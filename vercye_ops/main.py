@@ -107,7 +107,7 @@ def download_chirps(study_dir, study_name, start_date, end_date, output_dir, num
     run_chirps_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
 
 
-def run_study(study_dir, study_name, validate_only):
+def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
     """Runs the study with snakemake and the specified profile"""
 
     config_file_path = os.path.join(study_dir, study_name, study_name, 'config.yaml')
@@ -118,8 +118,8 @@ def run_study(study_dir, study_name, validate_only):
     if validate_only:
         return
     
-    snakefile_path = rel_path('vercye_ops/snakemake/Snakefile')
-    workdir =  rel_path('vercye_ops/snakemake')
+    snakefile_path = rel_path('snakemake/Snakefile')
+    workdir =  rel_path('snakemake')
     
     cmd = [
         "snakemake",
@@ -127,16 +127,43 @@ def run_study(study_dir, study_name, validate_only):
         "--configfile", config_file_path,
         "--profile", profile_dir,
         "--directory", workdir,
-        "--printshellcmds"
+        "--printshellcmds",
+        "--rerun-incomplete"
     ]
 
+    # Add extra snakemake args if provided, allows to run custom options
+    if extra_snakemake_args:
+        cmd.extend(extra_snakemake_args)
+
     try:
-        subprocess.run(cmd, check=True)
-    except Exception as e:
-        print(e)
-        print(
-            "Snakemake workflow failed. Examine the logs to identify the reasons, fix and continue running by rerunning."
+        # Start process with real-time output and error capture
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout for real-time display
+            text=True,
+            bufsize=1,  # Line buffered
+            universal_newlines=True
         )
+
+        # Read and display output in real-time
+        for line in process.stdout:
+            print(line, end='')  # Print without extra newline since line already has one
+
+        # Wait for process to complete
+        process.wait()
+
+        if process.returncode == 0:
+            print("Snakemake completed successfully!")
+        else:
+            print(f"\nSnakemake failed with exit code: {process.returncode}")
+            sys.exit(process.returncode)
+
+    except Exception as e:
+        print(f"\nError running snakemake: {e}")
+        if process:
+            process.terminate()
+        raise
        
 
 def get_env_file_path():
@@ -154,7 +181,7 @@ def read_lai_dir_from_env():
     return env_vars.get('LAI_BASE_DIR', None)
 
 
-@click.command()
+@click.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument("mode", type=click.Choice(["init", "prep", "lai", "chirps", "run"]))
 @click.option("--name", required=False, help="Unique name for your yield study.")
 @click.option("--dir", required=False, help="Directory of your yieldstudy. Optional, if a env file is provided.")
@@ -163,7 +190,8 @@ def read_lai_dir_from_env():
 @click.option("--chirps-end", required=False, help="Daterange end for CHIRPS data. Format: YYYY-MM-DD")
 @click.option("--chirps-cores", required=False, help="Optional: Number of cores to use for parallel chirps downloading. Should be max 5. Default 5.", default=5)
 @click.option("--validate", required=False, is_flag=True, default=False, help="Optional: Can be used with run. Add this flag, if you only want to validate your configuration, instead of running.")
-def main(mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, validate):
+@click.pass_context
+def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, validate):
     """
     VeRCYe CLI usage instructions:
 
@@ -183,6 +211,11 @@ def main(mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, va
 
     vercye init --name ukraine_study_2025-03-20 --dir /home/yieldstudies
     """
+
+    extra_args = ctx.args
+
+    if extra_args and mode != 'run':
+        raise ValueError(f'Received unknown arguments "{extra_args}".')
 
     # Load study dir from env if available and not set via cli
     if is_env_set() and not dir:
@@ -205,7 +238,8 @@ def main(mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, va
         elif mode == "chirps":
             download_chirps(study_dir= dir, study_name=name, start_date=chirps_start, end_date=chirps_end, output_dir=chirps_dir, num_workers=chirps_cores)
         elif mode == "run":
-            run_study(study_dir= dir, study_name=name, validate_only=validate)
+            print(extra_args)
+            run_study(study_dir= dir, study_name=name, validate_only=validate, extra_snakemake_args=extra_args)
         else:
             raise ValueError('Invalid mode. Mode must be "init", "prep", "lai", "chirps" or "run".')
     except Exception as e:
