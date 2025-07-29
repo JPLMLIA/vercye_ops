@@ -161,6 +161,12 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
     default=0.6,
     help="Cloud score threshold for filtering pixels by cloud probability. Default is 0.6.",
 )
+@click.option(
+    "--token-only"
+    is_flag=True,
+    help='Flag to ony generate a authentication token on a local machine to copy to a remote machine.',
+    required=False
+)
 def main(
     project,
     library=None,
@@ -177,6 +183,7 @@ def main(
     snow_threshold=25,
     cloudy_threshold=80,
     cs_threshold=0.6,
+    token_only=False
 ):
 
     if export_mode == "gcs" and (export_bucket is None or gcs_folder_path is None):
@@ -194,6 +201,10 @@ def main(
     if export_mode == "gdrive" and gdrive_credentials is not None:
         drive_service = get_drive_service(gdrive_credentials)
         print("Successfully connected to Google Drive API")
+
+    if token_only:
+        print(f'Copy the token together with the client secret from {Path(gdrive_credentials).parent} to your remote machine to use it for downloading there.')
+        exit(0)
 
     # Start timing run
     all_start = time.time()

@@ -1,10 +1,10 @@
-# 🌿 LAI Pipeline Documentation
+# LAI Pipeline Documentation
 
 This pipeline estimates **Leaf Area Index (LAI)** from **Sentinel-2** satellite imagery using Google Earth Engine (GEE) and machine learning. It supports automated and sequential processing for multiple regions.
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Running the Complete Pipeline](#running-the-complete-pipeline)
@@ -19,7 +19,7 @@ This pipeline estimates **Leaf Area Index (LAI)** from **Sentinel-2** satellite 
 
 ---
 
-## 🌍 Overview
+## Overview
 
 The LAI pipeline processes **Sentinel-2 imagery** to generate LAI estimates via the following steps:
 
@@ -34,14 +34,30 @@ The LAI pipeline processes **Sentinel-2 imagery** to generate LAI estimates via 
 
 > [!WARNING]  
 > This requires a Google Earth Engine project with a linked Google Cloud Project.
+> If running on a remote system, this might require you to install the [gcloud CLI](https://cloud.google.com/sdk/docs/install#linux) 
 
 ---
 
-# ⚙️ Running the Complete Pipeline
+# Running the Complete Pipeline
 Use **Snakemake** for full automation as described in the docs.
 
 
-## 🛠️ Individual Scripts
+## Individual Scripts
+
+### 0. Convert Shapefile with multiple geometries to individual GeoJSONs
+**Script:** `../0_build_library.py`
+
+This steps takes a shapefile containing multiple geometries and extracts individual GeoJSON files for each geometry. The shapefile **must** only contain geometries at the same adminstrative level, to avoid confusion during later processing steps!
+
+```bash
+python ../0_build_library.py \
+  --admin_name_col [ADMIN_NAME_COLUMN] \
+  --output_head_dir [OUTPUT_DIRECTORY_PATH] \ 
+```
+
+**Key Parameters:**
+- `--admin_name_col`: The name of the column in the shapefile which contains the administrative name (or ID) of every geometry. This will be the identifier for each geometry during processing and reporting.
+- `--output_head_dir`: Path to the directory where all extracted GeoJSONs will be saved. This will be your regions library.
 
 ### 1.1 Export Sentinel-2 Data
 
@@ -74,14 +90,14 @@ For 10m `["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"]` will be downloa
 `["cosVZA", "cosSZA", "cosRAA", "B3", "B4", "B5", "B6", "B7", "B8A", "B11", "B12"] will be downloaded. These are the bands that the respective LAI model expects.
 - `--export-mode`: Export to `gdrive` or `gcs`
 
-If `--gdrive-credentials` and  `--download-folder` are specified, the script will automatically download the files directly after creation in GDrive to your local machine. This avoids storage limitations in GDrive. If you use this, ensure you follow the same setup instructions as for (2. Manual Google Drive Download)
+If `--gdrive-credentials` and `--download-folder` are specified, the script will automatically download the files directly after creation in GDrive to your  machine. This avoids storage limitations in GDrive. If you use this, ensure you follow the same setup instructions as for (2. Manual Google Drive Download)
 
 **Export Options**
 
 | Feature               | Google Drive (`--export-mode gdrive`)               | Google Cloud Storage (`--export-mode gcs`)          |
 |-----------------------|-----------------------------------------------------|-----------------------------------------------------|
-| ✅ **Pros**           | - Free storage<br>- Easy setup<br>- Auto-download support | - No file size limits<br>- Faster for large exports |
-| ⚠️ **Cons**            | - Limited to Storage<br>- Slower for large files<br>- Splits files | - Egress costs apply<br>- Requires GCS bucket setup |
+| **Pros**           | - Free storage<br>- Easy setup<br>- Auto-download support | - No file size limits<br>- Faster for large exports |
+| **Cons**            | - Limited to Storage<br>- Slower for large files<br>- Splits files | - Egress costs apply<br>- Requires GCS bucket setup |
 | **Tipps**             | - Use with automatical download+deletion of files after creation by specyfing `gdrive-credentials` and `download-folder` | Check egress costs beforehand |
 
 
@@ -105,6 +121,8 @@ This looks for the file `library/Poltava.geojson` and uses its geometry to expor
   - Basic tutorial: https://askubuntu.com/a/542671
 - The `--shpfile` flag can be used to specify a `.shp` file instead of looking for an existing region in the library. It will probably use the first Polygon within.
 - Running multiple instances of this script will allow rasters to process in parallel instead of in sequence. For example, instead of calling this script with a three-year-long date range, call it three separate times in parallel with a one-year-long date range.
+- If you are running on a remote system and encounter an error related to `gcloud` installation missing, follow the instructions under [gcloud CLI](https://cloud.google.com/sdk/docs/install) to install the `gcloud CLI` on your system.
+- This script will prompt you to authorize the application to access your earthengine/gcloud account. For this, a link will be opened in the terminal. Follow the instructios there to authorize the application. If you are on a remote system this will not be possible, since it requires openening a browser. In this case, you will have to run this step on your local machine. The step creates a file called `token.json` in the same directory as your `client-key`. You will then have to copy this to remote machine.
 
 ---
 
@@ -206,13 +224,13 @@ python 2_2_build_daily_vrts.py [LAI_DIR] [OUTPUT_DIR] [RESOLUTION] \
 ### 5. Additional Scripts
 TODO Need to fill this back in from Jakes documentation
 
-## 🧩 Troubleshooting
+## Troubleshooting
 
-### 🔐 Authentication Issues
+### Authentication Issues
 - Run `earthengine authenticate`
 - Verify GDrive credentials are valid
 
-### 🧠 Memory Errors during LAI prediction
+### Memory Errors during LAI prediction
 - If using snakemake, reduce the number of cores.
 - Split the regions into smaler tiles
 
