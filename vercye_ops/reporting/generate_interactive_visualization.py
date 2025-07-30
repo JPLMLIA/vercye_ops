@@ -46,8 +46,7 @@ class InteractiveMapGenerator:
         self.gdf = gpd.read_file(self.shapefile_path)
 
         # Select columns to keep & append aggregation columns if they exist
-        keep_cols = ["cleaned_region_name_vercye", "estimated_mean_yield_kg_ha", "total_area_ha",
-                     "estimated_median_yield_kg_ha", "geometry", "reported_mean_yield_kg_ha"]
+        keep_cols = ["cleaned_region_name_vercye", "geometry"]
         keep_cols += [self.aggregation_levels[i]['column'] for i in range(len(self.aggregation_levels)) if self.aggregation_levels[i]['column'] not in keep_cols]
         print(keep_cols)
 
@@ -292,10 +291,12 @@ class InteractiveMapGenerator:
             for level_key, level_data in levels["level_data"].items():
                 for feature in level_data["features"]:
                     all_values.append(feature["properties"][valueType])
+                    print(feature["properties"]['relative_error'])
 
             for mapping_data in levels["level_mappings"].values():
                 for feature in mapping_data["features"]:
                     all_values.append(feature["properties"][valueType])
+                    print(feature["properties"]['relative_error'])
             
             all_values = [v for v in all_values if not np.isnan(v)]
 
@@ -314,6 +315,8 @@ class InteractiveMapGenerator:
                 'max_val': max_val,
                 'p95_val': p95_val
             }
+
+            print(valueType, value_ranges[valueType])
 
         return value_ranges
     
@@ -852,6 +855,18 @@ class InteractiveMapGenerator:
                         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
                     }}
 
+                    .polygon-tooltip {{
+                        background: rgba(255, 255, 255, 0.9);
+                        color: #2d3748;
+                        border: 1px solid #cbd5e0;
+                        padding: 4px 8px;
+                        font-size: 12px;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+                        pointer-events: none;
+                        font-weight: bold;
+                    }}
+
                     .help-icon {{
                         position: relative;
                         display: inline-block;
@@ -872,6 +887,22 @@ class InteractiveMapGenerator:
                         align-items: center;
                         justify-content: center;
                         transition: background-color 0.2s ease;
+                    }}
+
+                    path.leaflet-interactive:focus {{
+                        outline: none;
+                    }}
+
+                    .polygon-tooltip {{
+                        background: rgba(255, 255, 255, 0.9);
+                        color: #2d3748;
+                        border: 1px solid #cbd5e0;
+                        padding: 4px 8px;
+                        font-size: 12px;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+                        pointer-events: none;
+                        font-weight: bold;
                     }}
 
                     .help-button:hover {{
@@ -991,14 +1022,14 @@ class InteractiveMapGenerator:
                             </div>
                             
                             <div class="legend">
-                                <div class="legend-title title">Yield Legend (kg/ha)</div>
+                                <div class="legend-title title">Legend</div>
                                 <div id="legendItems"></div>
                                 <div class="heatmap-selector">
-                                    <label for="heatmapSelector">Select Heatmap Type:</label>
+                                    <label for="heatmapSelector">Selected Heatmap Type:</label>
                                     <select id="heatmapSelector">
                                         <option value="estimated_mean_yield_kg_ha">Estimated Mean Yield (kg/ha)</option>
                                         <option value="estimated_median_yield_kg_ha">Estimated Median Yield (kg/ha)</option>
-                                        <option value="error">Error (kg)</option>
+                                        <option value="error">Error (kg/ha)</option>
                                         <option value="relative_error">Relative Error (%)</option>
                                     </select>
                                 </div>
@@ -1011,7 +1042,7 @@ class InteractiveMapGenerator:
                                 
                                 <div class="comparison-controls">
                                     <div class="lai-selector">
-                                        <label for="laiColumnSelect">Select LAI Column to Compare:</label>
+                                        <label for="laiColumnSelect">Selected LAI Column:</label>
                                         <select id="laiColumnSelect">
                                             {lai_column_options}
                                         </select>
@@ -1110,7 +1141,7 @@ class InteractiveMapGenerator:
 
                     const errorRamp = chroma
                         .scale(['#2166ac', '#f7f7f7', '#b2182b']) // blue → white → red
-                        .domain([-1, 0, 1])
+                        .domain([0, 0.5, 1])
                         .mode('lrgb');
 
                     let ramp = yieldRamp;
@@ -1121,11 +1152,14 @@ class InteractiveMapGenerator:
                         let max = valueRange.p95_val;
                         if (heatmapType.includes('error')) {{
                             const absMax = Math.max(Math.abs(min), Math.abs(max));
-                            min = -absMax;
-                            max = absMax;
+                            // Normalize so: -absMax -> 0, 0 -> 0.5, +absMax -> 1
+                            const t = 0.5 + 0.5 * (value / absMax);
+                            // Clamp to [0, 1]
+                            const clamped = Math.max(0, Math.min(1, t));
+                            return ramp(clamped).hex();
                         }}
 
-                        // Clamp value between min and max
+                        // Clamp value between 0/1
                         const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
                        
 
@@ -1133,6 +1167,10 @@ class InteractiveMapGenerator:
                     }}
 
                     const capitalize = str => str.charAt(0).toUpperCase() + str.slice(1);
+
+                    function getHeatmapUnits() {{
+                        return heatmapType == 'relative_error' ? '%' : 'kg/ha';
+                    }}
 
                     // Style each feature using getColor(...)
                     function style(feature) {{
@@ -1155,6 +1193,20 @@ class InteractiveMapGenerator:
                             color: '{dark_primary}',
                             fillOpacity: 0.95
                         }});
+
+
+                        const tooltipValue = `${{props[heatmapType]?.toFixed(1)}} ${{getHeatmapUnits()}}` ?? 'N/A';
+                        const center = layer.getBounds().getCenter();
+                        const tooltip = L.tooltip({{
+                            permanent: false,
+                            direction: 'center',
+                            className: 'polygon-tooltip',
+                            opacity: 0.9
+                        }})
+                        .setLatLng(center)
+                        .setContent(`${{tooltipValue}}`);
+
+                        layer.bindTooltip(tooltip).openTooltip();
 
                         if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {{
                             layer.bringToFront();
@@ -1788,6 +1840,7 @@ class InteractiveMapGenerator:
                             ${{ramp(0).hex()}}, 
                             ${{ramp(0.2).hex()}}, 
                             ${{ramp(0.4).hex()}}, 
+                            ${{ramp(0.5).hex()}}, 
                             ${{ramp(0.6).hex()}}, 
                             ${{ramp(0.8).hex()}}, 
                             ${{ramp(1).hex()}})`;
@@ -1800,9 +1853,9 @@ class InteractiveMapGenerator:
                         labelContainer.style.color = '#4a5568';
 
                         const minLabel = document.createElement('span');
-                        minLabel.textContent = `${{min}} kg/ha`;
+                        minLabel.textContent = `${{min}} ${{getHeatmapUnits()}}`;
                         const maxLabel = document.createElement('span');
-                        maxLabel.textContent = `≥ ${{max}} kg/ha`;
+                        maxLabel.textContent = `≥ ${{max}} ${{getHeatmapUnits()}}`;
 
                         labelContainer.appendChild(minLabel);
                         labelContainer.appendChild(maxLabel);
@@ -2004,7 +2057,9 @@ class InteractiveMapGenerator:
 
         if self.zip:
             shutil.make_archive(self.output_dir, 'zip', self.output_dir)
+            shutil.rmtree(self.output_dir)
             print(f"Interactive map generated and zipped successfully: {self.output_dir}.zip")
+            
         else:
             print(f"Interactive map generated successfully: {output_path}")
 
@@ -2032,7 +2087,7 @@ class InteractiveMapGenerator:
 
                 if 'error_kg_ha' in row and 'rel_error_percent' in row:
                     agg_data[region_name]["error"] = row["error_kg_ha"]
-                    agg_data[region_name]["relative_error"] =  row["rel_error_percent"]
+                    agg_data[region_name]["relative_error"] = row["rel_error_percent"]
 
                 if 'reported_mean_yield_kg_ha' in row: 
                     agg_data[region_name]['reported_mean_yield_kg_ha'] = row['reported_mean_yield_kg_ha']
@@ -2085,7 +2140,7 @@ class InteractiveMapGenerator:
             new_path = Path(self.output_dir) / sim_png.name
             shutil.copy(sim_png, new_path)
 
-            all_sim_data[region_name] = str(new_path)
+            all_sim_data[region_name] = sim_png.name
         
         return all_sim_data
 

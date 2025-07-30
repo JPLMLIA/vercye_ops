@@ -51,7 +51,7 @@ def compute_metrics(preds, obs):
 
 def compute_errors_per_region(preds, obs, region_names):
     errors_kg_ha = obs - preds
-    rel_errors_percent = errors_kg_ha / obs
+    rel_errors_percent = (errors_kg_ha / obs) * 100
 
     return {
         'error_kg_ha': errors_kg_ha,
