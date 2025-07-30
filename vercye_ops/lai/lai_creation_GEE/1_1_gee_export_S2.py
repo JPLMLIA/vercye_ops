@@ -162,9 +162,9 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
     help="Cloud score threshold for filtering pixels by cloud probability. Default is 0.6.",
 )
 @click.option(
-    "--token-only"
+    "--token-only",
     is_flag=True,
-    help='Flag to ony generate a authentication token on a local machine to copy to a remote machine.',
+    help='Flag to ony generate an authentication token on a local machine to copy to a remote machine. Must be used with --gdrive-credentials and --project.',
     required=False
 )
 def main(
