@@ -56,6 +56,15 @@ rule all:
         #interactive_viz = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         multiyear_report = op.join(config['sim_study_head_dir'], 'multiyear_summary_{}.html'.format(sanitize_filename(config['study_id']))),
+        interactive_vizs = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_map_{}_{}_{}.zip'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints']
+        ),
+        multiyear_lai_report = expand(
+            op.join(config['sim_study_head_dir'], "lai_report_{}_{}.pdf".format(sanitize_filename(config['study_id']), '{agg_lvl}')),
+            agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
+        ),
 
 # Workaround to expand outputs for individual regions with checkpointing as expand and wildcards don't work well together
 rule expand_sim_match_report_region:
@@ -693,7 +702,7 @@ rule aggregate_maps:
     params:
         executable_fpath = config['scripts']['aggregate_maps'],
         roi_base_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
-        validation_cmd = f"--val_fpath {op.join(config['sim_study_head_dir'], '{year}', 'referencedata__primary-{year}.csv')}" if op.exists(op.join(config['sim_study_head_dir'], '{year}', 'referencedata__primary-{year}.csv')) else ''
+        validation_cmd = f"--val_fpath {op.join(config['sim_study_head_dir'], '{year}', 'referencedata_primary-{year}.csv')}" if op.exists(op.join(config['sim_study_head_dir'], '{year}', 'referencedata_primary-{year}.csv')) else ''
     log:
         'logs_aggregate_maps/{year}_{timepoint}.log'
     output:
@@ -732,11 +741,11 @@ rule aggregate_yield_estimates_per_eval_lvl:
         --out_fpath {output.lvl_aggregated_yield_estimates} > {log}
         """
 
-# Rule to evaluate predicted yield if referencedata_ is available
+# Rule to evaluate predicted yield if referencedata is available
 rule evaluate_yield_estimates:
     input:
         aggregated_yield_estimates = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(sanitize_filename('{agg_level_name}'), sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-        validation_fpath = op.join(config['sim_study_head_dir'], '{year}', 'referencedata__{agg_level_name}-{year}.csv')
+        validation_fpath = op.join(config['sim_study_head_dir'], '{year}', 'referencedata_{agg_level_name}-{year}.csv')
     params:
         executable_fpath = config['scripts']['evaluate_yield_estimates'],
         out_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
@@ -903,6 +912,7 @@ rule generate_multiyear_comparison:
     input:
         # Using final reports as a proxy for all dependancies, as this simplifies the rule strongly
         # True dependancies are LAI_stats, aggregated yield estimates, and evaluation results for all years, and timepoints (and regions)
+        # TODO: Clean this up with true dependancies
         final_reports = expand(
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
             year=config['years'],
@@ -914,17 +924,6 @@ rule generate_multiyear_comparison:
             agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
             timepoint=config['timepoints']
         ),
-
-        multiyear_lai_report = expand(
-            op.join(config['sim_study_head_dir'], "lai_report_{}_{}.pdf".format(sanitize_filename(config['study_id']), '{agg_lvl}')),
-            agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
-        ),
-
-        interactive_vizs = expand(
-            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
-            year=config['years'],
-            timepoint=config['timepoints']
-        )
     params:
         executable_fpath = config['scripts']['generate_multiyear_comparison'],
         input_dir = config['sim_study_head_dir'],

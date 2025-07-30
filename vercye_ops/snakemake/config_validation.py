@@ -553,9 +553,9 @@ def main():
     
     try:
         validate_run_config(config_file)
-        print("\n🎉 Configuration validation passed! Your setup is ready to run.")
+        print("\n Configuration validation passed! Your setup is ready to run.")
     except Exception as e:
-        print(f"\n❌ Configuration validation failed: {e}")
+        print(f"\n Configuration validation failed: {e}")
         sys.exit(1)
 
 
