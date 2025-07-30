@@ -41,7 +41,7 @@ Options:
 Follow the Google Drive Python Quickstart to download a `client_secret.json`: https://developers.google.com/drive/api/quickstart/python
 
 > [!NOTE]  
-> Google OAuth requires accessing a server-side browser via X11 forwarding to produce a `token.json` from your `client_secret `. This can get complicated, involving Xming or Xquartz along with the appropriate `$DISPLAY` and `.ssh/config` parameters. It may be easier to just run this locally to produce the `token.json`, then transfer the token to the server. For this, you will have to run `vercye_ops/vercye_ops/lai/lai_creation_GEE/1_1_gee_export_S2.py` with `--export-mode drive` and `--gdrive-credentials /path.to/your/credentials.json` and the `--token-only` flag. You can cancel the run, once you see that the earth engine login is completed. This will then produce the token that you have to transfer to the server. Otherwise, please discuss with your system administrator.
+> Google OAuth requires accessing a server-side browser via X11 forwarding to produce a `token.json` from your `client_secret `. This can get complicated, involving Xming or Xquartz along with the appropriate `$DISPLAY` and `.ssh/config` parameters. It may be easier to just run this locally to produce the `token.json`, then transfer the token to the server. For this, you will have to run `vercye_ops/vercye_ops/lai/lai_creation_GEE/1_1_gee_export_S2.py` with `--export-mode gdrive`, `--project your-gee-projectname` and `--gdrive-credentials /path.to/your/credentials.json` and the `--token-only` flag. This will then produce the token in the directory next to your gdrive credentials that you have to transfer to the server and place next to your credentials there.
 
 **Step 3: Setup the GEE-LAI Pipeline Configuration**
 
@@ -105,6 +105,8 @@ This will orchestrates the following workflow:
 - Data Standardization: Processes and standardizes the imagery data if it was split into multiple files from GEE
 - LAI Generation: Creates LAI products for each processed file
 - Optional Merging: Combines regional data into single daily files if specified in your config
+
+If you are running on a remote system and encounter an error related to `gcloud` installation missing, follow the instructions under [gcloud CLI](https://cloud.google.com/sdk/docs/install) to install the `gcloud CLI` on your system.
 
 **Performance Tuning**
 The `--cores` parameter controls parallel processing. While you can adjust this based on your system resources, there's usually no benefit to going beyond 10 cores - that's the maximum number of simultaneous export jobs allowed under GEE's educational and non-profit licenses.
