@@ -5,6 +5,8 @@ ee
 earthengine-api
 gdal
 geopandas
+google-auth
+google-auth-oauthlib
 joblib
 kaleido==0.2.1  # For static image plots in plotly
 matplotlib
