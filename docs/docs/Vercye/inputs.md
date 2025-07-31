@@ -154,6 +154,7 @@ This file defines the study parameters and links the **simulation head directory
 - `era5_cache_dir`: Directory (typically outside of your yieldstudy, globally) containing already fetched dates of nasapower met data per region.
 - `ee_project`: Project ID in google earth engine. Required if using ERA5 meteorological data.
 - `align_np_grid`: Weather to query only the closest NASA Power gridcell centroid instead of the exact lat/lon. Improves caching, however, solar radiation is currently incorrect (See met data section in the docs).
+- `sowing_date_col`: Optional. If the shapefile/geojsons have a column containing the sowing date as YYYY-MM-DD, use this in the simulation. Set to empty string if not using.
 - `time_bounds`: Defines timepoint parameters:
   - `sim_start_date`, `sim_end_date`: Start/End date of the simulation in APSIM.
   - `met_start_date`, `met_end_date`: Start/End date from when to include metereological data into APSIM.
@@ -191,7 +192,8 @@ This file defines the study parameters and links the **simulation head directory
 
 **IMPORTANT**: Neither the key nor the value may contain colons! If this is the case, please ensure you rename your shapefile.
 
-**Example:** The shapefile might have a column `Admin2` and the simulations are run at `Admin3`. So all predictions that share the same Admin2 region would be aggregated and metrics would be additionally computed for this aggregation.
+**Example:** The shapefile might have a column `Admin2` and the simulations are run at `Admin3`. So all predictions that share the same `Admin2` region would be aggregated and metrics would be additionally computed for this aggregation.
 
 #### Scripts Configuration
 - Paths to scripts used within the Snakemake pipeline. See the example for details.
+Relative paths are relative to the `Snakemake` file (! not the config file!).

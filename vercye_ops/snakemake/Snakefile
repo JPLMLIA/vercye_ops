@@ -339,20 +339,33 @@ rule update_apsimx_template:
     input:
         met_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather.met'),
         met_plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
+        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
         script_fpath = config['scripts']['update_apsimx_template'],
         head_dir = config['sim_study_head_dir'],
-        sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date']
+        sowing_date_col = config['apsim_params']['sowing_date_col'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
     log:
         'logs_update_apsimx_template/{year}_{timepoint}_{region}.log',
     output:
         apsimx_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx')
     shell:
         """
+        # If sowing date available load and ingest it into APSIM template
+        {params.jq_load_statement}
+        SOWINGDATE_CMD=""
+        if [[ -n "{params.sowing_date_col}" ]]; then
+            SOWINGDATE=$(jq -r ".features[].properties.{params.sowing_date_col}" < "{input.geometry}")
+            if [[ -n "$SOWINGDATE" && "$SOWINGDATE" != "null" ]]; then
+                SOWINGDATE_CMD="--sowing_date ${SOWINGDATE}"
+            fi
+        fi
+
         python {params.script_fpath} \
         --apsimx_template_fpath {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_template.apsimx \
         --apsimx_output_fpath {output.apsimx_fpath} \
         --new_met_fpath {input.met_fpath} \
+        $SOWINGDATE_CMD \
         --verbose > {log}
         """
 

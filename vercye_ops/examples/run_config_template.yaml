@@ -79,6 +79,8 @@ apsim_params:
   ee_project: 'XXXX' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
   align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation. Should be activated when running at field scale to avoid querying the same met data pixel multiple times.
 
+  sowing_date_col: 'XXXX' # Optional: If the shapefile/geojsons have a column containing the sowing date as YYYY-MM-DD, use this in the simulation. Leave empty if not using.
+
   # Specify the time bounds for each year and timepoint from above. So in total years x timepoints entries.
   time_bounds:
     XXXX1: # E.g 2021
