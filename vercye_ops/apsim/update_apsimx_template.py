@@ -44,8 +44,9 @@ def recursive_update(json_data, key_to_update, file_suffix, new_value, verbose=F
             if isinstance(item, (dict, list)):
                 recursive_update(item, key_to_update, new_value, file_suffix, verbose)
 
+
 def get_nested_object_by_name(json_data, object_name):
-     """
+    """
     Recursively walk through JSON-like structure and find a nested object with a specific name.
 
     Parameters
@@ -60,17 +61,22 @@ def get_nested_object_by_name(json_data, object_name):
     dict
         The JSON object with Name==object_name
     """
+
     if isinstance(json_data, dict):
         if json_data.get("Name") == object_name:
             return json_data
         for value in json_data.values():
             if isinstance(value, (dict, list)):
-                return get_nested_object_by_name(value, object_name)
+                result = get_nested_object_by_name(value, object_name)
+                if result is not None:
+                    return result
 
     elif isinstance(json_data, list):
         for item in json_data:
             if isinstance(item, (dict, list)):
-                return get_nested_object_by_name(item, object_name)
+                result = get_nested_object_by_name(item, object_name)
+                if result is not None:
+                    return result
 
 
 def update_object_property(json_data, object_property, target_value, verbose=False):
@@ -79,12 +85,15 @@ def update_object_property(json_data, object_property, target_value, verbose=Fal
 
     json_data[object_property] = target_value
     if verbose:
-        print(f'Updated {object_property} to {target_value}')
+        logger.info(f'Updated "{object_property}" to "{target_value}"')
 
-def update_kv_list(search_list, key, value):
+
+def update_kv_list(search_list, key, value, verbose=False):
     for item in search_list:
         if item.get('Key') == key:
             item['Value'] = value
+            if verbose:
+                logger.info(f'Updated "{key}" to "{value}"')
             return
     
     raise ValueError(f'No item with key "{key} found in {search_list}.')
@@ -116,14 +125,14 @@ def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, 
 
         # Disable sowing date factorial
         sowing_date_obj = get_nested_object_by_name(json_data, object_name='SowingDate')
-        update_object_property(object_property='Enabled', target_value=False, vebose=verbose)
+        update_object_property(sowing_date_obj, object_property='Enabled', target_value=False, verbose=verbose)
 
         # Enforce fixed sowing date
         sowing_rule_manager_obj = get_nested_object_by_name(json_data, object_name='SowingRule')
         sowing_rule_manager_parameters = sowing_rule_manager_obj['Parameters']
-        update_kv_list(sowing_rule_manager_parameters, key='StartDate', value=apsim_date_str)
-        update_kv_list(sowing_rule_manager_parameters, key='EndDate', value=apsim_date_str)
-        update_kv_list(sowing_rule_manager_parameters, key='ForceSowing', value=apsim_date_str)
+        update_kv_list(sowing_rule_manager_parameters, key='StartDate', value=apsim_date_str, verbose=verbose)
+        update_kv_list(sowing_rule_manager_parameters, key='EndDate', value=apsim_date_str, verbose=verbose)
+        update_kv_list(sowing_rule_manager_parameters, key='ForceSowing', value=apsim_date_str, verbose=verbose)
 
     # Save out updated .apsimx json to disk
     with open(apsimx_output_fpath, 'w') as file:
