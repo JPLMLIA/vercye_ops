@@ -45,6 +45,8 @@ This document details all output artifacts and their computation methods.
     - StepFilteredOut: The step number at which the APSIM simulation was removed from matching candidates, as described in `match_sim_rs_lai.py`. If this field is empty/nan, the simultion was matched and not filtered out.
     - Further details not publicly available at the moment.
 
+- **matched_sims.csv**: Complete simulations data of the matched simulations from APSIM.
+
 - **`conversion_factor.csv`**: Contains numerous values related to the APSIM simulations (and remotely sensed LAI). `Max_Yield` and `Max_LAI` as defined in `sim_matches.csv`.
     - apsim_mean_yield_estimate_kg_ha: The mean of `Max_Yield` over the remaining APSIM simulations fter filtering out simulations as described in `match_sim_rs_lai.py`.
     - apsim_max_matched_lai: The maximum `Max_Sim_LAI` value over all matched (filtered) APSIM simulations. 

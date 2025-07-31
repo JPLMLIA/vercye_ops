@@ -10,6 +10,8 @@ The API imposes rather strict limitations on the number of parallel requests and
 The `ERA5` data is fetched through `Google Earth Engine`. Therefore, this requires you to authenticate with your `Earth Engine` project.
 During execution of the pipeline, the meteorological data is then fetched as the centroid or mean of a region from `Earth Engine`.
 
+If you plan on using this approach you will have to run `earthengine authenticate` and complete the steps in the terminal before starting the pipeline.
+
 ## CHIRPS
 
 **Downloading CHIRPS Precipitation Data**

@@ -148,6 +148,8 @@ Once your setup is complete:
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml -c 20
    ```
 
+  Additionally it is recommended to add `--directory path-to-your-working-directory` where all the logs and snakemake internal artifacts should be saved. This avoids possible conflicts between different studies.
+
 ## Output
 
 When the simulation completes, results will be available in your base directory. See the [Outputs Documentation](outputs.md) for details on interpreting the results.

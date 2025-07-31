@@ -52,7 +52,18 @@ vercye prep --name your-study-name --dir /path/to/study/store
 vercye chirps --name your-study-name --dir /path/to/study/store
 ```
 
-6. Run your study
+6. [Optional] Authenticate with EarthEngine
+
+- Only required if using ERA5 meteorological data.
+- Requires authenticating with your earth engine account to submit jobs.
+
+```bash
+earthengine authenticate
+```
+
+Run this command and follow the promtes in the terminal.
+
+7. Run your study
 
 - You might want to adapt the number of cores to use in /path/to/study/store depending on your system.
 
