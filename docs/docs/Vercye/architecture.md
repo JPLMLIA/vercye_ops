@@ -1,18 +1,18 @@
 # 📘 Vercye Architecture Documentation
 
-## 🔍 Overview
+## Overview
 
 The **Vercye system** orchestrates a modular, region-based crop yield simulation pipeline using **Snakemake** for dependency resolution and scalability. Each processing step is encapsulated in a standalone script, executed conditionally and in the correct order.
 
 ---
 
-## 📂 Scripts
+## Scripts
 
 Each script is self-documented via CLI help using the `--help` flag. For additional specifics, you can run the script directly in the terminal.
 
 ---
 
-## ⚙️ Pipeline Execution with Snakemake
+## Pipeline Execution with Snakemake
 
 Snakemake defines workflows as rules. Each rule specifies expected inputs and outputs, enabling:
 
@@ -22,7 +22,7 @@ Snakemake defines workflows as rules. Each rule specifies expected inputs and ou
 
 ---
 
-## 🧾 Config File
+## Config File
 
 Every pipeline run uses a configuration file (YAML), which defines key parameters like:
 
@@ -36,7 +36,7 @@ This design ensures reproducibility and clean separation of configuration from l
 
 ---
 
-## 🔄 Pipeline Logic
+## Pipeline Logic
 
 The following lists a high level overview of some of the most important features of the snakemake based pipeline steps (non-exhaustive).
 The complete logic is defined in `vecrye_ops/snakemake/Snakefile`.
@@ -144,7 +144,7 @@ Additionally, if other outputs should be produced, this becomes slightly hacky d
 
 ---
 
-## 📎 Pipeline Diagram
+## Pipeline Diagram
 
-See the pipeline diagram `vercye_pipeline_highlevel.png` for a visual reference of the individual rules and their dependancies / outputs.
+Will be added soon.
 

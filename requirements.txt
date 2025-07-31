@@ -5,14 +5,17 @@ ee
 earthengine-api
 gdal
 geopandas
+google-auth
+google-auth-oauthlib
 joblib
-kaleido  # For static image plots in plotly
+kaleido==0.2.1  # For static image plots in plotly
 matplotlib
 numpy
 pandas
 pathvalidate
 pillow
-plotly
+planetary-computer
+plotly==6.0.1
 pulp==2.7.0  # Pinned for snakemake
 pystac_client
 pytest
@@ -22,8 +25,10 @@ requests
 ruamel.yaml
 scipy>=1.14  # For Akima interpolator
 scikit-learn
+seaborn
 snakemake  # If using mamba/conda, install from the bioconda channel
 tenacity
 torch
 tqdm
 xhtml2pdf
+STAC-Downloader @ git+https://github.com/rohansaw/STAC-Downloader # Utility for downloading RS imagery

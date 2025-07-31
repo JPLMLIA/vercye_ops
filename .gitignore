@@ -156,6 +156,9 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+#Vscode
+.vscode/
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
@@ -189,3 +192,6 @@ vercye_ops/lai/GEE_pipeline/custom_configs
 
 # Private matching script 
 vercye_ops/matching_sim_real/match_sim_rs_lai.py
+
+# Env file
+.env

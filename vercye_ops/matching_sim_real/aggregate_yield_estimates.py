@@ -126,6 +126,10 @@ def aggregate_yields(yield_dir, columns_to_keep, chirps_path=None):
 
             all_yields.append(combined_df)
     
+    if len(all_yields) == 0:
+        logger.warning('No prediction files found to aggregate.')
+        return pd.DataFrame()
+
     aggregated_yields = pd.concat(all_yields, ignore_index=True)
     
     # Move 'region' to be the first column and sort alphabetically
@@ -149,8 +153,8 @@ def cli(yield_dir, output_csv, columns_to_keep, chirps_file, verbose):
 
     logger.info(f"Processing directory: {yield_dir}")
     aggregated_yields = aggregate_yields(yield_dir, columns_to_keep, chirps_file)
-    
-    if aggregated_yields is not None:
+
+    if aggregated_yields is not None and not aggregated_yields.empty:
         aggregated_yields.to_csv(output_csv, index=False)
         logger.info(f"Aggregated yield estimates saved to: {output_csv}")
     else:

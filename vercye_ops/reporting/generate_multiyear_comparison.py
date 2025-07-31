@@ -6,18 +6,16 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
-from vercye_ops.matching_sim_real.evaluate_yield_estimates import (
+from vercye_ops.evaluation.evaluate_yield_estimates import (
     compute_metrics, create_scatter_plot, get_preds_obs, load_csv
 )
-from vercye_ops.matching_sim_real.generate_lai_plot import load_lai_files, parse_lai_file
+from vercye_ops.reporting.generate_lai_plot import load_lai_files, parse_lai_file
 
 # Use Plotly's qualitative palette
 color_palette = px.colors.qualitative.Plotly
 mean_palette  = px.colors.qualitative.Set1
 
-
 # HTML template with Bootstrap for a modern, responsive layout
-# Note: double braces {{ }} in CSS to escape Python formatting
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -45,89 +43,126 @@ HTML_TEMPLATE = """
 
 
 def get_available_years(input_dir):
-    # Might want to revisit this as this assumes that the input dir only contains directories named by year
     years = []
-
-    for year in os.listdir(input_dir):
-        year_path = os.path.join(input_dir, year)
-        if os.path.isdir(year_path) and year.isdigit():
-            years.append(year)
-
+    for entry in os.listdir(input_dir):
+        path = os.path.join(input_dir, entry)
+        if os.path.isdir(path) and entry.isdigit():
+            years.append(entry)
     return sorted(years)
 
 
 def get_available_timepoints(reference_year_dir):
-    return sorted([d for d in os.listdir(reference_year_dir) if os.path.isdir(os.path.join(reference_year_dir, d))])
+    return sorted(
+        d for d in os.listdir(reference_year_dir)
+        if os.path.isdir(os.path.join(reference_year_dir, d))
+    )
 
 
 def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     combined = []
     for year in years:
         for fp in load_lai_files(os.path.join(input_dir, year, timepoint)):
-            df, region, _ = parse_lai_file(fp, lai_agg_type)
+            df, region, _ = parse_lai_file(fp, lai_agg_type, adjusted)
+            # Parse and keep original Date
             df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y')
-            start = df['Date'].min()
-            df['DaysAfterStart'] = (df['Date'] - start).dt.days
-            df['Year']   = int(year)
+            # Day-of-year for grouping
+            df['DayOfYear'] = df['Date'].dt.dayofyear
+            # Map to a base year for plotting (e.g., 2000) to align traces by month/day
+            df['PlotDate'] = df['Date'].apply(lambda d: d.replace(year=2000))
+            df['Year'] = int(year)
             df['Region'] = region
             combined.append(df)
-    
+
     if not combined:
         return None
 
     full_df = pd.concat(combined, ignore_index=True)
-
-    col = 'LAI ' + ('Mean' if lai_agg_type=='mean' else 'Median')
+    col = 'LAI ' + ('Mean' if lai_agg_type == 'mean' else 'Median')
     if adjusted:
         col += ' Adjusted'
 
     fig = go.Figure()
     year_traces = {y: [] for y in years}
 
-    for (region, year), grp in full_df.groupby(['Region','Year']):
+    # Individual traces
+    for (region, year), grp in full_df.groupby(['Region', 'Year']):
         idx = len(fig.data)
-        fig.add_trace(go.Scatter(
-            x=grp['DaysAfterStart'], y=grp[col], mode='lines',
-            name=f"{region} {year}",
-            legendgroup=str(year),
-            line=dict(width=2, color=color_palette[int(year) % len(color_palette)]),
-            opacity=0.5,
-            showlegend=True,   # hide from legend to avoid clutter
-            visible=False
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=grp['PlotDate'],
+                y=grp[col],
+                mode='lines',
+                name=f"{region} {year}",
+                legendgroup=str(year),
+                line=dict(width=2, color=color_palette[int(year) % len(color_palette)]),
+                opacity=0.3,
+                visible=False,
+                customdata=grp['Date'],  # for hover
+                hovertemplate='Date: %{customdata|%d/%m/%Y}<br>LAI: %{y:.2f}<extra></extra>'
+            )
+        )
         year_traces[str(year)].append(idx)
 
+    # Mean trace per year
     for i, year in enumerate(years):
-        df_y = full_df[full_df['Year']==int(year)]
+        df_y = full_df[full_df['Year'] == int(year)]
         if df_y.empty:
             continue
-        m = df_y.groupby('DaysAfterStart')[col].mean().reset_index()
-        fig.add_trace(go.Scatter(
-            x=m['DaysAfterStart'], y=m[col],
-            mode='lines',
-            name=f"{year} Mean",
-            legendgroup=str(year),
-            line=dict(width=6, color=mean_palette[i % len(mean_palette)]),
-            opacity=1,
-            showlegend=True,
-            visible=True
-        ))
+        # group by DayOfYear and compute mean of LAI
+        m = (
+            df_y.groupby('DayOfYear')[col]
+            .mean()
+            .reset_index()
+        )
+        # map back to plotting dates in base year
+        m['PlotDate'] = m['DayOfYear'].apply(
+            lambda doy: pd.Timestamp(year=2000, month=1, day=1) + pd.Timedelta(days=doy-1)
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=m['PlotDate'],
+                y=m[col],
+                mode='lines',
+                name=f"{year} Mean",
+                legendgroup=str(year),
+                line=dict(width=4, color=mean_palette[i % len(mean_palette)]),
+                opacity=1,
+                visible=True,
+                hovertemplate='Date: %{x|%d/%m}<br>Mean LAI: %{y:.2f}<extra></extra>'
+            )
+        )
 
-    year_buttons = []
+    # Buttons to toggle individual traces by year
+    buttons = []
     for year, idxs in year_traces.items():
         if not idxs:
             continue
-        year_buttons.append(dict(
-            label=year,
-            method='restyle',
-            args=[{'visible': True}, idxs],
-            args2=[{'visible': False}, idxs]
-        ))
+        buttons.append(
+            dict(
+                label=year,
+                method='update',
+                args=[
+                    {'visible': [i in idxs for i in range(len(fig.data))]},
+                    {'title': f"{col} by Day-of-Year"}
+                ]
+            )
+        )
+
+    # X-axis month ticks
+    month_starts = pd.date_range(start='2000-01-01', end='2000-12-31', freq='MS')
+    tick_vals = month_starts
+    tick_text = month_starts.strftime('%b')
 
     fig.update_layout(
-        title=dict(text=f"{col} by Days after Simulation Start", x=0.5),
-        xaxis_title='Days after Simulation Start',
-        yaxis_title=f'LAI {"Adjusted" if adjusted else "Non-Adjusted"}',
+        title=dict(text=f"{col} by Day-of-Year", x=0.5),
+        xaxis=dict(
+            title='Month',
+            tickmode='array',
+            tickvals=tick_vals,
+            ticktext=tick_text,
+            type='date'
+        ),
+        yaxis=dict(title=f'LAI {"Adjusted" if adjusted else "Non-Adjusted"}'),
         template='plotly_white',
         margin=dict(l=40, r=40, t=80, b=40),
         height=600,
@@ -136,7 +171,7 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
             dict(
                 type='buttons',
                 direction='left',
-                buttons=year_buttons,
+                buttons=buttons,
                 x=1.1, y=1.1,
                 showactive=False,
                 bgcolor='white',
@@ -145,13 +180,6 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
                 font=dict(size=12)
             )
         ]
-    )
-
-    global_start = full_df['Date'].min().strftime('%d/%m/%Y')
-    fig.add_annotation(
-        x=0, y=1.05, xref='x', yref='paper',
-        text=f"Simulation start: {global_start}",
-        showarrow=False, font=dict(size=12), align='left'
     )
 
     return fig
@@ -179,7 +207,7 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
             all_preds.extend(preds_df['mean_yield_kg_ha'])
             all_preds_years.extend([year]*len(preds_df))
             
-            val = glob(os.path.join(input_dir, year, f'groundtruth_{lvl}*.csv'))
+            val = glob(os.path.join(input_dir, year, f'referencedata__{lvl}*.csv'))
             if val:
                 data = get_preds_obs(est[0], val[0])
                 all_obs.extend(data['obs'])

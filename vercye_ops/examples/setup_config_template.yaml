@@ -1,0 +1,107 @@
+###############################################################################
+####################### EXTRACT REGIONS FROM SHAPEFILE ########################
+###############################################################################
+
+# Path to the shapefile containing the regions
+regions_shp_name: "/home/rohan/nasa-harvest/vercye/data/malawi/Shapefiles/mwi_adm_nso_hotosm_20230405_shp/mwi_admbnda_adm3_nso_hotosm_20230405.shp"
+
+# Column in the shapefile that contains unique region identifiers / admin names (e.g. district names)
+regions_shp_col: "ADM3_EN"
+
+# Target coordinate reference system should be in equal area projection
+# Only used for the centroid not the actual geometry at this point.
+# Can be an EPSG code or a proj string. Ensure in equal area projection.
+# Example: 'EPSG:9854'
+# Example: "'+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'"
+target_crs: "'+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'"
+
+###############################################################################
+######################### FILTER EXTRACTED REGIONS ############################
+###############################################################################
+
+# Optional: column and values used to filter which regions to include (set to null to disable)
+regions_shp_filter_col: null # e.g ADM2_EN
+regions_shp_filter_values: null # e.g ['region1', 'regions2', 'region3']
+
+###############################################################################
+######################### Create Directory Structure ##########################
+###############################################################################
+
+# Years for which to run the study. Typically the year in which the season ends.
+years:
+  - 2019
+  - 2020
+
+# Timepoints specifying configurations that are run for each year
+# E.g T-30 is for 30 days prior to the end of the season, cutting of meteorological
+# and LAI data tht are passed to APSIM at the specified end date (below).
+timepoints:
+  - T-0
+  - T-30
+
+# The actual configruation of the dates of each timepoint
+# Must have an entry for each year and each timepoint in each year.
+timepoints_config:
+  2019:
+    T-0:
+      sim_start_date: '2018-08-20' # Start date of the APSIM simulation. Will be inserted into APSIM config
+      sim_end_date: '2019-08-01' # End date of the APSIM simulation. Will be inserted into APSIM config
+      met_start_date: '1991-07-01' # Start date from when to fetch meteorological data. Will limit met data for APSIM.
+      met_end_date: '2019-08-01'  # End date from when to fetch meteorological data. Will limit met data for APSIM.
+      lai_start_date: '2018-08-20' # Start date from when to use LAI data.
+      lai_end_date: '2019-08-01' # End date until when to use LAI data.
+    T-30:
+      sim_start_date: '2018-08-20' # Start date of the APSIM simulation. Will be inserted into APSIM config
+      sim_end_date: '2019-08-01' # End date of the APSIM simulation. Will be inserted into APSIM config
+      met_start_date: '1991-07-01' # Start date from when to fetch meteorological data. Will limit met data for APSIM.
+      met_end_date: '2019-07-01'  # End date from when to fetch meteorological data. Will limit met data for APSIM.
+      lai_start_date: '2018-08-20' # Start date from when to use LAI data.
+      lai_end_date: '2019-07-01' # End date until when to use LAI data.
+  2020:
+    T-0:
+      sim_start_date: '2019-08-20' # Start date of the APSIM simulation. Will be inserted into APSIM config
+      sim_end_date: '2020-08-01' # End date of the APSIM simulation. Will be inserted into APSIM config
+      met_start_date: '1991-07-01' # Start date from when to fetch meteorological data. Will limit met data for APSIM.
+      met_end_date: '2020-08-01'  # End date from when to fetch meteorological data. Will limit met data for APSIM.
+      lai_start_date: '2019-08-20' # Start date from when to use LAI data.
+      lai_end_date: '2020-09-01' # End date until when to use LAI data.
+    T-30:
+      sim_start_date: '2019-08-20' # Start date of the APSIM simulation. Will be inserted into APSIM config
+      sim_end_date: '2020-08-01' # End date of the APSIM simulation. Will be inserted into APSIM config
+      met_start_date: '1991-07-01' # Start date from when to fetch meteorological data. Will limit met data for APSIM.
+      met_end_date: '2020-07-01'  # End date from when to fetch meteorological data. Will limit met data for APSIM.
+      lai_start_date: '2019-08-20' # Start date from when to use LAI data.
+      lai_end_date: '2019-07-01' # End date until when to use LAI data.
+
+
+###############################################################################
+########################### APSIM File Mapping ################################
+###############################################################################
+
+# Set to null if using a single APSIM template file; otherwise, specify column used to map regions to templates
+APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: null # e.g ADM2_EN
+
+# Paths to APSIM template files.
+# If APSIM_TEMPLATE_PATHS_FILTER_COL_NAME is null, provide a single "all" entry.
+# Otherwise, specify an APSIM file fort each APSIM_TEMPLATE_PATHS_FILTER_COL_NAME value.
+APSIM_TEMPLATE_PATHS:
+  all: "/home/rohan/nasa-harvest/vercye/data/malawi/APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
+  # Could be for example:
+  # region1: "APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
+  # region2: "APSIM/Malawi_2023_Maize_22_9_24_Zone_3_Full_Season.apsimx"
+
+###############################################################################
+########################### Adding Reference Data ################################
+###############################################################################
+
+# Paths to your reference data
+# For each year add entries for the available aggregation levels
+# For the simulation admin level use the key 'primary', as in the example above!
+# For all other levels you can choose the key freely, it should however be describtive of the admin level.
+REFERENCE_DATA_PATHS:
+  2019:
+    - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin3.csv" # Key: Path
+    - district: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin2.csv" # Paths must be .csv
+  2020:
+    - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2020-admin3.csv"
+    - district: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2020-admin2.csv"

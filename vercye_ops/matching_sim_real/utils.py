@@ -7,20 +7,36 @@ from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
+def build_default_query(crop_name):
+    query = f"""
+        SELECT SimulationID, `Clock.Today`, `Clock.Today.DayOfYear`, `{crop_name}.Leaf.LAI`, `Yield`
+        FROM Report
+        """
+    return query
+
 
 # Function to load simulation data from the SQLite database
-def load_simulation_data(db_path, crop_name):
-    """Helper to load APSIM Databases"""
+def load_simulation_data(db_path, crop_name=None, query=None):
+    """Helper to load APSIM Databases
+    Provide either crop_name to load default most important data
+    or a custom query.
+    """
 
-    crop_name = crop_name.lower()
-    crop_name = crop_name.capitalize()
+    if not query and not crop_name:
+        raise ValueError(("Either 'crop_name' or 'query' must be provided."))
+
+    if query and crop_name:
+        print('query and crop_name provided. Will only use query.')
+
+    if crop_name:
+        crop_name = crop_name.lower()
+        crop_name = crop_name.capitalize()
+
+    if not query:
+        query = build_default_query(crop_name)
 
     # Set up a connection, and extract the SQLite DB to a pandas DF
     conn = sqlite3.connect(db_path)
-    query = f"""
-    SELECT SimulationID, `Clock.Today`, `Clock.Today.DayOfYear`, `{crop_name}.Leaf.LAI`, `Yield`
-    FROM Report
-    """
     df = pd.read_sql_query(query, conn, parse_dates='Clock.Today')
     conn.close()
 

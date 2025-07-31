@@ -6,7 +6,6 @@ import click
 import pandas as pd
 from tqdm import tqdm
 from vercye_ops.utils.init_logger import get_logger
-import multiprocessing
 import time
 import random
 import queue
@@ -33,7 +32,7 @@ CHIRPS_PASS = 'your_email_address'
 NUM_RETRIES = 5
 RETRY_WAIT_TIME = 5  # Seconds to wait between retries
 PROGRESS_UPDATE_INTERVAL = 10
-MAX_FTP_CONNECTIONS = 10  # Maximum number of FTP connections to open at once
+MAX_FTP_CONNECTIONS = 9  # Maximum number of FTP connections to open at once
 
 
 class FTPConnectionPool:
@@ -218,7 +217,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
 
             # Remove the prelim file if it exists as it is replaced by the final file now
             if op.exists(chirps_prelim_fpath):
-                logger.warning("REMOVING A")
+                logger.warning("REMOVING Preliminary file and replaced")
                 os.remove(chirps_prelim_fpath)
     
     # Try to download the preliminary files for the unavailable dates
@@ -397,12 +396,21 @@ def validate_chirps_files(start_date, end_date, output_dir):
 
     logger.info("Validation completed. Check for errors above.")
 
+def run_chirps_download(start_date, end_date, output_dir, num_workers):
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Download CHIRPS data for the specified date range if not already present in outputdir
+    fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers)
+
+    # Validate the downloaded files for existence
+    validate_chirps_files(start_date, end_date, output_dir)
 
 @click.command()
 @click.option('--start-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="Start date for CHIRPS data collection in YYYY-MM-DD format.")
 @click.option('--end-date', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help="End date for CHIRPS data collection in YYYY-MM-DD format.")
 @click.option('--output-dir', required=True, help="Output directory to store the CHIRPS data.")
-@click.option('--num-workers', type=int, default=10, show_default=True, help="Number of parallel processes. Capped at 10 due to server limitations.")
+@click.option('--num-workers', type=int, default=5, show_default=True, help="Number of parallel processes. Capped at 9 due to server limitations.")
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.", default=False)
 def cli(start_date, end_date, output_dir, num_workers, verbose):
     """
@@ -417,7 +425,7 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     output-dir : str
         Directory to store the CHIRPS data.
     num-workersn : int
-        Number of parallel processes. Capped at 10 due to server limitations.
+        Number of parallel processes. Capped at 9 due to server limitations.
     verbose : bool
         Enable verbose logging.
 
@@ -427,14 +435,7 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     else:
         logger.setLevel('WARNING')
     
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Download CHIRPS data for the specified date range if not already present in outputdir
-    fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers)
-
-    # Validate the downloaded files for existence
-    validate_chirps_files(start_date, end_date, output_dir)
+    run_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
 
 if __name__ == '__main__':
     cli()

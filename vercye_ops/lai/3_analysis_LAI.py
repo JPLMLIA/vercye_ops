@@ -16,7 +16,7 @@ from rasterio.windows import bounds
 
 
 import geopandas as gpd
-from shapely import box
+from shapely import LineString, box
 
 def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
@@ -43,7 +43,6 @@ def pad_to_polygon(src, geometry, masked_src):
         sys.exit(1)
 
 def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
-    
     if not rio.coords.disjoint_bounds(src_bounds, cropmask_bounds):
         left_pad = int(np.round((src_bounds[0] - cropmask_bounds[0]) / src_res[0]))
         left_pad = int(max(left_pad, 0))
@@ -82,7 +81,8 @@ def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
 @click.option('--LAI_file_ext', type=click.Choice(['tif', 'vrt']), help='File extension of the LAI files', default='tif')
 @click.option('--smoothed', is_flag=True, help='Whether the LAI curve should be smoothed (savgol), before interpolation.')
 @click.option('--cloudcov_threshold', type=float, default=None, help='Precentage of pixels in ROI that are allowed to be clouds or snow. If exceeded, the LAI from this date is ignored. Default: None (no threshold).')
-def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext, smoothed, cloudcov_threshold):
+@click.option('--maxlai_keep_bands', multiple=True, type=str, default=['estimateLAImax', 'adjustedLAImax'], help='Bands to keep in the max lai tif output. Space seperated. (estimateLAImax and/or adjustedLAImax)')
+def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, geometry_path, mode, adjustment, start_date, end_date, lai_file_ext, smoothed, cloudcov_threshold, maxlai_keep_bands):
     """ LAI Analysis function
 
     LAI_dir: Local path to the directory containing regional primary LAI rasters
@@ -108,6 +108,10 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
     # Geometry
     geometry_name = Path(geometry_path).stem
 
+    maxlai_keep_bands = list(maxlai_keep_bands)
+    if len(maxlai_keep_bands) == 0:
+        raise ValueError('No bands to keep for the LAI data provided. Specify either estimateLAImax or adjustedLAImax.')
+
     geometries = []
     if mode == "raster":
         print("MODE: raster")
@@ -123,7 +127,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             geometries.append({
                 'array': ds.read(1), 
                 'res': ds.res[0],
-                'bounds': [ds.bounds.left, ds.bounds.bottom, ds.bounds.right, ds.bounds.top],
+                'bounds': ds.bounds,
                 'transform': ds.transform})
     elif mode == "poly_agg":
         print("MODE: poly_agg")
@@ -243,9 +247,9 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
 
                 bbox_lai = box(*src.bounds)
                 bbox_cropmask = box(*cropmask_bounds)
-
                 intersection = bbox_lai.intersection(bbox_cropmask)
-                if intersection.is_empty:
+                # If is empty or has no height or width, ignore
+                if intersection.is_empty or isinstance(intersection, LineString):
                     print(f"{Path(LAI_path).name} [NO INTERSECTION OF CROPMASK AND LAI]")
                     stat = {
                         "Date": d_slash,
@@ -399,7 +403,7 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                     rec[col + " Unsmoothed"] = rec[col]
 
             # Apply Savitzky–Golay Smoothing
-            window_length = 5
+            window_length_default = 5
             polyorder = 2
 
             for col in lai_cols:
@@ -410,7 +414,8 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
                    if row[col] is not None:
                        valid_idxs.append(idx)
                        valid_values.append(row[col])
-
+                
+                window_length = min(window_length_default, len(valid_values))
                 smooth_vals = savgol_filter(valid_values, window_length, polyorder)
                 smooth_vals = np.clip(smooth_vals, 0, None)
 
@@ -461,14 +466,25 @@ def main(lai_dir, output_stats_fpath, output_max_tif_fpath, region, resolution, 
             writer.writeheader()
             writer.writerows(statistics)
         print(f"Exported stats to {output_stats_fpath}")
+
+        src_meta.update({"driver": "GTiff"})
         
         # Export running maximum
         # Set 0 to nan
+        band_count = len(maxlai_keep_bands)
+        src_meta['count'] = band_count
         with rio.open(output_max_tif_fpath, 'w', **src_meta) as dst:
-            dst.write(lai_max, 1)
-            dst.write(lai_adjusted_max, 2)
-            dst.set_band_description(1, "estimateLAImax")
-            dst.set_band_description(2, "adjustedLAImax")
+            if 'estimateLAImax' in maxlai_keep_bands:
+                dst.write(lai_max, 1)
+                dst.set_band_description(1, "estimateLAImax")
+
+                if 'adjustedLAImax' in maxlai_keep_bands:
+                    dst.write(lai_adjusted_max, 2)
+                    dst.set_band_description(2, "adjustedLAImax")
+            
+            elif 'adjustedLAImax' in maxlai_keep_bands :
+                dst.write(lai_adjusted_max, 1)
+                dst.set_band_description(1, "adjustedLAImax")
         print(f"Exported max LAI tif to {output_max_tif_fpath}")
 
     print(f"Finished in {time.time()-start:.2f} seconds")

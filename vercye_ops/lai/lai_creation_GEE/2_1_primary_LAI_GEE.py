@@ -10,69 +10,7 @@ import rasterio as rio
 import torch
 import torch.nn as nn
 
-# See https://code.earthengine.google.com/?accept_repo=users/rfernand387/LEAFToolboxModules for details
-default_model_weights = {
-    "S2": {
-        10: {
-            "weights_path": "../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth",
-            "channels": ["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"],
-        },
-        20: {
-            "weights_path": "../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth",
-            "channels": [
-                "cosVZA",
-                "cosSZA",
-                "cosRAA",
-                "B3",
-                "B4",
-                "B5",
-                "B6",
-                "B7",
-                "B8A",
-                "B11",
-                "B12",
-            ],
-        },
-    }
-}
-
-
-class Scale2d(nn.Module):
-    def __init__(self, n_ch):
-        super(Scale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-
-    def forward(self, x):
-        return x * self.weight + self.bias
-
-
-class UnScale2d(nn.Module):
-    def __init__(self, n_ch):
-        super(UnScale2d, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-        self.bias = nn.Parameter(torch.Tensor(1, n_ch, 1, 1))
-
-    def forward(self, x):
-        return (x - self.bias) / self.weight
-
-
-class LAI_CNN(nn.Module):
-    def __init__(self, in_ch, h1_dim, out_ch):
-        super(LAI_CNN, self).__init__()
-        self.input = Scale2d(in_ch)
-        self.h1 = nn.Conv2d(in_ch, h1_dim, 1, 1, 0, bias=True)
-        self.h2 = nn.Conv2d(h1_dim, out_ch, 1, 1, 0, bias=True)
-        self.output = UnScale2d(out_ch)
-        self.tanh = nn.Tanh()
-
-    def forward(self, x):
-        x = self.input(x)
-        x = self.h1(x)
-        x = self.tanh(x)
-        x = self.h2(x)
-        x = self.output(x)
-        return x
+from vercye_ops.lai.model.model import load_model_from_weights, load_model
 
 
 def is_within_date_range(vf, start_date, end_date):
@@ -145,33 +83,20 @@ def main(
     if model_weights is not None and not channels:
         raise ValueError("channels must be specified if model_weights is provided.")
 
-    if channels is not None:
+    if model_weights is not None and channels is not None:
         channels = [ch.strip() for ch in channels.split(",")]
         num_in_ch = len(channels)
 
-    if model_weights is None:
-        sateillite = "S2"  # Currently only S2 is supported
-        model_resolution = resolution
-        if resolution not in default_model_weights[sateillite]:
-            print(
-                "Warning: No model weights found for this resolution. Using model trained at a resolution of 20m."
-            )
-            model_resolution = 20
-
-        model_options = default_model_weights[sateillite][model_resolution]
-        model_weights = model_options["weights_path"]
-        channels = model_options["channels"]
-
-    # Load the pytorch model
-    num_in_ch = len(channels)
-    print(f"Loading model weights from {model_weights} with {num_in_ch} input channels")
-    model = LAI_CNN(num_in_ch, 5, 1)
-    model.load_state_dict(torch.load(model_weights))
-    model.eval()
+        model = load_model_from_weights(model_weights, channels)
+    else:
+        sateillite = 'S2'
+        model = load_model(sateillite, resolution)
+        model.eval()
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/{region}_{resolution}m_*.vrt"))
 
+    # Filter files within date range
     if start_date is not None and end_date is not None:
         vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
 
@@ -182,7 +107,7 @@ def main(
         s2_ds = rio.open(vf)
         s2_array = s2_ds.read()
 
-        if not s2_array.shape[0] == num_in_ch:
+        if not s2_array.shape[0] == model.num_in_ch:
             raise ValueError(
                 f"Number of bands in {vf} does not match the number of input channels. Expected {num_in_ch} but got {s2_array.shape[0]}"
             )

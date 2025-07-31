@@ -14,10 +14,16 @@
   <a href="https://doi.org/10.1007/s13593-024-00974-4"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.1007/s13593--024--00974--4-blue"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
   <a href="https://jplmlia.github.io/vercye_ops/"><img alt="Docs" src="https://img.shields.io/badge/docs-online-blueviolet"></a>
+  <a href="https://github.com/jplmlia/vercye_ops/actions/workflows/testing-pipeline.yml">
+    <img alt="Testing Pipeline" src="https://github.com/jplmlia/vercye_ops/actions/workflows/testing-pipeline.yml/badge.svg">
+  </a>
+  <a href="https://github.com/jplmlia/vercye_ops/actions/workflows/lint-&-code-quality.yml">
+    <img alt="Lint & Code Quality" src="https://github.com/jplmlia/vercye_ops/actions/workflows/lint-&-code-quality.yml/badge.svg">
+  </a>
 </p>
 
 
-## ✨ Features
+## Features
 
 - Reduces manual effort required for executing the VeRCYe crop yield estimate pipeline.
 - All workflow steps exposed via a documented CLI for step-by-step execution.
@@ -26,13 +32,13 @@
 - Utilities to download meteorological data, Sentinel-2 Imagery and to generate LAI products
 
 
-## 🚀 Quick Start
+## Quick Start
 Follow the setup instructions in the  **[Documentation](https://jplmlia.github.io/vercye_ops/)** and refer to the [Running VeRCYe section](https://jplmlia.github.io/vercye_ops/Vercye/running.md) to setup and run your first yield study.
 
-## 📚 Documentation
+## Documentation
 Make sure to check out the documentation here: **[https://jplmlia.github.io/vercye_ops/](https://jplmlia.github.io/vercye_ops/)**.
 
-## 📄 License
+## License
 See the [LICENCE](LICENSE)
 
 ## © Copyright Notice

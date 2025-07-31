@@ -18,6 +18,7 @@ from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
+logger.setLevel('INFO')
 
 def compute_global_summary(regions_summary):
     total_area_ha = regions_summary['total_area_ha'].sum()
@@ -25,44 +26,50 @@ def compute_global_summary(regions_summary):
     total_yield_production_kg =  regions_summary['total_yield_production_kg'].sum()
     mean_yield_kg = total_yield_production_kg / total_area_ha
 
+    num_total_region = len(regions_summary)
+
     # Add total reported production and mean reported yield if all regions have reported data
     if 'reported_mean_yield_kg_ha' in regions_summary.columns:
         reported_regions_data = regions_summary[~regions_summary['reported_mean_yield_kg_ha'].isna()]
 
+        # Sometimes we don't have the reported data for every region.
         if regions_summary['reported_mean_yield_kg_ha'].isna().any():
-            logger.warning('Some regions have NaN reported yield. Not reporting global aggregated reference.')
+            logger.warning('Some regions have NaN reported yield.')
             logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_mean_yield_kg_ha'].isna()]['region'].values}")
 
-            reported_total_production_ton = None
-            mean_reported_yield_kg = None
-        else:
-            cropmask_areas_ha = reported_regions_data['total_area_ha'].sum()
-            reported_total_production_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
-            reported_total_production_ton = reported_total_production_kg / 1000
-            mean_reported_yield_kg = reported_total_production_kg / cropmask_areas_ha
-    elif 'reported_production_kg' in regions_summary.columns:
+        num_regions_with_yield_referencedata = len(reported_regions_data)
+        cropmask_areas_ha = reported_regions_data['total_area_ha'].sum()
+        weighted_sum_rep_prod_kg = (regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']).sum()
+        mean_reported_yield_kg = weighted_sum_rep_prod_kg / cropmask_areas_ha
+    else:
+        mean_reported_yield_kg = None
+        num_regions_with_yield_referencedata = 0
+    
+    if 'reported_production_kg' in regions_summary.columns:
+        # In case we do not have the reported mean yield, we can still compute the total production and mean yield
         reported_regions_data = regions_summary[~regions_summary['reported_production_kg'].isna()]
 
         if regions_summary['reported_production_kg'].isna().any():
             logger.warning('Some regions have NaN reported yield. Not reporting.')
             logger.warning(f"Regions with nan reported yield: {regions_summary[regions_summary['reported_production_kg'].isna()]['region'].values}")
 
-            reported_total_production_ton = None
-            mean_reported_yield_kg = None
-        else:
-            reported_total_production_kg = reported_regions_data['reported_production_kg'].sum()
-            reported_total_production_ton = reported_total_production_kg / 1000
-            cropmap_areas_ha = reported_regions_data['total_area_ha'].sum()
-            mean_reported_yield_kg = reported_total_production_kg / cropmap_areas_ha
+        reported_total_production_kg = reported_regions_data['reported_production_kg'].sum()
+        reported_total_production_ton = reported_total_production_kg / 1000
+        num_regions_with_production_referencedata = len(reported_regions_data)
     else:
         reported_total_production_ton = None
-        mean_reported_yield_kg = None
+        num_regions_with_production_referencedata = None
+     
 
     return {'total_area_ha': total_area_ha,
             'total_yield_production_ton': total_yield_production_ton,
             'mean_yield_kg': mean_yield_kg,
             'reported_total_production_ton': reported_total_production_ton,
-            'mean_reported_yield_kg': mean_reported_yield_kg}
+            'mean_reported_yield_kg': mean_reported_yield_kg,
+            'num_total_region': num_total_region,
+            'num_regions_with_yield_referencedata': num_regions_with_yield_referencedata,
+            'num_regions_with_production_referencedata': num_regions_with_production_referencedata,
+            }
 
 
 def get_regions_geometry_paths(regions_dir):
@@ -82,9 +89,13 @@ def create_map(regions_summary, combined_geojson):
     regions_summary['region'] = regions_summary['region'].astype(str)
     merged = combined_geojson.merge(regions_summary, left_on='region', right_on='region')
 
+    yield_values = merged['mean_yield_kg_ha']
+    vmin = np.nanpercentile(yield_values, 2)
+    vmax = np.nanpercentile(yield_values, 98)
+
     # Define colormap and normalization
     cmap = plt.get_cmap('viridis')
-    norm = mcolors.Normalize(vmin=merged['mean_yield_kg_ha'].min(), vmax=merged['mean_yield_kg_ha'].max())
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
     # Plot map
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -159,12 +170,12 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     colormap = plt.cm.viridis
     
     colored_data = colormap(norm(data))
-    colored_data[np.isnan(data)] = [1, 1, 1, 1]
+    colored_data[np.isnan(data)] = [0.7, 0.7, 0.7, 1]
     rgb_image = (colored_data[:, :, :3] * 255).astype(np.uint8)
     
-    fig, ax = plt.subplots(figsize=(12, 8), dpi=900, constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=800, constrained_layout=True)
     
-    ax.imshow(rgb_image, aspect='auto')
+    ax.imshow(rgb_image, aspect='equal')
     ax.axis('off')
 
     cbar = fig.colorbar(
@@ -177,18 +188,19 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     cbar.set_label('Yield kg/ha')
 
     ax.set_title("Crop Productivity Pixel-Level - Estimated Yield in kg/ha", fontsize=16)
-    fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=450)
+    fig.savefig(output_png_path, format="PNG", bbox_inches='tight', dpi=400)
     plt.close(fig)
     return output_png_path
 
 
-def build_section_params(section_name, aggregated_yield_estimates_path, groundtruth_path, evaluation_results_path, regions_dir, admin_column_name):
+def build_section_params(section_name, aggregated_yield_estimates_path, referencedata__path, evaluation_results_path, regions_dir, admin_column_name):
     logger.info(f'Building section parameters for {section_name}...')
     regions_summary = pd.read_csv(aggregated_yield_estimates_path)
+    reference_yield_agg = None
 
-    if groundtruth_path is not None:
-        logger.info('Loading groundtruth data...')
-        gt = pd.read_csv(groundtruth_path)
+    if referencedata__path is not None:
+        logger.info('Loading referencedata_ data...')
+        gt = pd.read_csv(referencedata__path)
         cols = ['region']
         if 'reported_production_kg' in gt.columns:
             cols.append('reported_production_kg')
@@ -203,6 +215,13 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
 
         if 'reported_mean_yield_kg_ha' in gt.columns:
             regions_summary['mean_err_kg_ha'] = regions_summary['reported_mean_yield_kg_ha'] - regions_summary['mean_yield_kg_ha']
+
+            # Compute aggregated reference yield over all regions with reference data
+            regions_summary['area_weighted_prod'] = regions_summary['reported_mean_yield_kg_ha'] * regions_summary['total_area_ha']
+            valid_regions = regions_summary[regions_summary['area_weighted_prod'].notna()]
+            total_area_ha = valid_regions['total_area_ha'].sum()
+            total_production_kg = regions_summary['area_weighted_prod'].sum()
+            reference_yield_agg = total_production_kg / total_area_ha if total_area_ha > 0 else None
     
     logger.info('Loading and combining region geometries...')
     regions_geometry_paths = get_regions_geometry_paths(regions_dir)
@@ -213,7 +232,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
     yield_map = create_map(regions_summary, combined_geojson)
     yield_map_fname = f'yield_map_{section_name}.png'
     yield_map_path = op.join(regions_dir, yield_map_fname)
-    yield_map.figure.savefig(yield_map_path, dpi=600)
+    yield_map.figure.savefig(yield_map_path, dpi=400)
 
     if evaluation_results_path is not None:
         evaluation_results = pd.read_csv(evaluation_results_path)
@@ -228,6 +247,7 @@ def build_section_params(section_name, aggregated_yield_estimates_path, groundtr
         'vector_yield_map_path': yield_map_path,
         'scatter_plot_path': scatter_plot_path,
         'evaluation_results': evaluation_results,
+        'reference_yield_agg':reference_yield_agg,
     }
 
     return section_params
@@ -245,7 +265,7 @@ def save_report(report, out_fpath):
             print("An error occured!")
 
 
-def fill_section_template(section_name, regions_summary, scatter_plot_path, evaluation_results, vector_yield_map_path, crop_name, primary_suffix):
+def fill_section_template(section_name, regions_summary, scatter_plot_path, evaluation_results, vector_yield_map_path, crop_name, primary_suffix, reference_yield_agg):
     crop_name = crop_name.lower().capitalize()
     section_name = section_name if section_name != primary_suffix else 'Simulation'
     section_name = section_name.lower().capitalize()
@@ -253,6 +273,14 @@ def fill_section_template(section_name, regions_summary, scatter_plot_path, eval
         <hr>
         <h2 style='-pdf-keep-with-next: true;'>{section_name.lower().capitalize()}-level Evaluation</h2>
     """
+
+    if reference_yield_agg is not None:
+        html_content += f"""
+            <p style='-pdf-keep-with-next: true;'>
+                <strong>Aggregated Reference Yield (kg/ha):</strong> {int(reference_yield_agg)} kg/ha</br>
+                Aggregated from all regions with reference data in this section, so possibly incomplete for complete study area.</br>
+            </p>
+        """
 
     if evaluation_results is not None:
         html_content += f"""
@@ -330,7 +358,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
     study_id = metadata['study_id']
     description = metadata['description']
     title = metadata['title'].capitalize()
-    original_lai_shp = metadata['original_lai_shp']
+    lai_source = metadata['lai_source']
     original_regions_shp = metadata['original_regions_shp']
     crop_name = metadata['crop_name'].lower().capitalize()
 
@@ -342,6 +370,10 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
     bootstrap_css_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.css')
     bootstrap_js_path = os.path.join(BASE_DIR, 'assets', 'bootstrap.bundle.min.js')
     font_path = os.path.join(BASE_DIR, 'assets', 'OpenSans-Regular.ttf')
+
+    num_regions = global_summary['num_total_region']
+    num_available_regions_yield = global_summary['num_regions_with_yield_referencedata']
+    num_available_regions_production = global_summary['num_regions_with_production_referencedata']
 
     html_content = f"""
     <!DOCTYPE html>
@@ -407,12 +439,12 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <strong>Met-data Cutoff Date:</strong> {cutoff_date.date()}</br>
             <strong>Source of Meteorological Data:</strong> {met_config['met_source']}. <strong>Precipiation Data:</strong> {met_config['precipitation_source']}.<br/> <strong>Precipitation Aggregation:</strong> {met_config['precipitation_agg_method']}. <strong>Fallback Precipitation:</strong> {met_config['fallback_precipitation']}</br>
             <strong>Description:</strong> {description}</br>
-            <strong>LAI Shapefile:</strong> {original_lai_shp}</br>
+            <strong>LAI Source:</strong> {lai_source}</br>
             <strong>Regions Shapefile:</strong> {original_regions_shp}</br></br>
             <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
-            {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
+            {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
-            {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t</br>" if global_summary['reported_total_production_ton'] is not None else ''}
+            {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t (from {num_available_regions_production}/{num_regions} regions)</br>" if global_summary['reported_total_production_ton'] is not None else ''}
             <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
 
             <img src="{aggregated_yield_map_preview_path}" class="margin-img" alt="Estimated Yield per Pixel Map"> 
@@ -451,7 +483,7 @@ def create_final_report(input, output, params, log, wildcards):
         'study_id': params['study_id'],
         'title': params['title'],
         'description': params['description'],
-        'original_lai_shp': params['original_lai_shp'],
+        'lai_source': params['lai_source'],
         'original_regions_shp': params['original_simregions_shp'],
         'crop_name': params['crop_name'],
         'start_date': datetime.strptime(params['start_date'], "%Y-%m-%d"),
@@ -473,7 +505,7 @@ def create_final_report(input, output, params, log, wildcards):
     global_summary = None
     for suffix, admin_column_name in aggregationsuffix_admincol.items():
         # Collect predictions
-        # The aggregated yield estimates files have the additional suffix of sudy id year, timepoint so we use wildcards to match
+        # The aggregated yield estimates files have the additional suffix of study id year, timepoint so we use wildcards to match
         aggregated_yield_estimates_patttern = os.path.join(regions_dir, f'agg_yield_estimates_{suffix}_*.csv')
         matching_files = glob.glob(aggregated_yield_estimates_patttern)
         aggregated_yield_estimates_path = matching_files[0] if matching_files else None
@@ -482,22 +514,23 @@ def create_final_report(input, output, params, log, wildcards):
            logger.warning(f"Aggregated yield estimates file not found: {aggregated_yield_estimates_patttern}. Skipping.")
            continue
 
-        # Collect groundtruth and evaluation results
+        # Collect referencedata_ and evaluation results
         gt_dir = os.path.os.path.dirname(regions_dir)
-        groundtruth_path = os.path.join(gt_dir, f'groundtruth_{suffix}-{year}.csv')
-        if not os.path.exists(groundtruth_path):
-            logger.warning(f"Groundtruth file not found: {groundtruth_path}. Skipping.")
-            groundtruth_path = None
+        referencedata__path = os.path.join(gt_dir, f'referencedata__{suffix}-{year}.csv')
+        if not os.path.exists(referencedata__path):
+            logger.warning(f"referencedata_ file not found: {referencedata__path}. Skipping.")
+            referencedata__path = None
 
         evaluation_results_path = os.path.join(regions_dir, f'evaluation_{suffix}.csv')
         if not os.path.exists(evaluation_results_path):
             logger.warning(f"Evaluation results file not found: {evaluation_results_path}. Skipping.")
             evaluation_results_path = None
         
+        logger.info(f'Processing section: {suffix}')
         section = build_section_params(
             section_name=suffix,
             aggregated_yield_estimates_path=aggregated_yield_estimates_path,
-            groundtruth_path=groundtruth_path,
+            referencedata__path=referencedata__path,
             evaluation_results_path=evaluation_results_path,
             regions_dir=regions_dir,
             admin_column_name=admin_column_name,
@@ -515,6 +548,5 @@ def create_final_report(input, output, params, log, wildcards):
     
     logger.info(f'Generating final report for regions in: {regions_dir}')
     report = generate_final_report(sections, global_summary, metadata, met_config, aggregated_yield_map_preview_path)
-    logger.info(f'Saving report to: {out_fpath}')
     save_report(report, out_fpath)
     logger.info('Report generation completed.')

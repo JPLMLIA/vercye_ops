@@ -18,6 +18,7 @@ def generate_met_points(gdf_row):
     return centroid
 
 def clean_region_name(region_name):
+    region_name = str(region_name)
     region_name = region_name.replace("'", "").replace('"', "")
     region_name = re.sub(r"[^\w.-]", "_", region_name)
     region_name = region_name.lower()
@@ -73,7 +74,6 @@ def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, outp
     gdf['centroid'] = raw_centroids.to_crs(epsg=4326).to_wkt()
     
     logger.info('Processing %i %s regions.', len(gdf))
-
     logger.warning('Ensure all geometries are at the same administrative level! Use the remove_mixed_admin_levels.py script to standardize the shapefile if this is not the case.')
 
     # Iterate over the GeoDataFrame rows, saving each to geojson
@@ -95,8 +95,6 @@ def convert_shapefile_to_geojson(shp_fpath, projection_crs, admin_name_col, outp
 
         # Write the single row GeoDataFrame to a GeoJSON file
         single_row_gdf.to_file(output_fpath, driver='GeoJSON')
-
-        logger.info('GeoJSON file written to %s', output_fpath)
 
     logger.info('Processing Complete')
     logger.warning(f'Processed {len(gdf)} regions. Validate the output directory {output_head_dir} to check the GeoJSON files are from the correct geoemtries.')

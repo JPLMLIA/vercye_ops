@@ -1,4 +1,8 @@
-# Manual APSIM Install
+APSIM is an agricultural modelling framework that can simulate a variety of biophysical processes for differen crops.
+
+VeRCYe relies on the APSIMX framework for generating various simulations in a realistic range.
+
+### Installing APSIMX
 Visit [https://www.apsim.info](https://www.apsim.info) and make sure you have the proper license.
 
 The below instructions show how to install onto RHEL. This involves
@@ -30,6 +34,8 @@ export DOTNET_ROOT=path/to/dotnet
 ############################
 # Build APSIM
 module load git  # Might not be needed
+
+git clone https://github.com/APSIMInitiative/ApsimX.git ${APSIM_SRC_ROOT}
 
 cd ${APSIM_SRC_ROOT}
 ${DOTNET_ROOT}/dotnet build -c Release ApsimX.sln

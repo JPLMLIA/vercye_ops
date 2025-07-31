@@ -20,6 +20,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def rel_path(*path_parts):
+    return os.path.join(BASE_DIR, *path_parts)
+
 
 def is_within_date_range(file_path: str, start_date: datetime.date, end_date: datetime.date) -> bool:
     """
@@ -38,16 +43,17 @@ def is_within_date_range(file_path: str, start_date: datetime.date, end_date: da
 
 def run_subprocess(cmd: list, step_desc: str):
     """
-    Execute a subprocess and stream its output to the console.
-    If it fails, log error and raise.
+    Execute a subprocess, capturing and logging all output.
+    Raises RuntimeError on failure with full error output.
     """
     logger.info(f"Starting: {step_desc}\n  Command: {' '.join(cmd)}")
     t0 = time.time()
     try:
-        # Inherit stdout/stderr so user sees real-time output
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error during {step_desc}: return code {e.returncode}")
+        logger.error(f"Stdout:\n{e.stdout}")
+        logger.error(f"Stderr:\n{e.stderr}")
         raise RuntimeError(f"{step_desc} failed (exit code {e.returncode})")
     logger.info(f"Completed: {step_desc} in {time.time() - t0:.2f} seconds")
 
@@ -71,6 +77,17 @@ def run_pipeline(config):
     num_workers_lai = config.get("num_cores_lai", 1)
     num_workers_download = config.get("num_cores_download", 1)
     chunk_days = config.get("chunk_days", 30)
+    source = config["imagery_src"]
+    keep_imagery = config["keep_imagery"]
+
+    if source.lower() == 'es_s2c1':
+        downloader_script_path = rel_path('1_download_S2_earthsearch.py')
+    elif source.lower() == 'mpc':
+        downloader_script_path =  rel_path('1_download_S2_MPC.py')
+    else:
+        raise ValueError('Invalid Source Provided')
+
+    os.makedirs(out_dir, exist_ok=True)
 
     if from_step not in [0, 2, 3]:
         raise ValueError("Invalid from_step value. Must be 0, 2, or 3.")
@@ -103,7 +120,7 @@ def run_pipeline(config):
                 if from_step <= 0:
                     os.makedirs(tiles_out_dir, exist_ok=True)
                     cmd = [
-                        sys.executable, "1_download_S2_tiles.py",
+                        sys.executable, downloader_script_path,
                         "--start-date", start,
                         "--end-date", end,
                         "--resolution", str(resolution),
@@ -116,20 +133,20 @@ def run_pipeline(config):
                 if from_step <= 1:
                     os.makedirs(lai_dir, exist_ok=True)
                     cmd = [
-                        sys.executable, "2_1_primary_LAI_tiled.py",
+                        sys.executable, rel_path("2_1_primary_LAI_tiled.py"),
                         tiles_out_dir,
                         lai_dir,
                         str(resolution),
                         "--start-date", start,
                         "--end-date", end,
                         "--num-cores", str(num_workers_lai),
-                        "--remove-original",
+                        "--remove-original" if not keep_imagery else ""
                     ]
                     run_subprocess(cmd, f"Compute LAI for {start} to {end}")
 
         except Exception as e:
             logger.error(f"Aborting further processing due to error in date range {start_date} to {end_date}: {e}")
-            raise  # Reraise to halt the pipeline
+            raise  e # Reraise to halt the pipeline
 
     # Steps 2 and 3 are run once after all ranges
     overall_start = min(all_starts)
@@ -138,7 +155,7 @@ def run_pipeline(config):
     if from_step <= 2:
         os.makedirs(standardize_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_2_standardize.py",
+            sys.executable, rel_path("2_2_standardize.py"),
             lai_dir,
             standardize_lai_dir,
             str(resolution),
@@ -152,7 +169,7 @@ def run_pipeline(config):
     if from_step <= 3:
         os.makedirs(merged_lai_dir, exist_ok=True)
         cmd = [
-            sys.executable, "2_3_build_daily_LAI_vrts.py",
+            sys.executable, rel_path("2_3_build_daily_LAI_vrts.py"),
             standardize_lai_dir,
             merged_lai_dir,
             str(resolution),
@@ -165,16 +182,10 @@ def run_pipeline(config):
     logger.info("Pipeline completed successfully.")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python run_pipeline.py <config.yaml>")
-        sys.exit(1)
-
-    config_path = sys.argv[1]
-    if not os.path.exists(config_path):
-        print(f"Config file not found: {config_path}")
-        sys.exit(1)
-
+@click.command()
+@click.argument('config_path', type=click.Path(exists=True))
+def main(config_path):
+    """Run the pipeline with the specified CONFIG_PATH and SOURCE."""
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -183,3 +194,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Pipeline terminated with error: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()
