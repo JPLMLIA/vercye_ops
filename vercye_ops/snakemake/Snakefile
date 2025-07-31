@@ -11,8 +11,19 @@ from types import SimpleNamespace
 from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range, collect_multiyear_lai_stats
 from vercye_ops.reporting.generate_aggregated_final_report import create_final_report
 
-#######################################
+##################################################################
+# Update relative script paths in config to be relative to Snakefile
+##################################################################
+
+snakefile_dir = os.path.dirname(os.path.realpath(__file__))
+
+script_config = config['scripts']
+for key, path in script_config.items():
+    script_config[key] = os.path.abspath(os.path.join(snakefile_dir, path))
+
+##################################################################
 # Helper functions to facilitate checkpointing
+##################################################################
 
 def get_valid_regions(wildcards):
     """Get list of valid regions after checkpoint completion"""
@@ -40,15 +51,16 @@ def get_all_valid_region_outputs(wildcards, suffix):
     valid_regions = get_valid_regions(wildcards)
     return [op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, region, f"{region}_{suffix}") for region in valid_regions]
 
-#######################################
+##################################################################
 # Main Snakemake pipeline. Rules to run will be derived from here
+##################################################################
 
 rule all:
     params:
         roi_name = sanitize_filename(config['study_id'])
     input:
         valid_cropmasks = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
-        sim_match_report_workaround = expand(op.join('logs_expand_sim_match_report_region', '{year}_{timepoint}.log'), year=config['years'], timepoint=config['timepoints']),
+        sim_match_report_workaround = expand(op.join('logs_all_valid_expanded', '{year}_{timepoint}.log'), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_yield_map = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_yield_map_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         aggregated_laicurves = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
@@ -66,19 +78,21 @@ rule all:
             agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
         ),
 
-# Workaround to expand outputs for individual regions with checkpointing as expand and wildcards don't work well together
-rule expand_sim_match_report_region:
+# Workaround to expand outputs for individual valid regions with checkpointing as expand and wildcards don't work well together
+rule all_valid_outputs:
     input:
         sim_match_report_html_fpath = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix=f'yield_report.{get_required_yield_report_suffix(config)}')),
+        matched_sims_files = lambda wildcards: expand(get_all_valid_region_outputs(wildcards, suffix=f'matched_sims.csv')),
     output:
-        'logs_expand_sim_match_report_region/{year}_{timepoint}.log',
+        'logs_all_valid_expanded/{year}_{timepoint}.log',
     shell:
         """
         touch {output}
         """
 
-#######################################
+##################################################################
 # APSIM Section of Snakemake pipeline
+##################################################################
 
 rule construct_chirps_data:
     priority: 1 # This is a longer running job without dependencies, want to start as early as possible
@@ -376,6 +390,7 @@ rule execute_simulations:
 
 #######################################
 # S2/LAI portion of Snakemake pipeline
+##################################################################
 
 # Reproject orginal cropmask to match LAI resolution
 rule reproject_cropmask:
@@ -516,7 +531,7 @@ rule lai_quicklook:
 
 #######################################
 # Match sim/real (APSIM/S2-LAI) outputs
-
+##################################################################
 
 # Rule to match the simulated curves with the remotely sensed curves
 rule match_sim_real:
@@ -549,6 +564,25 @@ rule match_sim_real:
         --lai_agg_type {params.lai_agg_type} \
         --verbose > {log}
         """
+
+rule save_matched_sims:
+    input:
+        db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
+        sim_matches_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
+    params:
+        executable_fpath = config['scripts']['save_matched_sims']
+    log:
+        'logs_save_matched_sims/{year}_{timepoint}_{region}.log',
+    output:
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_matched_sims.csv')
+    shell:
+        """
+        python {params.executable_fpath} \
+        --db-path {input.db_fpath} \
+        --matches-path {input.sim_matches_fpath} \
+        --out_path {output} > {log}
+        """
+
 
 # Rule to convert the remotely sensed max lai map to yield based on conversion factor
 rule generate_converted_lai_map:
@@ -643,6 +677,10 @@ rule match_sim_real_quicklook:
         --lai_agg_type {params.lai_agg_type} \
         --png_fpath {output.png_fpath} > {log}
         """
+
+##################################################################
+# Reporting & Evaluation rules
+##################################################################
 
 # Rule to collect all predictions within a timepoint as a csv
 rule aggregate_yield_estimates:

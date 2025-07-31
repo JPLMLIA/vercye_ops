@@ -18,7 +18,6 @@ from dotenv import dotenv_values
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-
 def rel_path(*path_parts):
     return os.path.join(BASE_DIR, *path_parts)
 
@@ -113,6 +112,9 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
     config_file_path = os.path.join(study_dir, study_name, study_name, 'config.yaml')
     profile_dir = os.path.join(study_dir, study_name, "profile")
 
+    snakemake_run_dir = os.path.join(study_dir, study_name, 'snakemake')
+    os.makedirs(snakemake_run_dir, exist_ok=True)
+
     validate_run_config(config_file_path)
 
     if validate_only:
@@ -126,13 +128,14 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
         "--snakefile", snakefile_path,
         "--configfile", config_file_path,
         "--profile", profile_dir,
-        "--directory", workdir,
+        "--directory", snakemake_run_dir,
         "--printshellcmds",
         "--rerun-incomplete"
     ]
 
     # Add extra snakemake args if provided, allows to run custom options
     if extra_snakemake_args:
+        print(f'Running snakemake with additional args: {extra_snakemake_args}.')
         cmd.extend(extra_snakemake_args)
 
     try:

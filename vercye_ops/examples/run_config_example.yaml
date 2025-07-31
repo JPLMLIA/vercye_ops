@@ -209,6 +209,10 @@ eval_params:
 
 
 scripts:
+  # Adapt to real implementation locally.
+  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_17-06-25.py' 
+
+  #Typically don't change
   construct_met_files: '../apsim/construct_met_files.py'
   plot_met_files: '../reporting/generate_weather_report.py'
   fetch_met_data_nasapower: '../met_data/fetch_nasapower.py'
@@ -218,7 +222,6 @@ scripts:
   check_region_has_cropland: '../lai/0_validate_constrained_cropmask.py'
   lai_analysis: '../lai/3_analysis_LAI.py'
   lai_quicklook: '../lai/4_quicklook.py'
-  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_17-06-25.py' # Adapt to real implementation locally.
   match_sim_real_quicklook: '../reporting/generate_matching_report.py'
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
   estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
