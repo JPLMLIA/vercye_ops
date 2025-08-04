@@ -189,6 +189,8 @@ def prepare_study(config_path):
 
     geojsons_folder.cleanup()
 
+    return updated_config_path
+
 
 @click.command()
 @click.argument("config_path", type=click.Path(exists=True))

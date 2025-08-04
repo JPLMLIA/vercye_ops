@@ -195,3 +195,5 @@ vercye_ops/matching_sim_real/match_sim_rs_lai.py
 
 # Env file
 .env
+
+vercye_webapp/.env

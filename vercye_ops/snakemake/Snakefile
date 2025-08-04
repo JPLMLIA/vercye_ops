@@ -15,7 +15,7 @@ from vercye_ops.reporting.generate_aggregated_final_report import create_final_r
 # Update relative script paths in config to be relative to Snakefile
 ##################################################################
 
-snakefile_dir = os.path.dirname(os.path.realpath(__file__))
+snakefile_dir = os.path.dirname(os.path.abspath(workflow.snakefile))
 
 script_config = config['scripts']
 for key, path in script_config.items():
@@ -357,7 +357,7 @@ rule update_apsimx_template:
         if [[ -n "{params.sowing_date_col}" ]]; then
             SOWINGDATE=$(jq -r ".features[].properties.{params.sowing_date_col}" < "{input.geometry}")
             if [[ -n "$SOWINGDATE" && "$SOWINGDATE" != "null" ]]; then
-                SOWINGDATE_CMD="--sowing_date ${SOWINGDATE}"
+                SOWINGDATE_CMD="--sowing_date $SOWINGDATE"
             fi
         fi
 
@@ -365,7 +365,7 @@ rule update_apsimx_template:
         --apsimx_template_fpath {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_template.apsimx \
         --apsimx_output_fpath {output.apsimx_fpath} \
         --new_met_fpath {input.met_fpath} \
-        $SOWINGDATE_CMD \
+        ${{SOWINGDATE_CMD}} \
         --verbose > {log}
         """
 

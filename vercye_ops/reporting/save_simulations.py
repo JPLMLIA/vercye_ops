@@ -3,7 +3,7 @@ import pandas as pd
 
 from typing import List
 
-from vercye.matching_sim_real.utils import load_simulation_data
+from vercye_ops.matching_sim_real.utils import load_simulation_data
 
 
 def get_best_matches(matches_path: str, num_sims: int):
@@ -19,7 +19,7 @@ def get_best_matches(matches_path: str, num_sims: int):
 
 def get_sims(db_path: str, ids_to_keep: List[int]):
     query = "SELECT * FROM Report"
-    simulatiosn_data = load_simulation_data(db_path, query=query)
+    simulations_data = load_simulation_data(db_path, query=query)
     matched_simulations = simulations_data[simulations_data['SimulationID'].isin(ids_to_keep)]
     return matched_simulations
 

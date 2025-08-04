@@ -63,6 +63,8 @@ def init_study(name, dir):
         f"Template successfully created! Navigate to {new_study_path} and start adjusting your options."
     )
 
+    return new_study_path
+
 def create_lai_data(name, dir):
     """Download imagery through the STAC pipeline and create LAI"""
     lai_config_path = os.path.join(dir, name, "lai_config.yaml")
@@ -113,6 +115,7 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
     profile_dir = os.path.join(study_dir, study_name, "profile")
 
     snakemake_run_dir = os.path.join(study_dir, study_name, 'snakemake')
+
     os.makedirs(snakemake_run_dir, exist_ok=True)
 
     validate_run_config(config_file_path)
@@ -122,6 +125,8 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
     
     snakefile_path = rel_path('snakemake/Snakefile')
     workdir =  rel_path('snakemake')
+    log_file_path = os.path.join(snakemake_run_dir, 'log.txt')
+    status_file_path = os.path.join(snakemake_run_dir, 'status.txt')
     
     cmd = [
         "snakemake",
@@ -139,31 +144,44 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
         cmd.extend(extra_snakemake_args)
 
     try:
-        # Start process with real-time output and error capture
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,  # Merge stderr into stdout for real-time display
-            text=True,
-            bufsize=1,  # Line buffered
-            universal_newlines=True
-        )
+        with open(status_file_path, 'w') as status_file:
+            status_file.write("running")
 
-        # Read and display output in real-time
-        for line in process.stdout:
-            print(line, end='')  # Print without extra newline since line already has one
+        with open(log_file_path, 'w', buffering=1) as log_file:  # line-buffered
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                preexec_fn=os.setsid
+            )
 
-        # Wait for process to complete
-        process.wait()
+            # Write process group ID to be able to call sigterm later
+            pgid = os.getpgid(process.pid)
+            with open(os.path.join(snakemake_run_dir, 'snakemake_task_id.txt'), 'w') as f:
+                f.write(str(pgid))
 
-        if process.returncode == 0:
-            print("Snakemake completed successfully!")
-        else:
-            print(f"\nSnakemake failed with exit code: {process.returncode}")
-            sys.exit(process.returncode)
+            for line in process.stdout:
+                # print(line, end='') # Print to console
+                log_file.write(line) # Write to log file (includes ANSI codes)
+
+            process.wait()
+
+            with open(status_file_path, 'w') as status_file:
+                if process.returncode == 0:
+                    print("Snakemake completed successfully!")
+                    status_file.write("completed")
+                else:
+                    print(f"\nSnakemake failed with exit code: {process.returncode}")
+                    status_file.write("failed")
+                    sys.exit(process.returncode)
 
     except Exception as e:
         print(f"\nError running snakemake: {e}")
+        with open(status_file_path, 'w') as status_file:
+            status_file.write("failed\n")
         if process:
             process.terminate()
         raise
@@ -175,7 +193,7 @@ def get_env_file_path():
 def is_env_set():
     return get_env_file_path().exists()
 
-def read_study_dir_from_env():
+def read_studies_dir_from_env():
     env_vars = dotenv_values(get_env_file_path())
     return env_vars.get('STUDY_DIR', None)
 
@@ -222,7 +240,7 @@ def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_core
 
     # Load study dir from env if available and not set via cli
     if is_env_set() and not dir:
-        env_study_dir = read_study_dir_from_env()
+        env_study_dir = read_studies_dir_from_env()
         if env_study_dir:
             dir = env_study_dir
 

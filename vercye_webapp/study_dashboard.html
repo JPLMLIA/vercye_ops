@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vercye Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend+Exa:wght@100..900&family=Merriweather:ital,opsz,wght@0,18..144,300..900;1,18..144,300..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #4d688c;
+            --primary-hover: #2c5282;
+            --primary-light: #56749c;
+            --success: #38a169;
+            --success-hover: #2f855a;
+            --danger: #e53e3e;
+            --danger-hover: #c53030;
+            --warning: #d69e2e;
+            --warning-hover: #b7791f;
+            --blue: #4299e1;
+            --blue-light: #63b3ed;
+            --red: #e53e3e;
+            --red-dark: #c53030;
+            --gray-50: #f7fafc;
+            --gray-100: #edf2f7;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e0;
+            --gray-500: #718096;
+            --gray-700: #4a5568;
+            --gray-900: #2d3748;
+            --dark-primary: #324e47;
+            --dark-gray: #4a5568;
+            --light-grey: #718096;
+            --dark-white: #f7fafc;
+            --white: #ffffff;
+            
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Merriweather", serif;
+            background: #f9f9f9;
+            color: var(--gray-900);
+            line-height: 1.5;
+        }
+
+        p {
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 2rem;
+        }
+
+        .header .container-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .header {
+            background: var(--white);
+            padding: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin: 0 0 2rem 0;
+            border: 1px solid var(--gray-200);
+            width: 100vw;
+            margin-left: calc(50% - 50vw);
+            border-radius: 0;
+        }
+
+        .title {
+            font-size: 2rem;
+            font-weight: 400;
+            color: var(--dark-primary);
+            font-family: "Roboto", sans-serif;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--light-grey);
+            font-size: 14px;
+        }
+
+        .title-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .title-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-nav {
+            display: flex;
+            list-style: none;
+            gap: 0;
+            margin: 0;
+            padding: 0;
+            align-items: center;
+        }
+
+        .nav-item {
+            margin: 0;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            color: var(--light-grey);
+            text-decoration: none;
+            font-family: "Roboto", sans-serif;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            position: relative;
+            border-radius: 8px;
+            margin: 0 0.25rem;
+        }
+
+        .nav-link:hover {
+            color: var(--primary);
+            background: rgba(77, 104, 140, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .nav-link.active {
+            color: var(--primary);
+            background: rgba(77, 104, 140, 0.12);
+            font-weight: 600;
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 1.25rem;
+            right: 1.25rem;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 1px;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .title-container {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            
+            .navbar-nav {
+                align-self: flex-end;
+            }
+            
+            .nav-link {
+                padding: 0.5rem 1rem;
+                font-size: 13px;
+            }
+            
+            .nav-link.active::after {
+                left: 1rem;
+                right: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .nav-link {
+                padding: 0.5rem 0.75rem;
+                margin: 0 0.125rem;
+            }
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(66, 153, 225, 0.4);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: var(--success-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(56, 161, 105, 0.4);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: var(--danger-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(229, 62, 62, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--dark-primary);
+            border: 1px solid var(--dark-primary);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--dark-primary);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+
+        .table-container {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+            border: 1px solid var(--gray-200);
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background: var(--dark-white);
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark-gray);
+            border-bottom: 1px solid var(--gray-200);
+            font-family: "Roboto", sans-serif;
+        }
+
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid var(--gray-100);
+            vertical-align: middle;
+            font-size: 14px;
+        }
+
+        .table tbody tr:hover {
+            background: var(--gray-50);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .status-ready {
+            background: #e6f0fa;
+            color: var(--primary);
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-running {
+            background: #e6f0fa;
+            color: var(--blue);
+        }
+
+        .status-completed {
+            background: #f0fdf4;
+            color: var(--success);
+        }
+
+        .status-failed {
+            background: #fee2e2;
+            color: var(--red);
+        }
+
+        .status-cancelled {
+            background: #fee2e2;
+            color: var(--warning);
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(45, 55, 72, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 1px solid var(--gray-200);
+        }
+
+        .modal-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--dark-primary);
+            font-family: "Roboto", sans-serif;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--danger);
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--danger-hover);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--light-grey);
+            font-size: 14px;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--dark-primary);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--white);
+            color: var(--gray-900);
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+
+        .file-upload {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .file-upload input[type=file] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 12px;
+            border: 2px dashed var(--gray-300);
+            border-radius: 8px;
+            background: var(--gray-50);
+            transition: all 0.2s;
+        }
+
+        .file-upload:hover .file-upload-label {
+            border-color: var(--blue);
+            background: #e6f0fa;
+        }
+
+        .file-upload.has-file .file-upload-label {
+            border-color: var(--success);
+            background: #f0fdf4;
+            color: var(--success);
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: var(--success);
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: var(--red);
+        }
+
+        .alert-info {
+            background: #e6f0fa;
+            border: 1px solid #bfdbfe;
+            color: var(--blue);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--light-grey);
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: var(--gray-200);
+            z-index: 1;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            flex: 1;
+        }
+
+        .step-circle {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--gray-200);
+            color: var(--light-grey);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 0.5rem;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .step.active .step-circle {
+            background: var(--blue);
+            color: white;
+        }
+
+        .step.completed .step-circle {
+            background: var(--success);
+            color: white;
+        }
+
+        .step-label {
+            font-size: 12px;
+            color: var(--light-grey);
+            text-align: center;
+        }
+
+        .step.active .step-label {
+            color: var(--blue);
+            font-weight: 500;
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 15px;
+            left: 20%;
+            height: 2px;
+            background: var(--success);
+            z-index: 1;
+            transition: width 0.3s ease;
+        }
+
+        .results-iframe {
+            width: 100%;
+            min-height: 600px;
+            border: none;
+            border-radius: 15px;
+            background: var(--white);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .logs-container {
+            background: var(--dark-primary);
+            color: var(--white);
+            padding: 20px;
+            border-radius: 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            max-width: 400px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+            font-size: 14px;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .help-icon {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            margin-left: 8px;
+        }
+
+        .help-button {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: var(--dark-primary);
+            color: white;
+            border: none;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .help-button:hover {
+            background-color: var(--light-grey);
+        }
+
+        .help-tooltip {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 8px;
+            background-color: var(--dark-primary);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            width: 280px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .help-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid var(--dark-primary);
+        }
+
+        .help-icon:hover .help-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .title-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Enhanced visual effects */
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .table-container:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .modal-content {
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        select {
+            background: var(--white);
+            border: 1px solid var(--dark-primary);
+            border-radius: 8px;
+            color: var(--gray-900);
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--blue);
+        }
+
+        select option {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="container-inner">
+                <div class="title-container">
+                    <div class="title-left">
+                        <h1 class="title">Vercye Dashboard</h1>
+                        <div class="help-icon">
+                            <button class="help-button">?</button>
+                            <div class="help-tooltip">
+                                Help coming soon.
+                            </div>
+                        </div>
+                    </div>
+                    <nav>
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a href="/" class="nav-link active" data-tab="home">Studies</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="/lai" class="nav-link" data-tab="lai">LAI</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="/" class="nav-link" data-tab="cropmasks">Cropmasks</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                <p class="subtitle"></p>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-primary" onclick="showCreateStudyModal()">
+                ✚ Create New Study
+            </button>
+            <button class="btn btn-secondary" onclick="refreshStudies()">
+                ↻ Refresh
+            </button>
+        </div>
+
+        <div id="studiesContainer">
+            <div class="empty-state">
+                <div class="loading"></div>
+                <p style="margin-top: 1rem;">Loading studies...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Study Modal -->
+    <div id="createStudyModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="hideModal('createStudyModal')">&times;</button>
+            <h2 class="modal-title">Create New Study</h2>
+            
+            <form id="createStudyForm">
+                <div class="form-group">
+                    <label class="form-label" for="studyName">Study Name</label>
+                    <input type="text" id="studyName" class="form-input" placeholder="Enter study name" required>
+                </div>
+                
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="hideModal('createStudyModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Study</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Study Detail Modal -->
+    <div id="studyDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <button class="modal-close" onclick="hideModal('studyDetailModal')">&times;</button>
+            <h2 class="modal-title" id="studyDetailTitle">Study Configuration</h2>
+            
+            <div class="step-indicator" id="stepIndicator">
+                <div class="step completed" id="step1">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">Create</div>
+                </div>
+                <div class="step" id="step2">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">Setup</div>
+                </div>
+                <div class="step" id="step3">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">Run Parameters</div>
+                </div>
+                <div class="step" id="step4">
+                    <div class="step-circle">4</div>
+                    <div class="step-label">Ready</div>
+                </div>
+                <div class="progress-line" id="progressLine" style="width: 25%;"></div>
+            </div>
+            
+            <div id="studyDetailContent"></div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content" style="max-width: 95%; max-height: 95%;">
+            <button class="modal-close" onclick="hideModal('resultsModal')">&times;</button>
+            <h2 class="modal-title" id="resultsTitle">Study Results</h2>
+            <iframe id="resultsFrame" class="results-iframe"></iframe>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <button class="modal-close" onclick="hideModal('logsModal')">&times;</button>
+            <h2 class="modal-title" id="logsTitle">Study Logs</h2>
+            <div id="logsContent" class="logs-container">Loading logs...</div>
+        </div>
+    </div>
+
+    <script>
+        let studies = [];
+        let currentStudy = null;
+        let statusUpdateInterval = null;
+        const API_BASE = '';
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudies();
+            document.getElementById('createStudyForm').addEventListener('submit', handleCreateStudy);
+            startStatusUpdates();
+        });
+
+        // Start automatic status updates
+        function startStatusUpdates() {
+            statusUpdateInterval = setInterval(() => {
+                if (studies.length > 0) {
+                    studies.forEach(checkStudyStatus);
+                }
+            }, 10000); // Update every 10 seconds
+        }
+
+        // Load all studies
+        async function loadStudies() {
+            try {
+                const response = await fetch(`${API_BASE}/studies`);
+                if (!response.ok) throw new Error('Failed to load studies');
+                
+                studies = await response.json();
+                renderStudies();
+            } catch (error) {
+                console.error('Error loading studies:', error);
+                showToast('Failed to load studies', 'error');
+                renderStudies();
+            }
+        }
+
+        // Render studies table
+        function renderStudies() {
+            const container = document.getElementById('studiesContainer');
+            
+            if (studies.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No Studies Found</h3>
+                        <p>Create your first study to get started</p>
+                        <button class="btn btn-primary" style="margin-top: 15px" onclick="showCreateStudyModal()">
+                            ✚ Create Your First Study
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Study Name</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${studies.map(studyId => `
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 500;">${studyId}</div>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-pending" id="status-${studyId}">
+                                            <div class="loading" style="width: 12px; height: 12px; border-width: 1px;"></div>
+                                            Loading...
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="actions-cell">
+                                            <button class="btn btn-sm btn-primary" onclick="openStudyDetail('${studyId}')">
+                                                Configure
+                                            </button>
+                                            <button class="btn btn-sm btn-success" onclick="runStudy('${studyId}')" disabled id="run-${studyId}">
+                                                Run
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" onclick="cancelRun('${studyId}')" style="display: none;" id="cancel-${studyId}">
+                                                Cancel
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="viewResults('${studyId}')" style="display: none;" id="results-${studyId}">
+                                                Results
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="viewLogs('${studyId}')">
+                                                Logs
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            // Check status of each study
+            studies.forEach(checkStudyStatus);
+        }
+
+        // Check study status
+        async function checkStudyStatus(studyId) {
+            try {
+                const response = await fetch(`${API_BASE}/studies/${studyId}/status`);
+                const statusElement = document.getElementById(`status-${studyId}`);
+                const runButton = document.getElementById(`run-${studyId}`);
+                const resultsButton = document.getElementById(`results-${studyId}`);
+                const cancelButton = document.getElementById(`cancel-${studyId}`);
+                
+                if (!statusElement) return; // Element might not exist yet
+                
+                if (response.ok) {
+                    const res = await response.json();
+                    updateStatusDisplay(studyId, res.status, statusElement, runButton, resultsButton, cancelButton);
+                } else {
+                    // Fallback to checking run-config endpoint
+                    const configResponse = await fetch(`${API_BASE}/studies/${studyId}/run-config`);
+                    const status = configResponse.ok ? 'ready' : 'pending';
+                    updateStatusDisplay(studyId, status, statusElement, runButton, resultsButton, cancelButton);
+                }
+            } catch (error) {
+                console.error(`Error checking status for ${studyId}:`, error);
+            }
+        }
+
+        // Update status display
+        function updateStatusDisplay(studyId, status, statusElement, runButton, resultsButton, cancelButton) {
+            const statusMap = {
+                'pending': { class: 'status-pending', text: '-', runDisabled: true },
+                'queued': { class: 'status-ready', text: 'Queued', runDisabled: true },
+                'running': { class: 'status-running', text: 'Running', runDisabled: true },
+                'completed': { class: 'status-completed', text: 'Completed', runDisabled: false },
+                'failed': { class: 'status-failed', text: 'Failed', runDisabled: false },
+                'cancelled': { class: 'status-cancelled', text: 'Cancelled', runDisabled: false }
+            };
+
+            const statusConfig = statusMap[status] || statusMap['pending'];
+            
+            statusElement.className = `status-badge ${statusConfig.class}`;
+            statusElement.innerHTML = statusConfig.text;
+            
+            if (runButton) {
+                runButton.disabled = statusConfig.runDisabled;
+            }
+
+            if (resultsButton) {
+                resultsButton.style.display = status === 'completed' ? 'inline-flex' : 'none';
+            }
+
+            if (cancelButton) {
+                cancelButton.style.display = status === 'running' ? 'inline-flex' : 'none';
+            }
+        }
+
+        // Show modal
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+        }
+
+        // Hide modal
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // Show create study modal
+        function showCreateStudyModal() {
+            showModal('createStudyModal');
+            document.getElementById('studyName').focus();
+        }
+
+        // Handle create study
+        async function handleCreateStudy(e) {
+            e.preventDefault();
+            
+            const studyName = document.getElementById('studyName').value.trim();
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            
+            setButtonLoading(submitButton, 'Creating...');
+
+            try {
+                const response = await fetch(`${API_BASE}/studies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({study_id: studyName})
+                });
+
+                if (!response.ok) throw new Error('Failed to create study');
+
+                const blob = await response.blob();
+                downloadBlob(blob, 'setup_config.yaml');
+                
+                showToast(`Study "${studyName}" created successfully!`, 'success');
+                hideModal('createStudyModal');
+                document.getElementById('createStudyForm').reset();
+                loadStudies();
+                
+                setTimeout(() => openStudyDetail(studyName), 500);
+                
+            } catch (error) {
+                console.error('Error creating study:', error);
+                showToast('Failed to create study', 'error');
+            } finally {
+                resetButton(submitButton, 'Create Study');
+            }
+        }
+
+        // Open study detail modal
+        function openStudyDetail(studyId) {
+            currentStudy = studyId;
+            document.getElementById('studyDetailTitle').textContent = `${studyId} - Configuration`;
+            showModal('studyDetailModal');
+            renderStudyDetailContent();
+        }
+
+        // Render study detail content
+        async function renderStudyDetailContent() {
+            if (!currentStudy) return;
+
+            let currentStep = 1;
+            
+            try {
+                const response = await fetch(`${API_BASE}/studies/${currentStudy}/run-config`);
+                currentStep = response.ok ? 4 : 2;
+            } catch (error) {
+                currentStep = 2;
+            }
+
+            updateStepIndicator(currentStep);
+
+            const content = document.getElementById('studyDetailContent');
+            
+            if (currentStep === 2) {
+                content.innerHTML = `
+                    <div class="alert alert-info">
+                        <strong>Step 2:</strong> Upload your configured setup_config.yaml file</br>
+                        This will create your initial study directory structure by extracting individual geometries, preparing APSIM files etc.</br>
+                        It is recommended to start out with the provided template below.
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Setup Configuration File</label>
+                        <div class="file-upload" id="setupFileUpload">
+                            <input type="file" id="setupFile" accept=".yaml,.yml" onchange="handleFileChange('setup')">
+                            <div class="file-upload-label">
+                                📁 Choose setup_config.yaml file
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.75rem; justify-content: space-between;">
+                        <button class="btn btn-secondary" onclick="downloadSetupTemplate()">⬇️ Download Template</button>
+                        <button class="btn btn-primary" onclick="uploadSetupConfig()" id="uploadSetupBtn" disabled>
+                            Upload Setup Config
+                        </button>
+                    </div>
+                `;
+            } else if (currentStep === 3) {
+                content.innerHTML = `
+                    <div class="alert alert-success">Setup configuration uploaded successfully!</div>
+                    <div class="alert alert-info">
+                        <strong>Step 3:</strong> Upload your configured config.yaml file
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Run Configuration File</label>
+                        <div class="file-upload" id="runFileUpload">
+                            <input type="file" id="runFile" accept=".yaml,.yml" onchange="handleFileChange('run')">
+                            <div class="file-upload-label">
+                                📁 Choose config.yaml file
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                        <button class="btn btn-primary" onclick="uploadRunConfig()" id="uploadRunBtn" disabled>
+                            Upload Run Config
+                        </button>
+                    </div>
+                `;
+            } else if (currentStep === 4) {
+                content.innerHTML = `
+                    <div class="alert alert-success">
+                        <strong>Setup Complete!</strong> Your study is ready to run.
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.75rem; justify-content: space-between;">
+                        <button class="btn btn-secondary" onclick="downloadRunConfig('${currentStudy}')">
+                            ⬇️ Download Config
+                        </button>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button class="btn btn-secondary" onclick="updateRunConfig()">
+                                📝 Update Config
+                            </button>
+                            <button class="btn btn-success" onclick="runStudy('${currentStudy}')">
+                                ▶️ Run Study
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Handle file changes
+        function handleFileChange(type) {
+            const fileInput = document.getElementById(`${type}File`);
+            const uploadContainer = document.getElementById(`${type}FileUpload`);
+            const uploadBtn = document.getElementById(`upload${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+            const label = uploadContainer.querySelector('.file-upload-label');
+            
+            if (fileInput.files.length > 0) {
+                uploadContainer.classList.add('has-file');
+                label.innerHTML = `✅ ${fileInput.files[0].name}`;
+                uploadBtn.disabled = false;
+            } else {
+                uploadContainer.classList.remove('has-file');
+                label.innerHTML = `📁 Choose ${type === 'setup' ? 'setup_config.yaml' : 'config.yaml'} file`;
+                uploadBtn.disabled = true;
+            }
+        }
+
+        // Upload setup config
+        async function uploadSetupConfig() {
+            await uploadFile('setup', '/prepare', 'setup_file', 'config.yaml');
+        }
+
+        // Upload run config
+        async function uploadRunConfig() {
+            await uploadFile('run', '/run-config', 'run_cfg_file');
+        }
+
+        // Generic file upload function
+        async function uploadFile(type, endpoint, fieldName, downloadFilename = null) {
+            const fileInput = document.getElementById(`${type}File`);
+            const uploadBtn = document.getElementById(`upload${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+            
+            if (!fileInput.files.length) return;
+
+            const formData = new FormData();
+            formData.append(fieldName, fileInput.files[0]);
+
+            setButtonLoading(uploadBtn, 'Uploading...');
+
+            try {
+                const response = await fetch(`${API_BASE}/studies/${currentStudy}${endpoint}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Upload failed');
+                }
+
+                if (downloadFilename) {
+                    const blob = await response.blob();
+                    downloadBlob(blob, downloadFilename);
+                }
+                
+                showToast(`${type === 'setup' ? 'Setup' : 'Run'} config uploaded successfully!`, 'success');
+                renderStudyDetailContent();
+                loadStudies();
+                
+            } catch (error) {
+                console.error(`Error uploading ${type} config:`, error);
+                showToast(`Failed to upload ${type} config: ${error.message}`, 'error');
+            } finally {
+                resetButton(uploadBtn, `Upload ${type === 'setup' ? 'Setup' : 'Run'} Config`);
+            }
+        }
+
+        // Update run config
+        function updateRunConfig() {
+            const content = document.getElementById('studyDetailContent');
+            content.innerHTML = `
+                <div class="alert alert-info">
+                    <strong>Update Run Configuration:</strong> Upload a new config.yaml file<br>
+                    Replace the current run configuration parameters with an updated file.
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">New Run Configuration File</label>
+                    <div class="file-upload" id="updateRunFileUpload">
+                        <input type="file" id="updateRunFile" accept=".yaml,.yml" onchange="handleUpdateFileChange()">
+                        <div class="file-upload-label">
+                            📁 Choose config.yaml file
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="downloadSetupTemplate()">⬇️ Download current config</button>
+                        <button class="btn btn-secondary" onclick="renderStudyDetailContent()">Cancel</button>
+                        <button class="btn btn-primary" onclick="uploadUpdatedRunConfig()" id="updateUploadRunBtn" disabled>
+                            Update Config
+                        </button>
+                </div>
+            `;
+        }
+
+        // Handle update file change
+        function handleUpdateFileChange() {
+            const fileInput = document.getElementById('updateRunFile');
+            const uploadContainer = document.getElementById('updateRunFileUpload');
+            const uploadBtn = document.getElementById('updateUploadRunBtn');
+            const label = uploadContainer.querySelector('.file-upload-label');
+            
+            if (fileInput.files.length > 0) {
+                uploadContainer.classList.add('has-file');
+                label.innerHTML = `✅ ${fileInput.files[0].name}`;
+                uploadBtn.disabled = false;
+            } else {
+                uploadContainer.classList.remove('has-file');
+                label.innerHTML = '📁 Choose config.yaml file';
+                uploadBtn.disabled = true;
+            }
+        }
+
+        // Upload updated run config
+        async function uploadUpdatedRunConfig() {
+            const fileInput = document.getElementById('updateRunFile');
+            const uploadBtn = document.getElementById('updateUploadRunBtn');
+            
+            if (!fileInput.files.length) return;
+
+            const formData = new FormData();
+            formData.append('run_cfg_file', fileInput.files[0]);
+
+            setButtonLoading(uploadBtn, 'Updating...');
+
+            try {
+                const response = await fetch(`${API_BASE}/studies/${currentStudy}/run-config`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to update config');
+                }
+
+                showToast('Run config updated successfully!', 'success');
+                renderStudyDetailContent();
+                
+            } catch (error) {
+                console.error('Error updating run config:', error);
+                showToast(`Failed to update run config: ${error.message}`, 'error');
+            } finally {
+                resetButton(uploadBtn, 'Update Config');
+            }
+        }
+
+        // Update step indicator
+        function updateStepIndicator(currentStep) {
+            const steps = ['step1', 'step2', 'step3', 'step4'];
+            const progressLine = document.getElementById('progressLine');
+            
+            steps.forEach((stepId, index) => {
+                const step = document.getElementById(stepId);
+                const stepNumber = index + 1;
+                
+                step.classList.remove('active', 'completed');
+                if (stepNumber < currentStep) {
+                    step.classList.add('completed');
+                } else if (stepNumber === currentStep) {
+                    step.classList.add('active');
+                }
+            });
+            
+            const progressWidth = ((currentStep - 1) / 3) * 100;
+            progressLine.style.width = `${Math.max(0, progressWidth)}%`;
+        }
+
+        // Download run configuration
+        async function downloadRunConfig(studyId) {
+            try {
+                const response = await fetch(`${API_BASE}/studies/${studyId}/run-config`);
+                
+                if (!response.ok) {
+                    showToast(response.status === 404 ? 'No configuration found' : 'Download failed', 'error');
+                    return;
+                }
+
+                const blob = await response.blob();
+                downloadBlob(blob, 'config.yaml');
+                
+            } catch (error) {
+                console.error('Error downloading run config:', error);
+                showToast('Failed to download configuration', 'error');
+            }
+        }
+
+        // Run study
+        async function runStudy(studyId) {
+            const runButtons = document.querySelectorAll(`#run-${studyId}`);
+            const originalTexts = Array.from(runButtons).map(btn => btn.textContent);
+            
+            runButtons.forEach(btn => setButtonLoading(btn, 'Running...'));
+
+            try {
+                const response = await fetch(`${API_BASE}/studies/${studyId}/actions/run`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to run study');
+                }
+
+                const result = await response.json();
+                showToast(result.message || 'Study completed successfully!', 'success');
+                
+                // Refresh status immediately
+                setTimeout(() => checkStudyStatus(studyId), 1000);
+                
+            } catch (error) {
+                console.error('Error running study:', error);
+                showToast(`Failed to run study: ${error.message}`, 'error');
+            } finally {
+                runButtons.forEach((btn, index) => {
+                    resetButton(btn, originalTexts[index]);
+                });
+            }
+        }
+
+        // Cancel Running Study
+        async function cancelRun(studyId) {
+            try {
+                const response = await fetch(`${API_BASE}/studies/${studyId}/actions/cancel`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to cancel study');
+                }
+                
+                showToast(`Study cancelled!`, 'info');
+
+            } catch (error) {
+                console.error('Error cancelling study:', error);
+                showToast(`Failed to cancel study: ${error.message}`, 'error');
+            }
+        }
+
+        // View study results with timepoint selector
+        async function viewResults(studyId) {
+            try {
+                const response = await fetch(`${API_BASE}/studies/${studyId}/result-timepoints`);
+                if (!response.ok) throw new Error('Failed to fetch timepoints');
+
+                const data = await response.json();
+                const years = data.timepoints || {};
+                const yearKeys = Object.keys(years).sort();
+
+                if (yearKeys.length === 0) {
+                    showToast('No result timepoints found', 'info');
+                    return;
+                }
+
+                // Create modal
+                const modal = document.createElement('div');
+                modal.className = 'modal show';
+                modal.id = 'timepointSelectorModal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 500px;">
+                        <button class="modal-close" onclick="document.body.removeChild(document.getElementById('timepointSelectorModal'))">&times;</button>
+                        <h2 class="modal-title">Select Result for "${studyId}"</h2>
+
+                        <div class="form-group">
+                            <label class="form-label">Year</label>
+                            <select id="yearSelect" class="form-input" onchange="updateTimepointOptions('${studyId}')">
+                                ${yearKeys.map(year => `<option value="${year}">${year}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Timepoint</label>
+                            <select id="timepointSelect" class="form-input"></select>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                            <button class="btn btn-secondary" onclick="document.body.removeChild(document.getElementById('timepointSelectorModal'))">Cancel</button>
+                            <button class="btn btn-primary" onclick="openSelectedResult('${studyId}')">Open</button>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+
+                // Store years data for update function
+                window.__resultYears = years;
+                updateTimepointOptions(studyId); // Initial populate
+
+            } catch (error) {
+                console.error('Error fetching timepoints:', error);
+                showToast('Failed to load result timepoints', 'error');
+            }
+        }
+
+        function updateTimepointOptions(studyId) {
+            const year = document.getElementById('yearSelect').value;
+            const timepointSelect = document.getElementById('timepointSelect');
+            const timepoints = window.__resultYears?.[year] || [];
+
+            timepointSelect.innerHTML = timepoints.map(tp => `<option value="${tp}">${tp}</option>`).join('');
+        }
+
+        function openSelectedResult(studyId) {
+            const year = document.getElementById('yearSelect').value;
+            const timepoint = document.getElementById('timepointSelect').value;
+
+            if (!year || !timepoint) {
+                showToast('Please select a valid year and timepoint.', 'warning');
+                return;
+            }
+
+            const resultUrl = `${API_BASE}/studies/${studyId}/map-result/${year}/${timepoint}`;
+            window.open(resultUrl, '_blank');
+
+            const modal = document.getElementById('timepointSelectorModal');
+            if (modal) document.body.removeChild(modal);
+        }
+
+        // Get ansi colors for better logging
+        function ansiToHtml(str) {
+            const ANSI_COLORS = {
+                '30': '#f7fafc',   // light gray 
+                '31': '#e53e3e',   // danger red
+                '32': '#38a169',   // success green
+                '33': '#d69e2e',   // warning yellow
+                '34': '#63b3ed',   // light blue 
+                '35': '#c084fc',   // soft purple
+                '36': '#81e6d9',   // teal/cyan
+                '37': '#ffffff',   // white
+                '90': '#cbd5e0'    // gray-300
+            };
+
+            return str
+                .replace(/\x1b\[(\d+)m/g, (match, code) => {
+                    if (code === '0') return '</span>';
+                    const color = ANSI_COLORS[code];
+                    if (color) return `<span style="color:${color}">`;
+                    return '';
+                });
+        }
+
+        // View study logs
+        async function viewLogs(studyId) {
+            try {
+                document.getElementById('logsTitle').textContent = `${studyId} - Logs`;
+                const logsContent = document.getElementById('logsContent');
+                logsContent.textContent = 'Loading logs...';
+                
+                showModal('logsModal');
+                
+                const response = await fetch(`${API_BASE}/studies/${studyId}/logs`);
+
+                if (response.status === 404) {
+                    logsContent.innerHTML = '<pre>No logs available</pre>';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch logs');
+                }
+                
+                const logs = await response.text();
+                logsContent.innerHTML = `<pre>${ansiToHtml(logs) || 'No logs available'}</pre>`;
+                
+            } catch (error) {
+                console.error('Error viewing logs:', error);
+                document.getElementById('logsContent').textContent = 'Failed to load logs: ' + error.message;
+            }
+        }
+
+        // Refresh studies
+        function refreshStudies() {
+            const container = document.getElementById('studiesContainer');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="loading"></div>
+                    <p style="margin-top: 1rem;">Refreshing studies...</p>
+                </div>
+            `;
+            loadStudies();
+        }
+
+        // Utility functions
+        function setButtonLoading(button, text) {
+            button.innerHTML = `<div class="loading"></div> ${text}`;
+            button.disabled = true;
+        }
+
+        function resetButton(button, text) {
+            button.textContent = text;
+            button.disabled = false;
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        function showToast(message, type = 'info') {
+            // Remove existing toasts
+            document.querySelectorAll('.toast').forEach(toast => toast.remove());
+            
+            const toast = document.createElement('div');
+            toast.className = `toast alert alert-${type}`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Event listeners
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                hideModal(e.target.id);
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modals = ['createStudyModal', 'studyDetailModal', 'resultsModal', 'logsModal'];
+                modals.forEach(modalId => {
+                    if (document.getElementById(modalId).classList.contains('show')) {
+                        hideModal(modalId);
+                    }
+                });
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (statusUpdateInterval) {
+                clearInterval(statusUpdateInterval);
+            }
+        });
+    </script>
+</body>
+</html>
