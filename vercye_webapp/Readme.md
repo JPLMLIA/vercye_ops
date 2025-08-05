@@ -16,6 +16,8 @@ Documentation will be properly filled in soon.
 chmod +x run.sh
 ./run.sh
 ```
+5. You can then access the app by connecting from your client machine via ssh `ssh -L 8000:yoursockerpath yourusername@serveradress`.
+6. Open `127.0.0.1` in your browser to load the dashboard.
 
 You might want to run this with `tmux` or `nohup` to keep the process alive.
 

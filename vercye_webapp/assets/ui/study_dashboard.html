@@ -866,7 +866,7 @@
         let studies = [];
         let currentStudy = null;
         let statusUpdateInterval = null;
-        const API_BASE = '';
+        const API_BASE = '/api';
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
@@ -999,9 +999,10 @@
                 'pending': { class: 'status-pending', text: '-', runDisabled: true },
                 'queued': { class: 'status-ready', text: 'Queued', runDisabled: true },
                 'running': { class: 'status-running', text: 'Running', runDisabled: true },
-                'completed': { class: 'status-completed', text: 'Completed', runDisabled: false },
+                'completed': { class: 'status-completed', text: 'Completed', runDisabled: true },
                 'failed': { class: 'status-failed', text: 'Failed', runDisabled: false },
-                'cancelled': { class: 'status-cancelled', text: 'Cancelled', runDisabled: false }
+                'cancelled': { class: 'status-cancelled', text: 'Cancelled', runDisabled: false },
+                'validating': { class: 'status-running', text: 'Validating', runDisabled: true }
             };
 
             const statusConfig = statusMap[status] || statusMap['pending'];
@@ -1018,7 +1019,7 @@
             }
 
             if (cancelButton) {
-                cancelButton.style.display = status === 'running' ? 'inline-flex' : 'none';
+                cancelButton.style.display = (status === 'running' || status === 'validating') ? 'inline-flex' : 'none';
             }
         }
 
@@ -1523,7 +1524,10 @@
                 
                 showModal('logsModal');
                 
-                const response = await fetch(`${API_BASE}/studies/${studyId}/logs`);
+                const response = await fetch(`${API_BASE}/studies/${studyId}/logs`, {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
 
                 if (response.status === 404) {
                     logsContent.innerHTML = '<pre>No logs available</pre>';

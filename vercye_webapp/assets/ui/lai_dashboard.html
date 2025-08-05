@@ -852,6 +852,64 @@
             background: var(--primary-hover);
         }
 
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(45, 55, 72, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 1px solid var(--gray-200);
+        }
+
+        .modal-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--dark-primary);
+            font-family: "Roboto", sans-serif;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--danger);
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--danger-hover);
+        }
+
     </style>
 </head>
 <body>
@@ -887,10 +945,10 @@
         </div>
         
         <div class="actions">
-            <button class="btn btn-primary" onclick="showCreateStudyModal()">
+            <button class="btn btn-primary" onclick="showCreateStudyModal()" disabled>
                 ✚ Generate LAI Data
             </button>
-            <button class="btn btn-secondary" onclick="refreshStudies()">
+            <button class="btn btn-secondary" onclick="refreshStudies()" disabled>
                 ↻ Refresh
             </button>
         </div>
@@ -901,252 +959,285 @@
                 <p style="margin-top: 1rem;">Loading available LAI data...</p>
             </div>
         </div>
+
+         <!-- Lai Detail Modal -->
+        <div id="laiDetailModal" class="modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <button class="modal-close" onclick="hideModal('laiDetailModal')">&times;</button>
+                <h2 class="modal-title" id="studyDetailTitle">LAI Details</h2>
+                <div id="laiDetailContent"></div>
+            </div>
+        </div>
     </div>
     </body>
 
     <script>
-// Sample LAI data
-const laiData = [
-    {
-        id: 1,
-        name: "Sumy Oblast North",
-        location: "Sumy Oblast, Ukraine",
-        lat: 51.2,
-        lng: 34.8,
-        dateCollected: "2024-03-15",
-        laiValue: "2.8",
-        status: "completed",
-        dataPoints: 1250
-    },
-    {
-        id: 2,
-        name: "Poltava Central",
-        location: "Poltava Oblast, Ukraine",
-        lat: 49.6,
-        lng: 34.5,
-        dateCollected: "2024-03-12",
-        laiValue: "3.2",
-        status: "completed",
-        dataPoints: 980
-    },
-    {
-        id: 3,
-        name: "Sumy Oblast East",
-        location: "Sumy Oblast, Ukraine",
-        lat: 51.0,
-        lng: 35.2,
-        dateCollected: "2024-03-18",
-        laiValue: "2.5",
-        status: "processing",
-        dataPoints: 1100
-    },
-    {
-        id: 4,
-        name: "Poltava South",
-        location: "Poltava Oblast, Ukraine",
-        lat: 49.2,
-        lng: 34.2,
-        dateCollected: "2024-03-20",
-        laiValue: "3.5",
-        status: "completed",
-        dataPoints: 1380
-    },
-    {
-        id: 5,
-        name: "Sumy Oblast West",
-        location: "Sumy Oblast, Ukraine",
-        lat: 51.1,
-        lng: 34.2,
-        dateCollected: "2024-03-22",
-        laiValue: "2.9",
-        status: "failed",
-        dataPoints: 0
-    }
-];
+        let laiData = [];
+        let statusUpdateInterval = null;
+        let map;
+        let currentView = 'table';
+        const API_BASE = '/api';
 
-let map;
-let currentView = 'table';
-
-function initializeLAIContent() {
-    const container = document.getElementById('studiesContainer');
-    container.innerHTML = `
-        <div class="view-toggle">
-            <span style="color: var(--gray-700); font-weight: 500; margin-right: 10px;">View:</span>
-            <button class="toggle-btn active" onclick="switchView('table')">Table View</button>
-            <button class="toggle-btn" onclick="switchView('map')">Map View</button>
-        </div>
-        
-        <div id="tableView">
-            <h2><b>THIS LAI PAGE IS NOT YET OPERATIONAL AND IS ONLY FILLED WITH SAMPLE DATA!</b></h2>
-            ${generateTableView()}
-        </div>
-        
-        <div id="mapView" style="display: none;">
-            <div id="mapContainer">
-                <div id="laiMap"></div>
-            </div>
-        </div>
-    `;
-}
-
-function generateTableView() {
-    return `
-        <div class="table-container">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Centroid</th>
-                        <th>Total days</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${laiData.map(item => `
-                        <tr>
-                            <td style="font-weight: 600; color: var(--dark-primary);">${item.name}</td>
-                            <td>${item.location}</td>
-                            <td>${item.dataPoints.toLocaleString()}</td>
-                            <td>
-                                <span class="status-badge status-${item.status}">
-                                    ${item.status}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="actions-cell">
-                                    <button class="btn btn-sm btn-primary" onclick="viewLAIData(${item.id})" ${item.status !== 'completed' ? 'disabled' : ''}>
-                                        View
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-function switchView(view) {
-    const buttons = document.querySelectorAll('.toggle-btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-    
-    const tableView = document.getElementById('tableView');
-    const mapView = document.getElementById('mapView');
-    
-    if (view === 'table') {
-        tableView.style.display = 'block';
-        mapView.style.display = 'none';
-        currentView = 'table';
-    } else {
-        tableView.style.display = 'none';
-        mapView.style.display = 'block';
-        currentView = 'map';
-        
-        // Initialize map if not already done
-        setTimeout(() => {
-            if (!map) {
-                initializeMap();
+        async function loadLaiEntries() {
+            try {
+                const response = await fetch(`${API_BASE}/lai`);
+                if (!response.ok) throw new Error('Failed to load LAI entries');
+                
+                laiData = await response.json();
+                initializeLAIContent();
+            } catch (error) {
+                console.error('Error loading LAI entries:', error);
+                showToast('Failed to load LAI entries', 'error');
+                initializeLAIContent();
             }
-        }, 100);
-    }
-}
+        }
 
-function initializeMap() {
-    // Initialize the map centered on Ukraine
-    map = L.map('laiMap').setView([50.0, 34.5], 7);
-    
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    
-    // Add markers for each LAI data point
-    laiData.forEach(item => {
-        const marker = L.circleMarker([item.lat, item.lng], {
-            radius: item.status === 'completed' ? 8 : 6,
-            fillColor: item.status === 'completed' ? '#4d688c' : 
-                      item.status === 'processing' ? '#d69e2e' : '#e53e3e',
-            color: 'white',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map);
-        
-        // Create popup content
-        const popupContent = `
-            <div class="custom-popup">
-                <div class="popup-title">${item.name}</div>
-                <div class="popup-info">${item.location}</div>
-                <div class="popup-info">List with dates will follow.</div>
-                <div class="popup-info">
-                    <span class="status-badge status-${item.status}">
-                        ${item.status}
-                    </span>
+        function initializeLAIContent() {
+            const container = document.getElementById('studiesContainer');
+            container.innerHTML = `
+                <div class="view-toggle">
+                    <span style="color: var(--gray-700); font-weight: 500; margin-right: 10px;">View:</span>
+                    <button class="toggle-btn active" onclick="switchView('table')">Table View</button>
+                    <button class="toggle-btn" onclick="switchView('map')">Map View</button>
                 </div>
-                ${item.status === 'completed' ? `
-                    <div class="popup-actions">
-                        <button class="popup-btn popup-btn-primary" onclick="viewLAIData(${item.id})">View Data</button>
+                
+                <div id="tableView">
+                    <h2><b>WIP Triggering LAI Generation!</b></h2>
+                    ${generateTableView()}
+                </div>
+                
+                <div id="mapView" style="display: none;">
+                    <div id="mapContainer">
+                        <div id="laiMap"></div>
                     </div>
-                ` : ''}
-            </div>
-        `;
-        
-        marker.bindPopup(popupContent);
-        
-        // Add hover effects
-        marker.on('mouseover', function() {
-            this.setStyle({
-                radius: item.status === 'completed' ? 10 : 8,
-                fillOpacity: 1
+                </div>
+            `;
+        }
+
+        function generateTableView() {
+            return `
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Centroid</th>
+                                <th>Total days</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${laiData.map(item => `
+                                <tr>
+                                    <td style="font-weight: 600; color: var(--dark-primary);">${item.id}</td>
+                                    <td>${item.lat}, ${item.lon}</td>
+                                    <td>${item.dates.length}</td>
+                                    <td>
+                                        <span class="status-badge status-${item.status}">
+                                            ${item.status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="actions-cell">
+                                            <button class="btn btn-sm btn-primary" onclick="viewLAIData('${item.id}')" ${item.status !== 'completed' ? 'disabled' : ''}>
+                                                Details
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function switchView(view) {
+            const buttons = document.querySelectorAll('.toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            const tableView = document.getElementById('tableView');
+            const mapView = document.getElementById('mapView');
+            
+            if (view === 'table') {
+                tableView.style.display = 'block';
+                mapView.style.display = 'none';
+                currentView = 'table';
+            } else {
+                tableView.style.display = 'none';
+                mapView.style.display = 'block';
+                currentView = 'map';
+                
+                // Initialize map if not already done
+                setTimeout(() => {
+                    if (!map) {
+                        initializeMap();
+                    }
+                }, 100);
+            }
+        }
+
+        function initializeMap() {
+            // Initialize the map centered on Ukraine
+            map = L.map('laiMap').setView([50.0, 34.5], 7);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Add markers for each LAI data point
+            laiData.forEach(item => {
+                const marker = L.circleMarker([item.lat, item.lon], {
+                    radius: item.status === 'completed' ? 8 : 6,
+                    fillColor: item.status === 'completed' ? '#4d688c' : 
+                            item.status === 'processing' ? '#d69e2e' : '#e53e3e',
+                    color: 'white',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+                
+                // Create popup content
+                const popupContent = `
+                    <div class="custom-popup">
+                        <div class="popup-title">${item.id}</div>
+                        <div class="popup-info">${item.lat}, ${item.lon}</div>
+                        <div class="popup-info">List with dates will follow.</div>
+                        <div class="popup-info">
+                            <span class="status-badge status-${item.status}">
+                                ${item.status}
+                            </span>
+                        </div>
+                        ${item.status === 'completed' ? `
+                            <div class="popup-actions">
+                                <button class="popup-btn popup-btn-primary" onclick="viewLAIData('${item.id}')">Details</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                
+                // Add hover effects
+                marker.on('mouseover', function() {
+                    this.setStyle({
+                        radius: item.status === 'completed' ? 10 : 8,
+                        fillOpacity: 1
+                    });
+                });
+                
+                marker.on('mouseout', function() {
+                    this.setStyle({
+                        radius: item.status === 'completed' ? 8 : 6,
+                        fillOpacity: 0.8
+                    });
+                });
             });
+        }
+
+        function viewLAIData(id) {
+            const item = laiData.find(d => d.id === id);
+            if (item) {
+                showModal('laiDetailModal')
+                // Generate date range
+                const availableDates = new Set(item.dates);
+                const minDate = new Date(Math.min(...item.dates.map(d => new Date(d))));
+                const maxDate = new Date(Math.max(...item.dates.map(d => new Date(d))));
+
+                const allDates = [];
+                const values = [];
+
+                let current = new Date(minDate);
+                while (current <= maxDate) {
+                    const dateStr = current.toISOString().split('T')[0];
+                    allDates.push(dateStr);
+                    values.push(availableDates.has(dateStr) ? 1 : 0);
+                    current.setDate(current.getDate() + 1);
+                }
+
+                // Inject canvas
+                const contentDiv = document.getElementById('laiDetailContent');
+                contentDiv.innerHTML = `<h3>LAI data availability</h3> <canvas id="laiAvailabilityChart" height="100"></canvas>`;
+
+                // Render chart
+                new Chart(document.getElementById('laiAvailabilityChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: allDates,
+                        datasets: [{
+                            label: 'Data Available',
+                            data: values,
+                            backgroundColor: values.map(v => v ? 'green' : 'lightgray'),
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 1,
+                                ticks: { stepSize: 1, callback: v => v ? 'Yes' : '' }
+                            },
+                            x: {
+                                ticks: {
+                                    maxTicksLimit: 15, // Limit labels for readability
+                                    autoSkip: true
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => ctx.raw ? 'Available' : 'Missing'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function showModal(modalId) {
+            console.log('showing modal', modalId)
+            document.getElementById(modalId).classList.add('show');
+        }
+
+        // Hide modal
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        function downloadLAIData(id) {
+            const item = laiData.find(d => d.id === id);
+            if (item) {
+                showToast(`Downloading LAI data for ${item.id}`, 'success');
+                // Here you would typically trigger a download
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast alert alert-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize the content when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLaiEntries();
         });
-        
-        marker.on('mouseout', function() {
-            this.setStyle({
-                radius: item.status === 'completed' ? 8 : 6,
-                fillOpacity: 0.8
-            });
-        });
-    });
-}
-
-function viewLAIData(id) {
-    const item = laiData.find(d => d.id === id);
-    if (item) {
-        showToast(`Opening LAI data for ${item.name}`, 'info');
-        // Here you would typically open a detailed view or redirect
-    }
-}
-
-function downloadLAIData(id) {
-    const item = laiData.find(d => d.id === id);
-    if (item) {
-        showToast(`Downloading LAI data for ${item.name}`, 'success');
-        // Here you would typically trigger a download
-    }
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast alert alert-${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// Initialize the content when the page loads
-document.addEventListener('DOMContentLoaded', function() {
-    initializeLAIContent();
-});
 </script>
 
-<!-- Add Leaflet JS -->
+<!-- Add Leaflet JS and chart.js-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </html>
