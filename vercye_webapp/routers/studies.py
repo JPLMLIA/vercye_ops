@@ -1,15 +1,17 @@
 import os
+import shutil
 import time
 import yaml
 from pathlib import Path
 import signal
+import tempfile
 
 from fastapi import APIRouter, BackgroundTasks, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
 
 from models import StudyID, StudyCreateRequest
-from worker import run_vercye_task, prepate_vercye_task
+from worker import run_vercye_task, prepare_vercye_task
 
 from vercye_ops.cli import init_study, read_studies_dir_from_env, validate_run_config
 studies_dir = read_studies_dir_from_env()
@@ -22,10 +24,11 @@ router = APIRouter(
 @router.post("/")
 def register_new_study(request: StudyCreateRequest):
     study_id = request.study_id
-    new_study_path = init_study(name=study_id, dir=studies_dir)
-
-    new_study_setup_cfg_path = os.path.join(new_study_path, "setup_config.yaml")
-    return FileResponse(new_study_setup_cfg_path, filename="setup_config.yaml")
+    try:
+        init_study(name=study_id, dir=studies_dir)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail='Error initializing a study.')
 
 
 @router.post("/{study_id}/prepare")
@@ -37,6 +40,7 @@ def prepare_study(study_id: StudyID, setup_file: UploadFile = File(...)):
         contents = setup_file.file.read()
         yaml.safe_load(contents)  # Validate YAML
     except Exception:
+        print(e)
         raise HTTPException(status_code=400, detail="Invalid YAML format")
     finally:
         setup_file.file.close()
@@ -48,7 +52,7 @@ def prepare_study(study_id: StudyID, setup_file: UploadFile = File(...)):
 
     # Create real run config for user to fill in
     try:
-        prepate_vercye_task(study_id)
+        prepare_vercye_task(study_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -58,18 +62,41 @@ def set_run_config(study_id: StudyID, run_cfg_file: UploadFile = File(...)):
     if not run_cfg_file.filename.endswith((".yaml", ".yml")):
         raise HTTPException(status_code=400, detail="Only YAML files are accepted")
 
+    run_cfg_status_path = os.path.join(studies_dir, study_id, study_id, "config_status.txt")
+    run_cfg_status_details_path = os.path.join(studies_dir, study_id, study_id, "config_status_details.txt")
+
     try:
         contents = run_cfg_file.file.read()
+
+        # Check that Yaml was uploaded
         config_data = yaml.safe_load(contents)
-        validate_run_config(config_data)
+
+        # Save to tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml", mode="wb") as tmp_file:
+            tmp_file.write(contents)
+            tmp_file_path = tmp_file.name
+
+        validate_run_config(tmp_file_path)
     except Exception as e:
+
+        with open(run_cfg_status_path, 'w') as f:
+            f.write('invalid')
+
+        with open(run_cfg_status_details_path, 'w') as f:
+            f.write(str(e))
+
         raise HTTPException(status_code=400, detail=f"Invalid config: {str(e)}")
     finally:
         run_cfg_file.file.close()
 
     run_cfg_path = os.path.join(studies_dir, study_id, study_id, "config.yaml")
-    with open(run_cfg_path, "wb") as f:
-        f.write(contents)
+    shutil.copyfile(tmp_file_path, run_cfg_path)
+
+    with open(run_cfg_status_path, 'w') as f:
+        f.write('valid')
+
+    with open(run_cfg_status_details_path, 'w') as f:
+        f.write('OK!')
 
     return {"message": "Run config set successfully"}
 
@@ -80,6 +107,64 @@ def get_run_config(study_id: StudyID):
     if not os.path.isfile(run_cfg_path):
         raise HTTPException(status_code=404, detail="Run config not found")
     return FileResponse(run_cfg_path, filename="config.yaml")
+
+@router.get("/{study_id}/run-config-status")
+def get_run_config_status(study_id: StudyID):
+    run_cfg_status_path = os.path.join(studies_dir, study_id, study_id, "config_status.txt")
+    run_cfg_status_details_path = os.path.join(studies_dir, study_id, study_id, "config_status_details.txt")
+
+    if not os.path.isfile(run_cfg_status_path):
+        raise HTTPException(status_code=404, detail="Run config not found")
+    
+    with open(run_cfg_status_path) as f:
+        status = f.read()
+
+    if not os.path.isfile(run_cfg_status_path):
+        status_details = 'No details available'
+    else:
+        with open(run_cfg_status_details_path) as f:
+            status_details = f.read()
+    
+    return {
+        "status": status,
+        "details": status_details
+    }
+
+@router.get("/{study_id}/actions/validate-runconfig")
+def do_runconfig_validation(study_id: StudyID):
+    run_cfg_path = os.path.join(studies_dir, study_id, study_id, "config.yaml")
+    if not os.path.isfile(run_cfg_path):
+        raise HTTPException(status_code=404, detail="Run config not found")
+    
+    run_cfg_status_path = os.path.join(studies_dir, study_id, study_id, "config_status.txt")
+    run_cfg_status_details_path = os.path.join(studies_dir, study_id, study_id, "config_status_details.txt")
+    
+    try:
+        validate_run_config(run_cfg_path)
+    except Exception as e:
+
+        with open(run_cfg_status_path, 'w') as f:
+            f.write('invalid')
+
+        with open(run_cfg_status_details_path, 'w') as f:
+            f.write(e)
+
+        return {
+            "status": "invalid",
+            "detail": "{e}"
+        }
+
+    with open(run_cfg_status_path, 'w') as f:
+        f.write('valid')
+
+    with open(run_cfg_status_details_path, 'w') as f:
+        f.write('OK!')
+
+    return {
+        "status": "valid",
+        "detail": ""
+    }
+
 
 
 @router.post("/{study_id}/actions/run")
@@ -178,7 +263,7 @@ def get_map_results(study_id: StudyID, year:int, timepoint: str):
     
     with open(map_path, 'r') as f:
         content = f.read()
-        new_path_base = f"/studies/{study_id}/map-result/{year}/{timepoint}"
+        new_path_base = f"/api/studies/{study_id}/map-result/{year}/{timepoint}"
         content = content.replace("img.src = props.simulationsImgPath;", f"img.src = `{new_path_base}/${{props.simulationsImgPath}}`")
         return HTMLResponse(content=content)
 

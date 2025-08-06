@@ -39,7 +39,7 @@ def extract_and_save_sims(db_path: str, matches_path: str, num_sims: int, out_pa
 @click.command()
 @click.option('--db-path', type=click.Path(exists=True), required=True, help='Path to the APSIM DB file')
 @click.option('--matches-path', type=click.Path(exists=True), required=True, help='Path to the csv with all matched simulations.', default=None)
-@click.option('--num-sims', help='Number of best matched simulation to save. If not specified, will save all.', default=None, type=int)
+@click.option('--num-sims', help='Number of best matched simulation to save. If not specified, will save all matches.', default=None, type=int)
 @click.option('--out_path', type=click.Path(exists=False), required=True, help='Path where to save the simulations (.CSV).')
 def main(db_path, matches_path, num_sims, out_path):
     """

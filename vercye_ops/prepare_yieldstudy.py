@@ -25,8 +25,7 @@ def load_yaml_ruamel(filepath):
         return yaml_loader.load(f), yaml_loader
 
 
-def prepare_study(config_path):
-    config, _ = load_yaml_ruamel(config_path)
+def prepare_study(config, output_dir, lai_config_path):
 
     shapefile_path = config["regions_shp_name"]
     admin_col = config["regions_shp_col"]
@@ -35,7 +34,6 @@ def prepare_study(config_path):
     apsim_template_paths_filter_col = config.get("APSIM_TEMPLATE_PATHS_FILTER_COL_NAME")
     apsim_template_paths = config["APSIM_TEMPLATE_PATHS"]
 
-    output_dir = str(Path(config_path).parent / Path(config_path).parent.name)
     if os.path.exists(output_dir):
         raise ValueError(f'A basedirectory already exists under {output_dir}.')
     os.makedirs(output_dir)
@@ -146,7 +144,6 @@ def prepare_study(config_path):
     snakefile_config['sim_study_head_dir'] = str(output_dir)
 
     # Fill in LAI section in run_config based on lai creation config 
-    lai_config_path = str(Path(config_path).parent / 'lai_config.yaml')
     if os.path.exists(lai_config_path):
         lai_config, _ = load_yaml_ruamel(lai_config_path)
 
@@ -196,7 +193,11 @@ def prepare_study(config_path):
 @click.argument("config_path", type=click.Path(exists=True))
 def main(config_path):
     """Generate region folders and APSIM files from a shapefile and YAML config."""
-    prepare_study(config_path)
+    config, _ = load_yaml_ruamel(config_path)
+    output_dir = str(Path(config_path).parent / Path(config_path).parent.name)
+    lai_config_path = str(Path(config_path).parent / 'lai_config.yaml')
+    
+    prepare_study(config, output_dir, lai_config_path)
 
 
 if __name__ == "__main__":

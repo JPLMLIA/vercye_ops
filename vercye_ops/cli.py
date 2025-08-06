@@ -11,7 +11,7 @@ from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import (
     run_pipeline as run_imagery_dl_pipeline,
 )
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
-from vercye_ops.prepare_yieldstudy import prepare_study
+from vercye_ops.prepare_yieldstudy import load_yaml_ruamel, prepare_study
 from vercye_ops.snakemake.config_validation import validate_run_config
 
 from dotenv import dotenv_values
@@ -255,8 +255,11 @@ def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_core
         if mode == "init":
             init_study(name=name, dir=dir)
         elif mode == "prep":
-            prepare_config = os.path.join(dir, name, "setup_config.yaml")
-            prepare_study(prepare_config)
+            prepare_config_path = os.path.join(dir, name, "setup_config.yaml")
+            config, _ = load_yaml_ruamel(prepare_config_path)
+            output_dir = str(Path(prepare_config_path).parent / Path(prepare_config_path).parent.name)
+            lai_config_path = str(Path(prepare_config_path).parent / 'lai_config.yaml')
+            prepare_study(config, output_dir, lai_config_path)
         elif mode == "lai":
             create_lai_data(name=name, dir=dir)
         elif mode == "chirps":

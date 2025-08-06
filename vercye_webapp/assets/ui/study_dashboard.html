@@ -1056,9 +1056,6 @@
                 });
 
                 if (!response.ok) throw new Error('Failed to create study');
-
-                const blob = await response.blob();
-                downloadBlob(blob, 'setup_config.yaml');
                 
                 showToast(`Study "${studyName}" created successfully!`, 'success');
                 hideModal('createStudyModal');
@@ -1088,10 +1085,20 @@
             if (!currentStudy) return;
 
             let currentStep = 1;
+            let runConfigValidationMessage = '';
             
             try {
                 const response = await fetch(`${API_BASE}/studies/${currentStudy}/run-config`);
-                currentStep = response.ok ? 4 : 2;
+                if (!response.ok) {
+                    currentStep = 2;
+                } else {
+                    currentStep = 3;
+                    const response = await fetch(`${API_BASE}/studies/${currentStudy}/run-config-status`);
+                    const data = await response.json();
+                    currentStep = data.status === 'valid' ? 4 : 3;
+                    runConfigValidationMessage = data.details;
+                    console.log(currentStep);
+                }
             } catch (error) {
                 currentStep = 2;
             }
@@ -1103,9 +1110,9 @@
             if (currentStep === 2) {
                 content.innerHTML = `
                     <div class="alert alert-info">
-                        <strong>Step 2:</strong> Upload your configured setup_config.yaml file</br>
+                        <strong>Step 2:</strong> Setup you yieldstudy</br>
                         This will create your initial study directory structure by extracting individual geometries, preparing APSIM files etc.</br>
-                        It is recommended to start out with the provided template below.
+                        It is recommended to download the provided template below. Then fill it out and upload the completed template.
                     </div>
                     
                     <div class="form-group">
@@ -1127,10 +1134,12 @@
                 `;
             } else if (currentStep === 3) {
                 content.innerHTML = `
-                    <div class="alert alert-success">Setup configuration uploaded successfully!</div>
                     <div class="alert alert-info">
-                        <strong>Step 3:</strong> Upload your configured config.yaml file
+                        <strong>Step 3:</strong> Set your run parameters.</br></br>
+                        Upload your configured config.yaml file. This is a new different config than in the previous step.
                     </div>
+                    <div class="alert alert-error"> <strong>Current config not valid<strong>: ${runConfigValidationMessage}.</div>
+
                     
                     <div class="form-group">
                         <label class="form-label">Run Configuration File</label>
