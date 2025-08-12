@@ -19,6 +19,7 @@ nav:
       - 'Troubleshooting': 'Vercye/troubleshooting.md'
       - 'Inputs': 'Vercye/inputs.md'
       - 'Outputs': 'Vercye/outputs.md'
+    - 'VeRCYe Webapp': 'Vercye/webapp.md'
     - 'Meteorological Data': 'Vercye/metdata.md'
     - 'Architecture': 'Vercye/architecture.md'
     - 'APSIMX': 'Vercye/apsim.md'

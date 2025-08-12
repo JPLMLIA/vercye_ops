@@ -435,7 +435,7 @@ def cli(start_date, end_date, output_dir, num_workers, verbose):
     else:
         logger.setLevel('WARNING')
     
-    run_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
+    run_chirps_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
 
 if __name__ == '__main__':
     cli()

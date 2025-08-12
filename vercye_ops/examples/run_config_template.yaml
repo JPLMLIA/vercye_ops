@@ -17,9 +17,11 @@ platform: 'umd'
 
 # Directory containing each region. Update this for each new snakemake run
 # Example sim_study_head_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/yieldstudy_20241108'
+# No need to change if created through the webapp
 sim_study_head_dir: 'XXXX'
 
-# Id/Name that best describes the primary region of the simulation. Should not exceed 25 characters.
+# Id/Name that best describes the primary region of the simulation.
+# Should not exceed 25 characters and only contain alphanumerical characters and underscores.
 # Example study_id: 'Poltava'
 study_id: 'XXXX'
 
@@ -37,6 +39,7 @@ lai_source: 'XXXX'
 
 # Simulation Regions shapefile name. Not used for processing, but useful to keep all metadata contained
 # Example regions_shp_name: 'ukraine_adm2.shp'
+# No need to change if created through the webapp
 regions_shp_name: 'XXXX'
 
 # For each simulation APSIM generates a .db file. These take up a lot of space on disk. If you want to remove these files,
@@ -73,9 +76,9 @@ apsim_params:
   precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS' | 'ERA5']
   precipitation_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent. If set to False, ensure no regions outside of CHIRPS bounds are selected.
-  chirps_dir: 'XXXX' # Only required to set if precipitation_source is 'CHIRPS'. Path to your downloaded CHIRPS data.
-  nasapower_cache_dir : 'XXXX' # Path to your directory to cache NASA POWER data. Avoids heavy rate limiting from NP. Should be global, outside of the basefolder, as this is shared with all studies.
-  era5_cache_dir: 'XXXX' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies.
+  chirps_dir: 'XXXX' # Only required to set if precipitation_source is 'CHIRPS'. Path to your downloaded CHIRPS data. No need to change if created through the webapp
+  nasapower_cache_dir : 'XXXX' # Path to your directory to cache NASA POWER data. Avoids heavy rate limiting from NP. Should be global, outside of the basefolder, as this is shared with all studies. No need to change if created through the webapp
+  era5_cache_dir: 'XXXX' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies. No need to change if created through the webapp
   ee_project: 'XXXX' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
   align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation. Should be activated when running at field scale to avoid querying the same met data pixel multiple times.
 
@@ -107,6 +110,7 @@ apsim_params:
         met_end_date: 'XXXX'
 
 # APSIM Installation Configuration
+# No need to change if created through the webapp
 apsim_execution:
   use_docker: False # If setting to True: Make sure to pull the docker image before executing this snakemake pipeline
   docker:
@@ -211,7 +215,7 @@ scripts:
   save_matched_sims: '../reporting/save_simulations.py'
 
 ########################################
-# Other
+# Other (Typically dont change)
 ########################################
 
 

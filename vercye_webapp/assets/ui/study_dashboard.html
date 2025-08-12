@@ -675,7 +675,7 @@
             border-radius: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             z-index: 1000;
-            width: 280px;
+            width: 380px;
             opacity: 0;
             visibility: hidden;
             transition: opacity 0.2s ease, visibility 0.2s ease;
@@ -1072,6 +1072,24 @@
             }
         }
 
+        async function downloadSetupTemplate() {
+            try {
+                const response = await fetch(`${API_BASE}/studies/${currentStudy}/setup-config`);
+                
+                if (!response.ok) {
+                    showToast(response.status === 404 ? 'No configuration found' : 'Download failed', 'error');
+                    return;
+                }
+
+                const blob = await response.blob();
+                downloadBlob(blob, 'setup_config.yaml');
+                
+            } catch (error) {
+                console.error('Error downloading run config:', error);
+                showToast('Failed to download configuration', 'error');
+            }
+        }
+
         // Open study detail modal
         function openStudyDetail(studyId) {
             currentStudy = studyId;
@@ -1110,17 +1128,89 @@
             if (currentStep === 2) {
                 content.innerHTML = `
                     <div class="alert alert-info">
-                        <strong>Step 2:</strong> Setup you yieldstudy</br>
-                        This will create your initial study directory structure by extracting individual geometries, preparing APSIM files etc.</br>
-                        It is recommended to download the provided template below. Then fill it out and upload the completed template.
+                        <strong>Step 2:</strong> Setup your Yieldstudy</br>
+                        This will create your initial study directory structure by extracting individual geometries, preparing APSIM files etc.</br></br>
+                        It is recommended to start out with the provided template below.</br>
+                        Fill it out and upload it together with a shapefile containing all geometries at the same admin level and the APSIM file(s).
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label">Setup Configuration File</label>
+                        <label class="form-label">
+                            Setup Configuration File
+                            <span class="help-icon">
+                                <button type="button" class="help-button">?</button>
+                                <div class="help-tooltip">
+                                    Upload a <strong>setup_config.yaml</strong> file to define parameters such as years and timepoints of interest, and more.
+                                </div>
+                            </span>
+                        </label>
                         <div class="file-upload" id="setupFileUpload">
                             <input type="file" id="setupFile" accept=".yaml,.yml" onchange="handleFileChange('setup')">
                             <div class="file-upload-label">
                                 📁 Choose setup_config.yaml file
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            Zipped Shapefile (.zip)
+                            <span class="help-icon">
+                                <button type="button" class="help-button">?</button>
+                                <div class="help-tooltip">
+                                    Zip all your shapefile related files. The shapefile <strong>must</strong> only contain geometries at a single administrative level (e.g all states or all districts).
+                                </div>
+                            </span>
+                            </label>
+                        <div class="file-upload" id="shapefileFileUpload">
+                            <input type="file" id="shapefileFile" accept=".zip" onchange="handleFileChange('shapefile')">
+                            <div class="file-upload-label">
+                            📁 Choose zipped shapefile (.zip)
+                            </div>
+                        </div>
+                        </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">
+                            APSIM File(s) (.apsimx)
+                            <span class="help-icon">
+                                <button type="button" class="help-button">?</button>
+                                <div class="help-tooltip">
+                                   You can upload one or multiple APSIMX files that are year-independant templates. You can upload as many APSIMX files as required depending on how different your regions are.
+                                   Ensure to give each file a distinctive name. Each file will be mapped to specific regions depending on the "APSIM_TEMPLATE_PATHS" parameters in your config.
+                                </div>
+                            </span>
+                        </label>
+                        <div class="file-upload" id="apsimFileUpload">
+                            <input type="file" id="apsimFile" accept=".apsimx" multiple onchange="handleFileChange('apsim')">
+                            <div class="file-upload-label">
+                                📁 Choose one or more APSIM files (.apsimx)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            Reference Data (.csv)
+                            <span class="help-icon">
+                                <button type="button" class="help-button">?</button>
+                                <div class="help-tooltip">
+                                   You can upload multiple files containing reference data. Each file is specific for one year and one administrative level.</br> In the filenaming, the format <strong>"referencedata_{year}_{adminlevelname}.csv"</strong> must be followed!.</br>
+                                   If the administrative level is the simulation level, it must be called  <strong>"referencedata_{year}_primary.csv"</strong>.</br></br>
+
+                                   The files must contain the following columns:</br>
+                                   - region: containing the region name matching the names as specified in the shapefile column with the administrative names</br>
+                                   - reported_mean_yield_kg_ha: The reported mean yield of the region in kg/ha. </br></br>
+                                   
+                                   Optional you may also include reported_area_ha.
+
+                                </div>
+                            </span>
+                            </label>
+                        <div class="file-upload" id="referenceFileUpload">
+                            <input type="file" id="referenceFile" accept=".csv" multiple onchange="handleFileChange('referenceData')">
+                            <div class="file-upload-label">
+                                📁 Choose one or more Referencedata files (.csv)
                             </div>
                         </div>
                     </div>
@@ -1138,8 +1228,10 @@
                         <strong>Step 3:</strong> Set your run parameters.</br></br>
                         Upload your configured config.yaml file. This is a new different config than in the previous step.
                     </div>
-                    <div class="alert alert-error"> <strong>Current config not valid<strong>: ${runConfigValidationMessage}.</div>
 
+                    ${runConfigValidationMessage === 'Template not yet filled in' ?
+                        '' : '<div class="alert alert-error"> <strong>Current config not valid<strong>: ' + runConfigValidationMessage + '.</div>'
+                    }
                     
                     <div class="form-group">
                         <label class="form-label">Run Configuration File</label>
@@ -1151,7 +1243,11 @@
                         </div>
                     </div>
                     
+                    
                     <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="downloadRunConfig('${currentStudy}')">
+                            ⬇️ Download Config Template
+                        </button>
                         <button class="btn btn-primary" onclick="uploadRunConfig()" id="uploadRunBtn" disabled>
                             Upload Run Config
                         </button>
@@ -1184,23 +1280,93 @@
         function handleFileChange(type) {
             const fileInput = document.getElementById(`${type}File`);
             const uploadContainer = document.getElementById(`${type}FileUpload`);
-            const uploadBtn = document.getElementById(`upload${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
-            const label = uploadContainer.querySelector('.file-upload-label');
-            
-            if (fileInput.files.length > 0) {
+            const uploadBtn = document.getElementById(`upload${type.charAt(0).toUpperCase() + type.slice(1)}Btn`); // may not exist
+            const label = uploadContainer?.querySelector('.file-upload-label');
+
+            if (!fileInput || !uploadContainer || !label) return;
+
+            const placeholders = {
+                setup: '📁 Choose setup_config.yaml file',
+                shapefile: '📁 Choose zipped shapefile (.zip)',
+                apsim: '📁 Choose one or more APSIM files (.apsimx)',
+                run: '📁 Choose config.yaml file',
+                referenceData: '📁 Choose one or more Referencedata files (.csv)'
+            };
+
+            const files = fileInput.files;
+            if (files && files.length > 0) {
                 uploadContainer.classList.add('has-file');
-                label.innerHTML = `✅ ${fileInput.files[0].name}`;
-                uploadBtn.disabled = false;
+
+                const names = Array.from(files).map(f => f.name);
+                const maxShown = 2;
+                const shown = names.slice(0, maxShown).join(', ');
+                const more = names.length > maxShown ? ` +${names.length - maxShown} more` : '';
+
+                label.innerHTML = `${shown}${more}`;
+                if (uploadBtn) uploadBtn.disabled = false;      // only if present
             } else {
                 uploadContainer.classList.remove('has-file');
-                label.innerHTML = `📁 Choose ${type === 'setup' ? 'setup_config.yaml' : 'config.yaml'} file`;
-                uploadBtn.disabled = true;
+                label.innerHTML = placeholders[type] || '📁 Choose file';
+                if (uploadBtn) uploadBtn.disabled = true;       // only if present
             }
         }
 
         // Upload setup config
         async function uploadSetupConfig() {
-            await uploadFile('setup', '/prepare', 'setup_file', 'config.yaml');
+            const setupInput = document.getElementById('setupFile');
+            const shapeInput = document.getElementById('shapefileFile');
+            const apsimInput = document.getElementById('apsimFile');
+            const referenceDataInput = document.getElementById('referenceFile');
+            const uploadBtn  = document.getElementById('uploadSetupBtn');
+
+            if (!setupInput?.files?.length) {
+                showToast('Please select setup_config.yaml.', 'error');
+                return;
+            }
+
+            // TODO Validate that if no apsim, shapefile uploaded these are absolute paths
+
+            const formData = new FormData();
+            formData.append('setup_file', setupInput.files[0]);
+            if (shapeInput?.files?.length) {
+                formData.append('shapefile_zip', shapeInput.files[0]);
+            }
+
+            for (const f of Array.from(apsimInput?.files || [])) {
+                formData.append('apsim_files[]', f);
+            }
+
+            for (const f of Array.from(referenceDataInput?.files || [])) {
+                formData.append('reference_data_files[]', f);
+            }
+
+            setButtonLoading(uploadBtn, 'Uploading...');
+
+            try {
+                const response = await fetch(`${API_BASE}/studies/${currentStudy}/prepare`, {
+                method: 'POST',
+                body: formData
+                });
+
+                if (!response.ok) {
+                let message = response.statusText || 'Upload failed';
+                try {
+                    const errorData = await response.json();
+                    message = errorData.detail || message;
+                } catch (_) {}
+                throw new Error(message);
+                }
+
+                showToast('Setup bundle uploaded successfully!', 'success');
+                renderStudyDetailContent();
+                loadStudies();
+
+            } catch (error) {
+                console.error('Error uploading setup bundle:', error);
+                showToast(`Failed to upload setup bundle: ${error.message}`, 'error');
+            } finally {
+                resetButton(uploadBtn, 'Upload Setup Config');
+            }
         }
 
         // Upload run config
@@ -1268,7 +1434,7 @@
                 </div>
                 
                 <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-                        <button class="btn btn-secondary" onclick="downloadSetupTemplate()">⬇️ Download current config</button>
+                        <button class="btn btn-secondary" onclick="downloadRunConfig()">⬇️ Download current config</button>
                         <button class="btn btn-secondary" onclick="renderStudyDetailContent()">Cancel</button>
                         <button class="btn btn-primary" onclick="uploadUpdatedRunConfig()" id="updateUploadRunBtn" disabled>
                             Update Config
@@ -1361,7 +1527,7 @@
                 }
 
                 const blob = await response.blob();
-                downloadBlob(blob, 'config.yaml');
+                downloadBlob(blob, 'run_config.yaml');
                 
             } catch (error) {
                 console.error('Error downloading run config:', error);

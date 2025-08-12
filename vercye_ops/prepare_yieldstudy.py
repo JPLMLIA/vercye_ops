@@ -139,7 +139,6 @@ def prepare_study(config, output_dir, lai_config_path):
     snakefile_config['regions_shp_col'] = admin_col
     snakefile_config['regions_shp_filter_col'] = filter_col
     snakefile_config['regions_shp_filter_values'] = filter_vals
-    snakefile_config['APSIM_TEMPLATE_PATHS'] = apsim_template_paths
     snakefile_config['regions_shp_name'] = shapefile_path
     snakefile_config['sim_study_head_dir'] = str(output_dir)
 
@@ -177,6 +176,12 @@ def prepare_study(config, output_dir, lai_config_path):
 
         if 'ERA5_CACHE_DIR' in env_vars:
             snakefile_config['apsim_params']['era5_cache_dir'] = env_vars['ERA5_CACHE_DIR']
+
+        if 'APSIM_PATH' in env_vars:
+            snakefile_config['apsim_execution']['local']['executable_fpath'] = env_vars['APSIM_PATH']
+        
+        if 'MATCHING_SCRIPT_PATH' in env_vars:
+            snakefile_config['scripts']['match_sim_real'] = env_vars['MATCHING_SCRIPT_PATH']
 
     updated_config_path = os.path.join(output_dir, 'config.yaml')
     with open(updated_config_path, "w") as f:

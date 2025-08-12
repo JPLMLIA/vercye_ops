@@ -115,6 +115,9 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
     profile_dir = os.path.join(study_dir, study_name, "profile")
     snakemake_run_dir = os.path.join(study_dir, study_name, 'snakemake')
     status_file_path = os.path.join(snakemake_run_dir, 'status.txt')
+    snakefile_path = rel_path('snakemake/Snakefile')
+    workdir =  rel_path('snakemake')
+    log_file_path = os.path.join(snakemake_run_dir, 'log.txt')
 
     os.makedirs(snakemake_run_dir, exist_ok=True)
 
@@ -125,12 +128,7 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
 
     if validate_only:
         return
-    
-    snakefile_path = rel_path('snakemake/Snakefile')
-    workdir =  rel_path('snakemake')
-    log_file_path = os.path.join(snakemake_run_dir, 'log.txt')
    
-    
     cmd = [
         "snakemake",
         "--snakefile", snakefile_path,

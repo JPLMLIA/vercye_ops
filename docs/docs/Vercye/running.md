@@ -114,17 +114,17 @@ Validation data can be provided at different geographic scales. It may be availa
 
 Define aggregation levels in your `config file` under `eval_params.aggregation_levels`. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify `State: ADMIN_1`. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.
 
-For each year and aggregation level, create a CSV file named: `{year}/referencedata__{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive!).
+For each year and aggregation level, create a CSV file named: `{year}/referencedata_{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive!).
 
 Example: For 2024 state-level data, the file should be: `basedirectory/2024/referencedata__State-2024.csv`
-For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/referencedata__primary-2024.csv`
+For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/referencedata_primary-2024.csv`
 
 **CSV Structure**
 
 - `region`: Name matching GeoJSON folder (for `primary aggregation level`) or matching attribute table column values for custom aggregation level (Column as specified under `eval_params.aggregation_levels` in tour `config.yaml`)
 - `reported_mean_yield_kg_ha`: Mean yield in kg/ha
 If unavailable, provide `reported_production_kg` instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
-- If your reference data contains area, it is recommended to also include this under `reported_area` even though this is not yet used in the evaluation pipeline.
+- If your reference data contains area, it is recommended to also include this under `reported_area_ha` even though this is not yet used in the evaluation pipeline.
 
 
 ## 5. Running the Yield Study

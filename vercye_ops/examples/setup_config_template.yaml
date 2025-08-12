@@ -3,7 +3,10 @@
 ###############################################################################
 
 # Path to the shapefile containing the regions
-regions_shp_name: "/home/rohan/nasa-harvest/vercye/data/malawi/Shapefiles/mwi_adm_nso_hotosm_20230405_shp/mwi_admbnda_adm3_nso_hotosm_20230405.shp"
+# If using the webapp and uploading the shapefile there, simply provide the name
+# of the .shp file inside the zip. E.g "malawi.shp".
+# If you are referring to a file already located on the system provide the complete path.
+regions_shp_name: "/data/mwi_adm_nso_hotosm_20230405_shp/mwi_admbnda_adm3_nso_hotosm_20230405.shp"
 
 # Column in the shapefile that contains unique region identifiers / admin names (e.g. district names)
 regions_shp_col: "ADM3_EN"
@@ -11,6 +14,7 @@ regions_shp_col: "ADM3_EN"
 # Target coordinate reference system should be in equal area projection
 # Only used for the centroid not the actual geometry at this point.
 # Can be an EPSG code or a proj string. Ensure in equal area projection.
+# Ensure the usafe of double quotes as in the example if using a projString.
 # Example: 'EPSG:9854'
 # Example: "'+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'"
 target_crs: "'+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'"
@@ -20,6 +24,8 @@ target_crs: "'+proj=aea +lat_1=29 +lat_2=36 +lat_0=32.5 +lon_0=-5 +x_0=0 +y_0=0 
 ###############################################################################
 
 # Optional: column and values used to filter which regions to include (set to null to disable)
+# In this example only the regions having the ADMIN2_EN column be 'region1', 'regions2' or 'region3' would be kept.
+# Is usefull forexample to filter districts by only a few states of interest.
 regions_shp_filter_col: null # e.g ADM2_EN
 regions_shp_filter_values: null # e.g ['region1', 'regions2', 'region3']
 
@@ -39,7 +45,7 @@ timepoints:
   - T-0
   - T-30
 
-# The actual configruation of the dates of each timepoint
+# The actual configruation of the dates of EACH timepoint defined above
 # Must have an entry for each year and each timepoint in each year.
 timepoints_config:
   2019:
@@ -84,11 +90,16 @@ APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: null # e.g ADM2_EN
 # Paths to APSIM template files.
 # If APSIM_TEMPLATE_PATHS_FILTER_COL_NAME is null, provide a single "all" entry.
 # Otherwise, specify an APSIM file fort each APSIM_TEMPLATE_PATHS_FILTER_COL_NAME value.
+# If uploading the config from the webapp you have two options:
+#   A: If uploading APSIM file(s) through the webinterface, name dont provide a complete path, but just the 
+#      name of this file, e.g: malawi.apsimx.
+#   B: If the APSIM file(s) are already located on the cluster and you know the paths, you may also specify these.
 APSIM_TEMPLATE_PATHS:
   all: "/home/rohan/nasa-harvest/vercye/data/malawi/APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
   # Could be for example:
   # region1: "APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
   # region2: "APSIM/Malawi_2023_Maize_22_9_24_Zone_3_Full_Season.apsimx"
+  # region3: "malawi_zone4.apsimx" # if uploaded from the webui.
 
 ###############################################################################
 ########################### Adding Reference Data ################################
@@ -98,6 +109,7 @@ APSIM_TEMPLATE_PATHS:
 # For each year add entries for the available aggregation levels
 # For the simulation admin level use the key 'primary', as in the example above!
 # For all other levels you can choose the key freely, it should however be describtive of the admin level.
+# As for the paths above, either provide the name (if uploading through webapp) or the path if on cluster.
 REFERENCE_DATA_PATHS:
   2019:
     - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin3.csv" # Key: Path

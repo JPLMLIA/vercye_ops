@@ -1,6 +1,9 @@
+import io
 import os
 import shutil
 import time
+from typing import List, Optional
+import zipfile
 import yaml
 from pathlib import Path
 import signal
@@ -13,7 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from models import StudyID, StudyCreateRequest
 from worker import run_vercye_task, prepare_vercye_task
 
-from vercye_ops.cli import init_study, read_studies_dir_from_env, validate_run_config
+from vercye_ops.cli import init_study, load_yaml_ruamel, read_studies_dir_from_env, validate_run_config
 studies_dir = read_studies_dir_from_env()
 
 router = APIRouter(
@@ -32,29 +35,77 @@ def register_new_study(request: StudyCreateRequest):
 
 
 @router.post("/{study_id}/prepare")
-def prepare_study(study_id: StudyID, setup_file: UploadFile = File(...)):
-    if not setup_file.filename.endswith((".yaml", ".yml")):
-        raise HTTPException(status_code=400, detail="Only YAML files are accepted")
-
+def prepare_study(
+    study_id: str,
+    setup_file: UploadFile = File(...),
+    shapefile_zip: Optional[UploadFile] = File(None),
+    apsim_files: Optional[List[UploadFile]] = File(None, alias="apsim_files[]"),
+    reference_data_files: Optional[List[UploadFile]] = File(None, alias="reference_data_files[]"),
+):
+    # Read & validate YAML (bytes are fine for PyYAML)
+    contents = setup_file.file.read()
     try:
-        contents = setup_file.file.read()
-        yaml.safe_load(contents)  # Validate YAML
-    except Exception:
-        print(e)
-        raise HTTPException(status_code=400, detail="Invalid YAML format")
-    finally:
-        setup_file.file.close()
+        yaml.safe_load(contents)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML format: {e}")
 
-    # Overwrite study setup_config with uploaded file
+    # Upload files
+    study_root = Path(studies_dir) / str(study_id)
+    shapefile_dir = study_root / "shapefile"
+    apsim_dir = study_root / "apsim"
+    refdata_dir = study_root / "reference_data"
+    for d in (shapefile_dir, apsim_dir, refdata_dir):
+        d.mkdir(parents=True, exist_ok=True)
+
+    if shapefile_zip:
+        if not shapefile_zip.filename or not shapefile_zip.filename.lower().endswith(".zip"):
+            raise HTTPException(status_code=400, detail="Shapefile must be a .zip")
+
+        data = shapefile_zip.file.read()
+
+        # Check if the file is a valid ZIP
+        if not zipfile.is_zipfile(io.BytesIO(data)):
+            raise HTTPException(status_code=400, detail="Not a valid ZIP")
+
+        # Extract the ZIP into the shapefile_dir
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            zf.extractall(shapefile_dir)
+
+    def save_many(files: Optional[List[UploadFile]], dest_dir: Path) -> None:
+        if not files:
+            return
+        for uf in files:
+            name = Path(uf.filename or "").name
+            if not name:
+                continue
+            with (dest_dir / name).open("wb") as out:
+                shutil.copyfileobj(uf.file, out)
+
+    save_many(apsim_files, apsim_dir)
+    save_many(reference_data_files, refdata_dir)
+    (study_root / "setup_config.yaml").write_bytes(contents)
+
     setup_cfg_path = os.path.join(studies_dir, study_id, "setup_config.yaml")
-    with open(setup_cfg_path, "wb") as f:
-        f.write(contents)
+    config, _ = load_yaml_ruamel(setup_cfg_path)
+
+    real_output_dir = str(Path(setup_cfg_path).parent / Path(setup_cfg_path).parent.name)
+    lai_config_path = str(Path(setup_cfg_path).parent / 'lai_config.yaml')
 
     # Create real run config for user to fill in
     try:
         prepare_vercye_task(study_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{study_id}/setup-config")
+def get_setup_config(study_id: StudyID):
+    setup_cfg_path = os.path.join(studies_dir, study_id, "setup_config.yaml")
+    print(setup_cfg_path)
+
+    if not os.path.exists(setup_cfg_path):
+        raise HTTPException(status_code=404, detail="No study config template found!")
+    
+    return FileResponse(setup_cfg_path, filename="setup_config.yaml")
 
 
 @router.post("/{study_id}/run-config")
@@ -106,7 +157,7 @@ def get_run_config(study_id: StudyID):
     run_cfg_path = os.path.join(studies_dir, study_id, study_id, "config.yaml")
     if not os.path.isfile(run_cfg_path):
         raise HTTPException(status_code=404, detail="Run config not found")
-    return FileResponse(run_cfg_path, filename="config.yaml")
+    return FileResponse(run_cfg_path, filename="run_config.yaml")
 
 @router.get("/{study_id}/run-config-status")
 def get_run_config_status(study_id: StudyID):
