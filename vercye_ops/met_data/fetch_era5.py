@@ -111,83 +111,8 @@ def get_consecutive_date_chunks(dates):
     
     return chunks
 
-
-def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygon_path=None) :
-    """
-    Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
-    """
-    logger.info('Fetching meteorological data from ERA5 trough google earth engine.')
-    logger.info('Initializing google earth engine.')
-    ee.Initialize(project=ee_project)
-
-    logger.info('Querying data.')
-
-    if polygon_path is None:
-        if lat is None or lon is None:
-            raise ValueError("Must provide either lat/lon or a polygon.")
-        geometry = ee.Geometry.Point([lon, lat])
-        geo_type = 'point'
-    else:
-        gdf = gpd.read_file(polygon_path)
-        gdf = gdf.to_crs(epsg=4326)
-
-        # Ensure only a single geometry is present in the file
-        if len(gdf.geometry) != 1:
-            raise Exception("Polygon File must contain a single geometry.")
-
-        polygon_geom = gdf.geometry.iloc[0]
-        geojson_dict = polygon_geom.__geo_interface__
-        geometry = ee.Geometry(geojson_dict)
-        geo_type = 'polygon'
-
-    all_records = []
-    
-    def split_date_range(start_date, end_date, chunk_years=10):
-        start = start_date
-        end = end_date + relativedelta(days=1)
-        while start < end:
-            next_start = min(start + relativedelta(years=chunk_years), end)
-            yield start.strftime('%Y-%m-%d'), next_start.strftime('%Y-%m-%d')
-            start = next_start
-
-    def extract(image):
-        date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd')
-        reducer = ee.Reducer.first() if geo_type == 'point' else ee.Reducer.mean()
-        values = image.reduceRegion(reducer, geometry, 1000)
-        return ee.Feature(None, values.set('date', date))
-    
-    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=5):
-        logger.info(f'Fetching data from {chunk_start} to {chunk_end}')
-        try:
-            era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
-                .filterDate(chunk_start, chunk_end) \
-                .filterBounds(geometry) \
-                .select([
-                    'total_precipitation_sum',
-                    'temperature_2m_min',
-                    'temperature_2m_max',
-                    'surface_solar_radiation_downwards_sum',
-                    'u_component_of_wind_10m',
-                    'v_component_of_wind_10m'
-                ])
-
-            features = era5.map(extract)
-            feature_collection = ee.FeatureCollection(features)
-            result = feature_collection.getInfo()
-            records = [f['properties'] for f in result['features']]
-            all_records.extend(records)
-
-        except Exception as e:
-            logger.warning(f"Failed to fetch data from {chunk_start} to {chunk_end}: {e}")
-            raise e
-
-    df = pd.DataFrame(all_records)
-    
-    logger.info('Processing ERA5 data to required format.')
-
-    df['date'] = pd.to_datetime(df['date'])
-
-    df = df.rename(columns={
+def postprocess_for_apsim(met_data):
+    df = met_data.rename(columns={
         'total_precipitation_sum': 'PRECTOTCORR',
         'temperature_2m_max': 'T2M_MAX',
         'temperature_2m_min': 'T2M_MIN',
@@ -244,9 +169,210 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
     return df
 
-def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath):
+def has_missing_dates(met_data_df, last_date):
+    return met_data_df['date'].max() < last_date
+
+def fetch_nrt_forecast(forecasting_date, lon, lat, polygon_path):
+    year = forecasting_date.year
+    month = forecasting_date.month
+    day = forecasting_date.day
+
+    # find last valid forecasting date, go back in time until hit but max 2 days?
+
+    geometry, geo_geotype = build_ee_geometry(lon, lat, polygon_path)
+
+    # aggregate by each day passed (derive by sorting by hour and take 24 h intervals)
+    # temperature_2m_min, temperature_2m_max derive from temperature_2m_sfc
+    # total_precipitation_sum: more difficult based on total_precipitation_sfcm however this described 
+    # the total amount of precipitation since forecasting hour 0, so we need to always take those in 24h batches and then subtract the value form the previous one
+    # surface_solar_radiation_L: same for downwards_sumsurface_solar_radiation_downwards_sfc
+    # u_component_of_wind_10m: mean of 24h u_component_of_wind_10m_sfc	
+    # v_component_of_wind_10m: mean of 24h v_component_of_wind_10m_sfc	
+
+    era5 = ee.ImageCollection('ECMWF/NRT_FORECAST/IFS/OPER') \
+        .filter(ee.filter.Filter.eq('creation_year', year)) \
+        .filter(ee.filter.Filter.eq('creation_month', month)) \
+        .filter(ee.filter.Filter.eq('creation_day', day)) \
+        .filterBounds(geometry) \
+        .select([
+            'total_precipitation_sfc',
+            'temperature_2m_sfc',
+            'surface_solar_radiation_downwards_sfc',
+            'u_component_of_wind_10m_sfc',
+            'v_component_of_wind_10m_sfc'
+        ]) \
+        .sort("forecast_hours")
+    
+    def aggregate_daily(imgcol):
+        # min/max temps
+        temp_min = imgcol.select("temperature_2m_sfc").reduce(ee.Reducer.min())
+        temp_max = imgcol.select("temperature_2m_sfc").reduce(ee.Reducer.max())
+
+        # wind means
+        u_mean = imgcol.select("u_component_of_wind_10m_sfc").mean()
+        v_mean = imgcol.select("v_component_of_wind_10m_sfc").mean()
+
+        # cumulative -> daily diff needed
+        precip = imgcol.select("total_precipitation_sfc")
+        precip_diff = precip.max().subtract(precip.min())
+
+        solar = imgcol.select("surface_solar_radiation_downwards_sfc")
+        solar_diff = solar.max().subtract(solar.min())
+
+        return (
+            temp_min.rename("temperature_2m_min")
+                .addBands(temp_max.rename("temperature_2m_max"))
+                .addBands(u_mean.rename("u_component_of_wind_10m"))
+                .addBands(v_mean.rename("v_component_of_wind_10m"))
+                .addBands(precip_diff.rename("total_precipitation_sum"))
+                .addBands(solar_diff.rename("surface_solar_radiation_downwards_sum"))
+        )
+    
+    # make sequence in steps of 24 for daily
+    total_hours = era5.size()
+    hour_steps = ee.List.sequence(0, total_hours.subtract(1), 24)
+
+    # build daily aggregates in required format
+    def daily_chunk(offset):
+        img = aggregate_daily(
+            era5.filter(ee.Filter.rangeContains("forecast_hours", offset, offset + 23))
+        )
+        # attaching forecast offset for later date calculation
+        return img.set("forecast_offset", offset)
+
+    daily_imgs = hour_steps.map(daily_chunk)
+    daily_ic = ee.ImageCollection(daily_imgs)
+
+    def extract(image):
+        # compute valid date = forecasting_date + forecast_offset (in hours)
+        offset_hours = ee.Number(image.get("forecast_offset"))
+        valid_date = ee.Date(forecasting_date).advance(offset_hours, "hour")
+        date_str = valid_date.format("YYYY-MM-dd")
+
+        reducer = ee.Reducer.first() if geo_geotype == 'point' else ee.Reducer.mean()
+        values = image.reduceRegion(reducer, geometry, 1000)
+        return ee.Feature(None, values.set("date", date_str))
+
+    features = daily_ic.map(extract)
+    feature_collection = ee.FeatureCollection(features)
+    result = feature_collection.getInfo()
+    records = [f['properties'] for f in result['features']]
+
+    df = pd.DataFrame(records)
+    df['date'] = pd.to_datetime(df['date'])
+    df['forecast'] = True
+
+    return df
+
+
+def get_era5_for_apsim(start_date, end_date, lon=None, lat=None, polygon_path=None, use_nrt_forecast=False):
+    met_data = fetch_era5_data(start_date, end_date, lon, lat, polygon_path)
+
+    # Identify last date
+    if use_nrt_forecast and has_missing_dates(met_data, end_date):
+        last_date=met_data['date'].max()
+        forecasted_data = fetch_nrt_forecast(
+            last_available_date=last_date, 
+            lon=lon,
+            lat=lat,
+            polygon_path=polygon_path)
+
+        forecasted_data = forecasted_data[forecasted_data['date'] > last_date]
+        met_data = pd.concat([met_data, forecasted_data], ignore_index=True)
+
+    met_data_normalized = postprocess_for_apsim(met_data)
+
+    return met_data_normalized
+
+
+def build_ee_geometry(lon=None, lat=None, polygon_path=None):
+    if polygon_path is None:
+        if lat is None or lon is None:
+            raise ValueError("Must provide either lat/lon or a polygon.")
+        
+        geometry = ee.Geometry.Point([lon, lat])
+        geo_type = 'point'
+    else:
+        gdf = gpd.read_file(polygon_path)
+        gdf = gdf.to_crs(epsg=4326)
+
+        # Ensure only a single geometry is present in the file
+        if len(gdf.geometry) != 1:
+            raise Exception("Polygon File must contain a single geometry.")
+
+        polygon_geom = gdf.geometry.iloc[0]
+        geojson_dict = polygon_geom.__geo_interface__
+        geometry = ee.Geometry(geojson_dict)
+        geo_type = 'polygon'
+
+    return geometry, geo_type
+
+
+def fetch_era5_data(start_date, end_date, lon=None, lat=None, polygon_path=None) :
+    """
+    Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
+    """
+    logger.info('Fetching meteorological data from ERA5 trough google earth engine.')
+
+    logger.info('Querying data.')
+
+    geometry, geo_type = build_ee_geometry(lat, lon, polygon_path)
+    all_records = []
+    
+    def split_date_range(start_date, end_date, chunk_years=10):
+        start = start_date
+        end = end_date + relativedelta(days=1)
+        while start < end:
+            next_start = min(start + relativedelta(years=chunk_years), end)
+            yield start.strftime('%Y-%m-%d'), next_start.strftime('%Y-%m-%d')
+            start = next_start
+
+    def extract(image):
+        date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd')
+        reducer = ee.Reducer.first() if geo_type == 'point' else ee.Reducer.mean()
+        values = image.reduceRegion(reducer, geometry, 1000)
+        return ee.Feature(None, values.set('date', date))
+    
+    for chunk_start, chunk_end in split_date_range(start_date, end_date, chunk_years=5):
+        logger.info(f'Fetching data from {chunk_start} to {chunk_end}')
+        try:
+            era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
+                .filterDate(chunk_start, chunk_end) \
+                .filterBounds(geometry) \
+                .select([
+                    'total_precipitation_sum',
+                    'temperature_2m_min',
+                    'temperature_2m_max',
+                    'surface_solar_radiation_downwards_sum',
+                    'u_component_of_wind_10m',
+                    'v_component_of_wind_10m'
+                ])
+
+            features = era5.map(extract)
+            feature_collection = ee.FeatureCollection(features)
+            result = feature_collection.getInfo()
+            records = [f['properties'] for f in result['features']]
+            all_records.extend(records)
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch data from {chunk_start} to {chunk_end}: {e}")
+            raise e
+
+    df = pd.DataFrame(all_records)
+    
+    logger.info('Processing ERA5 data to required format.')
+
+    df['date'] = pd.to_datetime(df['date'])
+    df['forecast'] = False
+
+    return df
+
+def fetch_era5_from_cache(start_date, end_date, cache_fpath):
     # Read existing data
     df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
+
+    # Don't use forecasted dates
+    df_existing = df_existing[df_existing['forecast'] == False]
 
     # Determine the date range to fetch
     existing_dates = df_existing.index
@@ -257,8 +383,11 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
     if not missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
         df_filtered = df_existing.loc[start_date:end_date]
-        return df_filtered
-    
+        return df_filtered , []
+
+    return df_filtered, missing_dates
+
+def fill_missing_cache_dates(df_existing, missing_dates, lon, lat, polygon_path, cache_fpath, use_nrt_forecast=False):
     # Fetch data for the missing dates
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
@@ -271,7 +400,7 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
         logger.info("Fetching chunk %d with %d missing dates: %s to %s", 
                    i + 1, len(chunk), chunk[0].date(), chunk[-1].date())
 
-        chunk_data = fetch_era5_data(chunk[0], chunk[-1], ee_project, lon, lat, polygon_path)
+        chunk_data = get_era5_for_apsim(chunk[0], chunk[-1], lon, lat, polygon_path, False)
         missing_data.append(chunk_data)
 
     # Combine existing data with newly fetched data and bring in correct order
@@ -283,11 +412,8 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
 
     logger.info("Updating cache file: %s", cache_fpath)
     write_met_data_to_csv(df_combined, cache_fpath)
-
-    # Return only the data from the requested date range
-    df_filtered = df_combined.loc[start_date:end_date]
     
-    return df_filtered
+    return df_combined
 
 
 def validate_aggregation_options(met_agg_method):
@@ -317,8 +443,9 @@ def clean_era5(df):
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the .csv file will be saved.")
 @click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the downloaded data will be cached to avoid rate limiting. If not provided, no caching will be done.")
 @click.option('--overwrite-cache', is_flag=True, default=False, help="Enable file overwriting if weather data already exists in cache. Otherwise if a file exists, only missing dates will be appended to the existing file.")
+@click.option('--use-nrt-forecast', is_flag=True, default=False, help='Use ECMWF Near-Realtime IFS Atmospheric Forecasts as far as possible.')
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, cache_dir, overwrite_cache, verbose):
+def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, cache_dir, overwrite_cache, use_nrt_forecast, verbose):
     """Wrapper to fetch_met_data
         Currently this is designed specifically for the VeRCYe pipeline,
         so the output names are hardcoded to match those from a previous version (NasaPower)
@@ -331,6 +458,7 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
     
     if output_dir is None:
         logger.warning("No output_dir specified, data will only be saved to cache.")
+
 
     # !! Not implemented yet, currently just returns the same coordinates
     lat, lon = get_grid_aligned_coordinates(lat, lon)
@@ -345,15 +473,21 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
     if ee_project is None:
         raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
     
+    logger.info('Initializing google earth engine.')
+    ee.Initialize(project=ee_project)
+    
     if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
         logger.info("Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s", cache_fpath)
-        df = fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath)
+        df, missing_dates = fetch_era5_from_cache(start_date, end_date, cache_fpath)
+        if missing_dates:
+            df = fill_missing_cache_dates(df, missing_dates, lon, lat, polygon_path, cache_fpath, use_nrt_forecast)
+            df = df.loc[start_date:end_date] # Keep only the data from requested date range
     else:
         # Get mean or centroid data
         if met_agg_method == 'mean':
-            df = fetch_era5_data(start_date, end_date, ee_project, None, None, polygon_path)
+            df = get_era5_for_apsim(start_date, end_date, None, None, polygon_path, use_nrt_forecast)
         elif met_agg_method == 'centroid':
-            df = fetch_era5_data(start_date, end_date, ee_project, lon, lat, None)
+            df = get_era5_for_apsim(start_date, end_date, lon, lat, None, use_nrt_forecast)
         else:
             raise ValueError(f"Unsupported met_agg_method: {met_agg_method}")
 
