@@ -234,6 +234,7 @@ rule fetch_met_data:
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
         met_source = config['apsim_params']['met_source'].lower(),
         platform = config['platform'],
+        nrt_forecast_cmd = '--use-nrt-forecast' if config['apsim_params']['use_nrt_forecast'] else ''
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -279,6 +280,7 @@ rule fetch_met_data:
             --lat $LAT \
             --ee_project {params.ee_project} \
             --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
+            {params.nrt_forecast_cmd} \
             --cache_dir {params.era5_cache_dir} \
             --verbose > {log}
         else
