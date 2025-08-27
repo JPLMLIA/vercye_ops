@@ -81,7 +81,7 @@ apsim_params:
   era5_cache_dir: 'XXXX' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies. No need to change if created through the webapp
   ee_project: 'XXXX' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
   align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation. Should be activated when running at field scale to avoid querying the same met data pixel multiple times.
-  use_nrt_forecast: True # Only applies when ERA5 - Use ECMWF near real time (14days) forecast.
+  use_nrt_forecast: True #  Use ECMWF near real time (14days) forecast. If there are missing dates in the met_start-met_end will try to fill as many forecast days as possible up until met_end. Otherwise will add forecast from end_date.
 
   sowing_date_col: 'XXXX' # Optional: If the shapefile/geojsons have a column containing the sowing date as YYYY-MM-DD, use this in the simulation. Set to null or '' if not using
 
@@ -214,6 +214,7 @@ scripts:
   generate_multiyear_lai_report: '../reporting/generate_lai_report.py'
   agg_preds_multiyear: '../reporting/aggregate_multiyear_predictions.py'
   save_matched_sims: '../reporting/save_simulations.py'
+  nrt_forecast: '../met_data/fetch_ecmwf_nrt_forecast.py'
 
 ########################################
 # Other (Typically dont change)

@@ -14,10 +14,6 @@ from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
-# Valid climate variables for the NASA POWER API
-VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
-DEFAULT_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
-
 
 def error_checking_function(df):
     """
@@ -111,7 +107,7 @@ def get_consecutive_date_chunks(dates):
     
     return chunks
 
-def postprocess_for_apsim(met_data):
+def postprocess_for_apsim(met_data, end_date, is_forecast=False):
     df = met_data.rename(columns={
         'total_precipitation_sum': 'PRECTOTCORR',
         'temperature_2m_max': 'T2M_MAX',
@@ -122,8 +118,10 @@ def postprocess_for_apsim(met_data):
     })
 
     # Convert temperatures from Kelvin to Celsius
-    df['T2M_MAX'] = df['T2M_MAX'] - 273.15
-    df['T2M_MIN'] = df['T2M_MIN'] - 273.15
+    # Only convert from Kelvin if data is not forecast
+    if not is_forecast:
+        df['T2M_MAX'] =df['T2M_MAX']- 273.15
+        df['T2M_MIN'] =  df['T2M_MIN']- 273.15
 
     # Convert solar radiation from J/m² to MJ/m²
     df['ALLSKY_SFC_SW_DWN'] = df['ALLSKY_SFC_SW_DWN'] / 1_000_000
@@ -143,20 +141,21 @@ def postprocess_for_apsim(met_data):
     df = df[['date', 'ALLSKY_SFC_SW_DWN', 'T2M_MAX', 'T2M_MIN', 'T2M', 'PRECTOTCORR', 'WS2M']]
     df.fillna({'ALLSKY_SFC_SW_DWN': 0, 'T2M': 0, 'T2M_MAX': 0, 'T2M_MIN': 0, 'PRECTOTCORR': 0, 'WS2M': 0}, inplace=True)
 
-    # Ensure that we have continous data for every day from start_date to end_date
-    expected_dates = pd.date_range(df['date'].min(), end_date, freq='D')
-    missing_dates = expected_dates.difference(df['date'])
+    # Sanity CheckEnsure that we have continous data for every day from start_date to end_date
+    if end_date is not None:
+        expected_dates = pd.date_range(df['date'].min(), end_date, freq='D')
+        missing_dates = expected_dates.difference(df['date'])
 
-    if not missing_dates.empty:
-        logger.warning(f"Missing dates in the data: {len(missing_dates)}")
+        if not missing_dates.empty:
+            logger.warning(f"Missing dates in the data: {len(missing_dates)}")
 
-        # sort missing dates ascending
-        missing_dates = missing_dates.sort_values()
-        # check if it is the newest dates that are missing
-        if missing_dates[0] > df['date'].max():
-            logger.warning(f"Missing dates are at the end of the data. Not filling them.")
-        else:
-            raise Exception('Missing dates - Not yet handled, this shouldnt occur.')
+            # sort missing dates ascending
+            missing_dates = missing_dates.sort_values()
+            # check if it is the newest dates that are missing
+            if missing_dates[0] > df['date'].max():
+                logger.warning(f"Missing dates are at the end of the data. Not filling them.")
+            else:
+                raise Exception('Missing dates - Not yet handled, this shouldnt occur.')
 
     # set date as index
     df.set_index('date', inplace=True)
@@ -172,115 +171,11 @@ def postprocess_for_apsim(met_data):
 def has_missing_dates(met_data_df, last_date):
     return met_data_df['date'].max() < last_date
 
-def fetch_nrt_forecast(forecasting_date, lon, lat, polygon_path):
-    year = forecasting_date.year
-    month = forecasting_date.month
-    day = forecasting_date.day
-
-    # find last valid forecasting date, go back in time until hit but max 2 days?
-
-    geometry, geo_geotype = build_ee_geometry(lon, lat, polygon_path)
-
-    # aggregate by each day passed (derive by sorting by hour and take 24 h intervals)
-    # temperature_2m_min, temperature_2m_max derive from temperature_2m_sfc
-    # total_precipitation_sum: more difficult based on total_precipitation_sfcm however this described 
-    # the total amount of precipitation since forecasting hour 0, so we need to always take those in 24h batches and then subtract the value form the previous one
-    # surface_solar_radiation_L: same for downwards_sumsurface_solar_radiation_downwards_sfc
-    # u_component_of_wind_10m: mean of 24h u_component_of_wind_10m_sfc	
-    # v_component_of_wind_10m: mean of 24h v_component_of_wind_10m_sfc	
-
-    era5 = ee.ImageCollection('ECMWF/NRT_FORECAST/IFS/OPER') \
-        .filter(ee.filter.Filter.eq('creation_year', year)) \
-        .filter(ee.filter.Filter.eq('creation_month', month)) \
-        .filter(ee.filter.Filter.eq('creation_day', day)) \
-        .filterBounds(geometry) \
-        .select([
-            'total_precipitation_sfc',
-            'temperature_2m_sfc',
-            'surface_solar_radiation_downwards_sfc',
-            'u_component_of_wind_10m_sfc',
-            'v_component_of_wind_10m_sfc'
-        ]) \
-        .sort("forecast_hours")
-    
-    def aggregate_daily(imgcol):
-        # min/max temps
-        temp_min = imgcol.select("temperature_2m_sfc").reduce(ee.Reducer.min())
-        temp_max = imgcol.select("temperature_2m_sfc").reduce(ee.Reducer.max())
-
-        # wind means
-        u_mean = imgcol.select("u_component_of_wind_10m_sfc").mean()
-        v_mean = imgcol.select("v_component_of_wind_10m_sfc").mean()
-
-        # cumulative -> daily diff needed
-        precip = imgcol.select("total_precipitation_sfc")
-        precip_diff = precip.max().subtract(precip.min())
-
-        solar = imgcol.select("surface_solar_radiation_downwards_sfc")
-        solar_diff = solar.max().subtract(solar.min())
-
-        return (
-            temp_min.rename("temperature_2m_min")
-                .addBands(temp_max.rename("temperature_2m_max"))
-                .addBands(u_mean.rename("u_component_of_wind_10m"))
-                .addBands(v_mean.rename("v_component_of_wind_10m"))
-                .addBands(precip_diff.rename("total_precipitation_sum"))
-                .addBands(solar_diff.rename("surface_solar_radiation_downwards_sum"))
-        )
-    
-    # make sequence in steps of 24 for daily
-    total_hours = era5.size()
-    hour_steps = ee.List.sequence(0, total_hours.subtract(1), 24)
-
-    # build daily aggregates in required format
-    def daily_chunk(offset):
-        img = aggregate_daily(
-            era5.filter(ee.Filter.rangeContains("forecast_hours", offset, offset + 23))
-        )
-        # attaching forecast offset for later date calculation
-        return img.set("forecast_offset", offset)
-
-    daily_imgs = hour_steps.map(daily_chunk)
-    daily_ic = ee.ImageCollection(daily_imgs)
-
-    def extract(image):
-        # compute valid date = forecasting_date + forecast_offset (in hours)
-        offset_hours = ee.Number(image.get("forecast_offset"))
-        valid_date = ee.Date(forecasting_date).advance(offset_hours, "hour")
-        date_str = valid_date.format("YYYY-MM-dd")
-
-        reducer = ee.Reducer.first() if geo_geotype == 'point' else ee.Reducer.mean()
-        values = image.reduceRegion(reducer, geometry, 1000)
-        return ee.Feature(None, values.set("date", date_str))
-
-    features = daily_ic.map(extract)
-    feature_collection = ee.FeatureCollection(features)
-    result = feature_collection.getInfo()
-    records = [f['properties'] for f in result['features']]
-
-    df = pd.DataFrame(records)
-    df['date'] = pd.to_datetime(df['date'])
-    df['forecast'] = True
-
-    return df
 
 
-def get_era5_for_apsim(start_date, end_date, lon=None, lat=None, polygon_path=None, use_nrt_forecast=False):
+def get_era5_for_apsim(start_date, end_date, lon=None, lat=None, polygon_path=None):
     met_data = fetch_era5_data(start_date, end_date, lon, lat, polygon_path)
-
-    # Identify last date
-    if use_nrt_forecast and has_missing_dates(met_data, end_date):
-        last_date=met_data['date'].max()
-        forecasted_data = fetch_nrt_forecast(
-            last_available_date=last_date, 
-            lon=lon,
-            lat=lat,
-            polygon_path=polygon_path)
-
-        forecasted_data = forecasted_data[forecasted_data['date'] > last_date]
-        met_data = pd.concat([met_data, forecasted_data], ignore_index=True)
-
-    met_data_normalized = postprocess_for_apsim(met_data)
+    met_data_normalized = postprocess_for_apsim(met_data, end_date)
 
     return met_data_normalized
 
@@ -316,15 +211,15 @@ def fetch_era5_data(start_date, end_date, lon=None, lat=None, polygon_path=None)
 
     logger.info('Querying data.')
 
-    geometry, geo_type = build_ee_geometry(lat, lon, polygon_path)
+    geometry, geo_type = build_ee_geometry(lon, lat, polygon_path)
     all_records = []
     
     def split_date_range(start_date, end_date, chunk_years=10):
-        start = start_date
-        end = end_date + relativedelta(days=1)
+        start = pd.to_datetime(start_date)
+        end = pd.to_datetime(end_date) + pd.Timedelta(days=1)
         while start < end:
             next_start = min(start + relativedelta(years=chunk_years), end)
-            yield start.strftime('%Y-%m-%d'), next_start.strftime('%Y-%m-%d')
+            yield start, next_start
             start = next_start
 
     def extract(image):
@@ -337,7 +232,7 @@ def fetch_era5_data(start_date, end_date, lon=None, lat=None, polygon_path=None)
         logger.info(f'Fetching data from {chunk_start} to {chunk_end}')
         try:
             era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR') \
-                .filterDate(chunk_start, chunk_end) \
+                .filterDate(ee.Date(chunk_start), ee.Date(chunk_end)) \
                 .filterBounds(geometry) \
                 .select([
                     'total_precipitation_sum',
@@ -363,16 +258,12 @@ def fetch_era5_data(start_date, end_date, lon=None, lat=None, polygon_path=None)
     logger.info('Processing ERA5 data to required format.')
 
     df['date'] = pd.to_datetime(df['date'])
-    df['forecast'] = False
 
     return df
 
 def fetch_era5_from_cache(start_date, end_date, cache_fpath):
     # Read existing data
-    df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
-
-    # Don't use forecasted dates
-    df_existing = df_existing[df_existing['forecast'] == False]
+    df_existing = pd.read_csv(cache_fpath, parse_dates=True, index_col=0)
 
     # Determine the date range to fetch
     existing_dates = df_existing.index
@@ -380,14 +271,14 @@ def fetch_era5_from_cache(start_date, end_date, cache_fpath):
     missing_dates = all_dates.difference(existing_dates)
 
     # Identify blocks of missing dates
-    if not missing_dates.empty:
+    if missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
         df_filtered = df_existing.loc[start_date:end_date]
-        return df_filtered , []
+        return df_filtered , pd.DatetimeIndex([])
 
-    return df_filtered, missing_dates
+    return df_existing, missing_dates
 
-def fill_missing_cache_dates(df_existing, missing_dates, lon, lat, polygon_path, cache_fpath, use_nrt_forecast=False):
+def fill_missing_cache_dates(df_existing, missing_dates, lon, lat, polygon_path, cache_fpath):
     # Fetch data for the missing dates
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
@@ -400,7 +291,7 @@ def fill_missing_cache_dates(df_existing, missing_dates, lon, lat, polygon_path,
         logger.info("Fetching chunk %d with %d missing dates: %s to %s", 
                    i + 1, len(chunk), chunk[0].date(), chunk[-1].date())
 
-        chunk_data = get_era5_for_apsim(chunk[0], chunk[-1], lon, lat, polygon_path, False)
+        chunk_data = get_era5_for_apsim(chunk[0], chunk[-1], lon, lat, polygon_path)
         missing_data.append(chunk_data)
 
     # Combine existing data with newly fetched data and bring in correct order
@@ -443,9 +334,8 @@ def clean_era5(df):
 @click.option('--output_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the .csv file will be saved.")
 @click.option('--cache_dir', type=click.Path(file_okay=False, dir_okay=True, writable=True), default=None, help="Directory where the downloaded data will be cached to avoid rate limiting. If not provided, no caching will be done.")
 @click.option('--overwrite-cache', is_flag=True, default=False, help="Enable file overwriting if weather data already exists in cache. Otherwise if a file exists, only missing dates will be appended to the existing file.")
-@click.option('--use-nrt-forecast', is_flag=True, default=False, help='Use ECMWF Near-Realtime IFS Atmospheric Forecasts as far as possible.')
 @click.option('--verbose', is_flag=True, help="Enable verbose logging.")
-def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, cache_dir, overwrite_cache, use_nrt_forecast, verbose):
+def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project, output_dir, cache_dir, overwrite_cache, verbose):
     """Wrapper to fetch_met_data
         Currently this is designed specifically for the VeRCYe pipeline,
         so the output names are hardcoded to match those from a previous version (NasaPower)
@@ -468,7 +358,7 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
     
     if cache_dir is not None:
         cache_region = f"{lon:.4f}_{lat:.4f}".replace('.', '_')
-        cache_fpath = Path(cache_dir) / f'{cache_region}_{met_agg_method}_nasapower.csv'
+        cache_fpath = Path(cache_dir) / f'{cache_region}_{met_agg_method}_era5.csv'
 
     if ee_project is None:
         raise Exception('Setting --ee_project required when using ERA5 as the meteorological data source.')
@@ -479,15 +369,15 @@ def cli(start_date, end_date, lon, lat, polygon_path, met_agg_method, ee_project
     if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
         logger.info("Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s", cache_fpath)
         df, missing_dates = fetch_era5_from_cache(start_date, end_date, cache_fpath)
-        if missing_dates:
-            df = fill_missing_cache_dates(df, missing_dates, lon, lat, polygon_path, cache_fpath, use_nrt_forecast)
+        if not missing_dates.empty:
+            df = fill_missing_cache_dates(df, missing_dates, lon, lat, polygon_path, cache_fpath)
             df = df.loc[start_date:end_date] # Keep only the data from requested date range
     else:
         # Get mean or centroid data
         if met_agg_method == 'mean':
-            df = get_era5_for_apsim(start_date, end_date, None, None, polygon_path, use_nrt_forecast)
+            df = get_era5_for_apsim(start_date, end_date, None, None, polygon_path)
         elif met_agg_method == 'centroid':
-            df = get_era5_for_apsim(start_date, end_date, lon, lat, None, use_nrt_forecast)
+            df = get_era5_for_apsim(start_date, end_date, lon, lat, None)
         else:
             raise ValueError(f"Unsupported met_agg_method: {met_agg_method}")
 

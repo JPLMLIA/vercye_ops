@@ -225,6 +225,7 @@ rule fetch_met_data:
         met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
         script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
         script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
+        scrip_path_nrt_forecast = config['scripts']['nrt_forecast'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
@@ -234,7 +235,7 @@ rule fetch_met_data:
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
         met_source = config['apsim_params']['met_source'].lower(),
         platform = config['platform'],
-        nrt_forecast_cmd = '--use-nrt-forecast' if config['apsim_params']['use_nrt_forecast'] else ''
+        use_nrt_forecast = config['apsim_params']['use_nrt_forecast']
     log: 
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -248,6 +249,12 @@ rule fetch_met_data:
         # Load geometry centroid
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input.geometry} | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
+
+        # If using forecast, save met outputs to a temporary file and move only after forecast in concatenated
+        OUTPUT_DIR={params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/
+        if [[ "{params.use_nrt_forecast}" == "True" ]]; then
+            OUTPUT_DIR=$(mktemp -d)
+        fi
 
         # Set script and run based on met source
         if [ "{params.met_source}" = "nasa_power" ]; then
@@ -280,12 +287,28 @@ rule fetch_met_data:
             --lat $LAT \
             --ee_project {params.ee_project} \
             --output_dir {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/ \
-            {params.nrt_forecast_cmd} \
             --cache_dir {params.era5_cache_dir} \
             --verbose > {log}
         else
             echo "Invalid met source: {params.met_source}" >&2
             exit 1
+        fi
+
+
+        if [[ "{params.use_nrt_forecast}" == "True" ]]; then
+            OUTPUT_DIR_NAME=$(basename "$OUTPUT_DIR")
+            # Append forecast data
+            python3 {params.scrip_path_nrt_forecast} \
+            --forecast_date_from_existing \
+            --met_agg_method {params.met_agg_method} \
+            $POLYGON_PATH \
+            --lon $LON \
+            --lat $LAT \
+            --ee_project {params.ee_project} \
+            --output_file $OUTPUT_DIR/${OUTPUT_DIR_NAME}_met.csv
+
+            # Move outout to true location
+            mv $OUTPUT_DIR/${OUTPUT_DIR_NAME}_met.csv  {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_met.csv
         fi
         """
 
