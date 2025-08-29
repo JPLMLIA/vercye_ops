@@ -1,52 +1,55 @@
 import os
 import time
+from datetime import datetime
 
 import click
 import geopandas as gpd
-import numpy as np
+import pandas as pd
 import planetary_computer
-
-from vercye_ops.utils.init_logger import get_logger
-
 from s2_download_hooks import build_geometry_band_adder, build_s2_masking_hook, s2_harmonization_processor
+from shapely.validation import make_valid
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
-from datetime import datetime
-import pandas as pd
 
-from shapely.validation import make_valid
+from vercye_ops.utils.init_logger import get_logger
 
 RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster assets
 SCL_KEEP_CLASSES = [4, 5]
 
 logger = get_logger()
-logger.setLevel('INFO')
+logger.setLevel("INFO")
+
 
 def dedupliate(items):
-    if len (items) == 0:
-        print('Empty list of items received. Exiting')
+    if len(items) == 0:
+        print("Empty list of items received. Exiting")
         return items
 
     item_entries = [
         {
-            'mgrs_tile_id': item.id.split('_')[4],
-            'date': datetime.strptime(item.id.split('_')[2], "%Y%m%dT%H%M%S").date(),
-            'processing_date':  datetime.strptime(item.id.split('_')[5], "%Y%m%dT%H%M%S"),
-            'item': item,
-            'invalid_formatting': len(item.id.split('_')[3]) != 4 or item.id.split('_')[3][0] != 'R' # Ensure filename pattern
-        } for item in items
+            "mgrs_tile_id": item.id.split("_")[4],
+            "date": datetime.strptime(item.id.split("_")[2], "%Y%m%dT%H%M%S").date(),
+            "processing_date": datetime.strptime(item.id.split("_")[5], "%Y%m%dT%H%M%S"),
+            "item": item,
+            "invalid_formatting": len(item.id.split("_")[3]) != 4
+            or item.id.split("_")[3][0] != "R",  # Ensure filename pattern
+        }
+        for item in items
     ]
 
     df = pd.DataFrame(item_entries)
 
-    if df['invalid_formatting'].any():
-        first_invalid = df[df['invalid_formatting'] == True].iloc[0]
-        raise Exception(f"Can't deduplicate due to unexpected item id formatting. Expecting id like S2B_MSIL2A_20230413T105619_R094_T31UDP_20240829T164929. Got {first_invalid['item'].id}.")
+    if df["invalid_formatting"].any():
+        first_invalid = df[df["invalid_formatting"] is True].iloc[0]
+        raise Exception(
+            f"Can't deduplicate due to unexpected item id formatting. Expecting id like S2B_MSIL2A_20230413T105619_R094_T31UDP_20240829T164929. Got {first_invalid['item'].id}."
+        )
 
     # Group by tile_id and acuqisition data. Sort by processing date within group and only keep newest.
-    df_grouped = df.sort_values("processing_date").groupby(['mgrs_tile_id', 'date']).tail(1)
+    df_grouped = df.sort_values("processing_date").groupby(["mgrs_tile_id", "date"]).tail(1)
 
-    return df_grouped['item'].to_list()
+    return df_grouped["item"].to_list()
+
 
 @click.command()
 @click.option(
@@ -111,28 +114,27 @@ def main(
     cloudprob_thresh,
     snowprob_thresh,
     num_workers,
-    overwrite
+    overwrite,
 ):
-    modifier = planetary_computer.sign # Required from MPC
-    stac_downloader = STACDownloader(catalog_url="https://planetarycomputer.microsoft.com/api/stac/v1",
-                                     logger=logger,
-                                     stac_item_modifier=modifier)
+    modifier = planetary_computer.sign  # Required from MPC
+    stac_downloader = STACDownloader(
+        catalog_url="https://planetarycomputer.microsoft.com/api/stac/v1",
+        logger=logger,
+        stac_item_modifier=modifier,
+    )
 
     satellite = satellite.lower()
     if satellite == "s2":
         stac_collection_name = "sentinel-2-l2a"
         mask_bands = ["SCL"]
-        
-        metadata_asset_names = ["granule-metadata",]
+
+        metadata_asset_names = [
+            "granule-metadata",
+        ]
         # 'cosVZA', 'cosSZA', 'cosRAA' will be prepended by the custom band processor
         if resolution == 10:
             # ['B2', 'B3', 'B4', 'B8']
-            band_assets = [
-                "B02",
-                "B03",
-                "B04",
-                "B08"
-            ]
+            band_assets = ["B02", "B03", "B04", "B08"]
         else:
             # ['B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']
             band_assets = [
@@ -149,14 +151,11 @@ def main(
         raise Exception("Currently only supporting S2 download.")
 
     # Register masking hook based on SCL & Cloud Probs with a threshold for cloud and snow
-    s2_masking_hook = build_s2_masking_hook(
-        scl_keep_classes=SCL_KEEP_CLASSES,
-        scl_bandname="SCL"
-    )
+    s2_masking_hook = build_s2_masking_hook(scl_keep_classes=SCL_KEEP_CLASSES, scl_bandname="SCL")
     stac_downloader.register_masking_hook(s2_masking_hook)
 
     # Register geometry bands hook to create bands adding cosines of angles from metadata
-    add_geometry_bands = build_geometry_band_adder(granule_mtd_asset_name='granule-metadata')
+    add_geometry_bands = build_geometry_band_adder(granule_mtd_asset_name="granule-metadata")
     stac_downloader.register_postdownload_hook(add_geometry_bands)
 
     # Register hook to harmonize the data processed with baseline before 4, to match the outputs from baseline 4
@@ -170,7 +169,7 @@ def main(
     gdf["geometry"] = gdf["geometry"].apply(lambda geom: make_valid(geom) if not geom.is_valid else geom)
 
     if gdf.empty:
-        raise ValueError('Empty shapefile provided.')
+        raise ValueError("Empty shapefile provided.")
 
     # Query Stac catalog
 
@@ -178,15 +177,15 @@ def main(
     try:
         geometry = gdf.geometry.union_all()
         items = stac_downloader.query_catalog(
-                collection_name=stac_collection_name,
-                start_date=start_date,
-                end_date=end_date,
-                geometry=geometry,
-                query={"eo:cloud_cover": {"lt": max_cloud_cover}},
+            collection_name=stac_collection_name,
+            start_date=start_date,
+            end_date=end_date,
+            geometry=geometry,
+            query={"eo:cloud_cover": {"lt": max_cloud_cover}},
         )
-    except Exception as e:
+    except Exception:
         # If it throws an error, we simplify each geometry to a bounding box and try again.
-        logger.warning('Not able to query STAC for true intersection. Trying bounding box.')
+        logger.warning("Not able to query STAC for true intersection. Trying bounding box.")
         # Create bounding box (envelope) of each geometry
         envelopes = gdf.geometry.envelope
 
@@ -211,7 +210,7 @@ def main(
     # Download the items
     logger.info("Starting download of items...")
     os.makedirs(output_dir, exist_ok=True)
-    downloaded_item_paths = stac_downloader.download_items(
+    stac_downloader.download_items(
         items=items,
         raster_assets=band_assets,
         file_assets=metadata_asset_names,

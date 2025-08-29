@@ -9,10 +9,13 @@ from pathlib import Path
 import click
 import ee
 import geopandas as gpd
-from gdrive_download_helpers import (delete_files_from_drive,
-                                     delete_folder_from_drive,
-                                     download_files_from_drive,
-                                     find_files_in_drive, get_drive_service)
+from gdrive_download_helpers import (
+    delete_files_from_drive,
+    delete_folder_from_drive,
+    download_files_from_drive,
+    find_files_in_drive,
+    get_drive_service,
+)
 
 
 def json_to_fc(json_path):
@@ -95,7 +98,7 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
             file_ids = [file_id for file_id, _ in downloaded]
             raise RuntimeError(f"Failed to download files: {file_ids}")
     else:
-        raise RuntimeError(f"Could not find exported file in Google Drive.")
+        raise RuntimeError("Could not find exported file in Google Drive.")
 
 
 @click.command()
@@ -107,9 +110,7 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
     help="Local Path to the library folder",
 )
 @click.option("--region", help="Region name (without apostrophes)")
-@click.option(
-    "--shpfile", type=click.Path(exists=True), help="Local Path to the shapefile to override region"
-)
+@click.option("--shpfile", type=click.Path(exists=True), help="Local Path to the shapefile to override region")
 @click.option(
     "--start-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
@@ -128,9 +129,7 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
     help="Export mode: Google Drive or Google Cloud Storage. Attention: GCS will come with egress costs!",
 )
 @click.option("--export-bucket", type=str, help="Google Cloud Storage bucket name", required=False)
-@click.option(
-    "--gcs-folder-path", type=str, help="Google Cloud Storage folder path in bucket", required=False
-)
+@click.option("--gcs-folder-path", type=str, help="Google Cloud Storage folder path in bucket", required=False)
 @click.option(
     "--gdrive-credentials",
     type=click.Path(exists=True),
@@ -164,8 +163,8 @@ def process_gdrive_download(drive_service, folder_name, file_description, downlo
 @click.option(
     "--token-only",
     is_flag=True,
-    help='Flag to ony generate an authentication token on a local machine to copy to a remote machine. Must be used with --gdrive-credentials and --project.',
-    required=False
+    help="Flag to ony generate an authentication token on a local machine to copy to a remote machine. Must be used with --gdrive-credentials and --project.",
+    required=False,
 )
 def main(
     project,
@@ -183,7 +182,7 @@ def main(
     snow_threshold=25,
     cloudy_threshold=80,
     cs_threshold=0.6,
-    token_only=False
+    token_only=False,
 ):
 
     if export_mode == "gcs" and (export_bucket is None or gcs_folder_path is None):
@@ -195,7 +194,9 @@ def main(
         )
 
     # Initialize Earth Engine
+    print("before init")
     ee.Initialize(project=project)
+    print("after init")
 
     drive_service = None
     if export_mode == "gdrive" and gdrive_credentials is not None:
@@ -203,16 +204,18 @@ def main(
         print("Successfully connected to Google Drive API")
 
     if token_only:
-        print(f'Copy the token together with the client secret from {Path(gdrive_credentials).parent} to your remote machine to use it for downloading there.')
+        print(
+            f"Copy the token together with the client secret from {Path(gdrive_credentials).parent} to your remote machine to use it for downloading there."
+        )
         exit(0)
+
+    print("gdrive setup")
 
     # Start timing run
     all_start = time.time()
 
     if shpfile is None and region is None:
-        raise ValueError(
-            "Either a shapefile or administrative division (region) should be specified."
-        )
+        raise ValueError("Either a shapefile or administrative division (region) should be specified.")
     elif shpfile is not None and region is not None:
         raise ValueError("Only one of shapefile or crop mask should be specified.")
 
@@ -353,7 +356,7 @@ def main(
         # While this will prevent the next task from starting, this is a good way to avoid running out of space in GDrive
         # If this is too slow, we can do the downloading with a seperate background process
         if task_status["state"] == "COMPLETED" and drive_service is not None:
-            print(f"Task completed successfully, launching download task from Google Drive...")
+            print("Task completed successfully, launching download task from Google Drive...")
             process_gdrive_download(drive_service, folder_name, file_description, download_folder)
 
         current_date = next_date
@@ -363,6 +366,8 @@ def main(
 
 if __name__ == "__main__":
     # Authenticate to Earth Engine
+    print("before auth")
     ee.Authenticate()
+    print("after auth")
 
     main()

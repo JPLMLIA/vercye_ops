@@ -1,4 +1,4 @@
-# 🌿 LAI Generation 
+# 🌿 LAI Generation
 The pipeline produces LAI products for VERCYe and is intended for scaled deployment on servers or HPC with minimal human intervention. The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox. We provide two methods for exporting remotely sensed imagery and deriving LAI products:
 
 - **A:** Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)
@@ -40,7 +40,7 @@ Options:
 
 Follow the Google Drive Python Quickstart to download a `client_secret.json`: https://developers.google.com/drive/api/quickstart/python
 
-> [!NOTE]  
+> [!NOTE]
 > Google OAuth requires accessing a server-side browser via X11 forwarding to produce a `token.json` from your `client_secret `. This can get complicated, involving Xming or Xquartz along with the appropriate `$DISPLAY` and `.ssh/config` parameters. It may be easier to just run this locally to produce the `token.json`, then transfer the token to the server. For this, you will have to run `vercye_ops/vercye_ops/lai/lai_creation_GEE/1_1_gee_export_S2.py` with `--export-mode gdrive`, `--project your-gee-projectname` and `--gdrive-credentials /path.to/your/credentials.json` and the `--token-only` flag. This will then produce the token in the directory next to your gdrive credentials that you have to transfer to the server and place next to your credentials there.
 
 **Step 3: Setup the GEE-LAI Pipeline Configuration**
@@ -81,7 +81,7 @@ merge_regions_lai: True
 combined_region_name: 'merged_regions'
 ```
 
-> [!NOTE]  
+> [!NOTE]
 > If you only have very few regions and timepoints it might make sense to split a timepoint into multiple timepoints. E.g instead of having a timepoint with `start_date: '2023-10-10', end_date: '2024-04-03'` you would create multiple timepoints such as `20231: start_date: '2023-10-10', end_date: '2023-12-01'`, `20232: start_date: '2023-12-01', end_date: '2024-02-01'`, and `20241: start_date: '2024-02-01', end_date: '2023-04-03'`. This allows to leverage more parallel processing capabilities, since you are able to submit about 10 jobs in parallel in GEE.
 
 

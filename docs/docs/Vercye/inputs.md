@@ -1,6 +1,6 @@
 # VeRCYe Pipeline Inputs Documentation
 
-The VeRCYe pipeline enables large-scale yield studies by organizing simulation data within a structured directory and processing it with `snakemake`. This document details the required input files, directory structure, and configurable parameters. 
+The VeRCYe pipeline enables large-scale yield studies by organizing simulation data within a structured directory and processing it with `snakemake`. This document details the required input files, directory structure, and configurable parameters.
 
 ---
 
@@ -118,7 +118,7 @@ mean_yield_kg_ha = reported_production_kg / cropland_area_ha
 ```
 with cropland_area_ha being the **computed cropland_area_ha** based on the provided cropland map!.
 
-Validation data is optional and can also be provided for a subset of years where it is available. 
+Validation data is optional and can also be provided for a subset of years where it is available.
 In this case a total reference value is ommited to avoid misinterpretation.
 
 ---
@@ -188,7 +188,7 @@ This file defines the study parameters and links the **simulation head directory
 
 
 #### Evaluation Parameters
-- `aggregation_levels`: Allows evaluation at multiple administrative levels: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results. 
+- `aggregation_levels`: Allows evaluation at multiple administrative levels: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results.
 
 **IMPORTANT**: Neither the key nor the value may contain colons! If this is the case, please ensure you rename your shapefile.
 

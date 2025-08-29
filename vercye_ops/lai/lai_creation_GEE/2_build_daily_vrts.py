@@ -22,8 +22,7 @@ def resolutions_are_close(res_set, tolerance=1e-3):
     base_res = res_list[0]
     for r in res_list[1:]:
         if not (
-            math.isclose(base_res[0], r[0], abs_tol=tolerance)
-            and math.isclose(base_res[1], r[1], abs_tol=tolerance)
+            math.isclose(base_res[0], r[0], abs_tol=tolerance) and math.isclose(base_res[1], r[1], abs_tol=tolerance)
         ):
             return False
     return True
@@ -95,13 +94,11 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
     crs_set = set(crs)
     if not resolutions_are_close(resolutions_set):
         print(f"Resolutions found: {resolutions_set}")
-        raise Exception(
-            f"LAI files have different resolutions. Please use the same resolution for all LAI files."
-        )
+        raise Exception("LAI files have different resolutions. Please use the same resolution for all LAI files.")
 
     if len(crs_set) > 1:
         print(f"CRS found: {crs_set}")
-        raise Exception(f"LAI files have different CRS. Please use the same CRS for all LAI files.")
+        raise Exception("LAI files have different CRS. Please use the same CRS for all LAI files.")
 
     # Group files by date
     date_groups = defaultdict(list)

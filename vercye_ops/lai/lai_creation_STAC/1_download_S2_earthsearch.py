@@ -3,20 +3,18 @@ import time
 
 import click
 import geopandas as gpd
-
-from vercye_ops.utils.init_logger import get_logger
-
 from s2_download_hooks import add_geometry_bands, build_s2_masking_hook, s2_harmonization_processor
+from shapely.validation import make_valid
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
 
-from shapely.validation import make_valid
+from vercye_ops.utils.init_logger import get_logger
 
 RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster assets
 SCL_KEEP_CLASSES = [4, 5]
 
 logger = get_logger()
-logger.setLevel('INFO')
+logger.setLevel("INFO")
 
 
 @click.command()
@@ -82,25 +80,22 @@ def main(
     cloudprob_thresh,
     snowprob_thresh,
     num_workers,
-    overwrite
+    overwrite,
 ):
     stac_downloader = STACDownloader(catalog_url="https://earth-search.aws.element84.com/v1", logger=logger)
 
     satellite = satellite.lower()
     if satellite == "s2":
-        stac_collection_name = "sentinel-2-c1-l2a" 
+        stac_collection_name = "sentinel-2-c1-l2a"
         mask_bands = ["scl", "cloud", "snow"]
-        
-        metadata_asset_names = ["granule_metadata",]
+
+        metadata_asset_names = [
+            "granule_metadata",
+        ]
         # 'cosVZA', 'cosSZA', 'cosRAA' will be prepended by the custom band processor
         if resolution == 10:
             # ['B2', 'B3', 'B4', 'B8']
-            band_assets = [
-                "blue",
-                "green",
-                "red",
-                "nir"
-            ]
+            band_assets = ["blue", "green", "red", "nir"]
         else:
             # ['B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']
             band_assets = [
@@ -141,15 +136,15 @@ def main(
     try:
         geometry = gdf.geometry.union_all()
         items = stac_downloader.query_catalog(
-                collection_name=stac_collection_name,
-                start_date=start_date,
-                end_date=end_date,
-                geometry=geometry,
-                query={"eo:cloud_cover": {"lt": max_cloud_cover}},
+            collection_name=stac_collection_name,
+            start_date=start_date,
+            end_date=end_date,
+            geometry=geometry,
+            query={"eo:cloud_cover": {"lt": max_cloud_cover}},
         )
-    except Exception as e:
+    except Exception:
         # If it throws an error, we simplify each geometry to a bounding box and try again.
-        logger.warning('Not able to query STAC for true intersection. Trying bounding box.')
+        logger.warning("Not able to query STAC for true intersection. Trying bounding box.")
         # Create bounding box (envelope) of each geometry
         envelopes = gdf.geometry.envelope
 
@@ -171,7 +166,7 @@ def main(
     # Download the items
     logger.info("Starting download of items...")
     os.makedirs(output_dir, exist_ok=True)
-    downloaded_item_paths = stac_downloader.download_items(
+    stac_downloader.download_items(
         items=items,
         raster_assets=band_assets,
         file_assets=metadata_asset_names,

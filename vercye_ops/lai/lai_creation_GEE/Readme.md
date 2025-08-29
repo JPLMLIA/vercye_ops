@@ -32,9 +32,9 @@ The LAI pipeline processes **Sentinel-2 imagery** to generate LAI estimates via 
 
 > Run steps individually or use the **Snakemake workflow** for automation.
 
-> [!WARNING]  
+> [!WARNING]
 > This requires a Google Earth Engine project with a linked Google Cloud Project.
-> If running on a remote system, this might require you to install the [gcloud CLI](https://cloud.google.com/sdk/docs/install#linux) 
+> If running on a remote system, this might require you to install the [gcloud CLI](https://cloud.google.com/sdk/docs/install#linux)
 
 ---
 
@@ -52,7 +52,7 @@ This steps takes a shapefile containing multiple geometries and extracts individ
 ```bash
 python ../0_build_library.py \
   --admin_name_col [ADMIN_NAME_COLUMN] \
-  --output_head_dir [OUTPUT_DIRECTORY_PATH] \ 
+  --output_head_dir [OUTPUT_DIRECTORY_PATH] \
 ```
 
 **Key Parameters:**
@@ -86,7 +86,7 @@ python 1_1_gee_export_S2.py \
 - `--library`: Path to the folder where the region geojsons are stored
 - `--region`: Region name (must match GeoJSON name in the library)
 - `--resolution`: Typically 10 or 20 (meters). Depending on which is selected different bands will be downloaded:
-For 10m `["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"]` will be downloaded and for any other resolution 
+For 10m `["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"]` will be downloaded and for any other resolution
 `["cosVZA", "cosSZA", "cosRAA", "B3", "B4", "B5", "B6", "B7", "B8A", "B11", "B12"] will be downloaded. These are the bands that the respective LAI model expects.
 - `--export-mode`: Export to `gdrive` or `gcs`
 
@@ -158,7 +158,7 @@ Organizes and converts Sentinel-2 files into standardized VRT format. Used to cr
 python 1_3_standardize_S2.py [REGION_NAME] [INPUT_DIR] [VRT_OUTPUT_DIR] [RESOLUTION]
 ```
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > If you skipped **1.2** and downloaded the rasters via the website, all rasters must be unzipped and placed into a single directory.
 
 > [!WARNING]
@@ -198,7 +198,7 @@ python 2_1_primary_LAI_GEE.py [S2_DIR] [LAI_DIR] [REGION] [RESOLUTION] \
   [--model_weights PATH_TO_WEIGHTS] [--channels CHANNEL_LIST]
 ```
 
-> [!NOTE]  
+> [!NOTE]
 > This script assumes that it is being run on a CPU HPC node with lots of RAM. Running this on GPU will be faster, but may face VRAM limitations.
 > It is unlikely that this script will work at region-level on a laptop due to the RAM requirements.
 > A compute-memory tradeoff is possible, and a version of this script that takes longer to run while using less memory is planned.

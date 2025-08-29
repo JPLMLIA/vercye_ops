@@ -1,6 +1,8 @@
 from pathlib import Path
+
 import click
 import geopandas as gpd
+
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
@@ -13,16 +15,12 @@ def log_shapefile_columns(gdf):
         if col == "geometry":
             continue
         entries_to_log = min(5, len(gdf[col].unique()))
-        logger.info(
-            f'Column name: "{col}". Examples: {gdf[col].unique()[:entries_to_log]}'
-        )
+        logger.info(f'Column name: "{col}". Examples: {gdf[col].unique()[:entries_to_log]}')
 
 
 def input_admin_column_name(gdf):
     """Prompt user to select the column for administrative division."""
-    logger.info(
-        "Please type the name of the column that contains the name of the administrative level for analysis."
-    )
+    logger.info("Please type the name of the column that contains the name of the administrative level for analysis.")
     admin_column_name = input().strip()
 
     if admin_column_name not in gdf.columns:
@@ -41,9 +39,7 @@ def input_admin_hierarchy_columns(gdf, admin_column_name):
     present_columns = [col for col in gdf.columns if col in standard_col_names]
 
     if present_columns:
-        logger.info(
-            f"Suggested hierarchy of admin level columns: {present_columns}. Are these correct? (y/n)"
-        )
+        logger.info(f"Suggested hierarchy of admin level columns: {present_columns}. Are these correct? (y/n)")
         if input().strip().lower() == "y":
             return present_columns
 
@@ -65,11 +61,9 @@ def filter_by_admin_level(gdf, admin_column_name, admin_column_names):
 
     # check if there are duplicate values in the admin_column_name
 
-    # Drop all column that have a value other than null in a admin level column deeper 
+    # Drop all column that have a value other than null in a admin level column deeper
     # than the admin_column_name, as these are from smaller admin levels
-    deeper_admin_columns = admin_column_names[
-        admin_column_names.index(admin_column_name) + 1 :
-    ]
+    deeper_admin_columns = admin_column_names[admin_column_names.index(admin_column_name) + 1 :]
     for col in deeper_admin_columns:
         gdf = gdf[gdf[col].isnull()]
 

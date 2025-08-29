@@ -1,30 +1,43 @@
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from typing import List
 
 import click
 import yaml
 
-from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import (
-    run_pipeline as run_imagery_dl_pipeline,
-)
+from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import run_pipeline as run_imagery_dl_pipeline
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
 from vercye_ops.prepare_yieldstudy import load_yaml_ruamel, prepare_study
 from vercye_ops.snakemake.config_validation import validate_run_config
-
-from dotenv import dotenv_values
+from vercye_ops.utils.env_utils import (
+    get_lai_config_path,
+    get_run_config,
+    get_run_config_file_path,
+    get_run_profile_path,
+    get_setup_config_file_path,
+    get_snakemake_rundir_path,
+    get_snakemake_runlog_path,
+    get_study_path,
+    is_env_set,
+    read_lai_dir_from_env,
+    read_studies_dir_from_env,
+    replace_in_file,
+    update_study_status,
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 def rel_path(*path_parts):
+    "Get relative path to a file"
     return os.path.join(BASE_DIR, *path_parts)
 
 
-def init_study(name, dir):
+def init_study(study_name, studies_dir):
     """Initializes a directory for a new study with a number of templates of options"""
-    new_study_path = os.path.join(dir, name)
+    new_study_path = get_study_path(studies_dir, study_name)
 
     if os.path.exists(new_study_path):
         print(f"Error: A yieldstudy with this name already exists under {new_study_path}")
@@ -32,42 +45,34 @@ def init_study(name, dir):
 
     os.makedirs(new_study_path)
 
+    # Template paths
     imagery_template_path = rel_path("lai/lai_creation_STAC/config_example.yaml")
-    new_imagery_config_path =  os.path.join(new_study_path, "lai_config.yaml")
+    preparation_config_path = rel_path("examples/setup_config_template.yaml")
+    profile_template_path = rel_path("snakemake/profiles/hpc/config.yaml")
+
+    # Copy and adjust templates to new study dir
+    run_profile_path = get_run_profile_path(studies_dir, study_name)
+    new_imagery_config_path = get_lai_config_path(studies_dir, study_name)
+    new_setup_config_path = get_setup_config_file_path(studies_dir, study_name)
+    os.makedirs(run_profile_path)
+    shutil.copy(profile_template_path, run_profile_path)
+    shutil.copy(preparation_config_path, new_setup_config_path)
     shutil.copy(imagery_template_path, new_imagery_config_path)
 
-    # Set an initial value from env variable for the LAI storage dir if set.
-    if is_env_set():
-        lai_dir = read_lai_dir_from_env()
+    # Set an initial value for the LAI output dir if env variable set.
+    lai_dir = read_lai_dir_from_env() if is_env_set() else None
+    if lai_dir:
+        lai_dir_placeholder = os.path.join(lai_dir, "XXXX")
+        replace_in_file(new_imagery_config_path, "out_dir: XXXX", f"out_dir: {lai_dir_placeholder}")
 
-        if lai_dir:
-            # Replace the lai dir, if env variable is set
-            with open(new_imagery_config_path, "r") as file:
-                content = file.read()
-
-            lai_dir_placeholder = os.path.join(lai_dir, 'XXXX')
-            content = content.replace("out_dir: XXXX", f"out_dir: {lai_dir_placeholder}")
-
-            # Save the modified content back to the file
-            with open(new_imagery_config_path, "w") as file:
-                file.write(content)
-
-    preparation_config_path = rel_path("examples/setup_config_template.yaml")
-    shutil.copy(preparation_config_path, os.path.join(new_study_path, "setup_config.yaml"))
-
-    profile_template_path = rel_path("snakemake/profiles/hpc/config.yaml")
-    os.makedirs(os.path.join(new_study_path, "profile"))
-    shutil.copy(profile_template_path, os.path.join(new_study_path, "profile"))
-
-    print(
-        f"Template successfully created! Navigate to {new_study_path} and start adjusting your options."
-    )
+    print(f"Template successfully created! Navigate to {new_study_path} and start adjusting your options.")
 
     return new_study_path
 
-def create_lai_data(name, dir):
-    """Download imagery through the STAC pipeline and create LAI"""
-    lai_config_path = os.path.join(dir, name, "lai_config.yaml")
+
+def create_lai_data(study_name, studies_dir):
+    """Download imagery through the STAC pipeline and create daily LAI"""
+    lai_config_path = get_lai_config_path(studies_dir, study_name)
 
     with open(lai_config_path, "r") as f:
         lai_config = yaml.safe_load(f)
@@ -78,77 +83,111 @@ def create_lai_data(name, dir):
         print(f"Error: LAI Pipeline terminated with error: {e}")
 
 
-def download_chirps(study_dir, study_name, start_date, end_date, output_dir, num_workers):
+def download_chirps(
+    studies_dir: str,
+    study_name: str,
+    start_date: str,
+    end_date: str,
+    output_dir: str,
+    num_workers: int,
+):
+    """Download chirps precipitation data in a specified timerange.
+
+    Can be used with explicit start and end date to fill that range. Alternatively if a study name and dir are
+    provided, all required dates can be derived from the ['apsim_params']['time_bounds'] met dates.
+
+    Args:
+        studies_dir (str): path to the studies base directory
+        study_name (str): name of the study of interest. Must match the name it has in study_dir
+        start_date (ste): Date from when to fetch data in YYYY-MM-DD format.
+        end_date (str): Date until when to fetch data in YYYY-MM-DD format.
+        output_dir (str): Directory where to save chirps data. Typically a global directory.
+        num_workers (int): Number of cores for parallel processing to use.
+            Should be limited at 5 to avoid hitting the API to often.
+
+    Returns:
+        None
+    """
     if not start_date and end_date and output_dir:
         if start_date or end_date or output_dir:
-            raise ValueError('Must provide --chirps-start, --chirps-end and --chirps-dir, if providing any of these values.')
-    elif study_dir and study_name: 
-        config_file_path = os.path.join(study_dir, study_name, study_name, 'config.yaml')
-
-        with open(config_file_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        output_dir = config['apsim_params']['chirps_dir']
+            raise ValueError(
+                "Must provide --chirps-start, --chirps-end and --chirps-dir, if providing any of these values."
+            )
+    elif studies_dir and study_name:
+        config = get_run_config(studies_dir, study_name)
+        output_dir = config["apsim_params"]["chirps_dir"]
 
         # Derive min and max start and end date
         all_start_dates = []
         all_end_dates = []
 
-        for year in config['apsim_params']['time_bounds']:
-            for timepoint in config['apsim_params']['time_bounds'][year]:
-                timepoint_data = config['apsim_params']['time_bounds'][year][timepoint]
-                all_start_dates.append(timepoint_data['met_start_date'])
-                all_end_dates.append(timepoint_data['met_end_date'])
+        for year in config["apsim_params"]["time_bounds"]:
+            for timepoint in config["apsim_params"]["time_bounds"][year]:
+                timepoint_data = config["apsim_params"]["time_bounds"][year][timepoint]
+                all_start_dates.append(timepoint_data["met_start_date"])
+                all_end_dates.append(timepoint_data["met_end_date"])
 
         start_date = min(all_start_dates)
         end_date = max(all_end_dates)
     else:
-        raise ValueError('Must either provide --chirps-start, --chirps-end and --chirps-dir or --name and --dir.')
-    
+        raise ValueError("Must either provide --chirps-start, --chirps-end and --chirps-dir or --name and --dir.")
+
     run_chirps_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
 
 
-def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
-    """Runs the study with snakemake and the specified profile"""
+def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snakemake_args: List[str] = None):
+    """Runs the study pipeline with snakemake and the specified profile.
 
-    config_file_path = os.path.join(study_dir, study_name, study_name, 'config.yaml')
-    profile_dir = os.path.join(study_dir, study_name, "profile")
-    snakemake_run_dir = os.path.join(study_dir, study_name, 'snakemake')
-    status_file_path = os.path.join(snakemake_run_dir, 'status.txt')
-    snakefile_path = rel_path('snakemake/Snakefile')
-    workdir =  rel_path('snakemake')
-    log_file_path = os.path.join(snakemake_run_dir, 'log.txt')
+    The pipeline is launched in a subprocess and the output is saved to a logfile. The run status in written to a log file.
+    Before starting the config file is validated to catch most user errors.
 
+    Args:
+        studies_dir (str): Base path of all studies
+        study_name (str): Name of the study
+        validate_only (bool): If set to true, won't run the study but just validate the config.
+        extra_snakemake_args (list(str)): Additional arguments to pass to snakemake. See snakemake cli docs for arguments.
+
+    Returns:
+        None
+    """
+
+    config_file_path = get_run_config_file_path(studies_dir, study_name)
+    profile_dir = get_run_profile_path(studies_dir, study_name)
+    snakemake_run_dir = get_snakemake_rundir_path(studies_dir, study_name)
+    log_file_path = get_snakemake_runlog_path(studies_dir, study_name)
+    snakefile_path = rel_path("snakemake/Snakefile")
     os.makedirs(snakemake_run_dir, exist_ok=True)
 
-    with open(status_file_path, 'w') as status_file:
-        status_file.write("validating")
-
+    # Validate config - snaity checking for a bunch of user errors
+    update_study_status(studies_dir, study_name, "validating")
     validate_run_config(config_file_path)
 
     if validate_only:
         return
-   
+
     cmd = [
         "snakemake",
-        "--snakefile", snakefile_path,
-        "--configfile", config_file_path,
-        "--profile", profile_dir,
-        "--directory", snakemake_run_dir,
+        "--snakefile",
+        snakefile_path,
+        "--configfile",
+        config_file_path,
+        "--profile",
+        profile_dir,
+        "--directory",
+        snakemake_run_dir,
         "--printshellcmds",
-        "--rerun-incomplete"
+        "--rerun-incomplete",
     ]
 
-    # Add extra snakemake args if provided, allows to run custom options
+    # Add extra snakemake args if provided, allows to run custom snaekmake options
     if extra_snakemake_args:
-        print(f'Running snakemake with additional args: {extra_snakemake_args}.')
+        print(f"Running snakemake with additional args: {extra_snakemake_args}.")
         cmd.extend(extra_snakemake_args)
 
     try:
-        with open(status_file_path, 'w') as status_file:
-            status_file.write("running")
+        update_study_status(studies_dir, study_name, "running")
 
-        with open(log_file_path, 'w', buffering=1) as log_file:  # line-buffered
+        with open(log_file_path, "w", buffering=1) as log_file:  # line-buffered
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -156,62 +195,60 @@ def run_study(study_dir, study_name, validate_only, extra_snakemake_args=None):
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                preexec_fn=os.setsid
+                preexec_fn=os.setsid,
             )
 
             # Write process group ID to be able to call sigterm later
             pgid = os.getpgid(process.pid)
-            with open(os.path.join(snakemake_run_dir, 'snakemake_task_id.txt'), 'w') as f:
+            with open(os.path.join(snakemake_run_dir, "snakemake_task_id.txt"), "w") as f:
                 f.write(str(pgid))
 
             for line in process.stdout:
                 # print(line, end='') # Print to console
-                log_file.write(line) # Write to log file (includes ANSI codes)
+                log_file.write(line)  # Write to log file (includes ANSI codes)
 
             process.wait()
 
-            with open(status_file_path, 'w') as status_file:
-                if process.returncode == 0:
-                    print("Snakemake completed successfully!")
-                    status_file.write("completed")
-                else:
-                    print(f"\nSnakemake failed with exit code: {process.returncode}")
-                    status_file.write("failed")
-                    sys.exit(process.returncode)
+            if process.returncode == 0:
+                print("Snakemake completed successfully!")
+                update_study_status(studies_dir, study_name, "completed")
+            else:
+                print(f"\nSnakemake failed with exit code: {process.returncode}")
+                update_study_status(studies_dir, study_name, "failed")
+                sys.exit(process.returncode)
 
     except Exception as e:
         print(f"\nError running snakemake: {e}")
-        with open(status_file_path, 'w') as status_file:
-            status_file.write("failed\n")
+        update_study_status(studies_dir, study_name, "failed")
         if process:
             process.terminate()
         raise
-       
-
-def get_env_file_path():
-    return Path(BASE_DIR).parent / '.env'
-
-def is_env_set():
-    return get_env_file_path().exists()
-
-def read_studies_dir_from_env():
-    env_vars = dotenv_values(get_env_file_path())
-    return env_vars.get('STUDY_DIR', None)
-
-def read_lai_dir_from_env():
-    env_vars = dotenv_values(get_env_file_path())
-    return env_vars.get('LAI_BASE_DIR', None)
 
 
 @click.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument("mode", type=click.Choice(["init", "prep", "lai", "chirps", "run"]))
 @click.option("--name", required=False, help="Unique name for your yield study.")
-@click.option("--dir", required=False, help="Directory of your yieldstudy. Optional, if a env file is provided.")
+@click.option(
+    "--dir",
+    required=False,
+    help="Directory of your yieldstudy. Optional, if a env file is provided.",
+)
 @click.option("--chirps-dir", required=False, help="Directory to store CHIRPS data.")
 @click.option("--chirps-start", required=False, help="Daterange start for CHIRPS data. Format: YYYY-MM-DD.")
 @click.option("--chirps-end", required=False, help="Daterange end for CHIRPS data. Format: YYYY-MM-DD")
-@click.option("--chirps-cores", required=False, help="Optional: Number of cores to use for parallel chirps downloading. Should be max 5. Default 5.", default=5)
-@click.option("--validate", required=False, is_flag=True, default=False, help="Optional: Can be used with run. Add this flag, if you only want to validate your configuration, instead of running.")
+@click.option(
+    "--chirps-cores",
+    required=False,
+    help="Optional: Number of cores to use for parallel chirps downloading. Should be max 5. Default 5.",
+    default=5,
+)
+@click.option(
+    "--validate",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="Optional: Can be used with run. Add this flag, if you only want to validate your configuration, instead of running.",
+)
 @click.pass_context
 def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_cores, validate):
     """
@@ -236,35 +273,47 @@ def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_core
 
     extra_args = ctx.args
 
-    if extra_args and mode != 'run':
+    if extra_args and mode != "run":
         raise ValueError(f'Received unknown arguments "{extra_args}".')
 
-    # Load study dir from env if available and not set via cli
+    # Load study dir from env if available and not yet set via cli
     if is_env_set() and not dir:
         env_study_dir = read_studies_dir_from_env()
         if env_study_dir:
             dir = env_study_dir
 
     try:
-        if mode in ['init', 'prep', 'lai', 'run']:
+        if mode in ["init", "prep", "lai", "run"]:
             if not name or not dir:
                 raise ValueError(f'Must provide --name and --dir for "{mode}" mode')
 
         if mode == "init":
-            init_study(name=name, dir=dir)
+            init_study(study_name=name, studies_dir=dir)
         elif mode == "prep":
-            prepare_config_path = os.path.join(dir, name, "setup_config.yaml")
-            config, _ = load_yaml_ruamel(prepare_config_path)
-            output_dir = str(Path(prepare_config_path).parent / Path(prepare_config_path).parent.name)
-            lai_config_path = str(Path(prepare_config_path).parent / 'lai_config.yaml')
-            prepare_study(config, output_dir, lai_config_path)
+            prepare_study(
+                config=load_yaml_ruamel(get_setup_config_file_path(dir, name)),
+                output_dir=get_study_path(dir, name),
+                lai_config_path=get_lai_config_path(dir, name),
+            )
         elif mode == "lai":
-            create_lai_data(name=name, dir=dir)
+            create_lai_data(study_name=name, studies_dir=dir)
         elif mode == "chirps":
-            download_chirps(study_dir= dir, study_name=name, start_date=chirps_start, end_date=chirps_end, output_dir=chirps_dir, num_workers=chirps_cores)
+            download_chirps(
+                studies_dir=dir,
+                study_name=name,
+                start_date=chirps_start,
+                end_date=chirps_end,
+                output_dir=chirps_dir,
+                num_workers=chirps_cores,
+            )
         elif mode == "run":
-            print(extra_args)
-            run_study(study_dir= dir, study_name=name, validate_only=validate, extra_snakemake_args=extra_args)
+            print(f"Running with extra args: {extra_args}")
+            run_study(
+                studies_dir=dir,
+                study_name=name,
+                validate_only=validate,
+                extra_snakemake_args=extra_args,
+            )
         else:
             raise ValueError('Invalid mode. Mode must be "init", "prep", "lai", "chirps" or "run".')
     except Exception as e:

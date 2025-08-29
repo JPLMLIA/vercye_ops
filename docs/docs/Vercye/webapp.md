@@ -18,5 +18,5 @@ Celery: Runs Snakemake Pipelines for complete vercye runs. Celery workers fetch 
 
 Redis: Queing System for Pipeline executions - Limited to a single execution at a time.
 
-Flow: User request new pipeline execution -> Frontend uses JS to send a request with specific paramters to the FastAPI backend that is exposed on a UNIX Socket. 
+Flow: User request new pipeline execution -> Frontend uses JS to send a request with specific paramters to the FastAPI backend that is exposed on a UNIX Socket.
 FastAPI backend handles specific function and prepares a job that is queued via Redis. Once a Celery worker becomes available, be will fetch the job and process it, by starting and monitoring the snakemake pipeline.

@@ -1,8 +1,9 @@
 """Helper to take in a template apsimx file and update the .met file (containing weather information)"""
 
-import click
 import json
 from pathlib import Path
+
+import click
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -80,8 +81,8 @@ def get_nested_object_by_name(json_data, object_name):
 
 
 def update_object_property(json_data, object_property, target_value, verbose=False):
-    if not object_property in json_data:
-        raise ValueError(f'{object_property} not found in dictionary.')
+    if object_property not in json_data:
+        raise ValueError(f"{object_property} not found in dictionary.")
 
     json_data[object_property] = target_value
     if verbose:
@@ -90,33 +91,53 @@ def update_object_property(json_data, object_property, target_value, verbose=Fal
 
 def update_kv_list(search_list, key, value, verbose=False):
     for item in search_list:
-        if item.get('Key') == key:
-            item['Value'] = value
+        if item.get("Key") == key:
+            item["Value"] = value
             if verbose:
                 logger.info(f'Updated "{key}" to "{value}"')
             return
-    
+
     raise ValueError(f'No item with key "{key} found in {search_list}.')
 
-                
+
 @click.command()
-@click.option('--apsimx_template_fpath', type=click.Path(exists=True, dir_okay=False), required=True, help="Path to the .apsimx file which is a JSON.")
-@click.option('--apsimx_output_fpath', type=click.Path(writable=True, dir_okay=False), required=True, help="Location to save the modified .apsimx file.")
-@click.option('--new_met_fpath', type=click.Path(writable=True, dir_okay=False), required=True, help="Filepath to the new .met data.")
-@click.option('--sowing_date', type=click.DateTime(formats=["%Y-%m-%d"]), required=False, help="True sowing date. Will replace sowing window / sowing date factorial.")
-@click.option('--verbose', is_flag=True, help="Enable verbose output.")
+@click.option(
+    "--apsimx_template_fpath",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="Path to the .apsimx file which is a JSON.",
+)
+@click.option(
+    "--apsimx_output_fpath",
+    type=click.Path(writable=True, dir_okay=False),
+    required=True,
+    help="Location to save the modified .apsimx file.",
+)
+@click.option(
+    "--new_met_fpath",
+    type=click.Path(writable=True, dir_okay=False),
+    required=True,
+    help="Filepath to the new .met data.",
+)
+@click.option(
+    "--sowing_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    required=False,
+    help="True sowing date. Will replace sowing window / sowing date factorial.",
+)
+@click.option("--verbose", is_flag=True, help="Enable verbose output.")
 def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, verbose):
     """Update an .apsimx file with new fields and save the updated version."""
     if verbose:
-        logger.setLevel('INFO')
+        logger.setLevel("INFO")
 
     # Load APSIM file
     apsimx_template_fpath = Path(apsimx_template_fpath)
-    with open(apsimx_template_fpath, 'r') as file:
-        json_data = json.load(file)   
-    
+    with open(apsimx_template_fpath, "r") as file:
+        json_data = json.load(file)
+
     # Update metfile path
-    recursive_update(json_data, 'FileName', '.met', new_met_fpath, verbose)
+    recursive_update(json_data, "FileName", ".met", new_met_fpath, verbose)
 
     # Use real sowing date
     if sowing_date:
@@ -124,21 +145,25 @@ def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, 
         apsim_date_str = sowing_date.strftime("%-d-%b").lower()
 
         # Disable sowing date factorial
-        sowing_date_obj = get_nested_object_by_name(json_data, object_name='SowingDate')
-        update_object_property(sowing_date_obj, object_property='Enabled', target_value=False, verbose=verbose)
+        sowing_date_obj = get_nested_object_by_name(json_data, object_name="SowingDate")
+        if not sowing_date_obj:
+            logger.info("No sowing date factorial found - skipping.")
+        else:
+            update_object_property(sowing_date_obj, object_property="Enabled", target_value=False, verbose=verbose)
 
-        # Enforce fixed sowing date
-        sowing_rule_manager_obj = get_nested_object_by_name(json_data, object_name='SowingRule')
-        sowing_rule_manager_parameters = sowing_rule_manager_obj['Parameters']
-        update_kv_list(sowing_rule_manager_parameters, key='StartDate', value=apsim_date_str, verbose=verbose)
-        update_kv_list(sowing_rule_manager_parameters, key='EndDate', value=apsim_date_str, verbose=verbose)
-        update_kv_list(sowing_rule_manager_parameters, key='ForceSowing', value=apsim_date_str, verbose=verbose)
+        # Enforce fixed sowing date in SowingRule Model code parameters
+        sowing_rule_manager_obj = get_nested_object_by_name(json_data, object_name="SowingRule")
+        sowing_rule_manager_parameters = sowing_rule_manager_obj["Parameters"]
+        update_kv_list(sowing_rule_manager_parameters, key="StartDate", value=apsim_date_str, verbose=verbose)
+        update_kv_list(sowing_rule_manager_parameters, key="EndDate", value=apsim_date_str, verbose=verbose)
+        update_kv_list(sowing_rule_manager_parameters, key="ForceSowing", value=apsim_date_str, verbose=verbose)
 
     # Save out updated .apsimx json to disk
-    with open(apsimx_output_fpath, 'w') as file:
+    with open(apsimx_output_fpath, "w") as file:
         json.dump(json_data, file, indent=2)
 
     logger.info("Updated file saved to %s", apsimx_output_fpath)
+
 
 if __name__ == "__main__":
     cli()

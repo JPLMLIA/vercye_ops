@@ -1,6 +1,6 @@
 # Configuration Template for VeRCYe Yield Studies with Snakemake
 # USAGE: Ensure you replace all field marked XXXX with actual values
-# Adapt all other fields to your liking, however, it might often make 
+# Adapt all other fields to your liking, however, it might often make
 # sense to use the presets.
 
 ########################################
@@ -35,6 +35,7 @@ description: 'XXXX'
 
 # LAI source description. Not used for processing, but useful to keep all metadata contained
 # Example lai_source: 'ukraine_adm1.shp'
+# No need to fill in if using the Webapp
 lai_source: 'XXXX'
 
 # Simulation Regions shapefile name. Not used for processing, but useful to keep all metadata contained
@@ -47,16 +48,16 @@ regions_shp_name: 'XXXX'
 keep_apsim_db_files: False
 
 # Disactivate the per region html reporting if you want to reduce storage for predictions on many regions
-# The per region html reports are currently the largest output artefacts. 
+# The per region html reports are currently the largest output artefacts.
 # Creates an interactive overview of all simulations and their matching
 create_per_region_html_report: False
 
-# Specify one or more simulations
+# Specify one or more simulation regions
 regions:
   - 'XXXX' # E.g 'chornukhynski'
   - 'XXXX' # E.g 'novodeskyi' ...
 
-# Years for which to run the study. Typically the year in which the season ends.
+# Years for which to run the study. Per convention in naming use the year in which the season ends.
 years:  # For any years, be sure to set APSIM/LAI params below
   - XXXX # E.g 2020
   - XXXX # E.g 2021
@@ -71,6 +72,8 @@ timepoints:  # Days relative to harvest. The true time bounds needs to be define
 ########################################
 
 apsim_params:
+
+  # Parameters controlling meteoroligical data source
   met_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'ERA5']
   met_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for ERA5.
   precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS' | 'ERA5']
@@ -80,9 +83,9 @@ apsim_params:
   nasapower_cache_dir : 'XXXX' # Path to your directory to cache NASA POWER data. Avoids heavy rate limiting from NP. Should be global, outside of the basefolder, as this is shared with all studies. No need to change if created through the webapp
   era5_cache_dir: 'XXXX' # Path to your directory to cache ERA5 data. Avoids fetching data from GEE multuple times. Should be global, outside of the basefolder, as this is shared with all studies. No need to change if created through the webapp
   ee_project: 'XXXX' # Earth Engine project name. Only required to be set if met_source is 'ERA5' as this data is fetched from Google Earth Engine.
-  align_np_grid: True # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation. Should be activated when running at field scale to avoid querying the same met data pixel multiple times.
-  use_nrt_forecast: True #  Use ECMWF near real time (14days) forecast. If there are missing dates in the met_start-met_end will try to fill as many forecast days as possible up until met_end. Otherwise will add forecast from end_date.
+  align_np_grid: False # Only when using NasaPower: Snap coordinates for which to query NasaPower met data to the NasaPower grid (0.5x0.625 deg resolution). Might lead to slight differences in radiation. Should be activated when running at field scale to avoid querying the same met data pixel multiple times.
 
+  # Parameter used for injecting true sowing dates instead of generating simulations for plausible dates from sowing windows.
   sowing_date_col: 'XXXX' # Optional: If the shapefile/geojsons have a column containing the sowing date as YYYY-MM-DD, use this in the simulation. Set to null or '' if not using
 
   # Specify the time bounds for each year and timepoint from above. So in total years x timepoints entries.
@@ -117,7 +120,7 @@ apsim_execution:
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
-  local: 
+  local:
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models' # Path to your local APSIM executble
     n_jobs: 8  # Number of threads to spawn. -1 is default in APSIM. Might need experimentation to find the best value for your system.
 
@@ -126,12 +129,16 @@ apsim_execution:
 ########################################
 
 lai_params:
-  lai_aggregation: 'median' # How to aggregate pixels from a region. Options: ['median' | 'mean']. Reccommended: median.
+  crop_name: 'XXXX'  # Used for Crop Adjustment and Reporting. Options: ['wheat' | 'maize']
+
+  # ATTENTION: If using the webapp, leave the next 3 fields empty, as they will be overwritten by the LAI selector
   lai_dir: 'XXXX' # Path to your LAI data. If using STAC downloader the generated subdirectory with merged-lai.
   lai_region: 'XXXX' # Prefix of the LAI data files
   lai_resolution: XXXX # Spatial resolution in meters/pixel E.g 20 or 10. Must match the specification of the LAI data
-  smoothed: False # Whether to apply savgol smoothing to the RS LAI timeseries. Reduces outliers e.g from clouded days.
-  crop_name: 'XXXX'  # Used for Crop Adjustment and Reporting. Options: ['wheat' | 'maize']
+
+  # Parameters controlling LAI aggregation within a polygon
+  lai_aggregation: 'median' # How to aggregate pixels from a region. Options: ['median' | 'mean']. Reccommended: median.
+  smoothed: True # Whether to apply savgol smoothing to the RS LAI timeseries. Reduces outliers e.g from clouded days.
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster' # Don't change this unless you know what you are doing. Options: ['raster' | 'vector']. Typically keep raster.
   file_ext: 'vrt' # File extension of the LAI data. Options: ['tif' | 'vrt']. Use 'vrt' if using STAC based LAI data or if having merged GEE based lai data. Else use 'tif'.
@@ -146,10 +153,13 @@ lai_params:
       XXXX1: ['XXXX', 'XXXX'] # E.g T-0: ['2021-08-20', '2022-07-27']
       XXXX2: ['XXXX', 'XXXX'] # E.g T-30: ['2021-08-20', '2022-06-28']
 
-  crop_mask: # Binary Cropmasks for very year
+
+  crop_mask: # Paths to Binary Cropmasks for every year. Must be Binary Pixel (0 for non crop, 1 for crop of interest).
+    # E.g 2020: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops.mycropmask_wheat_2020.tif'
+    # ATTENTION: If using the Webapp, the crop_mask parameters defined here, will be overwritten by the selected cropmasks in the UI!
     XXXX1: 'XXXX' # E.g 2020: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops.mycropmask_wheat_2020.tif'
     XXXX2: 'XXXX' # E.g 2021: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops.mycropmask_wheat_2021.tif'
-   
+
   do_cropmask_reprojection: True # Typically keep this true to reproject the cropmask to match your LAI's resolution and CRS.
 
 ########################################
@@ -168,15 +178,15 @@ eval_params:
 
   # Specify additional level on which to aggregate the yield estimates for evaluation
   # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
-  # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
+  # The key must match the agg level names specified in the setup config, and the value must be the column name of the admin levels to aggregate
   # If you do not want additional aggregation level, set aggregation_levels: {}
   # Ensure the name (key), matches those of the reference data set in the setup_config.yaml!
   # ATTENTION: The name or column must NOT contain colons!!
   aggregation_levels:
     XXXX1: 'XXXX' # E.g: National: 'NAME_0'
     XXXX2: 'XXXX' # E.g: Oblast: 'NAME_1'
-  
-  
+
+
 ########################################
 # Local paths to the python/APSIM scripts
 ########################################
@@ -219,5 +229,3 @@ scripts:
 ########################################
 # Other (Typically dont change)
 ########################################
-
-
