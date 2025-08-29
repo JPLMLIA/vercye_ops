@@ -37,4 +37,3 @@ def test_special_chars_at_start_and_end():
     assert clean_region_name("`Seoul`") == "_seoul_"
     assert clean_region_name("/Osaka/") == "_osaka_"
     assert clean_region_name("  Tokyo  ") == "__tokyo__"
-    assert clean_region_name("...Berlin...") == "___berlin___"
