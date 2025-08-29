@@ -1,4 +1,4 @@
-from vercye_ops.apsim.convert_shapefile_to_geojson import clean_region_name
+from vercye_ops.utils.convert_shapefile_to_geojson import clean_region_name
 
 # Adding some simple tests to run the testing CI
 
