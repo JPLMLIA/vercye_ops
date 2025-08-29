@@ -1,8 +1,7 @@
-import pytest
-
 from vercye_ops.apsim.convert_shapefile_to_geojson import clean_region_name
 
 # Adding some simple tests to run the testing CI
+
 
 def test_symbols_and_punctuation():
     assert clean_region_name("Area 51 / Nevada") == "area_51___nevada"
