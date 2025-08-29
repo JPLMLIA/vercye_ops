@@ -28,9 +28,9 @@ def process_geotiff(tif_path, csv_path, output_tif_fpath):
     logger.info(f"Reading conversion factor from {csv_path}")
     df = pd.read_csv(csv_path)
 
-    if 'conversion_factor' not in df.columns:
+    if "conversion_factor" not in df.columns:
         raise KeyError("CSV file must contain a 'conversion_factor' column.")
-    conversion_factor = df['conversion_factor'].iloc[0]
+    conversion_factor = df["conversion_factor"].iloc[0]
     logger.info(f"Conversion factor: {conversion_factor}")
 
     # Open the input geotiff
@@ -38,9 +38,9 @@ def process_geotiff(tif_path, csv_path, output_tif_fpath):
     with rasterio.open(tif_path) as src:
         profile = src.profile.copy()  # Make a copy of the profile
         if src.count != 1:
-            raise ValueError('Expecting a single band in the converted LAI file.')
+            raise ValueError("Expecting a single band in the converted LAI file.")
         data = src.read(1)
-        
+
         # Check for negative values. All LAI vals should be nonnegative
         if np.any(data < 0):
             data = np.clip(data, 0, None)  # Clip lower bound to 0
@@ -52,18 +52,37 @@ def process_geotiff(tif_path, csv_path, output_tif_fpath):
 
     # Save the output geotiff
     logger.info(f"Saving the converted LAI map to {output_tif_fpath}")
-    profile.update({"count": 1,  # Set number of bands to 1 (there was one for unadjusted and one for adjusted)
-                    "compress": "lzw"})  # Add compression to reduce file size
-    
-    with rasterio.open(output_tif_fpath, 'w', **profile) as dst:
+    profile.update(
+        {
+            "count": 1,  # Set number of bands to 1 (there was one for unadjusted and one for adjusted)
+            "compress": "lzw",
+        }
+    )  # Add compression to reduce file size
+
+    with rasterio.open(output_tif_fpath, "w", **profile) as dst:
         dst.write(data_converted, 1)
 
 
 @click.command()
-@click.option('--tif_fpath', required=True, type=click.Path(exists=True), help='Filepath to the input geotiff file.')
-@click.option('--csv_fpath', required=True, type=click.Path(exists=True), help='Filepath to the CSV file containing the conversion factor.')
-@click.option('--output_tif_fpath', required=True, type=click.Path(), help='Filepath where the output geotiff will be saved.')
-@click.option('--verbose', is_flag=True, help='Enable verbose logging.')
+@click.option(
+    "--tif_fpath",
+    required=True,
+    type=click.Path(exists=True),
+    help="Filepath to the input geotiff file.",
+)
+@click.option(
+    "--csv_fpath",
+    required=True,
+    type=click.Path(exists=True),
+    help="Filepath to the CSV file containing the conversion factor.",
+)
+@click.option(
+    "--output_tif_fpath",
+    required=True,
+    type=click.Path(),
+    help="Filepath where the output geotiff will be saved.",
+)
+@click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 def cli(tif_fpath, csv_fpath, output_tif_fpath, verbose):
     """CLI for processing a geotiff image with a conversion factor."""
 
@@ -74,5 +93,5 @@ def cli(tif_fpath, csv_fpath, output_tif_fpath, verbose):
     process_geotiff(tif_fpath, csv_fpath, output_tif_fpath)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

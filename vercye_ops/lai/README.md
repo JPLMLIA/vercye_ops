@@ -17,7 +17,7 @@ The pipeline steps are as follows, and the scripts are named accordingly:
 
 There are some auxiliary scripts marked with `0` that are provided for reference:
 - Reprojecting a cropmask to the LAI CRS, resolution, and extent
-- Exporting the S2 LAI model by Fernandes et al. from CSV to pytorch 
+- Exporting the S2 LAI model by Fernandes et al. from CSV to pytorch
 - Building the regional geojson library
 
 ## Python Package Dependencies
@@ -32,7 +32,7 @@ There are some auxiliary scripts marked with `0` that are provided for reference
 > [!TIP]
 > Step 1 only needs to be run once per-region per-date.
 
-> [!WARNING]  
+> [!WARNING]
 > This step requires a Google Earth Engine project with a linked Google Cloud Project.
 
 This step uses Google Earth Engine to export the Sentinel 2 rasters of a given region to Google Drive. Only the following bands required to predict LAI are exported: `['cosVZA', 'cosSZA', 'cosRAA', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']`
@@ -96,8 +96,8 @@ Usage: 1_2_gdrive_dl_S2.py [OPTIONS]
 
   Download files from a Google Drive Folder
 
-  Parameters 
-  ---------- 
+  Parameters
+  ----------
   secret_json: str
     Filepath to secrets JSON
     downloaded from setting up GDrive Python API
@@ -131,7 +131,7 @@ This will use the `client_secret.json` downloaded from following the steps in th
 
 ## 1.3 Standardization of S2 Rasters
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > If you skipped **1.2** and downloaded the rasters via the website, all rasters must be unzipped and placed into a single directory.
 
 > [!WARNING]
@@ -183,7 +183,7 @@ This will look for all rasters that match `Poltava_20m_*.tif` in `/path/to/downl
 > [!TIP]
 > Step 2 only needs to be run once per-region per-date.
 
-> [!NOTE]  
+> [!NOTE]
 > This script assumes that it is being run on a CPU HPC node with lots of RAM. Running this on GPU will be faster, but may face VRAM limitations.
 > It is unlikely that this script will work at region-level on a laptop due to the RAM requirements.
 > A compute-memory tradeoff is possible, and a version of this script that takes longer to run while using less memory is planned.
@@ -284,7 +284,7 @@ The output products are as follows:
 
 ```
 $ python 3_analysis_LAI.py --help
-Usage: 3_analysis_LAI.py [OPTIONS] LAI_DIR OUTDIR REGION GEOMETRY_PATH                                                                                                    LAI Analysis function                                                              
+Usage: 3_analysis_LAI.py [OPTIONS] LAI_DIR OUTDIR REGION GEOMETRY_PATH                                                                                                    LAI Analysis function
   LAI_dir: Local path to the directory containing regional primary LAI rasters
 
   outdir: Local path to the output directory where analysis products will be
@@ -456,7 +456,7 @@ Options:
   --help          Show this message and exit.
   --lai_dir       Base directory containing LAI files. If used, lai_region must be provided
   --lai_region    Name of the region, used to match LAI file names. Must be used with lai_dir
-  --lai_path      Path to a specific reference LAI file. Mutually exclusive with lai_dir/region 
+  --lai_path      Path to a specific reference LAI file. Mutually exclusive with lai_dir/region
 ```
 
 **Example:**

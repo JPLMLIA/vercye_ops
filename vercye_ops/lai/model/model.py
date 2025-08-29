@@ -1,11 +1,14 @@
 import os
-import torch.nn as nn
+
 import torch
+import torch.nn as nn
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 def rel_path(*path_parts):
     return os.path.join(BASE_DIR, *path_parts)
+
 
 # Specification of required input bands/channels and actual weights
 # All input bands are expected to be in the same format as S2_SR_Harmonized in GEE
@@ -35,6 +38,7 @@ default_model_weights = {
     }
 }
 
+
 def load_model_from_weights(model_weights, in_channels):
     num_in_ch = len(in_channels)
     print(f"Loading model weights from {model_weights} with {num_in_ch} input channels")
@@ -42,7 +46,8 @@ def load_model_from_weights(model_weights, in_channels):
     model.load_state_dict(torch.load(model_weights))
     return model
 
-def load_model(sateillite:str, resolution: int):
+
+def load_model(sateillite: str, resolution: int):
     sateillite = "S2"  # Currently only S2 is supported
     model_resolution = resolution
     if resolution not in default_model_weights[sateillite]:

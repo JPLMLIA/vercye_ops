@@ -1,6 +1,6 @@
 # VeRCYe LAI Generation
 
-VeRCYE is designed to identify best matching APSIM simulations with actual remotely sensed Leaf Area Index (LAI) data. This documentation covers the LAI data generation pipeline, which is a separate but essential component of the VeRCYE workflow. The LAI is not a true remotely sensed value, but is rather estimated from a 
+VeRCYE is designed to identify best matching APSIM simulations with actual remotely sensed Leaf Area Index (LAI) data. This documentation covers the LAI data generation pipeline, which is a separate but essential component of the VeRCYE workflow. The LAI is not a true remotely sensed value, but is rather estimated from a
 combination of bands using neural networks that were converted to Pytorch from the [Leaf Toolbox](https://github.com/rfernand387/LEAF-Toolbox).
 
 The LAI creation pipeline described in this documentation transforms Sentinel-2 satellite imagery into LAI estimates that can be used by the VeRCYE algorithm. Currently only Sentinel-2 data is supported, but a version using Harmonized Landsat-Sentinel Imagery is planned.
@@ -37,7 +37,7 @@ Google Drive or a Google Cloud Storage Bucket, from which it can be downloaded t
 - Exported data is exported to either Google Drive (Free) or Google Cloud Storage (Fees apply), and downloaded from there, but requires more manual setup which might be tedious especially on remote systems.
 
 ### B: STAC & AWS Export
-This approach queries a STAC catalog to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS bucket. 
+This approach queries a STAC catalog to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS bucket.
 
 You can choose between selecting data hosted by Element84 on AWS (`Sentinel-2 L2A Colection 1` ), in which all historial data was processed using `Processing Baseline 5.0`, however this collection is currently missing large timespans (e.g 2022,2023). Alternativeley, you can use the Microsoft Planetary Computer (`Sentinel-2 L2A`).
 
@@ -62,5 +62,3 @@ If you already have LAI data or are planning to generate it with a different pip
 - The `file extension` can be either `.vrt` or `.tif`
 
 Additionally, you will have to ensure all your LAI files have exactly the same resolution and CRS and match the scale and offset as used in our inbuilt imagery.
-
-

@@ -2,6 +2,7 @@ import concurrent
 import os
 import os.path as op
 import time
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from glob import glob
 from pathlib import Path
@@ -11,14 +12,11 @@ import numpy as np
 import rasterio as rio
 import torch
 
-import xml.etree.ElementTree as ET
-
 from vercye_ops.lai.model.model import load_model
+from vercye_ops.utils.init_logger import get_logger
 
-
-import logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger()
+logger.setLevel("INFO")
 
 
 def is_within_date_range(vf, start_date, end_date):
@@ -54,9 +52,7 @@ def delete_vrt_and_linked_tifs(vrt_path):
             logger.info(f"Not found: {f}")
 
 
-def worker_process_files(
-    worker_id, file_batch, lai_dir, remove_original, sateillite, resolution
-):
+def worker_process_files(worker_id, file_batch, lai_dir, remove_original, sateillite, resolution):
     """Worker function that processes a batch of files with a single model instance"""
     logger.info(f"Worker {worker_id} starting, processing {len(file_batch)} files")
 
@@ -99,6 +95,11 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         else:
             logger.info(f"Processing {Path(vrt_path).name}")
 
+        # Set NODATA to nan
+        nodata_val = s2_ds.nodata
+        mask = s2_array == nodata_val
+        s2_array = np.where(mask, np.nan, s2_array)
+
         # Built-in scaling
         s2_array = s2_array * 0.0001
 
@@ -112,25 +113,29 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
         logger.info(f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds")
 
-        # Set NODATA to nan
-        nodata_val = s2_ds.nodata
-        LAI_estimate[s2_array[-1] == nodata_val] = np.nan
-
     # Write the LAI data
     filename = op.join(lai_dir, Path(vrt_path).stem + "_LAI_tile.tif")
 
     if os.path.exists(filename):
         os.remove(filename)
 
-    profile.update(count=1, dtype="float32", compress="lzw", nodata=np.nan, driver="GTiff", blockxsize=256, blockysize=256)
+    profile.update(
+        count=1,
+        dtype="float32",
+        compress="lzw",
+        nodata=np.nan,
+        driver="GTiff",
+        blockxsize=256,
+        blockysize=256,
+    )
     with rio.open(filename, "w", **profile) as dst:
         dst.write(LAI_estimate, 1)
         # Set band description to estimateLAI
         dst.set_band_description(1, "estimateLAI")
 
     if remove_original:
-       # Accumulate all files linked to the VRT
-       delete_vrt_and_linked_tifs(vrt_path)
+        # Accumulate all files linked to the VRT
+        delete_vrt_and_linked_tifs(vrt_path)
 
     return filename
 
@@ -165,18 +170,17 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     help="Remove original VRT files AND linked tifs after processing",
     default=False,
 )
-
 def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_original):
     """
     Main function to process Sentinel-2 VRT files and generate LAI estimates.
-    
+
     """
 
-    start = time.time()
+    start_time = time.time()
     logger.info(f"Using {num_cores} parallel workers")
 
     # Currently only supporting Sentinel-2 yet
-    sateillite = 'S2'
+    sateillite = "S2"
 
     # Get all the VRT files
     vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
@@ -189,8 +193,8 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_or
     # Divide files into batches for each worker
     file_batches = []
     n = len(vrt_files)
-    base_size  = n // num_cores
-    remainder  = n % num_cores
+    base_size = n // num_cores
+    remainder = n % num_cores
 
     start = 0
     for i in range(num_cores):
@@ -213,7 +217,7 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_or
                     lai_dir,
                     remove_original,
                     sateillite,
-                    resolution
+                    resolution,
                 )
             )
 
@@ -227,13 +231,12 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_or
                     all_results.append(result)
             except Exception as e:
                 logger.info(f"Error in worker {i}: {e}")
+                raise e
 
-    output_files = [
-        file for batch_result in all_results for file in batch_result if file is not None
-    ]
+    output_files = [file for batch_result in all_results for file in batch_result if file is not None]
 
     logger.info(f"Processed {len(output_files)} files successfully")
-    logger.info(f"Finished in {time.time()-start:.2f} seconds")
+    logger.info(f"Finished in {time.time()-start_time:.2f} seconds")
 
 
 if __name__ == "__main__":

@@ -38,9 +38,7 @@ def main(region, in_dir, vrt_dir, resolution):
     # poltava_2022-04-16.tif
 
     # date parsing magic
-    dates = sorted(
-        list(set(["-".join(Path(f).stem.split("_")[-1].split("-")[:3]) for f in downloaded_files]))
-    )
+    dates = sorted(list(set(["-".join(Path(f).stem.split("_")[-1].split("-")[:3]) for f in downloaded_files])))
     for d in dates:
         print(d)
     print(f"Found {len(dates)} unique dates")

@@ -1,19 +1,19 @@
 import os
 from glob import glob
+
 import click
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 import plotly.io as pio
-from vercye_ops.evaluation.evaluate_yield_estimates import (
-    compute_metrics, create_scatter_plot, get_preds_obs, load_csv
-)
+
+from vercye_ops.evaluation.evaluate_yield_estimates import compute_metrics, create_scatter_plot, get_preds_obs, load_csv
 from vercye_ops.reporting.generate_lai_plot import load_lai_files, parse_lai_file
 
 # Use Plotly's qualitative palette
 color_palette = px.colors.qualitative.Plotly
-mean_palette  = px.colors.qualitative.Set1
+mean_palette = px.colors.qualitative.Set1
 
 # HTML template with Bootstrap for a modern, responsive layout
 HTML_TEMPLATE = """
@@ -52,83 +52,80 @@ def get_available_years(input_dir):
 
 
 def get_available_timepoints(reference_year_dir):
-    return sorted(
-        d for d in os.listdir(reference_year_dir)
-        if os.path.isdir(os.path.join(reference_year_dir, d))
-    )
+    return sorted(d for d in os.listdir(reference_year_dir) if os.path.isdir(os.path.join(reference_year_dir, d)))
 
 
 def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     combined = []
+    true_years = []
     for year in years:
         for fp in load_lai_files(os.path.join(input_dir, year, timepoint)):
             df, region, _ = parse_lai_file(fp, lai_agg_type, adjusted)
             # Parse and keep original Date
-            df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y')
+            df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y")
             # Day-of-year for grouping
-            df['DayOfYear'] = df['Date'].dt.dayofyear
+            df["DayOfYear"] = df["Date"].dt.dayofyear
             # Map to a base year for plotting (e.g., 2000) to align traces by month/day
-            df['PlotDate'] = df['Date'].apply(lambda d: d.replace(year=2000))
-            df['Year'] = int(year)
-            df['Region'] = region
+            df["PlotDate"] = df["Date"].apply(lambda d: d.replace(year=2000))
+            # df['Year'] = int(year)
+            df["Year"] = df["Date"].dt.year
+            df["Region"] = region
+            true_years.extend(df["Date"].dt.year.unique())
             combined.append(df)
 
     if not combined:
         return None
 
     full_df = pd.concat(combined, ignore_index=True)
-    col = 'LAI ' + ('Mean' if lai_agg_type == 'mean' else 'Median')
+    col = "LAI " + ("Mean" if lai_agg_type == "mean" else "Median")
     if adjusted:
-        col += ' Adjusted'
+        col += " Adjusted"
 
     fig = go.Figure()
-    year_traces = {y: [] for y in years}
+    year_traces = {y: [] for y in true_years}
 
     # Individual traces
-    for (region, year), grp in full_df.groupby(['Region', 'Year']):
+    for (region, year), grp in full_df.groupby(["Region", "Year"]):
         idx = len(fig.data)
         fig.add_trace(
             go.Scatter(
-                x=grp['PlotDate'],
+                x=grp["PlotDate"],
                 y=grp[col],
-                mode='lines',
+                mode="lines",
                 name=f"{region} {year}",
                 legendgroup=str(year),
                 line=dict(width=2, color=color_palette[int(year) % len(color_palette)]),
                 opacity=0.3,
                 visible=False,
-                customdata=grp['Date'],  # for hover
-                hovertemplate='Date: %{customdata|%d/%m/%Y}<br>LAI: %{y:.2f}<extra></extra>'
+                showlegend=False,
+                customdata=grp["Date"],  # for hover
+                hovertemplate="Date: %{customdata|%d/%m/%Y}<br>LAI: %{y:.2f}<extra></extra>",
             )
         )
-        year_traces[str(year)].append(idx)
+        year_traces[year].append(idx)
 
     # Mean trace per year
-    for i, year in enumerate(years):
-        df_y = full_df[full_df['Year'] == int(year)]
+    for i, year in enumerate(true_years):
+        df_y = full_df[full_df["Year"] == int(year)]
         if df_y.empty:
             continue
         # group by DayOfYear and compute mean of LAI
-        m = (
-            df_y.groupby('DayOfYear')[col]
-            .mean()
-            .reset_index()
-        )
+        m = df_y.groupby("DayOfYear")[col].mean().reset_index()
         # map back to plotting dates in base year
-        m['PlotDate'] = m['DayOfYear'].apply(
-            lambda doy: pd.Timestamp(year=2000, month=1, day=1) + pd.Timedelta(days=doy-1)
+        m["PlotDate"] = m["DayOfYear"].apply(
+            lambda doy: pd.Timestamp(year=2000, month=1, day=1) + pd.Timedelta(days=doy - 1)
         )
         fig.add_trace(
             go.Scatter(
-                x=m['PlotDate'],
+                x=m["PlotDate"],
                 y=m[col],
-                mode='lines',
+                mode="lines",
                 name=f"{year} Mean",
                 legendgroup=str(year),
                 line=dict(width=4, color=mean_palette[i % len(mean_palette)]),
                 opacity=1,
                 visible=True,
-                hovertemplate='Date: %{x|%d/%m}<br>Mean LAI: %{y:.2f}<extra></extra>'
+                hovertemplate="Date: %{x|%d/%m}<br>Mean LAI: %{y:.2f}<extra></extra>",
             )
         )
 
@@ -139,50 +136,46 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
             continue
         buttons.append(
             dict(
-                label=year,
-                method='update',
+                label=str(year),
+                method="update",
                 args=[
-                    {'visible': [i in idxs for i in range(len(fig.data))]},
-                    {'title': f"{col} by Day-of-Year"}
-                ]
+                    {"visible": [i in idxs for i in range(len(fig.data))]},
+                    {"title": f"{col} by Day-of-Year"},
+                ],
             )
         )
 
     # X-axis month ticks
-    month_starts = pd.date_range(start='2000-01-01', end='2000-12-31', freq='MS')
+    month_starts = pd.date_range(start="2000-01-01", end="2000-12-31", freq="MS")
     tick_vals = month_starts
-    tick_text = month_starts.strftime('%b')
+    tick_text = month_starts.strftime("%b")
 
     fig.update_layout(
         title=dict(text=f"{col} by Day-of-Year", x=0.5),
-        xaxis=dict(
-            title='Month',
-            tickmode='array',
-            tickvals=tick_vals,
-            ticktext=tick_text,
-            type='date'
-        ),
+        xaxis=dict(title="Month", tickmode="array", tickvals=tick_vals, ticktext=tick_text, type="date"),
         yaxis=dict(title=f'LAI {"Adjusted" if adjusted else "Non-Adjusted"}'),
-        template='plotly_white',
+        template="plotly_white",
         margin=dict(l=40, r=40, t=80, b=40),
         height=600,
-        font=dict(family='Arial, sans-serif', size=12),
+        font=dict(family="Arial, sans-serif", size=12),
         updatemenus=[
             dict(
-                type='buttons',
-                direction='left',
+                type="buttons",
+                direction="left",
                 buttons=buttons,
-                x=1.1, y=1.1,
+                x=1.1,
+                y=1.1,
                 showactive=False,
-                bgcolor='white',
-                bordercolor='LightSkyBlue',
+                bgcolor="white",
+                bordercolor="LightSkyBlue",
                 borderwidth=1,
-                font=dict(size=12)
+                font=dict(size=12),
             )
-        ]
+        ],
     )
 
     return fig
+
 
 def load_obs_preds(input_dir, timepoint, years, agg_levels):
     results = {}
@@ -195,7 +188,7 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
 
         for year in years:
             base = os.path.join(input_dir, year, timepoint)
-            est = glob(os.path.join(base, f'agg_yield_estimates_{lvl}*.csv'))
+            est = glob(os.path.join(base, f"agg_yield_estimates_{lvl}*.csv"))
 
             if not est:
                 continue
@@ -204,58 +197,69 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
                 raise ValueError(f"Multiple yield estimate files found for {year} at level {lvl}: {est}")
 
             preds_df = load_csv(est[0])
-            all_preds.extend(preds_df['mean_yield_kg_ha'])
-            all_preds_years.extend([year]*len(preds_df))
-            
-            val = glob(os.path.join(input_dir, year, f'referencedata__{lvl}*.csv'))
+            all_preds.extend(preds_df["mean_yield_kg_ha"])
+            all_preds_years.extend([year] * len(preds_df))
+
+            val = glob(os.path.join(input_dir, year, f"referencedata_{lvl}*.csv"))
             if val:
                 data = get_preds_obs(est[0], val[0])
-                all_obs.extend(data['obs'])
-                preds_for_obs.extend(data['preds'])
-                all_obs_years.extend([year]*len(data['obs']))
-    
+                all_obs.extend(data["obs"])
+                preds_for_obs.extend(data["preds"])
+                all_obs_years.extend([year] * len(data["obs"]))
+
         results[lvl] = {
-            'only_preds': (all_preds, all_preds_years),
-            'obs_preds': (all_obs, preds_for_obs, all_obs_years)
+            "only_preds": (all_preds, all_preds_years),
+            "obs_preds": (all_obs, preds_for_obs, all_obs_years),
         }
     return results
 
 
 def create_predictions_plot(preds, years):
-    df = pd.DataFrame({'Predictions': preds, 'Year': years})
+    df = pd.DataFrame({"Predictions": preds, "Year": years})
     fig = go.Figure()
-    for yr, grp in df.groupby('Year'):
+    for yr, grp in df.groupby("Year"):
         fig.add_trace(
             go.Violin(
-                x=[yr]*len(grp), y=grp['Predictions'], name=yr,
-                box_visible=True, meanline_visible=True
+                x=[yr] * len(grp),
+                y=grp["Predictions"],
+                name=yr,
+                box_visible=True,
+                meanline_visible=True,
             )
         )
     fig.update_layout(
-        title=dict(text='Yield Predictions Distribution by Year from all simulation regions.', x=0.5),
-        template='plotly_white', xaxis_title='Year', yaxis_title='Yield (kg/ha)',
-        margin=dict(l=40, r=40, t=60, b=40), height=500,
-        font=dict(family='Arial, sans-serif', size=12)
+        title=dict(text="Yield Predictions Distribution by Year from all simulation regions.", x=0.5),
+        template="plotly_white",
+        xaxis_title="Year",
+        yaxis_title="Yield (kg/ha)",
+        margin=dict(l=40, r=40, t=60, b=40),
+        height=500,
+        font=dict(family="Arial, sans-serif", size=12),
     )
     return fig
 
 
 def identify_agg_levels(input_dir, years):
-    lvls = set(['primary'])
+    lvls = set(["primary"])
     for y in years:
-        files = glob(os.path.join(input_dir, y, '*', 'agg_yield_estimates_*.csv'))
+        files = glob(os.path.join(input_dir, y, "*", "agg_yield_estimates_*.csv"))
         for f in files:
-            lvl = os.path.basename(f).split('_')[3]
+            lvl = os.path.basename(f).split("_")[3]
             lvls.add(lvl)
     return sorted(lvls)
 
 
 @click.command()
-@click.option('--input-dir', type=click.Path(exists=True), required=True)
-@click.option('--lai-agg-type', type=click.Choice(['mean', 'median']), default='mean')
-@click.option('--adjusted', is_flag=True)
-@click.option('--title', type=str, default='Multiyear Interactive Summary', help='Title for the HTML report. Enclose in quotes if it contains spaces.')
-@click.option('--output-file', type=click.Path(), required=True)
+@click.option("--input-dir", type=click.Path(exists=True), required=True)
+@click.option("--lai-agg-type", type=click.Choice(["mean", "median"]), default="mean")
+@click.option("--adjusted", is_flag=True)
+@click.option(
+    "--title",
+    type=str,
+    default="Multiyear Interactive Summary",
+    help="Title for the HTML report. Enclose in quotes if it contains spaces.",
+)
+@click.option("--output-file", type=click.Path(), required=True)
 def main(input_dir, lai_agg_type, adjusted, title, output_file):
     years = get_available_years(input_dir)
     reference = os.path.join(input_dir, years[0])
@@ -267,7 +271,7 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
         # LAI Plot
         lai_fig = plot_lai_figure(input_dir, tp, years, lai_agg_type, adjusted)
         if lai_fig is not None:
-            lai_html = pio.to_html(lai_fig, include_plotlyjs='cdn', full_html=False)
+            lai_html = pio.to_html(lai_fig, include_plotlyjs="cdn", full_html=False)
             content.append(
                 f"""
                 <div class='card mb-4'>
@@ -285,24 +289,21 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
         obs_preds = load_obs_preds(input_dir, tp, years, agg_levels)
 
         for lvl, data in obs_preds.items():
-            all_preds, preds_years = data['only_preds']
+            all_preds, preds_years = data["only_preds"]
 
             if len(all_preds) == 0:
                 continue
 
             pred_fig = create_predictions_plot(all_preds, preds_years)
-            pred_html = pio.to_html(pred_fig, include_plotlyjs='cdn', full_html=False)
+            pred_html = pio.to_html(pred_fig, include_plotlyjs="cdn", full_html=False)
             metrics_html = "<p><em>No ground-truth available for metrics.</em></p>"
 
-            obs, preds, yrs = data['obs_preds']
+            obs, preds, yrs = data["obs_preds"]
             if obs:
                 scatter = create_scatter_plot(preds, obs, yrs)
-                scatter_html = pio.to_html(scatter, include_plotlyjs='cdn', full_html=False)
+                scatter_html = pio.to_html(scatter, include_plotlyjs="cdn", full_html=False)
                 metrics = compute_metrics(np.array(preds), np.array(obs))
-                metrics_rows = "".join(
-                    f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>"
-                    for k, v in metrics.items()
-                )
+                metrics_rows = "".join(f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>" for k, v in metrics.items())
 
                 metrics_html = f"""
                 <div class='metrics-table mb-3'>
@@ -329,9 +330,10 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
             )
 
     # Render full HTML and write
-    full_html = HTML_TEMPLATE.format(content=''.join(content), title=title)
-    with open(output_file, 'w') as f:
+    full_html = HTML_TEMPLATE.format(content="".join(content), title=title)
+    with open(output_file, "w") as f:
         f.write(full_html)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

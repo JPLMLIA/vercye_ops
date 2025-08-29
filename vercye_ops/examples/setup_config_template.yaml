@@ -3,9 +3,6 @@
 ###############################################################################
 
 # Path to the shapefile containing the regions
-# If using the webapp and uploading the shapefile there, simply provide the name
-# of the .shp file inside the zip. E.g "malawi.shp".
-# If you are referring to a file already located on the system provide the complete path.
 regions_shp_name: "/data/mwi_adm_nso_hotosm_20230405_shp/mwi_admbnda_adm3_nso_hotosm_20230405.shp"
 
 # Column in the shapefile that contains unique region identifiers / admin names (e.g. district names)
@@ -90,10 +87,6 @@ APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: null # e.g ADM2_EN
 # Paths to APSIM template files.
 # If APSIM_TEMPLATE_PATHS_FILTER_COL_NAME is null, provide a single "all" entry.
 # Otherwise, specify an APSIM file fort each APSIM_TEMPLATE_PATHS_FILTER_COL_NAME value.
-# If uploading the config from the webapp you have two options:
-#   A: If uploading APSIM file(s) through the webinterface, name dont provide a complete path, but just the 
-#      name of this file, e.g: malawi.apsimx.
-#   B: If the APSIM file(s) are already located on the cluster and you know the paths, you may also specify these.
 APSIM_TEMPLATE_PATHS:
   all: "/home/rohan/nasa-harvest/vercye/data/malawi/APSIM/Malawi_2023_Maize_22_9_24_Zone_2_Full_Season.apsimx"
   # Could be for example:
@@ -109,7 +102,6 @@ APSIM_TEMPLATE_PATHS:
 # For each year add entries for the available aggregation levels
 # For the simulation admin level use the key 'primary', as in the example above!
 # For all other levels you can choose the key freely, it should however be describtive of the admin level.
-# As for the paths above, either provide the name (if uploading through webapp) or the path if on cluster.
 REFERENCE_DATA_PATHS:
   2019:
     - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin3.csv" # Key: Path

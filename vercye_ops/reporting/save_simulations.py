@@ -1,7 +1,7 @@
+from typing import List
+
 import click
 import pandas as pd
-
-from typing import List
 
 from vercye_ops.matching_sim_real.utils import load_simulation_data
 
@@ -9,18 +9,18 @@ from vercye_ops.matching_sim_real.utils import load_simulation_data
 def get_best_matches(matches_path: str, num_sims: int):
     sim_matches_data = pd.read_csv(matches_path)
 
-    matched_sims = sim_matches_data[sim_matches_data['StepFilteredOut'].isna()]
+    matched_sims = sim_matches_data[sim_matches_data["StepFilteredOut"].isna()]
 
     if num_sims:
         matched_sims = matched_sims[:num_sims]
 
-    return matched_sims['SimulationID'].tolist()
+    return matched_sims["SimulationID"].tolist()
 
 
 def get_sims(db_path: str, ids_to_keep: List[int]):
     query = "SELECT * FROM Report"
     simulations_data = load_simulation_data(db_path, query=query)
-    matched_simulations = simulations_data[simulations_data['SimulationID'].isin(ids_to_keep)]
+    matched_simulations = simulations_data[simulations_data["SimulationID"].isin(ids_to_keep)]
     return matched_simulations
 
 
@@ -37,10 +37,26 @@ def extract_and_save_sims(db_path: str, matches_path: str, num_sims: int, out_pa
 
 
 @click.command()
-@click.option('--db-path', type=click.Path(exists=True), required=True, help='Path to the APSIM DB file')
-@click.option('--matches-path', type=click.Path(exists=True), required=True, help='Path to the csv with all matched simulations.', default=None)
-@click.option('--num-sims', help='Number of best matched simulation to save. If not specified, will save all matches.', default=None, type=int)
-@click.option('--out_path', type=click.Path(exists=False), required=True, help='Path where to save the simulations (.CSV).')
+@click.option("--db-path", type=click.Path(exists=True), required=True, help="Path to the APSIM DB file")
+@click.option(
+    "--matches-path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to the csv with all matched simulations.",
+    default=None,
+)
+@click.option(
+    "--num-sims",
+    help="Number of best matched simulation to save. If not specified, will save all matches.",
+    default=None,
+    type=int,
+)
+@click.option(
+    "--out_path",
+    type=click.Path(exists=False),
+    required=True,
+    help="Path where to save the simulations (.CSV).",
+)
 def main(db_path, matches_path, num_sims, out_path):
     """
     Utility to extract the best n simulations from an APSIM DB file and save those as CSV
@@ -49,8 +65,8 @@ def main(db_path, matches_path, num_sims, out_path):
 
     extract_and_save_sims(db_path, matches_path, num_sims, out_path)
 
-    print(f'Successfully extracted best simulations to {out_path}.')
+    print(f"Successfully extracted best simulations to {out_path}.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

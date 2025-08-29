@@ -43,7 +43,7 @@ conda activate vercye
 
 conda install -c conda-forge gdal=3.11
 
-pip install -r requirements.txt 
+pip install -r requirements.txt
 ```
 
 Currently we are mixing pip and conda dependancies.
@@ -73,7 +73,7 @@ There are two options for running APSIM:
 > ```
 > /gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models
 > ```
-However, you might have to install `dotnet` from source as outlined in the [APSIM Section](Vercye/apsim.md). 
+However, you might have to install `dotnet` from source as outlined in the [APSIM Section](Vercye/apsim.md).
 
 #### 5. Install `jq`
 
@@ -88,7 +88,7 @@ module load jq
 
 ### Running your first yield study
 
-**Quickstart** 
+**Quickstart**
 
 Use the `VeRCYe CLI` to get your yield study up an running quickly:
 

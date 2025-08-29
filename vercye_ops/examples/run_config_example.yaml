@@ -18,8 +18,8 @@ title: 'Poltava Oblast, Ukraine Yield Study'
 # More detailed description of the simulation.
 description: 'Poltava Oblast, Ukraine for 2021-2023. Yield study created using the internal APSIM file from march 2025.'
 
-# LAI Shapefile name. Not used for processing, but useful to keep all metadata contained
-lai_shp_name: 'ukraine_adm1.shp'
+# Optional: LAI Shapefile name. Not used for processing, but useful to keep all metadata contained
+lai_source: 'ukraine_adm1.shp'
 
 # Simulation Regions shapefile name. Not used for processing, but useful to keep all metadata contained
 # Can be left empty during the setup helper script, as it will be overwritten.
@@ -146,7 +146,7 @@ apsim_execution:
   docker:
     image: 'apsiminitiative/apsimng'
     platform: 'linux/amd64'
-  local: 
+  local:
     executable_fpath: '/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models' # Path to your local APSIM executble
     n_jobs: 8  # Number of threads to spawn. -1 is default in APSIM. Might need experimentation to find the best value for your system.
 
@@ -157,7 +157,7 @@ lai_params:
   lai_dir: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/LAI' # Path to your LAI data. If using STAC downloader the generated subdirectory with merged-lai.
   lai_region: 'Poltava' # Prefix of the LAI data files
   lai_resolution: 20 # Spatial resolution in meters/pixel. Must match the specification of the LAI data
-  smoothed: False # Whether to apply savgol smoothing to the RS LAI timeseries. Reduces outliers e.g from clouded days.
+  smoothed: True # Whether to apply savgol smoothing to the RS LAI timeseries. Reduces outliers e.g from clouded days.
   crop_name: 'wheat'  # Used for Crop Adjustment and Reporting. Options: ['wheat' | 'maize']
   use_crop_adjusted_lai: True # If True, use crop-specific LAI adjustment. If False, use default LAI estimates
   lai_analysis_mode: 'raster' # Don't change this unless you know what you are doing. Options: ['raster' | 'vector']. Typically keep raster.
@@ -165,19 +165,19 @@ lai_params:
   min_cropland_pixel_threshold: 1 # Minimum number of cropland pixels each simulation ROI should have at the resolution of lai_resolution
   cloudcov_threshold: 0.95 # Maximum cloud coverage percentage of a region for LAI of a date to be considered valid
   time_bounds:
-    2021: 
+    2021:
       T-0: ['2020-08-20', '2021-08-01']
       T-30: ['2020-08-20', '2021-07-02']
       T-60: ['2020-08-20', '2021-06-03']
-    2022: 
+    2022:
       T-0: ['2021-08-20', '2022-07-27']
       T-30: ['2021-08-20', '2022-06-28']
       T-60: ['2021-08-20', '2022-05-29']
-    2023: 
+    2023:
       T-0: ['2022-08-20', '2023-07-26']
       T-30: ['2022-08-20', '2023-06-27']
       T-60: ['2022-08-20', '2023-05-28']
-  crop_mask:
+  crop_mask: # Paths to Binary Cropmasks for every year. Must be Binary Pixel (0 for non crop, 1 for crop of interest).
     2021: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/ESA_WorldCereals_2021_wintercrop_poltava_binary_remapped_reprojected.tif'
     2022: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2022_Poltava_reprojected.tif'
     2023: '/gpfs/data1/cmongp2/wronk/Data/vercye_ops/cropmasks/NASA_Harvest_WinterCereals_2023_Poltava_reprojected.tif'
@@ -202,8 +202,8 @@ eval_params:
   aggregation_levels:
     National: 'NAME_0'
     Oblast: 'NAME_1'
-  
-  
+
+
 ########################################
 # Local paths to the python/APSIM scripts
 # Typically dont change, except for match_sim_real.
@@ -212,7 +212,7 @@ eval_params:
 
 scripts:
   # Adapt to real implementation locally.
-  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_17-06-25.py' 
+  match_sim_real: '/gpfs/data1/cmongp2/sawahnr/data/match_sim_real_17-06-25.py'
 
   #Typically don't change
   construct_met_files: '../apsim/construct_met_files.py'

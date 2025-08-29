@@ -70,28 +70,28 @@ Use the provided helper script (`prepare_yieldstudy.py`) to create this structur
 
     - **`FILTER_COL_NAME`** Column for the higher-level admin unit (e.g. `NAME_1`).
 
-    - **`FILTER_COL_VALUES`** List of values to keep, e.g. `['Texas', 'Colorado']`.  
+    - **`FILTER_COL_VALUES`** List of values to keep, e.g. `['Texas', 'Colorado']`.
       To include *all* regions, set `FILTER_COL_NAME = None` and leave `FILTER_COL_VALUES = []`.
 
 3. **APSIM configuration templates**
 
     Rather than manually copying and editing an APSIM file for each year/region, the helper will:
 
-    1. Copy a template for each higher-level region (e.g. state) into every year’s folder.  
+    1. Copy a template for each higher-level region (e.g. state) into every year’s folder.
     2. Auto-adjust the simulation dates. NOTE: This will replace the `Models.Clock` parameter in the APSIM simulation to with the value specified in the `run_config_template.yaml` under `apsim_params.time_bounds`. If you require different simulation start/end-dates for various regions during a season, you will have to configure this manually in the APSIM files in the extracted directories.
 
     Configure this by setting:
 
     - **`APSIM_TEMPLATE_PATHS_FILTER_COL_NAME`** Admin column that groups regions sharing a template (e.g. `NAME_1`).
 
-    - **`APSIM_TEMPLATE_PATHS`** Dictionary mapping column values to template paths; e.g.  
+    - **`APSIM_TEMPLATE_PATHS`** Dictionary mapping column values to template paths; e.g.
       ```yaml
       APSIM_TEMPLATE_PATHS:
         Texas:    /path/to/texas_template.yaml
         Colorado: /path/to/colorado_template.yaml
       ```
 
-    - **Single-template setup** If you only require one APSIM file for *all* regions, set:  
+    - **Single-template setup** If you only require one APSIM file for *all* regions, set:
       ```yaml
       APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: None
       APSIM_TEMPLATE_PATHS:
@@ -101,7 +101,7 @@ Use the provided helper script (`prepare_yieldstudy.py`) to create this structur
 
 Once all parameters are defined, run the notebook. It will:
 
-- Create your `year/timepoint/region` directory tree under `OUTPUT_DIR`.  
+- Create your `year/timepoint/region` directory tree under `OUTPUT_DIR`.
 - Generate a final `run_config.yaml` that merges your Snakemake settings with the selected regions.
 
 **Note**: Sometimes, you might want to add some custom conditionals or processing, that is why we have provided this code in a jupyter notebook. In that case make sure to read the [input documentation](inputs.md), to understand the required structure.

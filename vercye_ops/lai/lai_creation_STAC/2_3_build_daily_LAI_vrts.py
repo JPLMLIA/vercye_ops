@@ -9,6 +9,11 @@ from pathlib import Path
 import click
 import rasterio as rio
 
+from vercye_ops.utils.init_logger import get_logger
+
+logger = get_logger()
+logger.setLevel("INFO")
+
 
 def is_within_date_range(vf, start_date, end_date):
     # files are expected to have the pattern f"{s2_dir}/{region}_{resolution}m_{date}_LAI_tile_standardized.tif"
@@ -22,8 +27,7 @@ def resolutions_are_close(res_set, tolerance=1e-3):
     base_res = res_list[0]
     for r in res_list[1:]:
         if not (
-            math.isclose(base_res[0], r[0], abs_tol=tolerance)
-            and math.isclose(base_res[1], r[1], abs_tol=tolerance)
+            math.isclose(base_res[0], r[0], abs_tol=tolerance) and math.isclose(base_res[1], r[1], abs_tol=tolerance)
         ):
             return False
     return True
@@ -79,11 +83,11 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
         lai_files = [f for f in lai_files if is_within_date_range(f, start_date, end_date)]
 
     if not lai_files:
-        print(f"No LAI files found in {lai_dir} with resolution {resolution}m")
+        logger.error(f"No LAI files found in {lai_dir} with resolution {resolution}m")
         return
 
-    print(f"Found {len(lai_files)} LAI files in {lai_dir} with resolution {resolution}m")
-    print("Validating CRS and Resolution...")
+    logger.info(f"Found {len(lai_files)} LAI files in {lai_dir} with resolution {resolution}m")
+    logger.info("Validating CRS and Resolution...")
     for lai_file in lai_files:
         with rio.open(lai_file) as lai_ds:
             lai_crs = lai_ds.crs
@@ -94,14 +98,12 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
     resolutions_set = set(resolutions)
     crs_set = set(crs)
     if not resolutions_are_close(resolutions_set):
-        print(f"Resolutions found: {resolutions_set}")
-        raise Exception(
-            f"LAI files have different resolutions. Please use the same resolution for all LAI files."
-        )
+        logger.info(f"Resolutions found: {resolutions_set}")
+        raise Exception("LAI files have different resolutions. Please use the same resolution for all LAI files.")
 
     if len(crs_set) > 1:
-        print(f"CRS found: {crs_set}")
-        raise Exception(f"LAI files have different CRS. Please use the same CRS for all LAI files.")
+        logger.info(f"CRS found: {crs_set}")
+        raise Exception("LAI files have different CRS. Please use the same CRS for all LAI files.")
 
     # Group files by date
     date_groups = defaultdict(list)
@@ -117,7 +119,7 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
         out_file = os.path.join(out_dir, f"{region_out_prefix}_{resolution}m_{date}_LAI.vrt")
         subprocess.run(["gdalbuildvrt", "-tr", str(res_x), str(res_y), out_file] + paths)
 
-    print(f"VRTS created successfully in {out_dir} with prefix {region_out_prefix}")
+    logger.info(f"VRTS created successfully in {out_dir} with prefix {region_out_prefix}")
 
 
 if __name__ == "__main__":

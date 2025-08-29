@@ -60,14 +60,12 @@ def read_met_file(filepath):
 def plot_map(gdf, column, cmap, title, legend_label, pdf_pages):
     fig, ax = plt.subplots(1, 1, figsize=(14, 14))
     gdf.boundary.plot(ax=ax, linewidth=1, edgecolor="black")
-    plot = gdf.plot(column=column, ax=ax, cmap=cmap, alpha=0.6, edgecolor="k")
+    gdf.plot(column=column, ax=ax, cmap=cmap, alpha=0.6, edgecolor="k")
 
     # Add colorbar
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%")
-    sm = plt.cm.ScalarMappable(
-        cmap=cmap, norm=plt.Normalize(vmin=gdf[column].min(), vmax=gdf[column].max())
-    )
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=gdf[column].min(), vmax=gdf[column].max()))
     sm._A = []
     cbar = fig.colorbar(sm, cax=cax)
     cbar.set_label(legend_label, fontsize=14)
@@ -88,11 +86,7 @@ def aggregate_data(data):
     """Helper function to aggregate meteorological stats."""
     data.loc[:, "year"] = data["date"].dt.year
     annual_rainfall = (
-        data.groupby(["latitude", "longitude", "year"])["rain"]
-        .sum()
-        .groupby(level=[0, 1])
-        .mean()
-        .reset_index()
+        data.groupby(["latitude", "longitude", "year"])["rain"].sum().groupby(level=[0, 1]).mean().reset_index()
     )
 
     aggregated_data = (
@@ -110,9 +104,7 @@ def aggregate_data(data):
     )
 
     # Merging the average annual rainfall with the aggregated data
-    aggregated_data = pd.merge(
-        aggregated_data, annual_rainfall, on=["latitude", "longitude"]
-    )
+    aggregated_data = pd.merge(aggregated_data, annual_rainfall, on=["latitude", "longitude"])
 
     # Converting wind speed from m/s to km/h
     aggregated_data["wind"] = aggregated_data["wind"] * 3.6
@@ -162,9 +154,7 @@ def aggregate_met_stats(regions_base_dir, year, num_last_years):
     geometries = []
     for geometry_file in valid_gemoetry_files:
         gdf = gpd.read_file(geometry_file)
-        centroid_geom = loads(
-            gdf["centroid"].iloc[0]
-        )  # Extract the first (and only) centroid
+        centroid_geom = loads(gdf["centroid"].iloc[0])  # Extract the first (and only) centroid
         gdf["latitude"] = centroid_geom.y
         gdf["longitude"] = centroid_geom.x
         geometries.append(gdf)
@@ -175,19 +165,13 @@ def aggregate_met_stats(regions_base_dir, year, num_last_years):
     gdf_polygons["latitude"] = gdf_polygons["latitude"].round(2)
     gdf_polygons["longitude"] = gdf_polygons["longitude"].round(2)
 
-    gdf_last_n_years = gdf_polygons.merge(
-        aggregated_last_n_years, on=["latitude", "longitude"]
-    )
-    gdf_single_year = gdf_polygons.merge(
-        aggregated_single_year, on=["latitude", "longitude"]
-    )
+    gdf_last_n_years = gdf_polygons.merge(aggregated_last_n_years, on=["latitude", "longitude"])
+    gdf_single_year = gdf_polygons.merge(aggregated_single_year, on=["latitude", "longitude"])
 
     return {"multiyear": gdf_last_n_years, "single_year": gdf_single_year}
 
 
-def plot_stats_and_save(
-    single_year_data, multi_year_data, year, num_last_years, out_file_path
-):
+def plot_stats_and_save(single_year_data, multi_year_data, year, num_last_years, out_file_path):
     with PdfPages(out_file_path) as pdf_pages:
         plot_map(
             single_year_data,
@@ -304,9 +288,7 @@ def polygon_to_raster(gdf, value_column, out_shape, transform):
     return raster
 
 
-def create_multi_band_tif(
-    single_year_data, multi_year_data, year, num_last_years, reference_tif, out_tif_path
-):
+def create_multi_band_tif(single_year_data, multi_year_data, year, num_last_years, reference_tif, out_tif_path):
     # Get metadata from reference TIFF
     ref_meta = get_reference_metadata(reference_tif)
     transform, crs, (height, width) = (
@@ -316,14 +298,14 @@ def create_multi_band_tif(
     )
 
     variables = ["rain", "meant", "maxt", "mint", "radn", "wind"]
-    descriptions = [
-        "Annual Rainfall",
-        "Mean Temperature",
-        "Max Temperature",
-        "Min Temperature",
-        "Radiation",
-        "Wind Speed",
-    ]
+    # descriptions = [
+    #     "Annual Rainfall",
+    #     "Mean Temperature",
+    #     "Max Temperature",
+    #     "Min Temperature",
+    #     "Radiation",
+    #     "Wind Speed",
+    # ]
 
     layers = []
     layer_names = []
@@ -415,12 +397,8 @@ def cli(
     else:
         logger.setLevel("WARNING")
 
-    if (reference_tif_path and not output_tif_path) or (
-        output_tif_path and not reference_tif_path
-    ):
-        raise Exception(
-            "'reference_tif_path' and 'output_tif_path' must be both set or not set at all."
-        )
+    if (reference_tif_path and not output_tif_path) or (output_tif_path and not reference_tif_path):
+        raise Exception("'reference_tif_path' and 'output_tif_path' must be both set or not set at all.")
 
     logger.info(f"Processing directory: {regions_base_dir}")
     aggregated_stats = aggregate_met_stats(regions_base_dir, year, num_last_years)
@@ -431,9 +409,7 @@ def cli(
         raise Exception("Failed to aggregate met stats.")
 
     logger.info(f"Saving aggregated met stats to: {output_pdf_path}")
-    plot_stats_and_save(
-        single_year_stats, multiyear_stats, year, num_last_years, output_pdf_path
-    )
+    plot_stats_and_save(single_year_stats, multiyear_stats, year, num_last_years, output_pdf_path)
 
     if output_tif_path and reference_tif_path:
         logger.info(f"Saving additional tif output to {output_tif_path}.")

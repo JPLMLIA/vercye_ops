@@ -8,9 +8,8 @@ import click
 import numpy as np
 import rasterio as rio
 import torch
-import torch.nn as nn
 
-from vercye_ops.lai.model.model import load_model_from_weights, load_model
+from vercye_ops.lai.model.model import load_model, load_model_from_weights
 
 
 def is_within_date_range(vf, start_date, end_date):
@@ -89,7 +88,7 @@ def main(
 
         model = load_model_from_weights(model_weights, channels)
     else:
-        sateillite = 'S2'
+        sateillite = "S2"
         model = load_model(sateillite, resolution)
         model.eval()
 

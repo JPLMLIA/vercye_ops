@@ -1,73 +1,95 @@
-from datetime import datetime
 import os.path as op
-from pathlib import Path
+from datetime import datetime
 from types import SimpleNamespace
 
-def build_apsim_execution_command(head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file):
-    '''Builds the APSIM execution command depending on whether we are using APSIM in Docker or not'''
+
+def build_apsim_execution_command(
+    head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file
+):
+    """Builds the APSIM execution command depending on whether we are using APSIM in Docker or not"""
 
     if use_docker:
         return (
-            f'docker run -i --rm --platform={docker_platform} '
+            f"docker run -i --rm --platform={docker_platform} "
             f'-v "{head_dir}:{head_dir}" '
-            f'-u $(id -u):$(id -g) '
-            f'{docker_image} '
-            f'{input_file} '
+            f"-u $(id -u):$(id -g) "
+            f"{docker_image} "
+            f"{input_file} "
         )
     else:
-        return (
-            f'{executable_fpath} '
-            f'{input_file} '
-            f'--cpu-count {n_jobs} '
-        )
+        return f"{executable_fpath} " f"{input_file} " f"--cpu-count {n_jobs} "
+
 
 def get_evaluation_results_path_func(config):
-    '''Returns a function with the config hardcoded. The function return the path to the evaluation results file if it exists or an empty list if it does not.
-        This allows the evaluation rule to be skipped if the evaluation results file does not exist.'''
+    """Returns a function with the config hardcoded. The function return the path to the evaluation results file if it exists or an empty list if it does not.
+    This allows the evaluation rule to be skipped if the evaluation results file does not exist."""
+
     def get_evaluation_results_path(wildcards):
         output_paths = []
         # Check if the evaluation results at simulation level file exists
         # This file must always be called referencedata_primary
-        if op.exists(op.join(config['sim_study_head_dir'], wildcards.year, f'referencedata_primary-{wildcards.year}.csv')):
-            primary_eval_file = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, 'evaluation_primary.csv')
+        if op.exists(
+            op.join(
+                config["sim_study_head_dir"],
+                wildcards.year,
+                f"referencedata_primary-{wildcards.year}.csv",
+            )
+        ):
+            primary_eval_file = op.join(
+                config["sim_study_head_dir"],
+                wildcards.year,
+                wildcards.timepoint,
+                "evaluation_primary.csv",
+            )
             output_paths.append(primary_eval_file)
-        
+
         # Get all other evaluation results files from the config (wildcards)
-        for agg_name in config['eval_params']['aggregation_levels']:
-            gt_file = op.join(config['sim_study_head_dir'], wildcards.year, f'referencedata_{agg_name}-{wildcards.year}.csv')
+        for agg_name in config["eval_params"]["aggregation_levels"]:
+            gt_file = op.join(
+                config["sim_study_head_dir"],
+                wildcards.year,
+                f"referencedata_{agg_name}-{wildcards.year}.csv",
+            )
             if op.exists(gt_file):
-                eval_file = op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint, f'evaluation_{agg_name}.csv')
+                eval_file = op.join(
+                    config["sim_study_head_dir"],
+                    wildcards.year,
+                    wildcards.timepoint,
+                    f"evaluation_{agg_name}.csv",
+                )
                 output_paths.append(eval_file)
 
         return output_paths
-        
+
     return get_evaluation_results_path
+
 
 def get_met_max_range(config):
     met_min_start = None
     met_max_end = None
 
-    for year in config['apsim_params']['time_bounds']:
-        for timepoint in config['apsim_params']['time_bounds'][year]:
-            met_start = config['apsim_params']['time_bounds'][year][timepoint]['met_start_date']
-            met_end = config['apsim_params']['time_bounds'][year][timepoint]['met_end_date']
+    for year in config["apsim_params"]["time_bounds"]:
+        for timepoint in config["apsim_params"]["time_bounds"][year]:
+            met_start = config["apsim_params"]["time_bounds"][year][timepoint]["met_start_date"]
+            met_end = config["apsim_params"]["time_bounds"][year][timepoint]["met_end_date"]
 
             if met_min_start is None or met_start < met_min_start:
                 met_min_start = met_start
 
             if met_max_end is None or met_end > met_max_end:
                 met_max_end = met_end
-    
+
     return met_min_start, met_max_end
 
+
 def get_multiyear_evaluation_results_path_func(config):
-    """ Function to get all evaluation results paths from all configs and timepoints"""
+    """Function to get all evaluation results paths from all configs and timepoints"""
     single_year = get_evaluation_results_path_func(config)
 
     def _collect_all(wildcards):
         all_paths = []
-        for year in config['years']:
-            for tp in config['timepoints']:
+        for year in config["years"]:
+            for tp in config["timepoints"]:
                 # build a fake wildcards object
                 fake = SimpleNamespace(year=year, timepoint=tp)
                 all_paths.extend(single_year(fake))
@@ -85,31 +107,33 @@ def get_required_yield_report_suffix(config):
     else:
         return "png"
 
+
 def get_lai_date_range(timepoints):
     all_start_dates = [datetime.strptime(bounds[0], "%Y-%m-%d") for bounds in timepoints.values()]
     all_end_dates = [datetime.strptime(bounds[1], "%Y-%m-%d") for bounds in timepoints.values()]
-    
+
     min_date = min(all_start_dates).strftime("%Y-%m-%d")
     max_date = max(all_end_dates).strftime("%Y-%m-%d")
-    
+
     return min_date, max_date
+
 
 def collect_multiyear_lai_stats(config):
     all_paths = []
-    for year in config['years']:
+    for year in config["years"]:
         year = str(year)
-        for timepoint in config['timepoints']:
+        for timepoint in config["timepoints"]:
             timepoint = str(timepoint)
-            for region in config['regions']:
+            for region in config["regions"]:
                 region = str(region)
-                valid_file = op.join(config['sim_study_head_dir'], year, timepoint, region, f'{region}_LAI_STATS.csv')
+                valid_file = op.join(config["sim_study_head_dir"], year, timepoint, region, f"{region}_LAI_STATS.csv")
                 if not op.exists(valid_file):
                     continue
 
-                with open(valid_file, 'r') as f:
+                with open(valid_file, "r") as f:
                     content = f.read().strip()
                 if content == "valid":
-                    lai_file_path = op.join(config['sim_study_head_dir'], year, timepoint, region, f'{region}_VALID')
+                    lai_file_path = op.join(config["sim_study_head_dir"], year, timepoint, region, f"{region}_VALID")
                     all_paths.append(lai_file_path)
 
     return all_paths
