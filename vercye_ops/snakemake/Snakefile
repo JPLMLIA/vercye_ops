@@ -218,14 +218,13 @@ rule fill_era5_cache:
 rule fetch_met_data:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
-        np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasapower' else [],
+        np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasa_power' else [],
         era5_cached_data = op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'era5' else [],
     params:
         met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],
         met_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_end_date'],
         script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
         script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
-        scrip_path_nrt_forecast = config['scripts']['nrt_forecast'],
         head_dir = config['sim_study_head_dir'],
         jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
         region_name = lambda wildcards: wildcards.region,
@@ -235,11 +234,11 @@ rule fetch_met_data:
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
         met_source = config['apsim_params']['met_source'].lower(),
         platform = config['platform'],
-        use_nrt_forecast = config['apsim_params']['use_nrt_forecast']
     log:
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
-        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv'),
+        # Use intermediate path when using forecasts to allow appending to these and updating these
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv') if not config['apsim_params']['use_nrt_forecast'] else op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_non_forecasted_met.csv'),
     resources:
         era5_calls = 1 if config['apsim_params']['met_source'].lower() == 'era5' else 0,
         nasa_power_calls = 1 if config['apsim_params']['met_source'].lower() == 'nasa_power' else 0,
@@ -249,12 +248,6 @@ rule fetch_met_data:
         # Load geometry centroid
         {params.jq_load_statement}
         read LON LAT <<< $(cat {input.geometry} | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
-
-        # If using forecast, save met outputs to a temporary file and move only after forecast in concatenated
-        OUTPUT_DIR={params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/
-        if [[ "{params.use_nrt_forecast}" == "True" ]]; then
-            OUTPUT_DIR=$(mktemp -d)
-        fi
 
         # Set script and run based on met source
         if [ "{params.met_source}" = "nasa_power" ]; then
@@ -293,23 +286,52 @@ rule fetch_met_data:
             echo "Invalid met source: {params.met_source}" >&2
             exit 1
         fi
+        """
 
+rule append_ecmwf_nrt_forecast:
+    input:
+        geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
+        non_forecasted_met_data = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_non_forecasted_met.csv'),
+    params:
+        scrip_path_nrt_forecast = config['scripts']['nrt_forecast'],
+        head_dir = config['sim_study_head_dir'],
+        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+        region_name = lambda wildcards: wildcards.region,
+        ee_project = config['apsim_params']['ee_project'],
+        met_agg_method = config['apsim_params']['met_agg_method'],
+        platform = config['platform'],
+        use_nrt_forecast = config['apsim_params']['use_nrt_forecast']
+    log:
+        'logs_fetch_met_data/{year}_{timepoint}_{region}_forecast.log',
+    output:
+        csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_met.csv') if config['apsim_params']['use_nrt_forecast'] else [],
+    resources:
+        era5_calls = 1 if config['apsim_params']['met_source'].lower() == 'era5' else 0,
+    retries: 5 if config['apsim_params']['met_source'].lower() == 'era5' else 2,  # ERA5 on GEE can be flaky
+    shell:
+        """
+        # Load geometry centroid
+        {params.jq_load_statement}
+        read LON LAT <<< $(cat {input.geometry} | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
 
-        if [[ "{params.use_nrt_forecast}" == "True" ]]; then
-            OUTPUT_DIR_NAME=$(basename "$OUTPUT_DIR")
-            # Append forecast data
-            python3 {params.scrip_path_nrt_forecast} \
-            --forecast_date_from_existing \
-            --met_agg_method {params.met_agg_method} \
-            $POLYGON_PATH \
-            --lon $LON \
-            --lat $LAT \
-            --ee_project {params.ee_project} \
-            --output_file $OUTPUT_DIR/${OUTPUT_DIR_NAME}_met.csv
-
-            # Move outout to true location
-            mv $OUTPUT_DIR/${OUTPUT_DIR_NAME}_met.csv  {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_met.csv
+        # Set polygon path command only for mean aggregation
+        POLYGON_PATH=""
+        if [ "{params.met_agg_method}" = "mean" ]; then
+            POLYGON_PATH="--polygon_path {input.geometry}"
         fi
+
+        # Append forecast data
+        python3 {params.scrip_path_nrt_forecast} \
+        --forecast_date_from_existing \
+        --met_agg_method {params.met_agg_method} \
+        $POLYGON_PATH \
+        --lon $LON \
+        --lat $LAT \
+        --ee_project {params.ee_project} \
+        --output_file {input.non_forecasted_met_data}
+
+        # Move file to proper name to be picked up by snakemake
+        mv {params.non_forecasted_met_data} {output.csv}
         """
 
 # Rule to generate .met files from weather CSVs
