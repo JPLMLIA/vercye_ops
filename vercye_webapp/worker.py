@@ -17,10 +17,13 @@ from vercye_ops.met_data.download_chirps_data import run_chirps_download
 from vercye_ops.utils.env_utils import (
     get_env_vars,
     get_run_config_file_path,
+    get_setup_config,
     get_setup_config_file_path,
     get_snakemake_runlog_path,
+    get_study_path,
     load_yaml_ruamel,
     read_studies_dir_from_env,
+    save_setup_config,
 )
 
 celery_app = Celery(
@@ -204,19 +207,37 @@ def duplicate_vercye_study_task(existing_study_id, new_study_id):
 
     init_study(study_name=new_study_id, studies_dir=studies_dir)
 
-    # copy setup config
-    existing_setup_cfg_path = get_setup_config_file_path(studies_dir, existing_study_id)
-    shutil.copyfile(existing_setup_cfg_path, get_setup_config_file_path(studies_dir, new_study_id))
+    existing_config, config_ruamel = get_setup_config(studies_dir, existing_study_id, ruamel=True)
+    new_study_dir = get_study_path(studies_dir, new_study_id)
 
-    # TODO copy all paths that are located within existing study (e.g apsim file, refdata etc)
-    # and adjust paths to new locations in new study
-    # Skipping for now, but should be done in future.
+    # RegionsShp copying
+    new_regions_shp_fpath = os.path.join(new_study_dir, "shapefile", Path(existing_config["regions_shp_name"]).name)
+    shutil.copy(existing_config["regions_shp_name"], new_regions_shp_fpath)
+    existing_config["regions_shp_name"] = new_regions_shp_fpath
 
+    # Refdata paths copying
+    for year, year_fpaths in existing_config["REFERENCE_DATA_PATHS"].items():
+        for idx, item in enumerate(year_fpaths):
+            year_fpath = item[1]
+            new_year_fpath = os.path.join(new_study_dir, "reference_data", Path(year_fpath).name)
+            shutil.copy(year_fpath, new_year_fpath)
+            existing_config["REFERENCE_DATA_PATHS"][year][idx][1] = new_year_fpath
+
+    # APSIM files copying
+    for key, apsim_fpath in existing_config["APSIM_TEMPLATE_PATHS"].items():
+        new_apsim_fpath = os.path.join(new_study_dir, "apsim", Path(apsim_fpath).name)
+        shutil.copy(apsim_fpath, new_apsim_fpath)
+        existing_config["APSIM_TEMPLATE_PATHS"][key] = new_apsim_fpath
+
+    save_setup_config(existing_config, studies_dir, new_study_id, config_ruamel)
+
+    # Extract individual geometries, prepare APSIM files and reference data
     prepare_vercye_task(new_study_id)
 
-    # copy the runcofig
+    # Copy the runcofig
     existing_run_cfg_path = get_run_config_file_path(studies_dir, existing_study_id)
     shutil.copyfile(existing_run_cfg_path, get_run_config_file_path(studies_dir, new_study_id))
 
     # TODO modify sim_study_head_dir in new study runconfig
     # Skipping for now as this will be also done on upload
+    # TODO add in description from which study it was copied (copied_from param )

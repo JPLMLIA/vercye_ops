@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import signal
+from collections import deque
 from datetime import datetime
 from typing import List
 
@@ -188,7 +189,10 @@ def get_logs(lai_id: str):
         raise HTTPException(status_code=404, detail="Logs file not found")
 
     with open(logs_path, "r", encoding="utf-8", errors="replace") as f:
-        text = f.read()
+        last_lines = deque(f, maxlen=1000)
+
+    text = "SHOWING LAST 1000 lines only: \n\n...\n"
+    text += "".join(last_lines)
 
     return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 

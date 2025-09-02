@@ -84,11 +84,28 @@ def replace_in_file(file_path: str, old_val, new_val):
         file.write(content)
 
 
-def get_run_config(studies_dir: str, study_name: str):
+def get_run_config(studies_dir: str, study_name: str, ruamel=False):
+    """Returns the config as a json or as a tuple of json, ruamel if ruamels set to True."""
     config_file_path = get_run_config(studies_dir, study_name)
-    with open(config_file_path, "r") as f:
-        config = yaml.safe_load(f)
-    return config
+
+    if not ruamel:
+        with open(config_file_path, "r") as f:
+            config = yaml.safe_load(f)
+        return config
+
+    return load_yaml_ruamel(config_file_path)
+
+
+def get_setup_config(studies_dir: str, study_name: str, ruamel=False):
+    """Returns the config as a json or as a tuple of json, ruamel if ruamels set to True."""
+    config_file_path = get_setup_config(studies_dir, study_name)
+
+    if not ruamel:
+        with open(config_file_path, "r") as f:
+            config = yaml.safe_load(f)
+        return config
+
+    return load_yaml_ruamel(config_file_path)
 
 
 def load_yaml_ruamel(filepath: str):
@@ -97,3 +114,17 @@ def load_yaml_ruamel(filepath: str):
     yaml_loader.preserve_quotes = True
     with open(filepath, "r") as f:
         return yaml_loader.load(f), yaml_loader
+
+
+def write_yaml_ruamel(obj: dict, ruamel, dest_path: str):
+    """Write a yaml file with formatting and comments."""
+    with open(dest_path, "w") as f:
+        ruamel.dump(obj, f)
+
+
+def save_setup_config(config: dict, studies_dir: str, study_name: str, ruamel=None):
+    setup_cfg_path = get_setup_config_file_path(studies_dir, study_name)
+    if ruamel:
+        write_yaml_ruamel(config, ruamel, setup_cfg_path)
+    else:
+        raise NotImplementedError()

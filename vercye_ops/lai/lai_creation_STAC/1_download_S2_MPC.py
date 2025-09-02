@@ -17,7 +17,6 @@ RESAMPLING_METHOD = ResamplingMethod.NEAREST  # Resampling method for raster ass
 SCL_KEEP_CLASSES = [4, 5]
 
 logger = get_logger()
-logger.setLevel("INFO")
 
 
 def dedupliate(items):

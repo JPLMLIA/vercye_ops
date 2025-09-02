@@ -1,4 +1,4 @@
 .env
-dump.rdb
 static
 node_modules
+*.rdb
