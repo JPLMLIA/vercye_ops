@@ -14,17 +14,6 @@ from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
-# Valid climate variables for the NASA POWER API
-VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
-DEFAULT_CLIMATE_VARIABLES = [
-    "ALLSKY_SFC_SW_DWN",
-    "T2M_MAX",
-    "T2M_MIN",
-    "T2M",
-    "PRECTOTCORR",
-    "WS2M",
-]
-
 
 def error_checking_function(df):
     """
@@ -124,19 +113,86 @@ def get_consecutive_date_chunks(dates):
     return chunks
 
 
-def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygon_path=None):
-    """
-    Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
-    """
-    logger.info("Fetching meteorological data from ERA5 trough google earth engine.")
-    logger.info("Initializing google earth engine.")
-    ee.Initialize(project=ee_project)
+def postprocess_for_apsim(met_data, end_date, is_forecast=False):
+    df = met_data.rename(
+        columns={
+            "total_precipitation_sum": "PRECTOTCORR",
+            "temperature_2m_max": "T2M_MAX",
+            "temperature_2m_min": "T2M_MIN",
+            "surface_solar_radiation_downwards_sum": "ALLSKY_SFC_SW_DWN",
+            "u_component_of_wind_10m": "u10",
+            "v_component_of_wind_10m": "v10",
+        }
+    )
 
-    logger.info("Querying data.")
+    # Convert temperatures from Kelvin to Celsius
+    # Only convert from Kelvin if data is not forecast
+    if not is_forecast:
+        df["T2M_MAX"] = df["T2M_MAX"] - 273.15
+        df["T2M_MIN"] = df["T2M_MIN"] - 273.15
 
+    # Convert solar radiation from J/m² to MJ/m²
+    df["ALLSKY_SFC_SW_DWN"] = df["ALLSKY_SFC_SW_DWN"] / 1_000_000
+
+    # Convert rain from meters to millimeters
+    df["PRECTOTCORR"] = df["PRECTOTCORR"] * 1000
+
+    # Calculate wind speed from u and v components
+    df["u10"] = df["u10"].astype(float)
+    df["v10"] = df["v10"].astype(float)
+    df["WS2M"] = np.sqrt(df["u10"] ** 2 + df["v10"] ** 2)
+
+    # Compute mean temperate
+    df["T2M"] = (df["T2M_MAX"] + df["T2M_MIN"]) / 2
+
+    # Keep only required columns for APSIM
+    df = df[["date", "ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]]
+    df.fillna({"ALLSKY_SFC_SW_DWN": 0, "T2M": 0, "T2M_MAX": 0, "T2M_MIN": 0, "PRECTOTCORR": 0, "WS2M": 0}, inplace=True)
+
+    # Sanity CheckEnsure that we have continous data for every day from start_date to end_date
+    if end_date is not None:
+        expected_dates = pd.date_range(df["date"].min(), end_date, freq="D")
+        missing_dates = expected_dates.difference(df["date"])
+
+        if not missing_dates.empty:
+            logger.warning(f"Missing dates in the data: {len(missing_dates)}")
+
+            # sort missing dates ascending
+            missing_dates = missing_dates.sort_values()
+            # check if it is the newest dates that are missing
+            if missing_dates[0] > df["date"].max():
+                logger.warning("Missing dates are at the end of the data. Not filling them.")
+            else:
+                raise Exception("Missing dates - Not yet handled, this shouldnt occur.")
+
+    # set date as index
+    df.set_index("date", inplace=True)
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+
+    # check for duplicates
+    if df.index.duplicated().any():
+        raise ValueError("Duplicate dates found in the data.")
+
+    return df
+
+
+def has_missing_dates(met_data_df, last_date):
+    return met_data_df["date"].max() < last_date
+
+
+def get_era5_for_apsim(start_date, end_date, lon=None, lat=None, polygon_path=None):
+    met_data = fetch_era5_data(start_date, end_date, lon, lat, polygon_path)
+    met_data_normalized = postprocess_for_apsim(met_data, end_date)
+
+    return met_data_normalized
+
+
+def build_ee_geometry(lon=None, lat=None, polygon_path=None):
     if polygon_path is None:
         if lat is None or lon is None:
             raise ValueError("Must provide either lat/lon or a polygon.")
+
         geometry = ee.Geometry.Point([lon, lat])
         geo_type = "point"
     else:
@@ -152,14 +208,26 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
         geometry = ee.Geometry(geojson_dict)
         geo_type = "polygon"
 
+    return geometry, geo_type
+
+
+def fetch_era5_data(start_date, end_date, lon=None, lat=None, polygon_path=None):
+    """
+    Fetch meteorological data from ECMWF ERA5. Adjust outputs to align with NasaPower feature names.
+    """
+    logger.info("Fetching meteorological data from ERA5 trough google earth engine.")
+
+    logger.info("Querying data.")
+
+    geometry, geo_type = build_ee_geometry(lon, lat, polygon_path)
     all_records = []
 
     def split_date_range(start_date, end_date, chunk_years=10):
-        start = start_date
-        end = end_date + relativedelta(days=1)
+        start = pd.to_datetime(start_date)
+        end = pd.to_datetime(end_date) + pd.Timedelta(days=1)
         while start < end:
             next_start = min(start + relativedelta(years=chunk_years), end)
-            yield start.strftime("%Y-%m-%d"), next_start.strftime("%Y-%m-%d")
+            yield start, next_start
             start = next_start
 
     def extract(image):
@@ -173,7 +241,7 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
         try:
             era5 = (
                 ee.ImageCollection("ECMWF/ERA5_LAND/DAILY_AGGR")
-                .filterDate(chunk_start, chunk_end)
+                .filterDate(ee.Date(chunk_start), ee.Date(chunk_end))
                 .filterBounds(geometry)
                 .select(
                     [
@@ -201,74 +269,12 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
     logger.info("Processing ERA5 data to required format.")
 
-    df["date"] = pd.to_datetime(df["date"])
-
-    df = df.rename(
-        columns={
-            "total_precipitation_sum": "PRECTOTCORR",
-            "temperature_2m_max": "T2M_MAX",
-            "temperature_2m_min": "T2M_MIN",
-            "surface_solar_radiation_downwards_sum": "ALLSKY_SFC_SW_DWN",
-            "u_component_of_wind_10m": "u10",
-            "v_component_of_wind_10m": "v10",
-        }
-    )
-
-    # Convert temperatures from Kelvin to Celsius
-    df["T2M_MAX"] = df["T2M_MAX"] - 273.15
-    df["T2M_MIN"] = df["T2M_MIN"] - 273.15
-
-    # Convert solar radiation from J/m² to MJ/m²
-    df["ALLSKY_SFC_SW_DWN"] = df["ALLSKY_SFC_SW_DWN"] / 1_000_000
-
-    # Convert rain from meters to millimeters
-    df["PRECTOTCORR"] = df["PRECTOTCORR"] * 1000
-
-    # Calculate wind speed from u and v components
-    df["u10"] = df["u10"].astype(float)
-    df["v10"] = df["v10"].astype(float)
-    df["WS2M"] = np.sqrt(df["u10"] ** 2 + df["v10"] ** 2)
-
-    # Compute mean temperate
-    df["T2M"] = (df["T2M_MAX"] + df["T2M_MIN"]) / 2
-
-    # Keep only required columns for APSIM
-    df = df[["date", "ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]]
-    df.fillna(
-        {"ALLSKY_SFC_SW_DWN": 0, "T2M": 0, "T2M_MAX": 0, "T2M_MIN": 0, "PRECTOTCORR": 0, "WS2M": 0},
-        inplace=True,
-    )
-
-    # Ensure that we have continous data for every day from start_date to end_date
-    expected_dates = pd.date_range(df["date"].min(), end_date, freq="D")
-    missing_dates = expected_dates.difference(df["date"])
-
-    if not missing_dates.empty:
-        logger.warning(f"Missing dates in the data: {len(missing_dates)}")
-
-        # sort missing dates ascending
-        missing_dates = missing_dates.sort_values()
-        # check if it is the newest dates that are missing
-        if missing_dates[0] > df["date"].max():
-            logger.warning("Missing dates are at the end of the data. Not filling them.")
-        else:
-            raise Exception("Missing dates - Not yet handled, this shouldnt occur.")
-
-    # set date as index
-    df.set_index("date", inplace=True)
-    df.index = pd.to_datetime(df.index)
-    df = df.sort_index()
-
-    # check for duplicates
-    if df.index.duplicated().any():
-        raise ValueError("Duplicate dates found in the data.")
-
     return df
 
 
-def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath):
+def fetch_era5_from_cache(start_date, end_date, cache_fpath):
     # Read existing data
-    df_existing = pd.read_csv(cache_fpath, index_col=0, parse_dates=True)
+    df_existing = pd.read_csv(cache_fpath, parse_dates=True, index_col=0)
 
     # Determine the date range to fetch
     existing_dates = df_existing.index
@@ -276,11 +282,15 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
     missing_dates = all_dates.difference(existing_dates)
 
     # Identify blocks of missing dates
-    if not missing_dates.empty:
+    if missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
         df_filtered = df_existing.loc[start_date:end_date]
-        return df_filtered
+        return df_filtered, pd.DatetimeIndex([])
 
+    return df_existing, missing_dates
+
+
+def fill_missing_cache_dates(df_existing, missing_dates, lon, lat, polygon_path, cache_fpath):
     # Fetch data for the missing dates
     from_missing = missing_dates.min()
     to_missing = missing_dates.max()
@@ -298,7 +308,7 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
             chunk[-1].date(),
         )
 
-        chunk_data = fetch_era5_data(chunk[0], chunk[-1], ee_project, lon, lat, polygon_path)
+        chunk_data = get_era5_for_apsim(chunk[0], chunk[-1], lon, lat, polygon_path)
         missing_data.append(chunk_data)
 
     # Combine existing data with newly fetched data and bring in correct order
@@ -311,10 +321,7 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
     logger.info("Updating cache file: %s", cache_fpath)
     write_met_data_to_csv(df_combined, cache_fpath)
 
-    # Return only the data from the requested date range
-    df_filtered = df_combined.loc[start_date:end_date]
-
-    return df_filtered
+    return df_combined
 
 
 def validate_aggregation_options(met_agg_method):
@@ -429,23 +436,26 @@ def cli(
 
     if cache_dir is not None:
         cache_region = f"{lon:.4f}_{lat:.4f}".replace(".", "_")
-        cache_fpath = Path(cache_dir) / f"{cache_region}_{met_agg_method}_nasapower.csv"
+        cache_fpath = Path(cache_dir) / f"{cache_region}_{met_agg_method}_era5.csv"
 
     if ee_project is None:
         raise Exception("Setting --ee_project required when using ERA5 as the meteorological data source.")
 
+    logger.info("Initializing google earth engine.")
+    ee.Initialize(project=ee_project)
+
     if cache_dir is not None and Path(cache_fpath).exists() and not overwrite_cache:
-        logger.info(
-            "Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s",
-            cache_fpath,
-        )
-        df = fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, cache_fpath)
+        logger.info("Cache File found for ERA5 region. Will fetch and append only missing dates to: \n%s", cache_fpath)
+        df, missing_dates = fetch_era5_from_cache(start_date, end_date, cache_fpath)
+        if not missing_dates.empty:
+            df = fill_missing_cache_dates(df, missing_dates, lon, lat, polygon_path, cache_fpath)
+            df = df.loc[start_date:end_date]  # Keep only the data from requested date range
     else:
         # Get mean or centroid data
         if met_agg_method == "mean":
-            df = fetch_era5_data(start_date, end_date, ee_project, None, None, polygon_path)
+            df = get_era5_for_apsim(start_date, end_date, None, None, polygon_path)
         elif met_agg_method == "centroid":
-            df = fetch_era5_data(start_date, end_date, ee_project, lon, lat, None)
+            df = get_era5_for_apsim(start_date, end_date, lon, lat, None)
         else:
             raise ValueError(f"Unsupported met_agg_method: {met_agg_method}")
 

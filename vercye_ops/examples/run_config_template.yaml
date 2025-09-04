@@ -224,6 +224,7 @@ scripts:
   generate_multiyear_lai_report: '../reporting/generate_lai_report.py'
   agg_preds_multiyear: '../reporting/aggregate_multiyear_predictions.py'
   save_matched_sims: '../reporting/save_simulations.py'
+  nrt_forecast: '../met_data/fetch_ecmwf_nrt_forecast.py'
 
 ########################################
 # Other (Typically dont change)
