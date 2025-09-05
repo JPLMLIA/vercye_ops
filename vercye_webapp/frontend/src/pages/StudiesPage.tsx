@@ -338,7 +338,7 @@ const handleDownloadTemplate = async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'run_config.yaml';
+    a.download = `run_config_${detailStudy}.yaml`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (err) {
@@ -373,7 +373,7 @@ const handleDownloadTemplate = async () => {
 
       {/* Detail / Setup */}
       <Modal open={detailOpen} onClose={()=>setDetailOpen(false)} title={`${detailStudy ?? ''} - Configuration`} width={800}>
-        <Stepper step={step} />
+        <Stepper step={step} onStepChange={setStep}/>
         {step === 2 &&  <SetupStudyForm onSubmit={handleSetupSubmission}/>}
 
         {step === 3 && <RunParamsForm

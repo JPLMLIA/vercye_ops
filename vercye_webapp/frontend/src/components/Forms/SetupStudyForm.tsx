@@ -372,13 +372,13 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
       >
         <MultiValueInput
             label="Years (must be numerical e.g 2019)"
-            placeholder="2019, 2020"
+            placeholder="e.g 2019, 2020"
             values={years}
             setValues={setYears}
         />
         <MultiValueInput
             label="Timepoints (e.g T-0)."
-            placeholder="T-0, T-30"
+            placeholder="e.g T-0, T-30"
             values={timepoints}
             setValues={setTimepoints}
         />
@@ -415,7 +415,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               }}
             >
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">sim_start_date</label>
+                <label className="form-label">APSIM Simulation Start Date</label>
                 <input
                   className="form-input"
                   type="date"
@@ -425,7 +425,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">sim_end_date</label>
+                <label className="form-label">APSIM Simulation End Date</label>
                 <input
                   className="form-input"
                   type="date"
@@ -435,7 +435,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">met_start_date</label>
+                <label className="form-label">Meteorological Data Start Date</label>
                 <input
                   className="form-input"
                   type="date"
@@ -445,7 +445,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">met_end_date</label>
+                <label className="form-label">Meteorological Data End Date</label>
                 <input
                   className="form-input"
                   type="date"
@@ -455,7 +455,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">lai_start_date</label>
+                <label className="form-label">LAI Data Start Date</label>
                 <input
                   className="form-input"
                   type="date"
@@ -465,7 +465,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">lai_end_date</label>
+                <label className="form-label">LAI Data End Date</label>
                 <input
                   className="form-input"
                   type="date"

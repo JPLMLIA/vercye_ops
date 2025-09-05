@@ -88,8 +88,8 @@ def main(
 
         model = load_model_from_weights(model_weights, channels)
     else:
-        sateillite = "S2"
-        model = load_model(sateillite, resolution)
+        satellite = "S2"
+        model = load_model(satellite, resolution)
         model.eval()
 
     # Get all the VRT files
@@ -120,9 +120,11 @@ def main(
             print(f"Processing {Path(vf).name}")
 
         # Built-in scaling
-        s2_array = s2_array * 0.0001
+        # Now handling in Model directly s2_array = s2_array * 0.0001
 
         # Input
+        mask = s2_array == 0
+        s2_array = np.where(mask, np.nan, s2_array)
         s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
 
         # Run model

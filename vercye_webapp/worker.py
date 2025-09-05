@@ -16,7 +16,9 @@ from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import update_status
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
 from vercye_ops.utils.env_utils import (
     get_env_vars,
+    get_run_config,
     get_run_config_file_path,
+    get_run_config_template_file_path,
     get_setup_config,
     get_setup_config_file_path,
     get_snakemake_runlog_path,
@@ -25,6 +27,7 @@ from vercye_ops.utils.env_utils import (
     read_studies_dir_from_env,
     save_setup_config,
     update_study_status,
+    write_yaml_ruamel,
 )
 
 celery_app = Celery(
@@ -35,7 +38,7 @@ celery_app = Celery(
 
 celery_app.conf.task_routes = {
     "tasks.run_vercye_task": {"queue": "vercye_processing"},
-    "tasks.prepare_vercye_task": {"queue": "vercye_prep"},
+    "tasks.setup_vercye_task": {"queue": "vercye_prep"},
     "tasks.generate_lai_task": {"queue": "vercye_processing"},
     "tasks.duplicate_study_task": {"queue": "vercye_prep"},
 }
@@ -43,8 +46,8 @@ celery_app.conf.task_routes = {
 studies_dir = read_studies_dir_from_env()
 
 
-@celery_app.task(name="tasks.prepare_vercye_task")
-def prepare_vercye_task(study_id: str):
+@celery_app.task(name="tasks.setup_vercye_task")
+def setup_vercye_task(study_id: str, run_cfg_template_path: str = None):
     setup_cfg_path = get_setup_config_file_path(studies_dir, study_id)
     config, _ = load_yaml_ruamel(setup_cfg_path)
 
@@ -59,12 +62,44 @@ def prepare_vercye_task(study_id: str):
 
             # Update the tmppath to real study dir
             new_config, ruamel_yaml = load_yaml_ruamel(config_path)
+
+            if os.path.exists(run_cfg_template_path):
+                # If a template file is existing, use this to prefill most run parameters
+                # Since changes might have occured during the setup these need to be transferred from the new config
+                template_config, ruamel_yaml = load_yaml_ruamel(run_cfg_template_path)
+                template_config["regions_shp_name"] = new_config["regions_shp_name"]
+                template_config["regions"] = new_config["regions"]
+                template_config["years"] = new_config["years"]
+                template_config["timepoints"] = new_config["timepoints"]
+                template_config["apsim_params"]["time_bounds"] = new_config["apsim_params"]["time_bounds"]
+                template_config["lai_params"]["time_bounds"] = new_config["lai_params"]["time_bounds"]
+
+                for key in list(
+                    set(new_config["lai_params"]["crop_mask"].keys())
+                    - set(template_config["lai_params"]["cropmask"].keys())
+                ):
+                    template_config["lai_params"]["cropmask"][key] = new_config["lai_params"]["crop_mask"][key]
+
+                for key in list(
+                    set(new_config["eval_params"]["aggregation_levels"].keys())
+                    - set(template_config["eval_params"]["aggregation_levels"].keys())
+                ):
+                    template_config["eval_params"]["aggregation_levels"][key] = new_config["eval_params"][
+                        "aggregation_levels"
+                    ][key]
+
+                new_config = template_config
+
             new_config["sim_study_head_dir"] = real_output_dir
+            new_config["study_id"] = study_id
+
             with open(config_path, "w") as f:
                 ruamel_yaml.dump(new_config, f)
+
             # Only move to final destination if everything succeeds
             if os.path.exists(real_output_dir):
                 shutil.rmtree(real_output_dir)
+
             shutil.move(temp_output_dir, real_output_dir)
 
             # Set config status metadata after success
@@ -204,7 +239,7 @@ def run_lai_generation(config_path):
         raise e
 
 
-@celery_app.task(name="tasks.duplicate_study_task", base=LAITask)
+@celery_app.task(name="tasks.duplicate_study_task")
 def duplicate_vercye_study_task(existing_study_id, new_study_id):
 
     init_study(study_name=new_study_id, studies_dir=studies_dir)
@@ -233,13 +268,14 @@ def duplicate_vercye_study_task(existing_study_id, new_study_id):
 
     save_setup_config(existing_config, studies_dir, new_study_id, config_ruamel)
 
-    # Extract individual geometries, prepare APSIM files and reference data
-    prepare_vercye_task(new_study_id)
-
     # Copy the runcofig
-    existing_run_cfg_path = get_run_config_file_path(studies_dir, existing_study_id)
-    shutil.copyfile(existing_run_cfg_path, get_run_config_file_path(studies_dir, new_study_id))
+    run_config, run_config_ruamel = get_run_config(studies_dir, existing_study_id, ruamel=True)
+    run_config["copied_from_study_id"] = existing_study_id
 
-    # TODO modify sim_study_head_dir in new study runconfig
-    # Skipping for now as this will be also done on upload
-    # TODO add in description from which study it was copied (copied_from param )
+    # Save as template in new dir
+    new_run_config_template_path = get_run_config_template_file_path(studies_dir, new_study_id)
+    write_yaml_ruamel(run_config, run_config_ruamel, new_run_config_template_path)
+
+    shutil.copy(
+        get_run_config_file_path(studies_dir, existing_study_id),
+    )

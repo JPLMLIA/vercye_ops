@@ -28,10 +28,11 @@ from models import (
 from pydantic import TypeAdapter, ValidationError
 from pyproj import CRS
 from utils import QuotedString
-from worker import duplicate_vercye_study_task, prepare_vercye_task, run_vercye_task
+from worker import duplicate_vercye_study_task, run_vercye_task, setup_vercye_task
 
 from vercye_ops.cli import init_study, validate_run_config
 from vercye_ops.utils.env_utils import (
+    get_run_config_template_file_path,
     get_study_path,
     load_yaml_ruamel,
     read_cropmasks_dir_from_env,
@@ -220,9 +221,16 @@ async def setup_study(
     with setup_cfg_path.open("w") as f:
         yaml.dump(setup_cfg, f, default_flow_style=False, sort_keys=False)
 
+    # If a run already exists this will be deleted for a clean restart
+    # Avoids mixing outputs from different versions due to actual input file changes
+    study_dir = os.path.join(get_study_path(studies_dir, study_id), study_id)
+    if os.path.exists(study_dir):
+        shutil.rmtree(study_dir)
+
     # Extract and prepare APSIM files and geojsons and create run config for user to fill in
     try:
-        prepare_vercye_task(study_id)
+        run_cfg_template_path = get_run_config_template_file_path(studies_dir, study_id)
+        setup_vercye_task(study_id, run_cfg_template_path=run_cfg_template_path)
     except Exception as e:
         logger.exception(e)
         raise HTTPException(status_code=500, detail=str(e))

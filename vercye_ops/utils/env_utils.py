@@ -46,6 +46,11 @@ def get_run_config_file_path(studies_dir: str, study_name: str):
     return os.path.join(get_study_path(studies_dir, study_name), study_name, "config.yaml")
 
 
+def get_run_config_template_file_path(studies_dir: str, study_name: str):
+    """Get path to runcofnig template file that was created from an existing study."""
+    return os.path.join(get_study_path(studies_dir, study_name), "existing_run_cfg_template.yaml")
+
+
 def get_setup_config_file_path(studies_dir: str, study_name: str):
     return os.path.join(get_study_path(studies_dir, study_name), "setup_config.yaml")
 
@@ -141,5 +146,13 @@ def save_setup_config(config: dict, studies_dir: str, study_name: str, ruamel=No
     setup_cfg_path = get_setup_config_file_path(studies_dir, study_name)
     if ruamel:
         write_yaml_ruamel(config, ruamel, setup_cfg_path)
+    else:
+        raise NotImplementedError()
+
+
+def save_run_config(config: dict, studies_dir: str, study_name: str, ruamel=None):
+    run_cfg_path = get_run_config_file_path(studies_dir, study_name)
+    if ruamel:
+        write_yaml_ruamel(config, ruamel, run_cfg_path)
     else:
         raise NotImplementedError()
