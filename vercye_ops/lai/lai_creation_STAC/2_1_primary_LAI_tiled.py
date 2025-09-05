@@ -52,12 +52,12 @@ def delete_vrt_and_linked_tifs(vrt_path):
             logger.info(f"Not found: {f}")
 
 
-def worker_process_files(worker_id, file_batch, lai_dir, remove_original, sateillite, resolution):
+def worker_process_files(worker_id, file_batch, lai_dir, remove_original, satellite, resolution):
     """Worker function that processes a batch of files with a single model instance"""
     logger.info(f"Worker {worker_id} starting, processing {len(file_batch)} files")
 
     # Load the model once per worker
-    model = load_model(sateillite, resolution)
+    model = load_model(satellite, resolution)
     model.eval()
     logger.info("Model loaded")
 
@@ -80,6 +80,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     with rio.open(vrt_path) as s2_ds:
         s2_array = s2_ds.read()
         profile = s2_ds.profile
+        nodata_val = s2_ds.nodata
 
         # Validate that correct number of input bands is provided.
         if not s2_array.shape[0] == model.num_in_ch:
@@ -88,7 +89,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
             )
 
         # If the last band of the image is all zeros, skip
-        if np.all(s2_array[-1] == 0):
+        if np.all(s2_array[-1] == nodata_val):
             logger.info(f"Skipping {Path(vrt_path).name} because it is all zeros")
             s2_ds.close()
             return None
@@ -96,12 +97,11 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
             logger.info(f"Processing {Path(vrt_path).name}")
 
         # Set NODATA to nan
-        nodata_val = s2_ds.nodata
         mask = s2_array == nodata_val
         s2_array = np.where(mask, np.nan, s2_array)
 
         # Built-in scaling
-        s2_array = s2_array * 0.0001
+        # Now handling in model directly s2_array = s2_array * 0.0001
 
         # Input
         t1 = time.time()
@@ -141,7 +141,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
 
 
 @click.command()
-@click.argument("S2-dir", type=click.Path(exists=True))
+@click.argument("imagery-dir", type=click.Path(exists=True))
 @click.argument("LAI-dir", type=click.Path(exists=True))
 @click.argument("resolution", type=int)
 @click.option(
@@ -165,12 +165,18 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
     help="Number of workers (cores) to use.",
 )
 @click.option(
+    "--satellite",
+    type=str,
+    default="S2",
+    help="Imagery from Satellite type: S2 for Sentinel-2, HLS_S30 for HLS Sentinel Version, HLS_L30 for HLS Landsat version.",
+)
+@click.option(
     "--remove-original",
     is_flag=True,
     help="Remove original VRT files AND linked tifs after processing",
     default=False,
 )
-def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_original):
+def main(imagery_dir, lai_dir, resolution, start_date, end_date, num_cores, satellite, remove_original):
     """
     Main function to process Sentinel-2 VRT files and generate LAI estimates.
 
@@ -179,16 +185,14 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_or
     start_time = time.time()
     logger.info(f"Using {num_cores} parallel workers")
 
-    # Currently only supporting Sentinel-2 yet
-    sateillite = "S2"
-
     # Get all the VRT files
-    vrt_files = sorted(glob(f"{s2_dir}/*_{resolution}m_*.vrt"))
+    vrt_files = sorted(glob(f"{imagery_dir}/*_{resolution}m_*.vrt"))
+    print(vrt_files)
 
     if start_date is not None and end_date is not None:
         vrt_files = [vf for vf in vrt_files if is_within_date_range(vf, start_date, end_date)]
-
-    logger.info(f"Found {len(vrt_files)} VRT files at {resolution}m in {s2_dir}")
+    print(vrt_files)
+    logger.info(f"Found {len(vrt_files)} VRT files at {resolution}m in {imagery_dir}")
 
     # Divide files into batches for each worker
     file_batches = []
@@ -216,7 +220,7 @@ def main(s2_dir, lai_dir, resolution, start_date, end_date, num_cores, remove_or
                     file_batch,
                     lai_dir,
                     remove_original,
-                    sateillite,
+                    satellite,
                     resolution,
                 )
             )
