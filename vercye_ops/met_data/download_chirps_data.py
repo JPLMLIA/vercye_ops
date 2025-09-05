@@ -81,19 +81,19 @@ def download_file_ftp(file_name, output_fpath, ftp_connection):
     """
     temp_fpath = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".tif") as temp_file:
+        with tempfile.NamedTemporaryFile(suffix=".tif") as temp_file:
             temp_fpath = temp_file.name
             ftp_connection.retrbinary(f"RETR {file_name}", temp_file.write)
             temp_file.flush()  # Ensure buffer is flushed
             os.fsync(temp_file.fileno())  # Ensure data is written to disk
 
-        # Now the file is closed, so you can safely check the file size
-        fsize = ftp_connection.size(file_name)
-        if fsize != os.path.getsize(temp_fpath):
-            os.remove(temp_fpath)
-            raise IOError("Downloaded file is incomplete.")
+            # Now the file is closed, so can safely check the file size
+            fsize = ftp_connection.size(file_name)
+            if fsize != os.path.getsize(temp_fpath):
+                os.remove(temp_fpath)
+                raise IOError("Downloaded file is incomplete.")
 
-        shutil.move(temp_fpath, output_fpath)
+            shutil.move(temp_fpath, output_fpath)
     except ftplib.all_errors as e:
         if temp_fpath and os.path.exists(temp_fpath):
             os.remove(temp_fpath)  # Ensure temp file is deleted on error
@@ -188,7 +188,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
             except ftplib.all_errors as e:
                 logger.error(f"Error changing directory to year {year}: {e}")
                 ftp_connection.quit()
-                remaining_dates = daterange[daterange.index(date) :]
+                remaining_dates = list(daterange)[list(daterange).index(date) :]
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
 
@@ -238,7 +238,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool):
             except ftplib.all_errors as e:
                 logger.error(f"Error changing directory to year {year}: {e}")
                 ftp_connection.quit()
-                remaining_dates = daterange[daterange.index(date) :]
+                remaining_dates = list(daterange)[list(daterange).index(date) :]
                 failed_downloads.extend(remaining_dates)
                 return failed_downloads
 
@@ -409,9 +409,22 @@ def validate_chirps_files(start_date, end_date, output_dir):
     logger.info("Validation completed. Check for errors above.")
 
 
+def is_daterange_complete(start_date, end_date, output_dir):
+    required_dates = pd.date_range(start_date, end_date)
+    required_dates = [d.strftime("%Y.%m.%d") for d in required_dates]
+    available_files = os.listdir(output_dir)
+    available_dates = [".".join(f.split(".")[2:5]) for f in available_files]
+    missing_dates = set(required_dates) - set(available_dates)
+    return len(missing_dates) == 0
+
+
 def run_chirps_download(start_date, end_date, output_dir, num_workers):
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
+
+    # Shortcut to avoid setting up ftp if all data already present
+    if is_daterange_complete(start_date, end_date, output_dir):
+        return
 
     # Download CHIRPS data for the specified date range if not already present in outputdir
     fetch_chirps_daterange_parallel(start_date, end_date, output_dir, num_workers)

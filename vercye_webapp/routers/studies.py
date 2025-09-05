@@ -257,16 +257,10 @@ async def upload_run_config(
     except (json.JSONDecodeError, ValidationError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid laiconfig data: {e}")
 
+    tmp_file_path = None
     try:
-
         file_bytes = run_cfg_file.file.read()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml", mode="wb") as tmp_file:
-            tmp_file.write(file_bytes)
-            tmp_file_path = tmp_file.name
-
-        config_data, yaml_ruamel = load_yaml_ruamel(tmp_file_path)
-        if not isinstance(config_data, dict):
-            raise HTTPException(status_code=400, detail="YAML content must be a mapping")
+        config_data, yaml_ruamel = load_yaml_ruamel(io.BytesIO(file_bytes))
 
         # Set simulation head dir
         config_data["sim_study_head_dir"] = os.path.join(studies_dir, study_id, study_id)
@@ -307,9 +301,10 @@ async def upload_run_config(
         raise HTTPException(status_code=400, detail=f"Invalid config: {str(e)}")
     finally:
         run_cfg_file.file.close()
-
-    run_cfg_path = os.path.join(studies_dir, study_id, study_id, "config.yaml")
-    shutil.copyfile(tmp_file_path, run_cfg_path)
+        if tmp_file_path:
+            run_cfg_path = os.path.join(studies_dir, study_id, study_id, "config.yaml")
+            shutil.copyfile(tmp_file_path, run_cfg_path)
+            os.remove(tmp_file_path)
 
     with open(run_cfg_status_path, "w") as f:
         f.write("valid")

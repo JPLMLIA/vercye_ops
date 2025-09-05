@@ -1,5 +1,7 @@
+import io
 import os
 from pathlib import Path
+from typing import Union
 
 import yaml
 from dotenv import dotenv_values
@@ -108,12 +110,25 @@ def get_setup_config(studies_dir: str, study_name: str, ruamel=False):
     return load_yaml_ruamel(config_file_path)
 
 
-def load_yaml_ruamel(filepath: str):
-    """ "Helper to load a yaml with its actual layout containing comments etc"""
+def load_yaml_ruamel(source: Union[str, bytes, io.StringIO, io.BytesIO]):
     yaml_loader = YAML()
     yaml_loader.preserve_quotes = True
-    with open(filepath, "r") as f:
-        return yaml_loader.load(f), yaml_loader
+
+    if isinstance(source, str):
+        try:
+            with open(source, "r") as f:
+                return yaml_loader.load(f), yaml_loader
+        except FileNotFoundError:
+            return yaml_loader.load(io.StringIO(source)), yaml_loader
+
+    elif isinstance(source, bytes):
+        return yaml_loader.load(io.BytesIO(source)), yaml_loader
+
+    elif hasattr(source, "read"):
+        return yaml_loader.load(source), yaml_loader
+
+    else:
+        raise TypeError(f"Unsupported input type for load_yaml_ruamel: {type(source)}")
 
 
 def write_yaml_ruamel(obj: dict, ruamel, dest_path: str):

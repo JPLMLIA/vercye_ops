@@ -32,24 +32,26 @@ def clean_running_tasks():
     # Kill running studies
     for study in os.listdir(studies_dir):
         study_dir = os.path.join(studies_dir, study)
-        print(study)
         if not os.path.isdir(study_dir):
             continue
 
         status_file_pth = get_snakemake_run_status_file_path(studies_dir, study)
+        if not os.path.exists(status_file_pth):
+            continue
         try:
             with open(status_file_pth, "r") as f:
                 status = f.read()
 
-            if status.lower() == "running":
+            if status.lower() in ["running", "queued"]:
                 task_id_file = os.path.join(studies_dir, study, "snakemake", "snakemake_task_id.txt")
-                with open(task_id_file, "r") as f:
-                    pid = int(f.read().strip())
+                if os.path.exists(task_id_file):
+                    with open(task_id_file, "r") as f:
+                        pid = int(f.read().strip())
 
-                try:
-                    os.killpg(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                    try:
+                        os.killpg(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
                 update_study_status(studies_dir, study, "failed")
         except Exception as e:
             print(f"Error during killing of study task: {str(e)}")

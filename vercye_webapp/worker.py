@@ -1,9 +1,9 @@
-import datetime
 import os
 import shutil
 import signal
 import subprocess
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -24,6 +24,7 @@ from vercye_ops.utils.env_utils import (
     load_yaml_ruamel,
     read_studies_dir_from_env,
     save_setup_config,
+    update_study_status,
 )
 
 celery_app = Celery(
@@ -126,13 +127,14 @@ def ensure_chirps_daterange_complete(study_id):
         min_start_date = min(dates)
         max_end_date = max(dates)
         with open(log_file_path, "a") as f:
-            f.write(f"Fetching CHIRPS data from {min_start_date} to {max_end_date}...")
-        run_chirps_download(min_start_date.date(), max_end_date.date(), chirps_cache_dir, 5)
+            f.write(f"Ensuring CHIRPS data from {min_start_date} to {max_end_date} exists...\n")
+        run_chirps_download(min_start_date.date(), max_end_date.date(), chirps_cache_dir, 2)
 
 
 @celery_app.task(name="tasks.run_vercye_task", base=VercyeTask)
 def run_vercye_task(study_id: str):
     os.makedirs(os.path.join(studies_dir, study_id, "snakemake"), exist_ok=True)
+    update_study_status(studies_dir, study_id, "running")
     log_file_path = os.path.join(studies_dir, study_id, "snakemake", "log.txt")
     with open(log_file_path, "w") as f:
         f.write("")
@@ -140,7 +142,7 @@ def run_vercye_task(study_id: str):
     # Fetch missing chirps data if required
     if uses_chirps(study_id):
         with open(log_file_path, "a") as f:
-            f.write("Fetching missing CHIRPS data....")
+            f.write("Checking for missing CHIRPS data....\n")
         ensure_chirps_daterange_complete(study_id)
 
     # Validate the Configfile and trigger a snakemake run

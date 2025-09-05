@@ -14,6 +14,7 @@ def generate_report(
     rs_lai_csv_fpath,
     apsim_db_fpath,
     total_yield_csv_fpath,
+    conversion_factor_csv_fpath,
     crop_name,
     use_adjusted_lai,
     lai_agg_type,
@@ -33,6 +34,8 @@ def generate_report(
         Filepath to the APSIM SQLite database.
     total_yield_csv_fpath : str
         Filepath to the CSV containing total yield and conversion factor.
+    conversion_factor_csv_fpath: str
+        Filepath to the CSV containing conversion factor and APSIM mean matched yield
     html_fpath : str, optional
         Filepath to save the interactive HTML report, by default None.
     png_fpath : str, optional
@@ -67,45 +70,61 @@ def generate_report(
 
     ###########
 
+    ###########
+    logger.info(
+        f"Reading apsim matched yield, max rs lai, max rs lai date and conversion factor from {conversion_factor_csv_fpath}"
+    )
+
+    df_conv = pd.read_csv(conversion_factor_csv_fpath)
+    if "apsim_mean_yield_estimate_kg_ha" not in df_conv.columns:
+        raise KeyError("CSV file must contain a 'apsim_mean_yield_estimate_kg_ha' column.")
+
+    if "max_rs_lai" not in df_conv.columns:
+        raise KeyError("CSV file must contain a 'max_rs_lai' column.")
+
+    if "max_rs_lai_date" not in df_conv.columns:
+        raise KeyError("CSV file must contain a 'max_rs_lai_date' column.")
+
+    apsim_mean_yield_estimate_kg_ha = df_conv["apsim_mean_yield_estimate_kg_ha"].round().iloc[0]
+    max_rs_lai = df_conv["max_rs_lai"].round(2).iloc[0]
+    max_rs_lai_date = df_conv["max_rs_lai_date"].iloc[0]
+
+    ###########
+
     # Style dictionary based on StepFilteredOut
     style_dict = {
-        pd.NA: {
-            "line_color": "DodgerBlue",
-            "line_dash": "solid",
-            "line_width": 1,
-            "opacity": 1,
+        pd.NA: {  # Not filtered out
+            "line_color": "forestgreen",
+            "line_width": 1.5,
+            "opacity": 0.5,
             "zorder": 0,
             "show_group": True,
         },
         5: {
-            "line_color": "Navy",
-            "line_dash": "solid",
-            "line_width": 0.5,
-            "opacity": 0.5,
+            "line_color": "red",
+            "line_width": 1,
+            "opacity": 0.3,
             "zorder": -1,
             "show_group": True,
         },
         4: {
-            "line_color": "Navy",
-            "line_dash": "solid",
-            "line_width": 0.5,
-            "opacity": 0.5,
+            "line_color": "orange",
+            "line_width": 1,
+            "opacity": 0.3,
             "zorder": -2,
             "show_group": True,
         },
         3: {
-            "line_color": "Navy",
-            "line_dash": "solid",
-            "line_width": 0.5,
-            "opacity": 0.5,
+            "line_color": "purple",
+            "line_width": 1,
+            "opacity": 0.3,
             "zorder": -3,
             "show_group": True,
         },
         2: {
-            "line_color": "Navy",
-            "line_dash": "solid",
-            "line_width": 0.5,
-            "opacity": 0.5,
+            "line_color": "brown",
+            "line_width": 1,
+            "opacity": 0.3,
             "zorder": -4,
             "show_group": True,
         },
@@ -150,7 +169,7 @@ def generate_report(
                 zorder=style["zorder"],
                 legendgroup=legend_group,
                 showlegend=style["show_group"],
-                line=dict(color="DarkGreen", dash=style["line_dash"], width=style["line_width"]),
+                line=dict(color=style["line_color"], width=style["line_width"]),
             ),
             row=1,
             col=1,
@@ -168,7 +187,7 @@ def generate_report(
                 zorder=style["zorder"],
                 legendgroup=legend_group,
                 showlegend=False,
-                line=dict(color=style["line_color"], dash=style["line_dash"], width=style["line_width"]),
+                line=dict(color=style["line_color"], width=style["line_width"]),
             ),
             row=2,
             col=1,
@@ -286,14 +305,17 @@ def generate_report(
         f"Input DB: <i>{apsim_db_fpath}</i><br>"
         f"Number of simulation traces in mean data: {n_simulations}<br>"
         f"Date range: {start_date} to {end_date}<br>"
-        f"Mean yield rate: {mean_yield_kg_ha:0.0f} kg/ha<br>"
-        f"Production: <b>{total_yield_metric_tons:0.0f} metric tons</b><br>"
+        f"Mean APSIM matched yield: {apsim_mean_yield_estimate_kg_ha:0.0f} kg/ha<br>"
+        f"RS max LAI: {max_rs_lai}<br>"
+        f"RS max LAI date: {max_rs_lai_date}<br>"
+        f"Mean converted yield (pixel-based): {mean_yield_kg_ha:0.0f} kg/ha<br>"
+        f"Production (pixel-based): <b>{total_yield_metric_tons:0.0f} metric tons</b><br>"
         f"Valid Days with RS data (< 100% cloud coverage): {n_days_with_rs_data_valid} days<br>"
         f"Average Cloud/Snow coverage per non-interpolated valid RS date: {cloud_snow_percentage:0.2f}%"
     )
 
     fig.update_layout(
-        title=dict(text=title_text, font=dict(size=10)), margin={"t": 275}
+        title=dict(text=title_text, font=dict(size=10)), margin={"t": 200}
     )  # Adjust the top margin to avoid overlap
     # hovermode='x unified')
 
@@ -353,6 +375,12 @@ def generate_report(
     help="Filepath to CSV with the conversion factor and total yield.",
 )
 @click.option(
+    "--conversion_factor_csv_fpath",
+    required=True,
+    type=click.Path(exists=True),
+    help="Filepath to CSV with the conversion factor and total yield.",
+)
+@click.option(
     "--html_fpath",
     required=False,
     type=click.Path(),
@@ -372,6 +400,7 @@ def cli(
     rs_lai_csv_fpath,
     apsim_db_fpath,
     total_yield_csv_fpath,
+    conversion_factor_csv_fpath,
     crop_name,
     use_adjusted_lai,
     lai_agg_type,
@@ -393,6 +422,7 @@ def cli(
         rs_lai_csv_fpath,
         apsim_db_fpath,
         total_yield_csv_fpath,
+        conversion_factor_csv_fpath,
         crop_name,
         use_adjusted_lai,
         lai_agg_type,

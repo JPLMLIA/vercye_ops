@@ -314,7 +314,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
             <label className="form-label">Target Projection (EPSG or proj string)</label>
             <input
               className="form-input"
-              placeholder="EPSG:4326 or +proj=longlat +datum=WGS84 +no_defs"
+              placeholder="e.g EPSG:4326 or +proj=longlat +datum=WGS84 +no_defs"
               value={targetProjection}
               onChange={(e) => setTargetProjection(e.target.value)}
             />
@@ -332,32 +332,36 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
             marginTop: "0.5rem",
           }}
         >
+          <Fieldset
+            legend="Optional Filters"
+            hint="Restrict which features are extracted. Leave blank to include all."
+          >
+            <div className="form-group">
+              <label className="form-label">Optional: Filter Column</label>
+              <input
+                list="detectedColumns"
+                className="form-input"
+                placeholder="e.g., admin_name or ADM2_EN"
+                value={regionFilterColumn}
+                onChange={(e) => setRegionFilterColumn(e.target.value)}
+              />
+              <datalist id="detectedColumns">
+                {detectedColumns.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <p className="subtitle" style={{ marginTop: 4 }}>
+                Only features whose value is in the allow-list (next field) will be extracted. Keep empty to use all.
+              </p>
+            </div>
 
-          <div className="form-group">
-            <label className="form-label">Optional: Filter Column</label>
-            <input
-              list="detectedColumns"
-              className="form-input"
-              placeholder="e.g., admin_name or ADM2_EN"
-              value={regionFilterColumn}
-              onChange={(e) => setRegionFilterColumn(e.target.value)}
+            <MultiValueInput
+              label="Optional: Allowed Filter Values"
+              placeholder="Type a value and press Add, or paste comma-separated"
+              values={regionAllowedValues}
+              setValues={setRegionAllowedValues}
             />
-            <datalist id="detectedColumns">
-              {detectedColumns.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-            <p className="subtitle" style={{ marginTop: 4 }}>
-              Only features whose value is in the allow-list (next field) will be extracted. Keep empty to use all.
-            </p>
-          </div>
-
-          <MultiValueInput
-            label="Optional: Allowed Filter Values"
-            placeholder="Type a value and press Add, or paste comma-separated"
-            values={regionAllowedValues}
-            setValues={setRegionAllowedValues}
-          />
+          </Fieldset>
         </div>
       </Fieldset>
 

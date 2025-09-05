@@ -157,9 +157,9 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
     log_file_path = get_snakemake_runlog_path(studies_dir, study_name)
     snakefile_path = rel_path("snakemake/Snakefile")
     os.makedirs(snakemake_run_dir, exist_ok=True)
+    update_study_status(studies_dir, study_name, "running")
 
     # Validate config - snaity checking for a bunch of user errors
-    update_study_status(studies_dir, study_name, "validating")
     validate_run_config(config_file_path)
 
     if validate_only:
