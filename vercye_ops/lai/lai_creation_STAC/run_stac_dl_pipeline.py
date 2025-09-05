@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from itertools import product
 
 import click
 import geopandas as gpd
@@ -40,7 +41,10 @@ def run_subprocess(cmd: list, step_desc: str, logger):
 
 def batch_date_range(start_date, end_date, chunk_days=30):
     start = start_date
-    end = end_date + relativedelta(days=1)
+    end = end_date
+    if start == end:
+        end = end + +relativedelta(days=1)
+
     while start < end:
         next_start = min(start + relativedelta(days=chunk_days), end)
         yield start.strftime("%Y-%m-%d"), next_start.strftime("%Y-%m-%d")
@@ -97,6 +101,7 @@ def update_status(meta_file, resolution, status):
 
 def run_pipeline(config, logger):
     date_ranges = config["date_ranges"]
+    satellite = config["satellite"]
     resolution = config["resolution"]
     geojson_path = config["geojson_path"]
     out_dir = config["out_dir"]
@@ -108,12 +113,17 @@ def run_pipeline(config, logger):
     source = config["imagery_src"]
     keep_imagery = config["keep_imagery"]
 
-    if source.lower() == "es_s2c1":
-        downloader_script_path = rel_path("1_download_S2_earthsearch.py")
-    elif source.lower() == "mpc":
-        downloader_script_path = rel_path("1_download_S2_MPC.py")
-    else:
-        raise ValueError("Invalid Source Provided")
+    if satellite.lower() == "s2":
+        if source.lower() == "es_s2c1":
+            downloader_script_path = rel_path("1_download_S2_earthsearch.py")
+        elif source.lower() == "mpc":
+            downloader_script_path = rel_path("1_download_S2_MPC.py")
+        else:
+            raise ValueError("Invalid Source Provided")
+    elif satellite.lower() == "hls":
+        if source.lower() != "mpc":
+            raise ValueError("Invalid Source Provided")
+        downloader_script_path = rel_path("1_download_HLS_MPC.py")
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -161,7 +171,11 @@ def run_pipeline(config, logger):
 
             logger.info(f"Processing date range {i+1}: {start_date} to {end_date}")
 
-            for start, end in batch_date_range(start_date, end_date, chunk_days=chunk_days):
+            satellites = ["HLS_L30"] if satellite == "HLS" else ["S2"]
+            for (start, end), cur_satellite in product(
+                batch_date_range(start_date, end_date, chunk_days=chunk_days), satellites
+            ):
+                # Use different folders for s30 and l30
                 if from_step <= 0:
                     os.makedirs(tiles_out_dir, exist_ok=True)
                     cmd = [
@@ -179,8 +193,10 @@ def run_pipeline(config, logger):
                         tiles_out_dir,
                         "--num-workers",
                         str(num_workers_download),
+                        "--satellite",
+                        cur_satellite,
                     ]
-                    run_subprocess(cmd, f"Download tiles {start} to {end}", logger=logger)
+                    run_subprocess(cmd, f"Download tiles {start} to {end} for {cur_satellite}", logger=logger)
 
                 if from_step <= 1:
                     os.makedirs(lai_dir, exist_ok=True)
@@ -196,6 +212,8 @@ def run_pipeline(config, logger):
                         end,
                         "--num-cores",
                         str(num_workers_lai),
+                        "--satellite",
+                        cur_satellite,
                     ]
 
                     if not keep_imagery:

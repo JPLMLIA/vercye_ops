@@ -79,18 +79,6 @@ def dedupliate(items):
     help="Maximum cloud cover percentage (0-100) of a tile",
 )
 @click.option(
-    "--cloudprob-thresh",
-    type=int,
-    default=25,
-    help="Threshold for pixels to be considered clouds (S2Cloudless).",
-)
-@click.option(
-    "--snowprob-thresh",
-    type=int,
-    default=15,
-    help="Threshold for pixel to be considered as snow.",
-)
-@click.option(
     "--num-workers",
     type=int,
     default=None,
@@ -110,8 +98,6 @@ def main(
     geojson_path,
     output_dir,
     max_cloud_cover,
-    cloudprob_thresh,
-    snowprob_thresh,
     num_workers,
     overwrite,
 ):
@@ -171,7 +157,6 @@ def main(
         raise ValueError("Empty shapefile provided.")
 
     # Query Stac catalog
-
     # First try using all exact geometries. However, sometimes this is a too large request and might throw an error
     try:
         geometry = gdf.geometry.union_all()
