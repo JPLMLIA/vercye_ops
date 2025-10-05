@@ -276,7 +276,7 @@ def run_pipeline(config, logger):
         # Update all found dates per resolution
         for resolution in meta["resolutions"]:
             # Dates will have format YYYY-MM-DD
-            dates = [f.split("_")[2] for f in os.listdir(merged_lai_dir)]
+            dates = [f.split("_")[-2] for f in os.listdir(merged_lai_dir)]
             meta["dates"][str(resolution)] = dates
 
         with open(metadata_index_file, "w", encoding="utf-8") as f:

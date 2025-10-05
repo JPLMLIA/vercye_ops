@@ -218,7 +218,7 @@ rule fill_era5_cache:
 rule fetch_met_data:
     input:
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
-        np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasapower' else [],
+        np_cached_data = op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'nasa_power' else [],
         era5_cached_data = op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt') if config['apsim_params']['met_source'].lower() == 'era5' else [],
     params:
         met_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['met_start_date'],

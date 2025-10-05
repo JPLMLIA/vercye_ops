@@ -7,10 +7,11 @@ from typing import Dict, Optional
 
 import click
 import geopandas as gpd
+import pandas as pd
 from ruamel.yaml.comments import CommentedSeq
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString as DQ
 
-from vercye_ops.utils.convert_shapefile_to_geojson import convert_shapefile_to_geojson
+from vercye_ops.utils.convert_shapefile_to_geojson import clean_region_name, convert_shapefile_to_geojson
 from vercye_ops.utils.env_utils import get_env_vars, is_env_set, load_yaml_ruamel
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +56,11 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
     snakefile_config["years"] = config["years"]
     snakefile_config["timepoints"] = config["timepoints"]
     snakefile_config["apsim_params"]["time_bounds"] = config["timepoints_config"]
+    for timepoint_name, timebounds in snakefile_config["apsim_params"]["time_bounds"].items():
+        timebounds_new = timebounds.copy()
+        timebounds_new.pop("lai_start_date", None)
+        timebounds_new.pop("lai_end_date", None)
+        snakefile_config["apsim_params"]["time_bounds"][timepoint_name] = timebounds_new
 
     target_crs = config["target_crs"].strip("'\"")
     if "proj" in target_crs:
@@ -153,7 +159,18 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
 
                     new_name = f"referencedata_{reference_data_name}-{year}.csv"
                     new_path = os.path.join(str(output_dir), str(year), new_name)
-                    shutil.copy(original_path, new_path)
+
+                    if not new_path == original_path:
+                        shutil.copy(original_path, new_path)
+
+                    if reference_data_name == "primary":
+                        # Rename columns region columns to match vercye cleaned format
+                        # Required as internal matching for primary level on folder name
+                        df_ref = pd.read_csv(new_path)
+                        df_ref["original_region_name"] = df_ref["region"]
+                        df_ref["region"] = df_ref["region"].apply(clean_region_name)
+                        df_ref.to_csv(new_path)
+
                     known_agg_lvls.append(reference_data_name)
 
         config.yaml_set_comment_before_after_key("REFERENCE_DATA_PATHS", before=None)

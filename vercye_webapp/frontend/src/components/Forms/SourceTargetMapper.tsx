@@ -53,7 +53,7 @@ const SourceTargetMapper: React.FC<SourceTargetMapperProps> = ({
 
   return (
     <div>
-      {title ? <h4 style={{ marginTop: 0 }}>{title}</h4> : null}
+      {title ? <div className="form-label" style={{ marginTop: 0 }}>{title}</div> : null}
       {hint ? (
         <p className="subtitle" style={{ marginTop: 0 }}>
           {hint}

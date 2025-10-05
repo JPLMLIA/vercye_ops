@@ -4,6 +4,8 @@ import Fieldset from "./FieldSet";
 import MultiValueInput from "./MultiValueInput";
 import SourceTargetMapper, { MapperSource, MappingState } from "./SourceTargetMapper";
 import shp from 'shpjs';
+import useToast from '@/components/Toast';
+import { SetupConfigTemplate } from "@/types";
 
 interface WindowConfig {
   id: string;
@@ -27,6 +29,7 @@ interface ShapefileData {
 
 interface SetupStudyFormProps {
   onSubmit: (payload: SetupSubmissionsPayload) => void;
+  initialData: SetupConfigTemplate | null
 }
 
 export interface SetupSubmissionsPayload {
@@ -50,6 +53,28 @@ export interface SetupSubmissionsPayload {
   simulationWindows: Omit<WindowConfig, "id">[];
 }
 
+interface TimepointPattern {
+  sim_start_day: number;
+  sim_start_month: number;
+  sim_start_year_offset: number;
+  sim_end_day: number;
+  sim_end_month: number;
+  sim_end_year_offset: number;
+  lai_start_day: number;
+  lai_start_month: number;
+  lai_start_year_offset: number;
+  lai_end_day: number;
+  lai_end_month: number;
+  lai_end_year_offset: number;
+  met_start_day: number;
+  met_start_month: number;
+  met_start_year_offset: number;
+  met_end_day: number;
+  met_end_month: number;
+  met_end_year_offset: number;
+}
+
+
 const initWindow = (override: Partial<WindowConfig> = {}): WindowConfig => ({
   id: crypto?.randomUUID?.() || String(Math.random()).slice(2),
   year: "",
@@ -63,13 +88,25 @@ const initWindow = (override: Partial<WindowConfig> = {}): WindowConfig => ({
   ...override,
 });
 
-const coerceFilesFromOnChange = (
-  eOrFiles: any
-): File[] => {
-  if (Array.isArray(eOrFiles)) return eOrFiles as File[];
-  if (eOrFiles?.target?.files) return Array.from(eOrFiles.target.files) as File[];
-  if (eOrFiles instanceof FileList) return Array.from(eOrFiles);
-  return [];
+const defaultPattern: TimepointPattern = {
+  sim_start_day: 20,
+  sim_start_month: 8,
+  sim_start_year_offset: -1,
+  sim_end_day: 1,
+  sim_end_month: 8,
+  sim_end_year_offset: 0,
+  lai_start_day: 1,
+  lai_start_month: 2,
+  lai_start_year_offset: 0,
+  lai_end_day: 1,
+  lai_end_month: 8,
+  lai_end_year_offset: 0,
+  met_start_day: 1,
+  met_start_month: 8,
+  met_start_year_offset: -20,
+  met_end_day: 1,
+  met_end_month: 8,
+  met_end_year_offset: 0,
 };
 
 const pairKey = (y: string, t: string) => `${y}__${t}`;
@@ -117,7 +154,7 @@ function loadColValues(column: string, _shapefileFile?: File | null): string[] {
   return ["all", ...values];
 }
 
-const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
+const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }) => {
   const [shapefileUpload, setShapefileUpload] = useState<File | null>(null);
   const [apsimFiles, setApsimFiles] = useState<File[]>([]);
   const [apsimAllowedValues, setApsimAllowedValues] = useState<string[]>(['all']);
@@ -155,46 +192,253 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
   const [referenceMapping, setReferenceMapping] = useState<MappingState>({});
   const [referenceYearsMapping, setReferenceYearsMapping] = useState<MappingState>({})
 
-  // Keep mapping keys in sync if files change (cleanup removed sources)
- useEffect(() => {
-  setApsimMapping((prev) => {
-    const next: MappingState = {};
-    apsimSources.forEach((s) => (next[s.id] = (prev[s.id] ?? []) as string[]));
-    return next;
-  });
-}, [apsimSources]);
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  const [usePattern, setUsePattern] = useState(false)
+
+  const [timepointPatterns, setTimepointPatterns] = useState<{[tp: string]: TimepointPattern}>({})
+
+  const { show, Toast } = useToast();
 
   useEffect(() => {
+    if (!initialData) {setIsInitialized(true); return}
+    (window as any).__lastShapefileGeoJSON = initialData.shapefileData;
+    console.log(initialData.shapefileName)
+    setShapefileUpload(new File([], initialData.shapefileName))
+
+    const detectedColumns = getAllColumnNames(initialData.shapefileData)
+    setDetectedColumns(detectedColumns);
+    setApsimAllowedValues(loadColValues(initialData.apsimColumn, null));
+
+    setAdminNameColumn(initialData.regionExtraction.adminNameColumn);
+    setTargetProjection(initialData.regionExtraction.targetProjection);
+    setRegionFilterColumn(initialData.regionExtraction.filter?.column ?? "");
+    setRegionAllowedValues(initialData.regionExtraction.filter?.allow ?? []);
+
+    setApsimColumn(initialData.apsimColumn || "");
+    setApsimMapping(initialData.apsimMapping || {});
+    setApsimFiles(initialData.apsimFiles.map((name) => new File([], name)));
+    console.log(initialData.apsimFiles)
+
+    setReferenceMapping(initialData.referenceMapping || {});
+    setReferenceYearsMapping(initialData.referenceYearsMapping || {});
+    setReferenceFiles(initialData.referenceFiles.map((name) => new File([], name)));
+
+    setYears(initialData.years);
+    setTimepoints(initialData.timepoints);
+
+    const newWindows = initialData.simulationWindows.map((w) => initWindow({...w }));
+    setWindows(newWindows);
+    setIsInitialized(true)
+  }, [initialData]);
+
+  // Keep mapping keys in sync if files change (cleanup removed sources)
+  useEffect(() => {
+    if (!isInitialized) return
+    setApsimMapping((prev) => {
+      const next: MappingState = {};
+      apsimSources.forEach((s) => (next[s.id] = (prev[s.id] ?? []) as string[]));
+      return next;
+    });
+  }, [apsimSources, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return
     setReferenceMapping((prev) => {
       const next: MappingState = {};
       refSources.forEach((s) => (next[s.id] = prev[s.id] || ""));
       return next;
     });
-  }, [refSources]);
+  }, [refSources, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return
     setWindows(prev => buildCartesianWindows(years, timepoints, prev));
-  }, [years, timepoints]);
+  }, [years, timepoints, isInitialized]);
 
- useEffect(() => {
-  setApsimAllowedValues(loadColValues(apsimColumn, shapefileUpload));
-}, [apsimColumn, shapefileUpload]);
+  useEffect(() => {
+    if (!isInitialized) return
+    setApsimAllowedValues(loadColValues(apsimColumn, shapefileUpload));
+  }, [apsimColumn, shapefileUpload, isInitialized]);
 
-  // ===== Handlers =====
+  useEffect(() => {
+    setTimepointPatterns(prev => {
+      const next = {...prev};
+      timepoints.forEach(tp => {
+        if (!next[tp]) {
+          next[tp] = {...defaultPattern};
+        }
+      });
+      return next;
+    });
+  }, [timepoints]);
+
+useEffect(() => {
+  if (!isInitialized) return;
+
+  setWindows((prev) => {
+    const next: WindowConfig[] = [];
+
+    for (const y of years) {
+      for (const t of timepoints) {
+        // Either use the existing one (to preserve user edits), or create new
+        const existing = prev.find((w) => w.year === y && w.timepoint === t);
+
+        // If pattern usage is enabled and we have a pattern for this timepoint, build dates
+        if (usePattern && timepointPatterns[t]) {
+          const pattern = timepointPatterns[t];
+          const yearNum = Number(y);
+
+          const formatDate = (day: number, month: number, yearOffset: number) => {
+            // pad to yyyy-mm-dd
+            const yyyy = String(yearNum + yearOffset).padStart(4, "0");
+            const mm = String(month).padStart(2, "0");
+            const dd = String(day).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+          };
+
+          next.push(
+            existing
+              ? {
+                  ...existing,
+                  sim_start_date: formatDate(
+                    pattern.sim_start_day,
+                    pattern.sim_start_month,
+                    pattern.sim_start_year_offset
+                  ),
+                  sim_end_date: formatDate(
+                    pattern.sim_end_day,
+                    pattern.sim_end_month,
+                    pattern.sim_end_year_offset
+                  ),
+                  met_start_date: formatDate(
+                    pattern.met_start_day,
+                    pattern.met_start_month,
+                    pattern.met_start_year_offset
+                  ),
+                  met_end_date: formatDate(
+                    pattern.met_end_day,
+                    pattern.met_end_month,
+                    pattern.met_end_year_offset
+                  ),
+                  lai_start_date: formatDate(
+                    pattern.lai_start_day,
+                    pattern.lai_start_month,
+                    pattern.lai_start_year_offset
+                  ),
+                  lai_end_date: formatDate(
+                    pattern.lai_end_day,
+                    pattern.lai_end_month,
+                    pattern.lai_end_year_offset
+                  ),
+                }
+              : initWindow({
+                  year: y,
+                  timepoint: t,
+                  sim_start_date: formatDate(
+                    pattern.sim_start_day,
+                    pattern.sim_start_month,
+                    pattern.sim_start_year_offset
+                  ),
+                  sim_end_date: formatDate(
+                    pattern.sim_end_day,
+                    pattern.sim_end_month,
+                    pattern.sim_end_year_offset
+                  ),
+                  met_start_date: formatDate(
+                    pattern.met_start_day,
+                    pattern.met_start_month,
+                    pattern.met_start_year_offset
+                  ),
+                  met_end_date: formatDate(
+                    pattern.met_end_day,
+                    pattern.met_end_month,
+                    pattern.met_end_year_offset
+                  ),
+                  lai_start_date: formatDate(
+                    pattern.lai_start_day,
+                    pattern.lai_start_month,
+                    pattern.lai_start_year_offset
+                  ),
+                  lai_end_date: formatDate(
+                    pattern.lai_end_day,
+                    pattern.lai_end_month,
+                    pattern.lai_end_year_offset
+                  ),
+                })
+          );
+        } else {
+          // if pattern is not enabled, fall back to keeping existing or blank init
+          next.push(existing ?? initWindow({ year: y, timepoint: t }));
+        }
+      }
+    }
+
+    return next;
+  });
+}, [years, timepoints, timepointPatterns, usePattern, isInitialized]);
+
   const buildPayload = (): SetupSubmissionsPayload => {
-    if (!shapefileUpload) throw new Error("Shapefile is required before building the payload.");
+    if (!shapefileUpload) throw new Error("Shapefile is required!.");
+    if (!targetProjection) throw new Error("Target projection is required!");
+    if (!adminNameColumn) throw new Error("Admin Name Column is required!");
+    if (apsimFiles.length < 1) throw new Error("Must upload at least one APSIM file");
+    if (years.length < 1 || timepoints.length < 1)
+      throw new Error("Must at least specify one year and timepoint. Ensure to press add!");
+
+    // region filter consistency
+    if (regionFilterColumn && (!regionAllowedValues || regionAllowedValues.length === 0)) {
+      throw new Error("Region allowed values must be set when region filter column is specified!");
+    }
+
+    // apsim mapping
+    let finalApsimMapping = apsimMapping;
+    if (apsimFiles.length === 1) {
+      finalApsimMapping = {
+        [apsimFiles[0].name]: ["all"],
+      };
+    } else {
+      // ensure every file has a mapping
+      for (const file of apsimFiles) {
+        if (!finalApsimMapping[file.name] || finalApsimMapping[file.name].length === 0) {
+          throw new Error(`APSIM mapping missing for file: ${file.name}`);
+        }
+      }
+      // ensure no duplicate values across mappings
+      const seen = new Set<string>();
+      for (const [file, values] of Object.entries(finalApsimMapping)) {
+        for (const v of values) {
+          if (seen.has(v)) {
+            throw new Error(`Duplicate APSIM mapping value detected: "${v}" (in file ${file})`);
+          }
+          seen.add(v);
+        }
+      }
+    }
+
+    // validate simulation windows
+    windows.forEach((win, idx) => {
+      const requiredFields: (keyof Omit<WindowConfig, "id">)[] = [
+        "year",
+        "timepoint",
+        "sim_start_date",
+        "sim_end_date",
+        "met_start_date",
+        "met_end_date",
+        "lai_start_date",
+        "lai_end_date",
+      ];
+      requiredFields.forEach((field) => {
+        if (!win[field]) {
+          throw new Error(`Window ${idx + 1} is missing required field: ${field}`);
+        }
+      });
+    });
 
     const maybeFilter =
       regionFilterColumn && regionAllowedValues?.length
         ? { column: regionFilterColumn, allow: regionAllowedValues }
         : undefined;
-
-    let finalApsimMapping = apsimMapping
-    if (apsimFiles.length === 1) {
-      finalApsimMapping = {
-        [apsimFiles[0].name]: ["all"]
-      };
-    }
 
     return {
       shapefile: shapefileUpload,
@@ -215,44 +459,50 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
     };
   };
 
-  const handleFileUpload = async (files: FileList | null) => {
-    const file = files?.[0];
+  const handleFileUpload = async (files: File[]) => {
+    const file = files[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-        alert('Please upload a ZIP file containing shapefile components (.shp, .shx, .dbf, etc.)');
-        return;
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      show(
+        "Please upload a ZIP file containing shapefile components (.shp, .shx, .dbf, etc.)",
+        "error"
+      );
+      return;
     }
 
     try {
-        setShapefileUpload(file);
+      setShapefileUpload(file);
       const arrayBuffer = await file.arrayBuffer();
-    const geojson = await shp(arrayBuffer) as ShapefileData;
-    (window as any).__lastShapefileGeoJSON = geojson;
+      const geojson = (await shp(arrayBuffer)) as ShapefileData;
+      (window as any).__lastShapefileGeoJSON = geojson;
 
-      // Get all unique column names from all features
       const allColumnNames = getAllColumnNames(geojson);
 
       if (allColumnNames.length > 0) {
         setDetectedColumns(allColumnNames);
         setApsimAllowedValues(loadColValues(apsimColumn, file));
       } else {
-        alert('No attribute columns found in shapefile');
+        show("No attribute columns found in shapefile", "error");
       }
     } catch (err) {
-      alert(`Error parsing shapefile ZIP: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      show(
+        `Error parsing shapefile ZIP: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`,
+        "error"
+      );
     }
   };
 
-   const getAllColumnNames = (geojson: ShapefileData): string[] => {
+
+  const getAllColumnNames = (geojson: ShapefileData): string[] => {
     const allColumns = new Set<string>();
 
     if (!geojson.features || geojson.features.length === 0) {
       return [];
     }
 
-    // Collect all unique property keys from all features
-    // This is important because some features might have different attributes
     geojson.features.forEach(feature => {
       if (feature.properties) {
         Object.keys(feature.properties).forEach(key => {
@@ -261,8 +511,37 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
       }
     });
 
-    return Array.from(allColumns).sort(); // Sort alphabetically for better UX
+    return Array.from(allColumns).sort();
   };
+
+  const migrateWindows = (
+    oldValue: string,
+    newValue: string,
+  ) => {
+    setWindows((prev) =>
+      prev.map((w) => {
+        if (w.year === oldValue) {
+          return { ...w, year: newValue };
+        }
+        return w;
+      })
+    );
+  };
+
+  const updateTimepointPattern = (
+    timepoint: string,
+    key: keyof TimepointPattern,
+    value: number
+  ) => {
+    setTimepointPatterns({
+      ...timepointPatterns,
+      [timepoint]: {
+        ...timepointPatterns[timepoint],
+        [key]: value
+      }
+    })
+  }
+
 
 
   return (
@@ -274,6 +553,12 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
         preparing APSIM files etc.
       </div>
 
+      {initialData && (
+        <div className="alert alert-info" style={{ marginTop: "1rem" }}>
+          This form was pre-filled with your previously submitted configuration.
+        </div>
+      )}
+
       {/* ========================= Region Extraction ========================= */}
       <Fieldset
         legend="Region Extraction"
@@ -281,7 +566,16 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
       >
         <div className="form-group">
         <label className="form-label">Zipped Shapefile (.zip)</label>
-        <FileUpload id="shapefileFile" accept=".zip" label="📁 Choose zipped shapefile (.zip)" onChange={handleFileUpload} />
+        <FileUpload
+          id="shapefileFile"
+          accept=".zip"
+          label="📁 Choose zipped shapefile (.zip)"
+          value={shapefileUpload ? [shapefileUpload] : []}
+          onChange={(files) => {
+            setShapefileUpload(files[0] ?? null);
+            if (files[0]) handleFileUpload(files);
+          }}
+        />
     </div>
 
         <div
@@ -293,18 +587,18 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
         >
           <div className="form-group">
             <label className="form-label">Admin Name Column</label>
-            <input
-              list="detectedColumns"
-              className="form-input"
-              placeholder="e.g., admin_name or ADM2_EN"
-              value={adminNameColumn}
-              onChange={(e) => setAdminNameColumn(e.target.value)}
-            />
-            <datalist id="detectedColumns">
-              {detectedColumns.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
+            <select
+                className="form-input"
+                value={adminNameColumn}
+                onChange={(e) => setAdminNameColumn(e.target.value)}
+              >
+                <option value="">-- Select column --</option>
+                {detectedColumns.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             <p className="subtitle" style={{ marginTop: 4 }}>
               Column in the shapefile that contains the administrative name.
             </p>
@@ -324,7 +618,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
           </div>
         </div>
 
-        <div
+        {/* <div
           style={{
             display: "grid",
             gap: "1rem",
@@ -334,7 +628,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
         >
           <Fieldset
             legend="Optional Filters"
-            hint="Restrict which features are extracted. Leave blank to include all."
+            hint="Experimental Feature. Currently disabled \n Restrict which features are extracted. Leave blank to include all. Set column to filter on and then define the values that should be accepted for this column. \n ATTENTION: Currently only working for string columns."
           >
             <div className="form-group">
               <label className="form-label">Optional: Filter Column</label>
@@ -344,6 +638,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
                 placeholder="e.g., admin_name or ADM2_EN"
                 value={regionFilterColumn}
                 onChange={(e) => setRegionFilterColumn(e.target.value)}
+                disabled={true}
               />
               <datalist id="detectedColumns">
                 {detectedColumns.map((c) => (
@@ -362,7 +657,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
               setValues={setRegionAllowedValues}
             />
           </Fieldset>
-        </div>
+        </div> */}
       </Fieldset>
 
       {/* ========================= Simulation Windows ========================= */}
@@ -374,14 +669,307 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
             label="Years (must be numerical e.g 2019)"
             placeholder="e.g 2019, 2020"
             values={years}
-            setValues={setYears}
+            setValues={(next) => setYears(next)}
+            onValueEdit={(oldVal, newVal) => migrateWindows(oldVal, newVal)}
         />
         <MultiValueInput
             label="Timepoints (e.g T-0)."
             placeholder="e.g T-0, T-30"
             values={timepoints}
-            setValues={setTimepoints}
+            setValues={(next) => setTimepoints(next)}
         />
+
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <input
+            className="form-input"
+            type="checkbox"
+            checked={usePattern}
+            onChange={(e) => setUsePattern(e.target.checked)}
+            style={{ width: "auto", margin: 0 }}
+          />
+          <label className="form-label">Use Pattern for Timepoints</label>
+          </div>
+          <p className="subtitle" style={{ marginTop: "0.25rem", marginLeft: "1.5rem" }}>
+            Define a pattern for each timepoint that will be applied to all windows with that timepoint.
+          </p>
+        </div>
+
+       {usePattern && (
+          <>
+            {timepoints.map(tp => {
+              return (
+                <section
+                  key={tp}
+                  style={{
+                    border: "1px solid var(--gray-200)",
+                    borderRadius: 10,
+                    padding: "1rem",
+                    marginBottom: "1rem",
+                    marginTop: "1rem",
+                    background: "var(--gray-50)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.75rem",
+                    }}
+                  >
+                    <strong style={{ color: "var(--dark-primary)", fontFamily: "Roboto, sans-serif" }}>
+                      {tp} Pattern
+                    </strong>
+                  </div>
+
+                  <p className="subtitle" style={{ marginBottom: "0.75rem" }}>
+                    The year offset is applied to each year of the timepoint and could be e.g -1 for the previous year or +1 for the subsequent year or 0 etc.
+                  </p>
+
+                  {/* APSIM Simulation Start */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                      marginBottom: "0.75rem"
+                    }}
+                  >
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">APSIM Simulation Start Date Day</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].sim_start_day}
+                        onChange={(e) => updateTimepointPattern(tp, 'sim_start_day', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">APSIM Simulation Start Date Month</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].sim_start_month}
+                        onChange={(e) => updateTimepointPattern(tp, 'sim_start_month', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">APSIM Simulation Start Date Year Offset</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].sim_start_year_offset}
+                        onChange={(e) => updateTimepointPattern(tp, 'sim_start_year_offset', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* APSIM Simulation End */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                      marginBottom: "0.75rem"
+                    }}
+                  >
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">APSIM Simulation End Date Day</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].sim_end_day}
+                        onChange={(e) => updateTimepointPattern(tp, 'sim_end_day', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">APSIM Simulation End Date Month</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].sim_end_month}
+                        onChange={(e) => updateTimepointPattern(tp, 'sim_end_month', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">APSIM Simulation End Date Year Offset</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].sim_end_year_offset}
+                        onChange={(e) => updateTimepointPattern(tp, 'sim_end_year_offset', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Meteorological Data Start */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                      marginBottom: "0.75rem"
+                    }}
+                  >
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Meteorological Data Start Date Day</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].met_start_day}
+                        onChange={(e) => updateTimepointPattern(tp, 'met_start_day', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Meteorological Data Start Date Month</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].met_start_month}
+                        onChange={(e) => updateTimepointPattern(tp, 'met_start_month', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Meteorological Data Start Date Year Offset</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].met_start_year_offset}
+                        onChange={(e) => updateTimepointPattern(tp, 'met_start_year_offset', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Meteorological Data End */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                      marginBottom: "0.75rem"
+                    }}
+                  >
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Meteorological Data End Date Day</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].met_end_day}
+                        onChange={(e) => updateTimepointPattern(tp, 'met_end_day', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Meteorological Data End Date Month</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].met_end_month}
+                        onChange={(e) => updateTimepointPattern(tp, 'met_end_month', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Meteorological Data End Date Year Offset</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].met_end_year_offset}
+                        onChange={(e) => updateTimepointPattern(tp, 'met_end_year_offset', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* LAI Data Start */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                      marginBottom: "0.75rem"
+                    }}
+                  >
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">LAI Data Start Date Day</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].lai_start_day}
+                        onChange={(e) => updateTimepointPattern(tp, 'lai_start_day', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">LAI Data Start Date Month</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].lai_start_month}
+                        onChange={(e) => updateTimepointPattern(tp, 'lai_start_month', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">LAI Data Start Date Year Offset</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].lai_start_year_offset}
+                        onChange={(e) => updateTimepointPattern(tp, 'lai_start_year_offset', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* LAI Data End */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "1rem",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))"
+                    }}
+                  >
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">LAI Data End Date Day</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].lai_end_day}
+                        onChange={(e) => updateTimepointPattern(tp, 'lai_end_day', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">LAI Data End Date Month</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].lai_end_month}
+                        onChange={(e) => updateTimepointPattern(tp, 'lai_end_month', Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">LAI Data End Date Year Offset</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={timepointPatterns[tp].lai_end_year_offset}
+                        onChange={(e) => updateTimepointPattern(tp, 'lai_end_year_offset', Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+          </>
+        )}
 
         {windows.map((w, idx) => (
           <section
@@ -486,15 +1074,13 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
         <div className="form-group">
           <label className="form-label">APSIM File(s) (.apsimx)</label>
           <FileUpload
-            id="apsimFile"
-            accept=".apsimx"
-            multiple
-            label="📁 Choose one or more APSIM files (.apsimx)"
-            onChange={(arg: any) => {
-              const files = coerceFilesFromOnChange(arg);
-              setApsimFiles(files);
-            }}
-          />
+              id="apsimFile"
+              accept=".apsimx"
+              multiple
+              label="📁 Choose one or more APSIM files (.apsimx)"
+              value={apsimFiles}
+              onChange={setApsimFiles}
+            />
         </div>
 
         {apsimFiles.length > 1 ? (<><div className="form-group">
@@ -531,8 +1117,8 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
 
       {/* ========================= Reference Data ========================= */}
       <Fieldset
-        legend="Reference Data"
-        hint="Upload CSVs and map each file to an aggregation level."
+        legend="Optional: Reference Data"
+        hint="Upload CSVs and map each file to an aggregation level. Must contain columns: 'region' containing the admin names as specified above and a column 'reported_mean_yield_kg_ha'"
       >
         <div className="form-group">
           <label className="form-label">Reference Data (.csv)</label>
@@ -541,10 +1127,8 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
             accept=".csv"
             multiple
             label="📁 Choose one or more Referencedata files (.csv)"
-            onChange={(arg: any) => {
-              const files = coerceFilesFromOnChange(arg);
-              setReferenceFiles(files);
-            }}
+            value={referenceFiles}
+            onChange={setReferenceFiles}
           />
         </div>
 
@@ -584,13 +1168,14 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit }) => {
                 const payload = buildPayload();
                 onSubmit(payload);
               } catch (err) {
-                alert((err as Error).message);
+                show((err as Error).message, 'error');
               }
             }}>
             Upload Setup Config
           </button>
         </div>
       </div>
+      <Toast />
     </div>
   );
 };

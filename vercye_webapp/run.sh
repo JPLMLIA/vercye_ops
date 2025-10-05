@@ -79,11 +79,11 @@ uvicorn main:app --uds "$SOCKET_PATH" > "$LOGS_PATH/serverlog_${DATETIME_SUFFIX}
 
 # Wait for socket to appear (timeout 30s)
 echo -n "[info] Waiting for socket to be created"
-for i in $(seq 1 600); do
+for i in $(seq 1 1200); do
   [[ -e "$SOCKET_PATH" ]] && { echo " [ok]"; break; }
   echo -n "."
   sleep 0.1
-  if [[ $i -eq 600 ]]; then
+  if [[ $i -eq 1200 ]]; then
     echo -e "\n[error] Uvicorn did not create the socket in time."
     echo "[hint] Tail the server log:"
     echo "----"

@@ -276,7 +276,7 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
     missing_dates = all_dates.difference(existing_dates)
 
     # Identify blocks of missing dates
-    if not missing_dates.empty:
+    if missing_dates.empty:
         logger.info("No missing dates found. Using existing data.")
         df_filtered = df_existing.loc[start_date:end_date]
         return df_filtered
@@ -411,6 +411,7 @@ def cli(
     """Wrapper to fetch_met_data
     Currently this is designed specifically for the VeRCYe pipeline,
     so the output names are hardcoded to match those from a previous version (NasaPower)
+    For example the WS2M is actually windspeed at 10m, we just match the names for easier processing
     """
     if verbose:
         logger.setLevel("INFO")
@@ -429,7 +430,7 @@ def cli(
 
     if cache_dir is not None:
         cache_region = f"{lon:.4f}_{lat:.4f}".replace(".", "_")
-        cache_fpath = Path(cache_dir) / f"{cache_region}_{met_agg_method}_nasapower.csv"
+        cache_fpath = Path(cache_dir) / f"{cache_region}_{met_agg_method}_era5.csv"
 
     if ee_project is None:
         raise Exception("Setting --ee_project required when using ERA5 as the meteorological data source.")

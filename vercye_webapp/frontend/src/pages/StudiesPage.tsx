@@ -5,7 +5,7 @@ import StatusBadge from '@/components/StatusBadge';
 import Stepper from '@/components/Stepper';
 import useToast from '@/components/Toast';
 import { StudiesAPI } from '@/api/studies';
-import type { StudyId, StudyStatus } from '@/types';
+import type { SetupConfigTemplate, StudyId, StudyStatus, RunConfigFormParams } from '@/types';
 import SetupStudyForm, { SetupSubmissionsPayload } from '@/components/Forms/SetupStudyForm';
 import RunParamsForm, { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 import { ApiError } from '@/api/client';
@@ -40,6 +40,8 @@ const StudiesPage = () => {
   const [logs, setLogs] = useState<string>('Loading logs...');
   const [statuses, setStatuses] = useState<Record<string, StudyStatus>>({});
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [initialSetupData, setInitialSetupData] = useState<SetupConfigTemplate | null>(null)
+  const [initialRunConfigData, setInitialRunConfigData] = useState<RunConfigFormParams | null>(null)
 
   // Results selector modal state
   const [resultYears, setResultYears] = useState<Record<string, string[]>>({});
@@ -51,6 +53,21 @@ const StudiesPage = () => {
   const [selectedResultType, setSelectedResultType] = useState<Result | null>(null)
 
   const { show, Toast } = useToast();
+
+  const [loadingCount, setLoadingCount] = useState(0);
+  const [loadingText, setLoadingText] = useState<string | null>(null);
+  const isLoading = loadingCount > 0;
+
+  const withLoading = async <T,>(task: () => Promise<T>, message?: string): Promise<T> => {
+    if (message) setLoadingText(message);
+    setLoadingCount(c => c + 1);
+    try {
+      return await task();
+    } finally {
+      setLoadingCount(c => Math.max(0, c - 1));
+      setLoadingText(null);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -83,11 +100,39 @@ const StudiesPage = () => {
     }
   }
 
+  const fetchSetInitialSetupData = async (studyID: StudyId) => {
+    try {
+      const setupConfigData = await StudiesAPI.getSetupConfig(studyID)
+      setInitialSetupData(setupConfigData)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        show(err.message, 'error');
+      } else {
+        show('Failed to load setup config template!', 'error');
+      }
+    }
+  }
+
+  const fetchSetInitialRunConfigData = async (studyID: StudyId) => {
+    try {
+      const runConfigData = await StudiesAPI.runConfigFormParams(studyID)
+      setInitialRunConfigData(runConfigData)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        show(err.message, 'error');
+
+      } else {
+        show('Failed to load initial runconfig data!', 'error');
+      }
+    }
+  }
+
   const openDetail = (id: StudyId) => {
     setDetailStudy(id);
-    setDetailOpen(true);
-    (async () => {
+    withLoading((async () => {
       try {
+        await fetchSetInitialSetupData(id);
+        await fetchSetInitialRunConfigData(id);
         let currentStep: 1|2|3|4 = 2;
         try {
           await StudiesAPI.runConfig(id);
@@ -98,57 +143,65 @@ const StudiesPage = () => {
           currentStep = 2;
         }
         setStep(currentStep);
+        setDetailOpen(true);
       } catch {
         setStep(2);
+        setDetailOpen(true);
       }
-    })();
+    }), 'Loading configuration…');
   }
 
   const createStudy = async () => {
     if (!createName.trim()) return;
-    try {
-      await StudiesAPI.create(createName.trim());
-      show(`Study "${createName}" created successfully!`, 'success');
-      setCreateOpen(false);
-      setCreateName('');
-      await load();
-      setTimeout(() => openDetail(createName.trim()), 400);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error');
-      } else {
-        show('Failed to create study', 'error');
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.create(createName.trim());
+        show(`Study "${createName}" created successfully!`, 'success');
+        setCreateOpen(false);
+        setCreateName('');
+        await load();
+        setTimeout(() => openDetail(createName.trim()), 400);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          show(err.message, 'error');
+        } else {
+          show('Failed to create study', 'error');
+        }
       }
-    }
+    }, 'Creating study…');
   }
 
-  const runStudy = async (id: StudyId) => {
-    try {
-      await StudiesAPI.run(id);
-      show('Run started', 'success');
-      setStatuses((s) => ({ ...s, [id]: 'running' } as any));
-      setDetailOpen(false);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error');
-      } else {
-        show('Failed to start run', 'error');
+  const runStudy = async (id: StudyId, forceRerun: boolean) => {
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.run(id, forceRerun);
+        show('Run started', 'success');
+        setStatuses((s) => ({ ...s, [id]: 'running' } as any));
+        setDetailOpen(false);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          show(err.message, 'error');
+        } else {
+          show('Failed to start run', 'error');
+        }
       }
-    }
+    }, 'Starting run…');
   }
 
   const cancelRun = async (id: StudyId) => {
-    try {
-      await StudiesAPI.cancel(id);
-      show('Run cancelled', 'success');
-      setStatuses((s) => ({ ...s, [id]: 'cancelled' } as any));
-    } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error');
-      } else {
-        show('Failed to cancel run', 'error');
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.cancel(id);
+        show('Run cancelled', 'success');
+        setStatuses((s) => ({ ...s, [id]: 'cancelled' } as any));
+      } catch (err) {
+        if (err instanceof ApiError) {
+          show(err.message, 'error');
+        } else {
+          show('Failed to cancel run', 'error');
+        }
       }
-    }
+    }, 'Cancelling…');
   }
 
   const openLogs = async (id: StudyId) => {
@@ -237,16 +290,20 @@ const StudiesPage = () => {
 
   const duplicateStudy = async () => {
     if (!detailStudy || !createName) return;
-    try {
-      await StudiesAPI.duplicate(detailStudy, createName);
-      show('Study duplicated successfully', 'success');
-    } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error'); // Will show FastAPI's detail
-      } else {
-        show('Failed to duplicate study!', 'error');
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.duplicate(detailStudy, createName);
+        show('Study duplicated successfully', 'success');
+        setCreateName('');
+      } catch (err) {
+        if (err instanceof ApiError) {
+          show(err.message, 'error');
+        } else {
+          show('Failed to duplicate study!', 'error');
+        }
       }
-    }
+      await load()
+    }, 'Duplicating study…');
   };
 
   const table = useMemo(() => {
@@ -283,7 +340,20 @@ const StudiesPage = () => {
                   <td>
                     <div className="actions-cell">
                       <button className="btn btn-sm btn-primary" onClick={() => openDetail(id)} disabled={!canConfigure}>Configure</button>
-                      <button className="btn btn-sm btn-success" onClick={() => runStudy(id)} disabled={!canRun}>Run</button>
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => runStudy(id, false)}
+                          disabled={!canRun}
+                        >
+                          Run
+                        </button>
+                      <button
+                        className="btn btn-sm btn-success"
+                        onClick={() => runStudy(id, true)}
+                         disabled={!canRun}
+                      >
+                        Force Rerun
+                      </button>
                       {canCancel && <button className="btn btn-sm btn-danger" onClick={() => cancelRun(id)}>Cancel</button>}
                       <button className="btn btn-sm btn-secondary" onClick={() => openMapResultsSelector(id)} style={{display: canResults ? 'inline-flex' : 'none'}}>Results map</button>
                       <button className="btn btn-sm btn-secondary" onClick={() => showMultiyearResultsReport(id)} style={{display: canResults ? 'inline-flex' : 'none'}}>Multiyer report</button>
@@ -303,52 +373,59 @@ const StudiesPage = () => {
 
   const handleSetupSubmission = async (payload: SetupSubmissionsPayload) => {
     if (!detailStudy) return;
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.uploadSetup(detailStudy, payload);
+        show('Setup uploaded', 'success');
+        await fetchSetInitialSetupData(detailStudy);
+        setStep(3);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          show(err.message, 'error');
+        } else {
+          show('Failed to upload setup', 'error');
+        }
+      }
+    }, 'Uploading setup…');
+  };
+
+  const handleRunParamsSubmission = async (payload: RunParamsSubmissionsPayload) => {
+    if (!detailStudy) return;
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.uploadRunConfig(detailStudy, payload);
+        show('Run config uploaded', 'success');
+        await fetchSetInitialRunConfigData(detailStudy);
+        setStep(4);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          show(err.message, 'error');
+        } else {
+          show('Failed to upload run config', 'error');
+        }
+        throw new Error('failed to upload run config');
+      }
+    }, 'Uploading run config…');
+  };
+
+  const handleDownloadTemplate = async () => {
+    if (!detailStudy) return;
     try {
-      await StudiesAPI.uploadSetup(detailStudy, payload);
-      show('Setup uploaded', 'success');
-      setStep(3);
+      const blob = await StudiesAPI.downloadRunConfigTemplate(detailStudy);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `run_config_${detailStudy}.yaml`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       if (err instanceof ApiError) {
         show(err.message, 'error');
       } else {
-        show('Failed to upload setup', 'error');
+        show('Download failed', 'error');
       }
     }
   };
-
-const handleRunParamsSubmission = async (payload: RunParamsSubmissionsPayload) => {
-  if (!detailStudy) return;
-  try {
-    await StudiesAPI.uploadRunConfig(detailStudy, payload);
-    show('Run config uploaded', 'success');
-    setStep(4);
-  } catch (err) {
-    if (err instanceof ApiError) {
-      show(err.message, 'error');
-    } else {
-      show('Failed to upload run config', 'error');
-    }
-  }
-};
-
-const handleDownloadTemplate = async () => {
-  if (!detailStudy) return;
-  try {
-    const blob = await StudiesAPI.downloadRunConfigTemplate(detailStudy);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `run_config_${detailStudy}.yaml`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    if (err instanceof ApiError) {
-      show(err.message, 'error');
-    } else {
-      show('Download failed', 'error');
-    }
-  }
-};
 
   return (
     <div className="container">
@@ -374,37 +451,38 @@ const handleDownloadTemplate = async () => {
       {/* Detail / Setup */}
       <Modal open={detailOpen} onClose={()=>setDetailOpen(false)} title={`${detailStudy ?? ''} - Configuration`} width={800}>
         <Stepper step={step} onStepChange={setStep}/>
-        {step === 2 &&  <SetupStudyForm onSubmit={handleSetupSubmission}/>}
+          {step === 2 &&  <SetupStudyForm onSubmit={handleSetupSubmission} initialData={initialSetupData}/>}
 
-        {step === 3 && <RunParamsForm
-            onSubmit={handleRunParamsSubmission}
-            onDownloadTemplate={handleDownloadTemplate}
-            runConfigMessage={runConfigMessage}
-            currentStudyId={detailStudy}
-          />}
+          {step === 3 && <RunParamsForm
+              onSubmit={handleRunParamsSubmission}
+              onDownloadTemplate={handleDownloadTemplate}
+              runConfigMessage={runConfigMessage}
+              currentStudyId={detailStudy}
+              initialData={initialRunConfigData}
+            />}
 
-        {step === 4 && (
-          <div>
-            <div className="alert alert-success">
-              <strong>Setup Complete!</strong> Your study is ready to run.
-            </div>
-            <div style={{display:'flex', gap:'0.75rem', justifyContent:'space-between'}}>
-              <button className="btn btn-secondary" onClick={async () => {
-                if (!detailStudy) return;
-                try {
-                  const blob = await StudiesAPI.downloadRunConfigTemplate(detailStudy);
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url; a.download = 'config.yaml'; a.click(); URL.revokeObjectURL(url);
-                } catch { show('Download failed', 'error'); }
-              }}>⬇️ Download Config</button>
-              <div style={{display:'flex', gap:'0.75rem'}}>
-                <button className="btn btn-secondary" onClick={() => setStep(3)}>📝 Update Config</button>
-                <button className="btn btn-success" onClick={() => detailStudy && runStudy(detailStudy)}>▶️ Run Study</button>
+          {step === 4 && (
+            <div>
+              <div className="alert alert-success">
+                <strong>Setup Complete!</strong> Your study is ready to run.
+              </div>
+              <div style={{display:'flex', gap:'0.75rem', justifyContent:'space-between'}}>
+                <button className="btn btn-secondary" onClick={async () => {
+                  if (!detailStudy) return;
+                  try {
+                    const blob = await StudiesAPI.downloadRunConfigTemplate(detailStudy);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'config.yaml'; a.click(); URL.revokeObjectURL(url);
+                  } catch { show('Download failed', 'error'); }
+                }}>⬇️ Download Config</button>
+                <div style={{display:'flex', gap:'0.75rem'}}>
+                  <button className="btn btn-secondary" onClick={() => setStep(3)}>📝 Update Config</button>
+                  <button className="btn btn-success" onClick={() => detailStudy && runStudy(detailStudy, false)}>▶️ Run Study</button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
       </Modal>
 
       {/* Results year/timepoint selector */}
@@ -456,6 +534,50 @@ const handleDownloadTemplate = async () => {
       </Modal>
 
       <Toast />
+      {isLoading && (
+        <div
+          role="alert"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.35)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: '18px 22px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              minWidth: 220,
+              justifyContent: 'center'
+            }}
+          >
+            <div
+              aria-hidden
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                border: '3px solid #E5E7EB',
+                borderTopColor: '#3B82F6',
+                animation: 'spin 1s linear infinite'
+              }}
+            />
+            <span style={{ fontSize: 14, color: '#374151' }}>{loadingText || 'Working…'}</span>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

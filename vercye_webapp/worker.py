@@ -76,9 +76,9 @@ def setup_vercye_task(study_id: str, run_cfg_template_path: str = None):
 
                 for key in list(
                     set(new_config["lai_params"]["crop_mask"].keys())
-                    - set(template_config["lai_params"]["cropmask"].keys())
+                    - set(template_config["lai_params"]["crop_mask"].keys())
                 ):
-                    template_config["lai_params"]["cropmask"][key] = new_config["lai_params"]["crop_mask"][key]
+                    template_config["lai_params"]["crop_mask"][key] = new_config["lai_params"]["crop_mask"][key]
 
                 for key in list(
                     set(new_config["eval_params"]["aggregation_levels"].keys())
@@ -91,7 +91,7 @@ def setup_vercye_task(study_id: str, run_cfg_template_path: str = None):
                 new_config = template_config
 
             new_config["sim_study_head_dir"] = real_output_dir
-            new_config["study_id"] = study_id
+            new_config["study_id"] = study_id[:24]
 
             with open(config_path, "w") as f:
                 ruamel_yaml.dump(new_config, f)
@@ -167,7 +167,7 @@ def ensure_chirps_daterange_complete(study_id):
 
 
 @celery_app.task(name="tasks.run_vercye_task", base=VercyeTask)
-def run_vercye_task(study_id: str):
+def run_vercye_task(study_id: str, force_rerun: bool):
     os.makedirs(os.path.join(studies_dir, study_id, "snakemake"), exist_ok=True)
     update_study_status(studies_dir, study_id, "running")
     log_file_path = os.path.join(studies_dir, study_id, "snakemake", "log.txt")
@@ -180,8 +180,13 @@ def run_vercye_task(study_id: str):
             f.write("Checking for missing CHIRPS data....\n")
         ensure_chirps_daterange_complete(study_id)
 
+    # Add flag to force snakemake to ignore all intermediate files and rerun all
+    extra_args = None
+    if force_rerun:
+        extra_args = ["-F"]
+
     # Validate the Configfile and trigger a snakemake run
-    run_vercye(studies_dir=studies_dir, study_name=study_id, validate_only=False)
+    run_vercye(studies_dir=studies_dir, study_name=study_id, validate_only=False, extra_snakemake_args=extra_args)
 
 
 class LAITask(Task):
@@ -241,26 +246,42 @@ def run_lai_generation(config_path):
 
 @celery_app.task(name="tasks.duplicate_study_task")
 def duplicate_vercye_study_task(existing_study_id, new_study_id):
-
+    # cleanup on failure
     init_study(study_name=new_study_id, studies_dir=studies_dir)
 
     existing_config, config_ruamel = get_setup_config(studies_dir, existing_study_id, ruamel=True)
     new_study_dir = get_study_path(studies_dir, new_study_id)
+    print(existing_config)
 
     # RegionsShp copying
-    new_regions_shp_fpath = os.path.join(new_study_dir, "shapefile", Path(existing_config["regions_shp_name"]).name)
-    shutil.copy(existing_config["regions_shp_name"], new_regions_shp_fpath)
-    existing_config["regions_shp_name"] = new_regions_shp_fpath
+    shapefile_dir = os.path.join(new_study_dir, "shapefile")
+    os.makedirs(shapefile_dir, exist_ok=True)
+    orig_shp = Path(existing_config["regions_shp_name"])
+    shapefile_stem = orig_shp.stem
+
+    # Copy all files with same stem (any extension)
+    for src in orig_shp.parent.glob(f"{shapefile_stem}.*"):
+        dst = os.path.join(shapefile_dir, src.name)
+        shutil.copy(src, dst)
+
+    existing_config["regions_shp_name"] = str(Path(shapefile_dir) / f"{shapefile_stem}.shp")
 
     # Refdata paths copying
+    shutil.copytree(
+        os.path.join(get_study_path(studies_dir, existing_study_id), "reference_data"),
+        os.path.join(new_study_dir, "reference_data"),
+    )
+
     for year, year_fpaths in existing_config["REFERENCE_DATA_PATHS"].items():
         for idx, item in enumerate(year_fpaths):
-            year_fpath = item[1]
+            item_agg_lvl = next(iter(item.keys()))  # first key
+            year_fpath = item[item_agg_lvl]
             new_year_fpath = os.path.join(new_study_dir, "reference_data", Path(year_fpath).name)
-            shutil.copy(year_fpath, new_year_fpath)
-            existing_config["REFERENCE_DATA_PATHS"][year][idx][1] = new_year_fpath
+            item[item_agg_lvl] = new_year_fpath
+            existing_config["REFERENCE_DATA_PATHS"][year][idx] = item
 
     # APSIM files copying
+    os.makedirs(os.path.join(new_study_dir, "apsim"), exist_ok=True)
     for key, apsim_fpath in existing_config["APSIM_TEMPLATE_PATHS"].items():
         new_apsim_fpath = os.path.join(new_study_dir, "apsim", Path(apsim_fpath).name)
         shutil.copy(apsim_fpath, new_apsim_fpath)
@@ -269,13 +290,10 @@ def duplicate_vercye_study_task(existing_study_id, new_study_id):
     save_setup_config(existing_config, studies_dir, new_study_id, config_ruamel)
 
     # Copy the runcofig
-    run_config, run_config_ruamel = get_run_config(studies_dir, existing_study_id, ruamel=True)
-    run_config["copied_from_study_id"] = existing_study_id
+    if os.path.exists(get_run_config_file_path(studies_dir, existing_study_id)):
+        run_config, run_config_ruamel = get_run_config(studies_dir, existing_study_id, ruamel=True)
+        run_config["copied_from_study_id"] = existing_study_id
 
-    # Save as template in new dir
-    new_run_config_template_path = get_run_config_template_file_path(studies_dir, new_study_id)
-    write_yaml_ruamel(run_config, run_config_ruamel, new_run_config_template_path)
-
-    shutil.copy(
-        get_run_config_file_path(studies_dir, existing_study_id),
-    )
+        # Save as template in new dir
+        new_run_config_template_path = get_run_config_template_file_path(studies_dir, new_study_id)
+        write_yaml_ruamel(run_config, run_config_ruamel, new_run_config_template_path)

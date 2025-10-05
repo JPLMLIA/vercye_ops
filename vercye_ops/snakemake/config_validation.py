@@ -545,10 +545,10 @@ def _validate_external_dependencies(config):
             import ee
 
             try:
-                ee.Initialize()
+                ee.Initialize(project=apsim_params.get("ee_project"))
                 print("✓ Earth Engine authentication verified")
             except Exception:
-                raise RuntimeError("Earth Engine not authenticated. Please run 'earthengine authenticate'")
+                raise RuntimeError("Earth Engine authenticated not successfull. Please run 'earthengine authenticate'")
         except ImportError:
             raise RuntimeError(
                 "Earth Engine Python API not installed. Please install with 'pip install earthengine-api'"

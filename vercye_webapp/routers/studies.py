@@ -5,7 +5,6 @@ import os
 import shutil
 import signal
 import tempfile
-import time
 import zipfile
 from collections import defaultdict
 from glob import glob
@@ -13,17 +12,24 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import aiofiles
+import geopandas as gpd
 import yaml
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from celery.result import AsyncResult
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from models import (
     DuplicateStudyRequest,
     LAIConfigRunParams,
+    RegionExtraction,
+    RunConfigFormParams,
+    SetupConfigTemplate,
     SetupSubmissionsRequest,
+    ShapefileData,
     StudyCreateRequest,
     StudyID,
     WindowConfig,
+    WindowNoId,
 )
 from pydantic import TypeAdapter, ValidationError
 from pyproj import CRS
@@ -32,7 +38,11 @@ from worker import duplicate_vercye_study_task, run_vercye_task, setup_vercye_ta
 
 from vercye_ops.cli import init_study, validate_run_config
 from vercye_ops.utils.env_utils import (
+    get_run_config,
+    get_run_config_file_path,
     get_run_config_template_file_path,
+    get_setup_config,
+    get_setup_config_file_path,
     get_study_path,
     load_yaml_ruamel,
     read_cropmasks_dir_from_env,
@@ -68,15 +78,22 @@ def register_new_study(request: StudyCreateRequest):
 
 
 @router.post("/{existing_study_id}/duplicate")
-def register_from_existing(existing_study_id: StudyID, body: DuplicateStudyRequest):
-    """Registers a new study based on the config of an existing one.
-    Uses the same setup config as in the template for creation."""
+async def register_from_existing(existing_study_id: str, body: DuplicateStudyRequest):
 
-    try:
-        duplicate_vercye_study_task.delay(existing_study_id, body.new_study_id)
-    except Exception as e:
-        logger.exception(e)
-        raise HTTPException(status_code=500, detail=str(e))
+    if os.path.exists(get_study_path(studies_dir, body.new_study_id)):
+        raise HTTPException("A study with this id already exists. Please choose a different id.")
+
+    task = duplicate_vercye_study_task.delay(existing_study_id, body.new_study_id)
+
+    # Poll celery task status in a non-blocking way
+    while True:
+        result = AsyncResult(task.id)
+        if result.ready():
+            if result.successful():
+                return {"status": "success", "new_study_id": body.new_study_id}
+            else:
+                raise HTTPException(status_code=500, detail=str(result.result))
+        await asyncio.sleep(2)
 
 
 @router.post("/{study_id}/setup")
@@ -116,41 +133,94 @@ async def setup_study(
     if not shapefile:
         raise HTTPException(status_code=400, detail="No shapefile provided.")
 
-    if not shapefile.filename or not shapefile.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Shapefile must be a .zip")
-
     data = await shapefile.read()
 
-    # Check if the file is a valid ZIP
-    is_zip = await run_in_threadpool(zipfile.is_zipfile, io.BytesIO(data))
-    if not is_zip:
-        raise HTTPException(status_code=400, detail="Not a valid ZIP")
+    # If data is empty, it was most likely a placeholder used for an already existing file on the server
+    current_setup_config = get_setup_config(studies_dir, study_id)
+    if data:
+        # Clear shapefile dir, as it might contain data from a template
+        shutil.rmtree(shapefile_dir)
+        os.makedirs(shapefile_dir)
 
-    # Extract the ZIP into the shapefile_dir
-    await run_in_threadpool(lambda: zipfile.ZipFile(io.BytesIO(data)).extractall(shapefile_dir))
+        if not shapefile.filename or not shapefile.filename.lower().endswith(".zip"):
+            raise HTTPException(status_code=400, detail="Shapefile must be a .zip")
+        # Check if the file is a valid ZIP
+        is_zip = await run_in_threadpool(zipfile.is_zipfile, io.BytesIO(data))
+        if not is_zip:
+            raise HTTPException(status_code=400, detail="Not a valid ZIP")
 
-    # find the .shp file. There must only be a single one
-    shp_files = list(shapefile_dir.glob("*.shp"))
-    if len(shp_files) != 1:
-        raise HTTPException(status_code=400, detail=f"Expected exactly one .shp file, found {len(shp_files)}")
+        # Extract the ZIP into the shapefile_dir
+        await run_in_threadpool(lambda: zipfile.ZipFile(io.BytesIO(data)).extractall(shapefile_dir))
+
+        # find the .shp file. There must only be a single one
+        shp_files = list(shapefile_dir.glob("*.shp"))
+        if len(shp_files) != 1:
+            raise HTTPException(status_code=400, detail=f"Expected exactly one .shp file, found {len(shp_files)}")
+        shapefile_path = str(shp_files[0])
+    else:
+        # Check if empty file is a placeholder by looking up if true filename exists
+        if not Path(current_setup_config["regions_shp_name"]).name == shapefile.filename:
+            raise HTTPException(status_code=400, detail="Empty shapefile provided!")
+        shapefile_path = current_setup_config["regions_shp_name"]
 
     # Save apsim files and reference data files
-    async def save_many(files, dest_dir):
+    apsim_paths_to_modify = {}
+
+    async def save_apsim_files(files, dest_dir):
+        all_available_files = {
+            Path(apsim_path).name: apsim_path for apsim_path in current_setup_config["APSIM_TEMPLATE_PATHS"].values()
+        }
         if not files:
             return
         for uf in files:
             if not uf.filename:
                 continue
-            async with aiofiles.open(dest_dir / uf.filename, "wb") as out:
-                content = await uf.read()
-                await out.write(content)
+            content = await uf.read()
 
-    await save_many(apsim_files, apsim_dir)
+            # Check if placeholder files were used - empty file = file from template
+            if not content:
+                if uf.filename not in all_available_files:
+                    raise HTTPException(status_code=400, detail="Empty APSIM File provided!")
+
+                apsim_paths_to_modify[uf.filename] = all_available_files[uf.filename]
+            else:
+                async with aiofiles.open(dest_dir / uf.filename, "wb") as out:
+                    await out.write(content)
+
+    await save_apsim_files(apsim_files, apsim_dir)
+
+    refdata_paths_to_modify = {}
+
+    async def save_refdata_files(files, dest_dir):
+        # all_available_files = {
+        #     Path(filename).name: filename
+        #     for year_dicts in  current_setup_config["REFERENCE_DATA_PATHS"].values()
+        #     for d in year_dicts
+        #     for filename in d.values()
+        # }
+
+        all_available_files = {f: os.path.join(refdata_dir, f) for f in os.listdir(refdata_dir)}
+
+        if not files:
+            return
+        for uf in files:
+            if not uf.filename:
+                continue
+            content = await uf.read()
+
+            # Check if placeholder files were used
+            if not content:
+                if uf.filename not in all_available_files:
+                    raise HTTPException(status_code=400, detail="Empty ReferenceData File provided!")
+                refdata_paths_to_modify[uf.filename] = all_available_files[uf.filename]
+            else:
+                async with aiofiles.open(dest_dir / uf.filename, "wb") as out:
+                    await out.write(content)
 
     if reference_files:
-        await save_many(reference_files, refdata_dir)
+        await save_refdata_files(reference_files, refdata_dir)
 
-    setup_cfg["regions_shp_name"] = str(shp_files[0])
+    setup_cfg["regions_shp_name"] = shapefile_path
     setup_cfg["regions_shp_col"] = setup_submission.region_extraction.admin_name_column
 
     if setup_submission.region_extraction.filter:
@@ -194,7 +264,8 @@ async def setup_study(
     apsim_paths = {}
     for apsim_file_name, regions in setup_submission.apsim_mapping.items():
         for region in regions:
-            apsim_paths[region] = str(apsim_dir / apsim_file_name)
+            apsim_path = apsim_paths_to_modify.get(apsim_file_name, str(apsim_dir / apsim_file_name))
+            apsim_paths[region] = apsim_path
     setup_cfg["APSIM_TEMPLATE_PATHS"] = apsim_paths
 
     ref_data_paths = defaultdict(list)
@@ -207,15 +278,20 @@ async def setup_study(
 
         # Copy file to correct name
         refdata_year = setup_submission.reference_years_mapping[filename]
-        refdata_file_dst_name = os.path.join(refdata_dir, f"referencedata_{admin_lvl}-{str(refdata_year)}.csv")
-        refdata_src_path = os.path.join(refdata_dir, filename)
-        if refdata_src_path != refdata_file_dst_name:
-            shutil.copyfile(refdata_src_path, refdata_file_dst_name)
-            os.remove(refdata_src_path)
+        if filename in refdata_paths_to_modify:
+            # File is just a placeholde rand exists lcally already
+            refdata_file_dst_name = refdata_paths_to_modify[filename]
+        else:
+            refdata_file_dst_name = os.path.join(refdata_dir, f"referencedata_{admin_lvl}-{str(refdata_year)}.csv")
+            refdata_src_path = os.path.join(refdata_dir, filename)
+            if refdata_src_path != refdata_file_dst_name:
+                shutil.copyfile(refdata_src_path, refdata_file_dst_name)
 
         ref_data_paths[int(refdata_year)].append({admin_lvl: refdata_file_dst_name})
 
     setup_cfg["REFERENCE_DATA_PATHS"] = dict(ref_data_paths)
+
+    setup_cfg["creation_request_params"] = setup_submission.dict()
 
     setup_cfg_path = study_root / "setup_config.yaml"
     with setup_cfg_path.open("w") as f:
@@ -237,13 +313,70 @@ async def setup_study(
 
 
 @router.get("/{study_id}/setup-config")
-def get_setup_config(study_id: StudyID):
-    setup_cfg_path = os.path.join(studies_dir, study_id, "setup_config.yaml")
+def fetch_setup_config(study_id: StudyID):
+    """Fetch setup config template for study"""
+    setup_cfg_path = get_setup_config_file_path(studies_dir, study_id)
 
     if not os.path.exists(setup_cfg_path):
         raise HTTPException(status_code=404, detail="No study config template found!")
 
-    return FileResponse(setup_cfg_path, filename="setup_config.yaml")
+    config = get_setup_config(studies_dir, study_id)
+
+    if "creation_request_params" not in config:
+        return None
+
+    raw = config["creation_request_params"]
+
+    # region extraction
+    region_cfg = raw.get("region_extraction", {})
+    region_extraction = RegionExtraction(
+        adminNameColumn=str(region_cfg.get("admin_name_column", "")),
+        targetProjection=str(region_cfg.get("target_projection", "")),
+        filter=region_cfg.get("filter"),
+    )
+
+    # years & timepoints
+    years = [str(y) for y in raw.get("years", [])]
+    timepoints = [str(tp) for tp in raw.get("timepoints", [])]
+
+    # windows
+    windows = [WindowNoId(**w) for w in raw.get("simulation_windows", [])]
+
+    # apsim
+    apsim_mapping = raw.get("apsim_mapping", {})
+    apsim_files = list(apsim_mapping.keys())
+    apsim_column = str(raw.get("apsim_column", ""))
+
+    # reference
+    ref_mapping = raw.get("reference_mapping", {})
+    ref_years_mapping = raw.get("reference_years_mapping", {})
+    ref_files = list(ref_mapping.keys())
+
+    # shapefile
+    try:
+        gdf = gpd.read_file(config["regions_shp_name"])
+        for col in gdf.select_dtypes(include=["datetime64[ns]"]).columns:
+            gdf[col] = gdf[col].astype(str)
+
+        shapefile_geojson = json.loads(gdf.to_json())
+        shapefile_name = Path(config["regions_shp_name"]).name
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read shapefile: {e}")
+
+    return SetupConfigTemplate(
+        regionExtraction=region_extraction,
+        apsimColumn=apsim_column,
+        apsimMapping=apsim_mapping,
+        apsimFiles=apsim_files,
+        referenceMapping=ref_mapping,
+        referenceYearsMapping=ref_years_mapping,
+        referenceFiles=ref_files,
+        years=years,
+        timepoints=timepoints,
+        simulationWindows=windows,
+        shapefileData=ShapefileData(**shapefile_geojson),
+        shapefileName=shapefile_name,
+    )
 
 
 @router.post("/{study_id}/run-config")
@@ -276,10 +409,11 @@ async def upload_run_config(
         # Update lai related info only if lai_config provided
         if lai_config:
             config_data["lai_params"]["lai_dir"] = os.path.join(lai_dir, lai_config.lai_source_id, "merged-lai")
-            config_data["lai_params"]["lai_region"] = os.listdir(config_data["lai_params"]["lai_dir"])[0].split("_")[0]
+            lai_region = "_".join(os.listdir(config_data["lai_params"]["lai_dir"])[0].split("_")[:-3])
+
+            config_data["lai_params"]["lai_region"] = lai_region
             config_data["lai_params"]["lai_resolution"] = int(lai_config.lai_source_resolution)
             config_data["lai_source"] = str(lai_config.lai_source_id)
-
         try:
             raw_mapping = json.loads(cropmask_mapping)
             # Coerce & validate keys as ints, values as str
@@ -294,6 +428,7 @@ async def upload_run_config(
 
         # Save updated YAML to tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml", mode="w") as tmp_file:
+            print(config_data)
             yaml_ruamel.dump(config_data, tmp_file)
             tmp_file_path = tmp_file.name
 
@@ -324,11 +459,33 @@ async def upload_run_config(
 
 
 @router.get("/{study_id}/run-config")
-def get_run_config(study_id: StudyID):
+def get_run_config_file(study_id: StudyID):
     run_cfg_path = os.path.join(studies_dir, study_id, study_id, "config.yaml")
     if not os.path.isfile(run_cfg_path):
         raise HTTPException(status_code=404, detail="Run config not found")
     return FileResponse(run_cfg_path, filename="run_config.yaml")
+
+
+@router.get("/{study_id}/run-config-formdata")
+def get_run_config_formdata(study_id: StudyID):
+    """Returns previous lai selection - cropmasks to display when reloading the form in the frontend."""
+    if not os.path.exists(get_run_config_file_path(studies_dir, study_id)):
+        return None
+
+    # Check if its still the template or an actual already prefilled value to be returned
+    run_config = get_run_config(
+        studies_dir,
+        study_id,
+    )
+    if run_config["lai_params"]["lai_region"] == "XXXX":
+        return None
+
+    lai_id = run_config["lai_params"]["lai_region"]
+    lai_resolution = run_config["lai_params"]["lai_resolution"]
+
+    cropmasks = {str(year): Path(mask_path).name for year, mask_path in run_config["lai_params"]["crop_mask"].items()}
+
+    return RunConfigFormParams(laiId=lai_id, laiResolution=lai_resolution, cropmasks=cropmasks)
 
 
 @router.get("/{study_id}/run-config-status")
@@ -395,9 +552,9 @@ def get_required_years(study_id: StudyID):
 
 
 @router.post("/{study_id}/actions/run")
-def run_study(study_id: StudyID):
+def run_study(study_id: StudyID, force_rerun: bool = Query(False, alias="forceRerun")):
     try:
-        task = run_vercye_task.delay(study_id)
+        task = run_vercye_task.delay(study_id, force_rerun)
         task_id = task.id
 
         os.makedirs(os.path.join(studies_dir, study_id, "snakemake"), exist_ok=True)
@@ -433,21 +590,21 @@ def cancel_study(study_id: StudyID, background_tasks: BackgroundTasks):
         print(f"Error killing Snakemake group: {e}")
 
     # Schedule escalation with SIGKILL if process doesn't terminate
-    def escalate_kill(pgid: int, delay: int = 30):
-        time.sleep(delay)
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-            print(f"Escalated: Sent SIGKILL to process group {pgid}")
-        except ProcessLookupError:
-            print(f"Process group {pgid} already terminated.")
-        except Exception as e:
-            print(f"Error during SIGKILL escalation: {e}")
+    # def escalate_kill(pgid: int, delay: int = 30):
+    #     time.sleep(delay)
+    #     try:
+    #         os.killpg(pgid, signal.SIGKILL)
+    #         print(f"Escalated: Sent SIGKILL to process group {pgid}")
+    #     except ProcessLookupError:
+    #         print(f"Process group {pgid} already terminated.")
+    #     except Exception as e:
+    #         print(f"Error during SIGKILL escalation: {e}")
 
     # Update status
     with open(status_file_path, "w") as f:
         f.write("cancelled")
 
-    background_tasks.add_task(escalate_kill, task_id)
+    # background_tasks.add_task(escalate_kill, task_id)
 
     # Update status
     with open(status_file_path, "w") as f:
@@ -592,4 +749,16 @@ async def get_study_status(study_id: str):
 def get_all_studies():
     if not os.path.exists(studies_dir):
         return []
-    return [name for name in os.listdir(studies_dir) if os.path.isdir(os.path.join(studies_dir, name))]
+
+    studies = [name for name in os.listdir(studies_dir) if os.path.isdir(os.path.join(studies_dir, name))]
+
+    # sort by creation time newest first
+    studies.sort(key=lambda name: os.path.getctime(os.path.join(studies_dir, name)), reverse=True)
+
+    return studies
+
+
+@router.get("/combined-stats")
+def get_combined_stats():
+    """Compute the stats from multiple studies combined and with all years present in each study"""
+    pass

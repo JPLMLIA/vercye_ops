@@ -1,39 +1,55 @@
-
-import { useState, ChangeEvent } from 'react';
+import { ChangeEvent } from "react";
 
 interface Props {
   id: string;
   accept?: string;
   multiple?: boolean;
   label: string;
-  onChange: (files: FileList | null) => void;
+  value: File[];
+  onChange: (files: File[]) => void;
 }
 
-const FileUpload = ({ id, accept, multiple, label, onChange }: Props) => {
-  const [hasFile, setHasFile] = useState(false);
-  const [text, setText] = useState(label);
-
+const FileUpload = ({ id, accept, multiple, label, value, onChange }: Props) => {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const names = Array.from(files).map((f) => f.name);
-      const shown = names.slice(0, 2).join(', ');
-      const more = names.length > 2 ? ` +${names.length - 2} more` : '';
-      setText(`${shown}${more}`);
-      setHasFile(true);
-    } else {
-      setText(label);
-      setHasFile(false);
-    }
-    onChange(files);
-  }
+    if (!e.target.files) return;
+    const newFiles = Array.from(e.target.files);
+    onChange(multiple ? [...value, ...newFiles] : newFiles);
+    e.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    onChange(value.filter((_, i) => i !== index));
+  };
 
   return (
-    <div className={`file-upload ${hasFile ? 'has-file' : ''}`} id={`${id}FileUpload`}>
-      <input id={id} type="file" accept={accept} multiple={multiple} onChange={handleChange} />
-      <div className="file-upload-label">{text}</div>
+    <div className={`file-upload ${value.length > 0 ? "has-file" : ""}`} id={`${id}FileUpload`}>
+      <div className="file-upload-input-wrapper">
+        <input
+          id={id}
+          type="file"
+          accept={accept}
+          multiple={multiple}
+          onChange={handleChange}
+        />
+        <div className="file-upload-label">
+          <span>{label}</span>
+        </div>
+      </div>
+
+      {value.length > 0 && (
+        <div className="file-list" style={{ marginTop: "10px" }}>
+          {value.map((file, idx) => (
+            <div key={idx} className="file-chip">
+              <span className="file-name">{file.name}</span>
+              <button type="button" onClick={() => removeFile(idx)} className="file-remove">
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-}
+};
 
-export default FileUpload
+export default FileUpload;

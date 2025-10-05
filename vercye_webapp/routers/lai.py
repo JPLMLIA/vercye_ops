@@ -105,8 +105,8 @@ def generate_lai(lai_config: str = Form(...), region_shapefile: UploadFile = Fil
         num_cores_download = 120
         num_cores_lai = 50
     else:
-        num_cores_download = 120
-        num_cores_lai = 80
+        num_cores_download = 100
+        num_cores_lai = 85
 
     # Prepare YAML configuration
     config_dict = {
@@ -121,6 +121,7 @@ def generate_lai(lai_config: str = Form(...), region_shapefile: UploadFile = Fil
         "chunk_days": lai_config.chunk_days,
         "imagery_src": lai_config.imagery_src,
         "keep_imagery": lai_config.keep_imagery,
+        "satellite": "S2",
     }
 
     executions_dir = os.path.join(out_dir, "executions")

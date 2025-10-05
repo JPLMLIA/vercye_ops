@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import FileUpload from "../FileUpload";
 import { LAIAPI } from "@/api/lai";
-import { LAIEntry } from "@/types";
+import { LAIEntry, RunConfigFormParams } from "@/types";
 import SourceTargetMapper, { MapperSource, MappingState } from "./SourceTargetMapper";
 import { CropmasksAPI } from "@/api/cropmasks";
-import useToast from "../Toast";
+import useToast from '@/components/Toast';
 import { StudiesAPI } from "@/api/studies";
 
 interface RunParamsFormProps {
     runConfigMessage: string;
     onSubmit: (payload: RunParamsSubmissionsPayload) => Promise<void>;
     onDownloadTemplate: () => void,
-    currentStudyId: string | null
+    currentStudyId: string | null,
+    initialData: RunConfigFormParams | null
 }
 
 export interface RunParamsSubmissionsPayload {
@@ -21,18 +22,29 @@ export interface RunParamsSubmissionsPayload {
     cropmaskMapping: MappingState
 }
 
-const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmit, onDownloadTemplate, currentStudyId }) => {
-    const [laiSource, setLaiSource] = useState<LAIEntry | null>(null);
-    const [laiSources, setLaiSources] = useState<LAIEntry[]>([]);
+interface MinimalLAIEntry {
+    id: string;
+    resolution: number
+}
+
+const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmit, onDownloadTemplate, currentStudyId, initialData }) => {
+    const [laiSource, setLaiSource] = useState<MinimalLAIEntry | null>(null);
+    const [laiSources, setLaiSources] = useState<MinimalLAIEntry[]>([]);
     const [laiLoading, setLaiLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [cropmasks, setCropmasks] = useState<string[]>([]);
     const [requiredCropmaskYears, setRequiredCropmaskYears] = useState<MapperSource[]>([]);
     const [cropmaskMapping, setCropmaskMapping] = useState<MappingState>({})
-    const [configFile, setConfigFile] = useState<File | null>(null);
+    const [configFiles, setConfigFiles] = useState<File[]>([]);
 
 
     const { show, Toast } = useToast();
+
+    useEffect(() => {
+        if (!initialData) return;
+        setLaiSource({id: initialData.laiId, resolution: initialData.laiResolution})
+        setCropmaskMapping(initialData.cropmasks)
+    }, [initialData])
 
     useEffect(() => {
         (async () => {
@@ -81,8 +93,9 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
     };
 
     const buildPayload = (): RunParamsSubmissionsPayload => {
-        if (!configFile) throw new Error('Set config file first!');
-        const payload: RunParamsSubmissionsPayload = { configFile, cropmaskMapping };
+          if (configFiles.length === 0) throw new Error("Set config file first!");
+          if (!laiSource) throw new Error("Please select an LAI source!");
+        const payload: RunParamsSubmissionsPayload = {configFile: configFiles[0], cropmaskMapping };
         if (laiSource?.id && laiSource?.resolution) {
             payload.laiSourceId = laiSource.id;
             payload.laiSourceResolution = laiSource.resolution;
@@ -96,7 +109,8 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
             const payload = buildPayload();
             await onSubmit(payload);
         } catch (err: any) {
-            alert(err.message || "Submission failed");
+            setConfigFiles([]);
+            show((err as Error).message, 'error');
         } finally {
             setSubmitting(false);
         }
@@ -109,7 +123,8 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
                 Upload your configured config.yaml file and specify the LAI source to use.
             </div>
 
-            {runConfigMessage && runConfigMessage !== 'Template not yet filled in' && (
+            {/**TODO refactor this weird runmessage handling currently**/}
+            {runConfigMessage && (runConfigMessage !== 'Template not yet filled in' && runConfigMessage !== 'OK!') && (
                 <div className="alert alert-error">
                     <strong>Current config not valid</strong>: {runConfigMessage}
                 </div>
@@ -123,19 +138,17 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
                     <p style={{ color: "gray" }}>No LAI sources available</p>
                 ) : (
                     <>
-                        <input
-                            list="laiSources"
+                        <select
                             className="form-input"
-                            placeholder="region with LAI"
                             value={laiSource ? `${laiSource.id} ${laiSource.resolution}m` : ""}
                             onChange={(e) => handleLAISourceChanged(e.target.value)}
                             disabled={laiLoading || submitting}
-                        />
-                        <datalist id="laiSources">
+                        >
+                            <option value="">-- Select entry --</option>
                             {laiSources.map((c) => (
-                                <option key={`${c.id}_${c.resolution}`} value={`${c.id} ${c.resolution}m`} />
+                                <option key={`${c.id}_${c.resolution}`} value={`${c.id} ${c.resolution}m`}>{`${c.id} ${c.resolution}m`}</option>
                             ))}
-                        </datalist>
+                        </select>
                         <p className="subtitle" style={{ marginTop: 4 }}>
                             If you haven't create the LAI data yet, visit the LAI Tab in the top navigation.
                         </p>
@@ -144,7 +157,7 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
             </div>
 
             <SourceTargetMapper
-                title="Select a cropmask for each year"
+                title="Cropmasks"
                 hint="For each year choose an already uploaded cropmask. You can upload cropmasks in the 'Cropmasks' tab in the top navigation."
                 sources={requiredCropmaskYears}
                 targets={cropmasks}
@@ -153,24 +166,33 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
                 allowDuplicateTargets={true}
             />
 
-            <div className="form-group" style={{marginTop: '10px'}}>
+           <div className="form-group" style={{ marginTop: "10px" }}>
                 <label className="form-label">Run Configuration File</label>
-                <FileUpload
-                    id="runFile"
-                    accept=".yaml,.yml"
-                    label="📁 Choose config.yaml file"
-                    onChange={(files) => setConfigFile(files? files[0] : null)}
-                />
+                <p className="subtitle" style={{ marginTop: 4 }}>
+                    Download the config and then edit the parameters in your file editor.
+                    Finally, reupload the filled-in file.
+                </p>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => onDownloadTemplate()}
+                        disabled={submitting}
+                    >
+                        ⬇️ Download Config
+                    </button>
+                    <FileUpload
+                        id="runFile"
+                        accept=".yaml,.yml"
+                        label="📁 Upload completed config.yaml"
+                        value={configFiles}
+                        onChange={setConfigFiles}
+                        />
+                </div>
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                <button
-                    className="btn btn-secondary"
-                    onClick={() => onDownloadTemplate()}
-                    disabled={submitting}
-                >
-                    ⬇️ Download Config Template
-                </button>
+                <div></div>
                 <button
                     className="btn btn-primary"
                     onClick={handleSubmit}
@@ -179,6 +201,7 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
                     {submitting ? "Uploading..." : "Upload Run Config"}
                 </button>
             </div>
+            <Toast />
         </div>
     );
 };

@@ -1,6 +1,6 @@
 import { SetupSubmissionsPayload } from '@/components/Forms/SetupStudyForm';
 import { http } from './client';
-import type { StudyId, StudyStatusResponse, RunConfigStatusResponse } from '@/types';
+import type { StudyId, StudyStatusResponse, RunConfigStatusResponse, SetupConfigTemplate, RunConfigFormParams } from '@/types';
 import { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 
 export const StudiesAPI = {
@@ -18,11 +18,14 @@ export const StudiesAPI = {
   runConfigStatus: (id: StudyId) =>
     http.get<RunConfigStatusResponse>(`/studies/${id}/run-config-status`),
 
+  runConfigFormParams: (id: StudyId) =>
+    http.get<RunConfigFormParams | null>(`/studies/${id}/run-config-formdata`),
+
   downloadRunConfigTemplate: (id: StudyId) =>
     http.download(`/studies/${id}/run-config`),
 
-  downloadSetupTemplate: (id: StudyId) =>
-    http.download(`/studies/${id}/setup-config`),
+  getSetupConfig: (id: StudyId) =>
+    http.get<SetupConfigTemplate | null>(`/studies/${id}/setup-config`),
 
   uploadSetup: (id: StudyId, payload: SetupSubmissionsPayload) => {
     const fd = new FormData();
@@ -91,8 +94,8 @@ export const StudiesAPI = {
     return http.put<void, FormData>(`/studies/${id}/run-config`, fd);
   },
 
-  run: (id: StudyId) =>
-    http.post<void>(`/studies/${id}/actions/run`),
+  run: (id: StudyId, forceRerun: boolean) =>
+    http.post<void>(`/studies/${id}/actions/run?forceRerun=${forceRerun}`),
 
   cancel: (id: StudyId) =>
     http.post<void>(`/studies/${id}/actions/cancel`),

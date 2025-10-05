@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from scipy import stats
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error, r2_score
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -34,8 +34,11 @@ def compute_metrics(preds, obs):
     y_line = theta[1] + theta[0] * preds
     r2_scikit_bestfit = r2_score(obs, y_line)
 
+    mape = mean_absolute_percentage_error(obs, preds)
+
     aggregated_metrics = {
         "n_regions": len(obs),
+        "mape": mape,
         "mean_err_kg_ha": mean_err_kg_ha,
         "median_err_kg_ha": median_err_kg_ha,
         "mean_abs_err_kg_ha": mean_abs_err_kg_ha,

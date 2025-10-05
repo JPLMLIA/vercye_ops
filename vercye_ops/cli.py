@@ -165,7 +165,13 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
     if validate_only:
         return
 
+    # TODO load taskset max num cores from profile file
+    # Limiting with taskset since APSIM does not respect the maximum provided number of cores
+
     cmd = [
+        "taskset",
+        "-c",
+        "0-80",
         "snakemake",
         "--snakefile",
         snakefile_path,
@@ -178,6 +184,12 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
         "--printshellcmds",
         "--rerun-incomplete",
     ]
+
+    # Need to change this!! This is Unsafe, but needed a quick workaround for operational use
+    # but can cause multiple snakemake processes on the same directory in an edgecase which we want to avoid!
+    # cmd_unlock = cmd.copy()
+    # cmd_unlock.append('--unlock')
+    # subprocess.run(cmd_unlock)
 
     # Add extra snakemake args if provided, allows to run custom snaekmake options
     if extra_snakemake_args:

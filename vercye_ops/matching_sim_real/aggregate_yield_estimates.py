@@ -202,7 +202,7 @@ def cli(yield_dir, output_csv, columns_to_keep, chirps_file, referencedata_fpath
         refdata = pd.read_csv(referencedata_fpath)
         refdata["region"] = refdata["region"].astype(str)
         aggregated_yields["region"] = aggregated_yields["region"].astype(str)
-        aggregated_yields = aggregated_yields.merge(refdata, on="region")
+        aggregated_yields = aggregated_yields.merge(refdata, on="region", how="left", suffixes=("", "_ref"))
 
     if aggregated_yields is not None and not aggregated_yields.empty:
         aggregated_yields.to_csv(output_csv, index=False)

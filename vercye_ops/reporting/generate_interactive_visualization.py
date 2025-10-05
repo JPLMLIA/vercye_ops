@@ -25,7 +25,7 @@ class InteractiveMapGenerator:
         lai_columns: List[str],
         lai_column_names: List[str],
         agg_levels: Dict[str, Tuple[str, str]],
-        simplify_tolerance: float = 0.01,
+        simplify_tolerance: float = 0.0001,
         zip: bool = False,
     ):
         """Initialize the map generator."""
@@ -376,6 +376,7 @@ class InteractiveMapGenerator:
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"></script>
                 <link rel="preconnect" href="https://fonts.googleapis.com">
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -981,6 +982,33 @@ class InteractiveMapGenerator:
                         gap: 10px;
                     }}
 
+                    .scatter-container {{ height: 220px; }}
+
+                    .search-box {{
+                        margin-top: 8px;
+                        display: flex;
+                        gap: 6px;
+                    }}
+                    .search-box input {{
+                        flex: 1;
+                        padding: 8px;
+                        border: 1px solid #cbd5e0;
+                        border-radius: 6px;
+                        font-size: 14px;
+                    }}
+                    .search-box button {{
+                        padding: 8px 12px;
+                        border: none;
+                        border-radius: 6px;
+                        background: {{ '{' }}{dark_primary}{{ '}' }};
+                        color: white;
+                        cursor: pointer;
+                    }}
+                    .search-feedback {{
+                        font-size: 11px;
+                        color: #4a5568;
+                        margin-top: 4px;
+                    }}
 
                 </style>
             </head>
@@ -991,6 +1019,11 @@ class InteractiveMapGenerator:
                         <div class="control-panel">
                             <div class="level-indicator title" id="levelIndicator">Loading...</div>
                             <div class="stats-summary" id="statsSummary"></div>
+                            <div class="search-box" title="Jump to a field/region by its ID">
+                                <input id="featureSearchInput" type="text" placeholder="Go to id…" />
+                                <button id="featureSearchBtn">Go</button>
+                            </div>
+                            <div id="searchFeedback" class="search-feedback"></div>
                             <button class="back-button" id="backButton" style="display: none;">← Back</button>
                         </div>
                     </div>
@@ -1020,11 +1053,11 @@ class InteractiveMapGenerator:
                                     <div class="tooltip-stats">
                                         <div class="stat-item">
                                             <div class="stat-value" id="hoverValue1"></div>
-                                            <div class="stat-label">Mean Yield (kg/ha)</div>
+                                            <div class="stat-label">Estimated Mean Yield (kg/ha)</div>
                                         </div>
                                         <div class="stat-item">
                                             <div class="stat-value" id="hoverValue2"></div>
-                                            <div class="stat-label">Median Yield (kg/ha)</div>
+                                            <div class="stat-label">Reported Mean Yield (kg/ha)</div>
                                         </div>
                                     </div>
                                     <div class="chart-container">
@@ -1047,6 +1080,17 @@ class InteractiveMapGenerator:
                                         <option value="error">Error (kg/ha)</option>
                                         <option value="relative_error">Relative Error (%)</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <div class="legend" id="scatterCard" style="display:none;">
+                                <div class="legend-title title">Predicted vs Reported</div>
+                                <p style="margin:0 0 10px;color:#4a5568;">Mean yield (kg/ha)</p>
+                                <div class="scatter-container">
+                                    <canvas id="scatterChart"></canvas>
+                                </div>
+                                <div class="legend-note" style="font-size:11px;margin-top:6px;color:#4a5568;">
+                                    Click a dot to highlight its region on the map. Then double-click the polygon to see details.
                                 </div>
                             </div>
 
@@ -1162,6 +1206,11 @@ class InteractiveMapGenerator:
                     let comparisonChart = null;
                     let availableLaiColumns = [];
 
+                    // Scatterplot globals
+                    let scatterChart = null;
+                    let featureLayerIndex = new Map();
+                    let lastScatterSelectedId = null;
+
                     // Color ramp where Chroma.js interpolates smoothly between these stops
                     const yieldRamp = chroma
                         .scale('viridis')
@@ -1169,9 +1218,9 @@ class InteractiveMapGenerator:
                         .mode('lrgb');
 
                     const errorRamp = chroma
-                        .scale(['#2166ac', '#f7f7f7', '#b2182b']) // blue → white → red
-                        .domain([0, 0.5, 1])
-                        .mode('lrgb');
+                    .scale(['#313695', '#ffffff', '#a50026']) // deep blue → white → deep red
+                    .domain([0, 0.5, 1])
+                    .mode('lab');
 
                     let ramp = yieldRamp;
 
@@ -1256,9 +1305,9 @@ class InteractiveMapGenerator:
                         document.getElementById('overlayValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
                         document.getElementById('overlayValue2').textContent = (props.estimated_median_yield_kg_ha || 0).toFixed(1);
                         document.getElementById('overlayValue3').textContent = (props.total_area || 0).toFixed(1);
-                        document.getElementById('overlayValue4').textContent = (props.reported_mean_yield_kg_ha.toFixed(1) || 'N/A');
-                        document.getElementById('overlayValue5').textContent = (props.error.toFixed(1) || 'N/A');
-                        document.getElementById('overlayValue6').textContent = (props.relative_error.toFixed(1) || 'N/A');
+                        document.getElementById('overlayValue4').textContent = (props.reported_mean_yield_kg_ha?.toFixed(1) || 'N/A');
+                        document.getElementById('overlayValue5').textContent = (props.error?.toFixed(1) || 'N/A');
+                        document.getElementById('overlayValue6').textContent = (props.relative_error?.toFixed(1) || 'N/A');
 
                         updateOverlayChart(props.timeSeries, props.dateLabels, props.interpolationFlags, props.isAggregated);
 
@@ -1552,6 +1601,7 @@ class InteractiveMapGenerator:
 
                                 const mean = props.estimated_mean_yield_kg_ha?.toFixed(1) || '-';
                                 const median = props.estimated_median_yield_kg_ha?.toFixed(1) || '-';
+                                const reported_mean = props.reported_mean_yield_kg_ha?.toFixed(1) || '-';
 
                                 const regionStats = document.createElement('div');
                                 regionStats.style.marginTop = '10px';
@@ -1562,8 +1612,8 @@ class InteractiveMapGenerator:
                                 regionStats.innerHTML = `
                                     <div style="width: 12px; height: 12px; background-color: ${{color}}; border-radius: 2px;"></div>
                                     <strong style="color: ${{color}};">${{name}}</strong>
-                                    <span style="color: #4a5568;">Mean Yield: <strong>${{mean}}</strong> kg/ha</span>
-                                    <span style="color: #4a5568;">Median Yield: <strong>${{median}}</strong> kg/ha</span>
+                                    <span style="color: #4a5568;">Estimated Mean Yield: <strong>${{mean}}</strong> kg/ha</span>
+                                    <span style="color: #4a5568;">Reported Mean Yield: <strong>${{reported_mean}}</strong> kg/ha</span>
                                 `;
 
                                 statsContainer.appendChild(regionStats);
@@ -1722,6 +1772,7 @@ class InteractiveMapGenerator:
                     }}
 
                     function onEachFeature(feature, layer) {{
+                        featureLayerIndex.set(feature.properties.id, layer);
                         layer.on({{
                         mouseover: highlightFeature,
                         mouseout: resetHighlight,
@@ -1777,6 +1828,16 @@ class InteractiveMapGenerator:
                             style: style,
                             onEachFeature: onEachFeature
                         }}).addTo(map);
+
+                        featureLayerIndex = new Map();
+                        currentLayer.eachLayer(l => {{
+                            if (l?.feature?.properties?.id) {{
+                                featureLayerIndex.set(l.feature.properties.id, l);
+                            }}
+                        }});
+
+                        // Build or hide the scatter plot for this view
+                        updateScatter(levelData);
 
                         updateLegend();
                         updateStats(levelData);
@@ -1901,7 +1962,7 @@ class InteractiveMapGenerator:
                         document.getElementById('hoverInfo').style.display = 'block';
                         document.getElementById('hoverTitle').textContent = capitalize(props.name);
                         document.getElementById('hoverValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
-                        document.getElementById('hoverValue2').textContent = (props.estimated_median_yield_kg_ha || 0).toFixed(1);
+                        document.getElementById('hoverValue2').textContent = (props.reported_mean_yield_kg_ha?.toFixed(1) || '-');
 
                         updateHoverChart(props.timeSeries, props.name, props.dateLabels, props.interpolationFlags, props.isAggregated);
                     }}
@@ -2024,6 +2085,226 @@ class InteractiveMapGenerator:
                         }});
                     }}
 
+                    function focusFeatureById(featureId) {{
+                        const layer = featureLayerIndex.get(featureId);
+                        if (!layer) return;
+
+                        // Remove previous scatter selection highlight
+                        if (lastScatterSelectedId && featureLayerIndex.get(lastScatterSelectedId)?.getElement()) {{
+                            featureLayerIndex.get(lastScatterSelectedId).getElement().classList.remove('selected-region');
+                        }}
+                        lastScatterSelectedId = featureId;
+
+                        // Add highlight to the new layer
+                        if (layer.getElement()) {{
+                            layer.getElement().classList.add('selected-region');
+                        }}
+
+                        // Center/zoom and bring to front + show a quick tooltip value
+                        map.fitBounds(layer.getBounds(), {{ padding: [30, 30], maxZoom: 12 }});
+
+                        const props = layer.feature.properties;
+                        const center = layer.getBounds().getCenter();
+                        const tooltipValue = `${{(props[heatmapType] ?? NaN).toFixed ? props[heatmapType].toFixed(1) : 'N/A'}} ${{getHeatmapUnits()}}`;
+                        const tooltip = L.tooltip({{
+                            permanent: false,
+                            direction: 'center',
+                            className: 'polygon-tooltip',
+                            opacity: 0.9
+                        }}).setLatLng(center).setContent(`${{tooltipValue}}`);
+                        layer.bindTooltip(tooltip).openTooltip();
+                        if (layer.bringToFront) layer.bringToFront();
+                    }}
+
+                    function updateScatter(levelData) {{
+                        const card = document.getElementById('scatterCard');
+                        const ctx = document.getElementById('scatterChart')?.getContext('2d');
+
+                        if (!card || !ctx) return;
+
+                        const points = (levelData.features || [])
+                            .map(f => ({{
+                                id: f.properties.id,
+                                name: f.properties.name,
+                                x: f.properties.reported_mean_yield_kg_ha,   // reported on X
+                                y: f.properties.estimated_mean_yield_kg_ha   // predicted on Y
+                            }}))
+                            .filter(p => typeof p.x === 'number' && !isNaN(p.x) &&
+                                        typeof p.y === 'number' && !isNaN(p.y));
+
+                        if (points.length === 0) {{
+                            if (scatterChart) {{ scatterChart.destroy(); scatterChart = null; }}
+                            card.style.display = 'none';
+                            return;
+                        }}
+                        card.style.display = 'block';
+
+                        const vals = points.flatMap(p => [p.x, p.y]);
+                        const minV = Math.min(...vals);
+                        const maxV = Math.max(...vals);
+                        const pad = Math.max((maxV - minV) * 0.05, 1);
+                        const axisMin = Math.max(0, minV - pad);
+                        const axisMax = maxV + pad;
+
+                        if (scatterChart) {{ scatterChart.destroy(); scatterChart = null; }}
+
+                        scatterChart = new Chart(ctx, {{
+                            type: 'scatter',
+                            data: {{
+                                datasets: [
+                                    {{
+                                        label: 'Predicted vs Reported',
+                                        data: points, // {{x,y,id,name}}
+                                        pointRadius: 3,          // simple small dots
+                                        pointHoverRadius: 0,     // no hover enlargement
+                                        borderWidth: 0,          // no point border
+                                        showLine: false
+                                    }},
+                                    {{
+                                        label: 'y = x',
+                                        type: 'line',
+                                        data: [{{ x: axisMin, y: axisMin }}, {{ x: axisMax, y: axisMax }}],
+                                        borderWidth: 1,
+                                        borderDash: [6, 6],
+                                        fill: false,
+                                        pointRadius: 0,
+                                        hoverRadius: 0
+                                    }}
+                                ]
+                            }},
+                            options: {{
+                                responsive: true,
+                                maintainAspectRatio: false,
+
+                                // no hover interactions; keep click + wheel for zoom
+                                events: ['click', 'wheel'],
+
+                                interaction: {{
+                                    intersect: false,
+                                    mode: 'nearest',
+                                    axis: 'xy'
+                                }},
+
+                                plugins: {{
+                                    legend: {{
+                                        display: true,
+                                        position: 'bottom'
+                                    }},
+                                    tooltip: {{
+                                        enabled: false // <- no hover info
+                                    }},
+                                    zoom: {{
+                                        pan: {{
+                                            enabled: true,
+                                            mode: 'xy'
+                                        }},
+                                        zoom: {{
+                                            wheel: {{ enabled: true }},
+                                            pinch: {{ enabled: true }},
+                                            drag:  {{ enabled: false }},
+                                            mode: 'xy'
+                                        }}
+                                    }}
+                                }},
+                                onClick: (evt) => {{
+                                    const els = scatterChart.getElementsAtEventForMode(
+                                        evt, 'nearest', {{ intersect: true }}, true
+                                    );
+                                    if (!els.length) return;
+                                    const {{ datasetIndex, index }} = els[0];
+                                    if (datasetIndex !== 0) return; // only dots, not the y=x line
+                                    const point = scatterChart.data.datasets[datasetIndex].data[index];
+                                    if (point?.id) focusFeatureById(point.id);
+                                }},
+                                scales: {{
+                                    x: {{
+                                        title: {{ display: true, text: 'Reported mean (kg/ha)' }},
+                                        min: axisMin,
+                                        max: axisMax
+                                    }},
+                                    y: {{
+                                        title: {{ display: true, text: 'Predicted mean (kg/ha)' }},
+                                        min: axisMin,
+                                        max: axisMax
+                                    }}
+                                }},
+                                animation: false
+                            }}
+                        }});
+                    }}
+
+                    function findLevelIndexForFeatureId(featureId) {{
+                        for (const [key, levelData] of Object.entries(mapData.level_data)) {{
+                            const idx = parseInt(key.split('_')[1], 10);
+                            if (levelData?.features?.some(f => f?.properties?.id === featureId)) {{
+                            return idx;
+                            }}
+                        }}
+                        return -1;
+                    }}
+
+                    function goToFeatureByName(name) {{
+                        const feedback = document.getElementById('searchFeedback');
+                        if (!name) {{
+                            feedback.textContent = 'Please enter a name.';
+                            return;
+                        }}
+
+                        // 1) Try to find it in the currently loaded layer
+                        let localId = null;
+                        if (currentLayer) {{
+                            currentLayer.eachLayer(l => {{
+                            const n = l?.feature?.properties?.name;
+                            if (!localId && n === name) {{
+                                localId = l.feature.properties.id;
+                            }}
+                            }});
+                        }}
+                        if (localId) {{
+                            focusFeatureById(localId);
+                            feedback.textContent = `Centered on “${{name}}”.`;
+                            return;
+                        }}
+
+                        // 2) Otherwise, search all levels for an exact name match
+                        let foundLevel = -1;
+                        let foundId = null;
+                        for (const [key, levelData] of Object.entries(mapData.level_data)) {{
+                            const idx = parseInt(key.split('_')[1], 10);
+                            for (const f of (levelData.features || [])) {{
+                            if (f?.properties?.name === name) {{
+                                foundLevel = idx;
+                                foundId = f.properties.id;
+                                break;
+                            }}
+                            }}
+                            if (foundId) break;
+                        }}
+
+                        if (!foundId) {{
+                            feedback.textContent = `No region named “${{name}}” found.`;
+                            return;
+                        }}
+
+                        // Load that level, then focus
+                        currentLevel = foundLevel;
+                        currentParent = null;
+                        breadcrumbPath = [];
+                        loadLevel(mapData.level_data[`level_${{foundLevel}}`]);
+                        updateUI();
+                        document.getElementById('backButton').style.display = foundLevel > 0 ? 'block' : 'none';
+
+                        setTimeout(() => {{
+                            if (featureLayerIndex.has(foundId)) {{
+                            focusFeatureById(foundId);
+                            feedback.textContent = `Centered on “${{name}}”.`;
+                            }} else {{
+                            feedback.textContent = `Loaded level ${{foundLevel + 1}}, but couldn't find “${{name}}”.`;
+                            }}
+                        }}, 0);
+                    }}
+
+
                     // Event listeners
                     document.getElementById('heatmapSelector').addEventListener("change", function () {{
                         selectHeatmapType(this.value);
@@ -2043,6 +2324,21 @@ class InteractiveMapGenerator:
 
                     document.getElementById('overlayCloseBtn').onclick = hideOverlay;
                     document.getElementById('comparisonCloseBtn').onclick = hideComparisonOverlay;
+
+                    // Reset zoom of scatterplot
+                    document.getElementById('scatterChart').ondblclick = () => {{
+                        if (scatterChart && scatterChart.resetZoom) scatterChart.resetZoom();
+                    }};
+
+                    document.getElementById('featureSearchBtn').onclick = () => {{
+                        const val = document.getElementById('featureSearchInput').value.trim();
+                        goToFeatureByName(val);
+                    }};
+                    document.getElementById('featureSearchInput').addEventListener('keydown', (e) => {{
+                        if (e.key === 'Enter') {{
+                            goToFeatureByName(e.target.value.trim());
+                        }}
+                    }});
 
                     // Initialize map
                     window.addEventListener('load', function () {{
@@ -2159,8 +2455,9 @@ class InteractiveMapGenerator:
 
     def load_sim_data(self):
         all_sim_data = {}
-
+        os.makedirs(self.output_dir, exist_ok=True)
         sim_pngs = list(Path(self.basedir_path).rglob("*_yield_report.png"))
+        sim_pngs = [png for png in sim_pngs if "interactive_map" not in str(png)]
         for sim_png in sim_pngs:
             region_name = sim_png.stem.rsplit("_yield_report", 1)[0]
 

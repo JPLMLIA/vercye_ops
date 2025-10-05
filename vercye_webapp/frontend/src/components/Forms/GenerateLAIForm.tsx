@@ -22,7 +22,7 @@ const GenerateLAIForm: React.FC<GenerateLAIFormProps> = ({ onSubmit }) => {
   const [keepImagery, setKeepImagery] = useState(false);
   const [imagerySrc, setImagerySrc] = useState<"MPC" | "ES_S2C1">("MPC");
   const [chunkDays, setChunkDays] = useState<number>(30);
-  const [shapefile, setShapefile] = useState<File | null>(null);
+  const [shapefileFiles, setShapefileFiles] = useState<File[]>([]);
   const [dateRanges, setDateRanges] = useState<{ start_date: string; end_date: string }[]>([
     { start_date: "", end_date: "" }
   ]);
@@ -42,12 +42,12 @@ const GenerateLAIForm: React.FC<GenerateLAIFormProps> = ({ onSubmit }) => {
   };
 
   const handleSubmit = () => {
-    if (!shapefile) {
+    if (shapefileFiles.length === 0) {
       alert("Please upload a shapefile before submitting.");
       return;
     }
     const payload: GenerateLAIPayload = {
-      shapefile,
+      shapefile: shapefileFiles[0],
       resolution,
       keep_imagery: keepImagery,
       name,
@@ -83,18 +83,19 @@ const GenerateLAIForm: React.FC<GenerateLAIFormProps> = ({ onSubmit }) => {
             onChange={(e) => setResolution(Number(e.target.value))}
           />
           <p className="subtitle" style={{ marginTop: 4 }}>
-            Resolution in meters (UTM). Typically 10 or 20m. 10m uses a dedicated model, all other LAI is generated with the 20m model.
+            Resolution in meters (UTM). Typically 10 or 20m. 10m uses a dedicated model (UNTESTED!), all other LAI is generated with the 20m model.
           </p>
         </div>
 
         <div className="form-group">
-          <label className="form-label">Zipped Shapefile (.zip)</label>
-          <FileUpload
-            id="shapefileFile"
-            accept=".geojson"
-            label="📁 Choose shapefile (.geojson)"
-            onChange={(files) => setShapefile(files?.[0] ?? null)}
-          />
+          <label className="form-label">Zipped Shapefile (.zip) or GeoJSON</label>
+           <FileUpload
+              id="shapefileFile"
+              accept=".geojson, .zip"
+              label="📁 Choose shapefile (.geojson or .zip)"
+              value={shapefileFiles}
+              onChange={setShapefileFiles}
+            />
           <p className="subtitle" style={{ marginTop: 4 }}>
             Shapefile specifying the Region of Interest. If it contains multiple geometries, will try to download all intersecting tiles. However, if too many small geometries create a too large request, might use the bounding box.
           </p>

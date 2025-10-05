@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 const CropmasksPage = () => {
   const [createOpen, setCreateOpen] = useState<boolean>(false)
   const [cropmaskCreateName, setCropmaskCreateName] = useState<string | null>(null)
-  const [cropMaskUploadFile, setCropmaskUploadFile] = useState<File | null>(null)
+  const [cropmaskFiles, setCropmaskFiles] = useState<File[]>([])
   const [cropmasks, setCropmasks] = useState<{id: string}[] | null>(null)
 
   const { show, Toast } = useToast();
@@ -32,7 +32,7 @@ const CropmasksPage = () => {
     }, []);
 
   const handleCropmaskSubmit = async () => {
-    if (!cropMaskUploadFile) {
+    if (cropmaskFiles.length === 0) {
       show('Must select a cropmask file first.', 'error')
       return
     }
@@ -43,8 +43,10 @@ const CropmasksPage = () => {
     }
 
     try {
-      await CropmasksAPI.create(cropMaskUploadFile, cropmaskCreateName);
+      await CropmasksAPI.create(cropmaskFiles[0], cropmaskCreateName);
       show('Cropmask uploaded', 'success');
+      setCropmaskFiles([]);
+      setCropmaskCreateName("");
       setCreateOpen(false);
     } catch {
       alert("Failed to upload cropmask!");
@@ -110,7 +112,13 @@ const CropmasksPage = () => {
 
          <div className="form-group">
             <label className="form-label">Cropmask File (.tif)</label>
-            <FileUpload id="shapefileFile" accept=".tif" label="📁 Choose cropmask file (.tif)" onChange={(files) => setCropmaskUploadFile(files?.[0] ?? null)} />
+             <FileUpload
+                id="cropmaskFile"
+                accept=".tif"
+                label="📁 Choose cropmask file (.tif)"
+                value={cropmaskFiles}
+                onChange={setCropmaskFiles}
+              />
               <p className="subtitle" style={{ marginTop: 4 }}>
               The Cropmask must be a binary (0/1) geotiff. Use 0 for the non-crop class and 1 for the pixels containing the crop of interest. It is reccomended to upload a compressed file.
             </p>

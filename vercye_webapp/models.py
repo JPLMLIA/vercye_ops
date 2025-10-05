@@ -1,4 +1,4 @@
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, StringConstraints
 from shapely.geometry import mapping
@@ -65,6 +65,59 @@ class SetupSubmissionsRequest(BaseModel):
     years: List[str]
     timepoints: List[str]
     simulation_windows: List[WindowConfig]
+
+
+class RegionFilter(BaseModel):
+    column: str
+    allow: List[str]
+
+
+class RegionExtraction(BaseModel):
+    adminNameColumn: str
+    targetProjection: str
+    filter: Optional[RegionFilter] = None
+
+
+class WindowNoId(BaseModel):
+    year: str
+    timepoint: str
+    sim_start_date: str
+    sim_end_date: str
+    met_start_date: str
+    met_end_date: str
+    lai_start_date: str
+    lai_end_date: str
+
+
+class Feature(BaseModel):
+    geometry: Dict[str, Any]
+    properties: Dict[str, Any]
+
+
+class ShapefileData(BaseModel):
+    type: str
+    features: List[Feature]
+
+
+class SetupConfigTemplate(BaseModel):
+    regionExtraction: RegionExtraction
+    apsimColumn: str
+    apsimMapping: Dict[str, List[str]]
+    apsimFiles: List[str]
+    referenceMapping: Dict[str, str]
+    referenceYearsMapping: Dict[str, str]
+    referenceFiles: List[str]
+    years: List[str]
+    timepoints: List[str]
+    simulationWindows: List[WindowNoId]
+    shapefileData: ShapefileData
+    shapefileName: str
+
+
+class RunConfigFormParams(BaseModel):
+    laiId: str
+    laiResolution: int
+    cropmasks: Dict[str, str]
 
 
 class LAIConfigRunParams(BaseModel):

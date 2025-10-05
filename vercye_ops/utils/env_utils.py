@@ -93,7 +93,7 @@ def replace_in_file(file_path: str, old_val, new_val):
 
 def get_run_config(studies_dir: str, study_name: str, ruamel=False):
     """Returns the config as a json or as a tuple of json, ruamel if ruamels set to True."""
-    config_file_path = get_run_config(studies_dir, study_name)
+    config_file_path = get_run_config_file_path(studies_dir, study_name)
 
     if not ruamel:
         with open(config_file_path, "r") as f:
@@ -105,7 +105,7 @@ def get_run_config(studies_dir: str, study_name: str, ruamel=False):
 
 def get_setup_config(studies_dir: str, study_name: str, ruamel=False):
     """Returns the config as a json or as a tuple of json, ruamel if ruamels set to True."""
-    config_file_path = get_setup_config(studies_dir, study_name)
+    config_file_path = get_setup_config_file_path(studies_dir, study_name)
 
     if not ruamel:
         with open(config_file_path, "r") as f:

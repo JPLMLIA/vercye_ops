@@ -408,7 +408,7 @@ const LAIPage = () => {
         <GenerateLAIForm onSubmit={handleCreateLAI} />
       </Modal>
 
-      <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Study Logs" width={800}>
+      <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Logs" width={1100}>
         <div className="logs-container" style={{ marginTop: '2rem' }}>
           <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(logs || 'No logs available') }} />
         </div>

@@ -273,6 +273,10 @@ def build_section_params(
     return section_params
 
 
+def insert_word_breaks(s, interval=4):
+    return "<wbr>".join([s[i : i + interval] for i in range(0, len(s), interval)])
+
+
 def save_report(report, out_fpath):
     with open(out_fpath, "w+b") as result_file:
         # convert HTML to PDF
@@ -320,6 +324,7 @@ def fill_section_template(
                         <p>
                             <strong>Note:</strong> The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
                             <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}<br>
+                            <strong>Mape: </strong> {evaluation_results['mape'].iloc[0] if 'mape' in evaluation_results else '-'} <br>
                             <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha<br>
                             <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha<br>
                             <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha<br>
@@ -361,10 +366,14 @@ def fill_section_template(
             <tbody>
     """
 
+    # Sort by errors to allow to identify problematic areas easier
+    if "mean_err_kg_ha" in regions_summary.columns:
+        regions_summary.sort_values(by="mean_err_kg_ha", ascending=False, inplace=True)
+
     for _, row in regions_summary.iterrows():
         html_content += f"""
                     <tr>
-                        <td>{row['region']}</td>
+                        <td>{insert_word_breaks(row['region'])}</td>
                         <td>{int(row['mean_yield_kg_ha'])}</td>
                         <td>{int(row['median_yield_kg_ha'])}</td>
                         {f'<td>{int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A"}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
