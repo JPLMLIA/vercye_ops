@@ -21,5 +21,5 @@ nav:
       - 'Outputs': 'Vercye/outputs.md'
     - 'VeRCYe Webapp': 'Vercye/webapp.md'
     - 'Meteorological Data': 'Vercye/metdata.md'
-    - 'Architecture': 'Vercye/architecture.md'
+    - 'Vercye Library Architecture': 'Vercye/architecture.md'
     - 'APSIMX': 'Vercye/apsim.md'

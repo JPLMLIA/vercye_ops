@@ -2,7 +2,9 @@
 
 ## Overview
 
-The **Vercye system** orchestrates a modular, region-based crop yield simulation pipeline using **Snakemake** for dependency resolution and scalability. Each processing step is encapsulated in a standalone script, executed conditionally and in the correct order.
+The **VeRCYe Library** contains all core components to run the yield studies with the VeRCYe algorithm. The individual steps are contained as standalone scripts that can be individually executed via the `cli`.
+To simplify running the individual steps as a reproducible workflow, the scripts are orchestrated with **Snakemake** as a pipeline in which they are executed conditionally and in the correct order.
+
 
 ---
 
@@ -16,9 +18,10 @@ Each script is self-documented via CLI help using the `--help` flag. For additio
 
 Snakemake defines workflows as rules. Each rule specifies expected inputs and outputs, enabling:
 
-- **Automatic dependency resolution** – Only missing or outdated outputs are recomputed.
-- **Resumability** – Failed executions can resume from the point of failure.
-- **Parallelization** – Regions and timepoints are processed independently, increasing efficiency.
+- **Automatic dependency resolution** - Only missing or outdated outputs are recomputed if a pipeline is re-run.
+- **Resumability** - Failed executions of a pipeline can resume from the point of failure or be a rerun of all steps of the pipeline can be forced.
+- **Parallelization** - Regions and timepoints are processed independently, increasing efficiency.
+- **Resolving of dependancies**:  By using wildcard, we do not have to specify each individual job. Instead we specify a pattern of what output paths should be created. This allows snakemake to generate the jobs based on the provided arguments, e.g in our case regions and years that are specified in the Snakemake file. So instead of specifying each region-year combination for each job, we just specify what a job does in general, and snakemake will resolve all jobs that have to be created. Check out the Snakemake documentation for more details on this, as this is a core pattern to understanding the architecture.
 
 ---
 
@@ -75,14 +78,17 @@ The complete logic is defined in `vecrye_ops/snakemake/Snakefile`.
 
 ### 5. LAI Analysis
 - **Rule**: `lai_analysis`
-- Computes daily LAI stats for the cropland pixels per region (e.g., mean LAI).
+- Computes daily LAI stats for the cropland pixels per region (e.g., mean/median LAI).
 - Optimized with windowed reading for performance.
 
 ---
 
 ### 6. APSIM Simulation
 - **Rule**: `run_apsim`
-- Simulates many parameter combinations to model yield/LAI curves through APSIM.
+- Simulates many parameter(soil, farm management, etc) combinations to model yield/LAI curves through APSIM.
+- Apsim uses a `.apsimx` file from which all permutations of unkown parameters are derived.
+- For each region we inject a few different parameters into this file: The meteorological data, if present the sowing date.
+- The simulation daterange has to already be injected during pre-processing.
 - Supports both **Dockerized** and **local APSIM** installations depending on config parameter.
 
 ---
@@ -115,9 +121,11 @@ The complete logic is defined in `vecrye_ops/snakemake/Snakefile`.
   - R² (coefficient of determination)
   - Relative RMSE
 
+
 ---
 
-### 11. Final Outputs
+### 11. Reporting - Final Outputs
+A number of rules generate additional artifacts for reporting and analysis purposes. These are not documented in depth here, but the outputs are described in [Outputs Documentation](outputs.md)
 
 #### Per-Timepoint:
 - PDF report (via `generate_final_report`)

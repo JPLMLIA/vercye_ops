@@ -150,11 +150,17 @@ Once your setup is complete:
 
   Additionally it is recommended to add `--directory path-to-your-working-directory` where all the logs and snakemake internal artifacts should be saved. This avoids possible conflicts between different studies.
 
+
 ## Output
 
 When the simulation completes, results will be available in your base directory. See the [Outputs Documentation](outputs.md) for details on interpreting the results.
 
 To run the pipeline over the same region(s), either use Snakemake's `-F` flag or delete the log files at `vercye_ops/snakemake/logs_*`. Runtimes are in `vercye_ops/snakemake/benchmarks`.
 
-## Troubleshooting
+## Troubleshooting and re-running
+
+If your pipeline fails, you have a few options to re-run:
+- If you want to force the re-execution of all rules, even if they have already completed successfully, you can add the `-F` flag to the run command above. This will invalidate all outputs and require rerunning them.
+- Recommend: If you have fixed the section of your code that caused the problems, you can simply rerun with the normal run command and only the rules that have failed and their downstream dependencies will be run.
+
 Check out the troubleshooting page.
