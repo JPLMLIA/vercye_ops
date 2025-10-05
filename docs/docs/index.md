@@ -80,6 +80,10 @@ To manipulate JSON files via the command line:
 module load jq
 ```
 
+#### 5. Authenticate Google Earth Engine
+The ERA5 meteorological data is currently still fetched through Google Earth Engine. For this to work, you will have to authenticate yourself with earth engine.
+Run `ee authenticate` and follow the instructions on the screen.
+
 ### Running your first yield study
 
 **Quickstart**
@@ -154,8 +158,8 @@ On information for setting up and running the webapp, visit the [Webapp Section]
 
 ![VeRCYe Architecture Diagram](vercye_highlevel.png)
 
-- **Library Details**: The technical implementation details of the Library are outlined in he [VeRCYe Architecture Section](Vercye/architecture.md). Fore more details check out the code in `vercye_ops`.
-- **Webapp Details**: The details on architectural decisions of the webapp are documented under [VeRCYe Webapp](Vercye/webapp.md)
+- **Library Details**: The technical implementation details of the vercye library are outlined in the [VeRCYe Architecture Section](Vercye/architecture.md). Fore more details check out the code in `vercye_ops`.
+- **Webapp Details**: The details on architectural decisions of the webapp are documented under [VeRCYe Webapp](Vercye/webapp.md).
 
 
 ### Development

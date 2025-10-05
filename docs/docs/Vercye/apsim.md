@@ -2,6 +2,9 @@ APSIM is an agricultural modelling framework that can simulate a variety of biop
 
 VeRCYe relies on the APSIMX framework for generating various simulations in a realistic range.
 
+
+**TODO needs to be updates - currently only copied Mark instructions, but they are incomplete**
+
 ### Installing APSIMX
 Visit [https://www.apsim.info](https://www.apsim.info) and make sure you have the proper license.
 
