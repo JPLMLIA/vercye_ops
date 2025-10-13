@@ -12,11 +12,11 @@
         <link rel="prev" href="../inputs/">
       
       
-        <link rel="next" href="../metdata/">
+        <link rel="next" href="../webapp/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.21">
     
     
       
@@ -24,7 +24,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2a3383ac.min.css">
       
       
 
@@ -62,7 +62,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#overview" class="md-skip">
+        <a href="#1-per-region-and-timepoint-outputs" class="md-skip">
           Skip to content
         </a>
       
@@ -369,6 +369,69 @@
                 
   
   
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Running VeRCYe
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Running VeRCYe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
   
   
     <li class="md-nav__item">
@@ -377,7 +440,30 @@
   
   
   <span class="md-ellipsis">
-    Yield Study Quickstart
+    Manual execution
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Troubleshooting
     
   </span>
   
@@ -464,15 +550,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    <span class="md-ellipsis">
-      Overview
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#1-per-region-and-timepoint-outputs" class="md-nav__link">
     <span class="md-ellipsis">
       1. Per Region (-and timepoint) Outputs
@@ -542,6 +619,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#multiyear-aggregated-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multiyear Aggregated Outputs
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -575,6 +661,37 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webapp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    VeRCYe Webapp
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -615,7 +732,30 @@
   
   
   <span class="md-ellipsis">
-    Architecture
+    Vercye Library Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../apsim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    APSIMX
     
   </span>
   
@@ -651,12 +791,12 @@
 
   <h1>Outputs</h1>
 
-<h2 id="overview">Overview</h2>
 <p>The VeRCYe pipeline generates outputs at multiple levels of abstraction, including:</p>
 <ul>
 <li><strong>Pixel-wise yield predictions</strong></li>
 <li><strong>Predictions for each region of interest (ROI)</strong></li>
 <li><strong>Aggregated insights across multiple ROIs</strong></li>
+<li><strong>Aggregated insights across multiple ROIs &amp; Years</strong></li>
 </ul>
 <p>This document details all output artifacts and their computation methods.</p>
 <h2 id="1-per-region-and-timepoint-outputs">1. Per Region (-and timepoint) Outputs</h2>
@@ -675,7 +815,7 @@
 </ul>
 </li>
 <li><strong><code>yield_report.png</code></strong>: A non-interactive snapshot with lower resolution of the <code>.html</code> yield report.</li>
-<li><strong><code>weather_report.html</code></strong>: Allows to interactively inspect the meteorological data. All values except the rain graph are computed for the centroid of the region. For the rain graph, if the precipitation data source in the experiment is NASA_Power, this is also for the centroid. If the precipitation data source is CHIRPS, this might either be the value at the centroid or the mean of all CHIRPS values within the region, depending on what was specified in the configuration. </li>
+<li><strong><code>weather_report.html</code></strong>: Allows to interactively inspect the meteorological data. All values except the rain graph are computed for the centroid of the region. For the rain graph, if the precipitation data source in the experiment is NASA_Power, this is also for the centroid. If the precipitation data source is CHIRPS, this might either be the value at the centroid or the mean of all CHIRPS values within the region, depending on what was specified in the configuration.</li>
 </ul>
 <h3 id="maps">Maps</h3>
 <ul>
@@ -684,10 +824,10 @@
 <h3 id="detailed-outputs">Detailed Outputs</h3>
 <ul>
 <li>
-<p><strong><code>converted_map_yield_estimate.csv</code></strong>: </p>
+<p><strong><code>converted_map_yield_estimate.csv</code></strong>:</p>
 <ul>
 <li>mean_yield_kg_ha: Mean yield based on pixel level yield predictions from <code>yield_map.tif</code>. Mean over all pixels estimates in kg/ha.</li>
-<li>median_yield_kg_ha: Median yield based on pixel level yield predictions from <code>yield_map.tif</code>. Medial over all pixel estimates in kg/ha. </li>
+<li>median_yield_kg_ha: Median yield based on pixel level yield predictions from <code>yield_map.tif</code>. Medial over all pixel estimates in kg/ha.</li>
 <li>total_area_ha: Total cropland in region in ha. Computed from number of cropland pixels in region multiplied with the pixel size.</li>
 <li>total_yield_production_kg: Total yield from the region in kg. Sum over yield per pixel.</li>
 <li>total_yield_production_ton: <code>total_yield_production_kg</code> / 1000</li>
@@ -704,18 +844,21 @@
 </ul>
 </li>
 <li>
+<p><strong>matched_sims.csv</strong>: Complete simulations data of the matched simulations from APSIM.</p>
+</li>
+<li>
 <p><strong><code>conversion_factor.csv</code></strong>: Contains numerous values related to the APSIM simulations (and remotely sensed LAI). <code>Max_Yield</code> and <code>Max_LAI</code> as defined in <code>sim_matches.csv</code>.</p>
 <ul>
 <li>apsim_mean_yield_estimate_kg_ha: The mean of <code>Max_Yield</code> over the remaining APSIM simulations fter filtering out simulations as described in <code>match_sim_rs_lai.py</code>.</li>
-<li>apsim_max_matched_lai: The maximum <code>Max_Sim_LAI</code> value over all matched (filtered) APSIM simulations. </li>
+<li>apsim_max_matched_lai: The maximum <code>Max_Sim_LAI</code> value over all matched (filtered) APSIM simulations.</li>
 <li>apsim_max_matched_lai_date: The correspinding date on which <code>apsim_max_matched_lai</code> is reached.</li>
-<li>apsim_max_all_lai: The maximum <code>Max_Sim_LAI</code> value over all (not-filtered) APSIM simulations. </li>
+<li>apsim_max_all_lai: The maximum <code>Max_Sim_LAI</code> value over all (not-filtered) APSIM simulations.</li>
 <li>apsim_max_all_lai_date: The correspinding date on which <code>apsim_max_all_lai</code> is reached.</li>
 <li>apsim_matched_std_yield_estimate_kg_ha: The standard deviation in kg/ha of <code>Max_Yield</code> over all matched (filtered) APSIM simulations.</li>
 <li>apsim_all_std_yield_estimate_kg_ha: The standard deviation in kg/ha of <code>Max_Yield</code> over all (not-filtered) APSIM simulations.</li>
 <li>apsim_matched_maxlai_std: The standard LAI deviation of <code>Max_Sim_LAI</code> over the matched (filtered) APSIM simulations.</li>
 <li>apsim_all_maxlai_std: The standard LAI deviation of <code>Max_Sim_LAI</code> over all (not-filtered) APSIM simulations.</li>
-<li>max_rs_lai: For each date the remotely sensed mean LAI is computed (negative values clipped to 0). Hereby the mean is taken spatially over the region. <code>max_rs_lai</code> then defines the maximum LAI value of these. </li>
+<li>max_rs_lai: For each date the remotely sensed mean LAI is computed (negative values clipped to 0). Hereby the mean is taken spatially over the region. <code>max_rs_lai</code> then defines the maximum LAI value of these.</li>
 <li>max_rs_lai_date: The correspinding date of the <code>max_rs_lai</code> value.</li>
 <li>conversion_factor: The factor used to convert the remotely sensed LAI raster to yield estimates that are in kg/ha per pixel.</li>
 </ul>
@@ -727,7 +870,7 @@
 <li>Date</li>
 <li>n_pixels: Number of non-nan pixels in the estimated LAI raster for this date.</li>
 <li>interpolated: 1 if this LAI value is interpolated based on surrounding values since no remote sensed image was available on this date. 0 it is estimated with the ML model from the remotely sensed image.</li>
-<li>LAI mean: Mean estimated LAI value over all spatial locations at this date. </li>
+<li>LAI mean: Mean estimated LAI value over all spatial locations at this date.</li>
 <li>LAI stddev: Standard deviation of LAI values over all spatial locations at this date.</li>
 <li>LAI mean adjusted: Mean estimated adjsuted LAI value over all spatial locations at this date. Adjustment is used to adjust for different crops e.g maize or wheat as specified in <code>3_analysis_LAI.py</code>.</li>
 <li>LAI stddev adjusted: Analogous to <code>LAI stddev</code> for the adjusted LAI.</li>
@@ -777,13 +920,22 @@
 <p><strong><code>aggregated_yield_map_suffix.tif</code></strong>: Spatially aggregated yield maps from all regions (See regional <code>yield_map.tif</code>).</p>
 </li>
 <li><strong><code>aggregated_LAI_max_suffix.tif</code></strong>: Spatially aggregated LAI_MAX maps from all regions (See regional <code>LAI_MAX.tif</code>).</li>
-<li><strong><code>aggregated_cropmask_suffix.tif</code></strong>: Spatially aggregated cropmasks from all regions (See regional <code>cropmask_constrained.tif</code>). </li>
+<li><strong><code>aggregated_cropmask_suffix.tif</code></strong>: Spatially aggregated cropmasks from all regions (See regional <code>cropmask_constrained.tif</code>).</li>
 <li><strong><code>aggregated_region_boundaries_suffix.geojson</code></strong>: All regional geojsons merged into a single one for easier importing into GIS.</li>
 </ul>
 <h3 id="aggregated-meteorological-insights">Aggregated Meteorological Insights</h3>
 <ul>
 <li><strong><code>aggregated_met_stats_suffix.pdf</code></strong>: Averaged meteorological data per region visualized as a vector map. Includes statistics for the specific year and averaged over the last 20 years. Results are computed as per-year averages (grouped by location lat/lon) from the met files.</li>
 <li><strong><code>aggregated_met_stats_suffix.tif</code></strong>: Same met stats as in the pdf, but as a tif with the same resolution as LAI data. Facilitates analysis for field-scale studies.</li>
+</ul>
+<h3 id="multiyear-aggregated-outputs">Multiyear Aggregated Outputs</h3>
+<ul>
+<li>
+<p><strong><code>multiyear_summary_{study_id}.html</code></strong>: Contains aggregated LAI curves for every year to enable spotting differenced in LAI throughout time. Contains metrics computed over all predictions from multiple years.</p>
+</li>
+<li>
+<p><strong><code>all_predictions_{agg_lvl}_{timepoint}.csv</code></strong>: A csv containing all yield + reference data from multiple years per timepoint and aggregation levels. Very helpfull for further analysis of the predictions and additional validation. Also containing LAI &amp; simulation details for the <code>primary</code> aggregation level.</p>
+</li>
 </ul>
 <h2 id="3-validation-outputs">3. Validation Outputs</h2>
 <p>If reported data was provided, common metrics are written to the <code>final_report.html</code> and <code>evaluation-{agglevel}.csv</code>.
@@ -847,10 +999,10 @@ Details regarding the computation are implemented in <code>vercye_ops/matching_s
     
     
       
-      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
     
   </body>

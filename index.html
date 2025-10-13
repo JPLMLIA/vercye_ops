@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.21">
     
     
       
@@ -22,7 +22,7 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.2a3383ac.min.css">
       
       
 
@@ -244,15 +244,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Features
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
       Overview
@@ -262,13 +253,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setup" class="md-nav__link">
+  <a href="#vercye-library-setup" class="md-nav__link">
     <span class="md-ellipsis">
-      Setup
+      VeRCYe Library Setup
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Setup">
+    <nav class="md-nav" aria-label="VeRCYe Library Setup">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -325,6 +316,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#5-authenticate-google-earth-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Authenticate Google Earth Engine
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -334,6 +334,15 @@
   <a href="#running-your-first-yield-study" class="md-nav__link">
     <span class="md-ellipsis">
       Running your first yield study
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vercye-webapp-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      VeRCYe Webapp Setup
     </span>
   </a>
   
@@ -523,13 +532,97 @@
   
   
   
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Running VeRCYe
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Running VeRCYe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Vercye/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="Vercye/running/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Yield Study Quickstart
+    Manual execution
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Vercye/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Troubleshooting
     
   </span>
   
@@ -586,6 +679,37 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Vercye/webapp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    VeRCYe Webapp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
               
                 
   
@@ -621,7 +745,30 @@
   
   
   <span class="md-ellipsis">
-    Architecture
+    Vercye Library Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Vercye/apsim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    APSIMX
     
   </span>
   
@@ -656,36 +803,38 @@
 
 
 <h1 id="vercye-documentation">VeRCYe Documentation</h1>
-<p>This documentation aims to provides a comprehensive guide to running the Versatile Crop Yield Estimate (VeRCYe) pipeline. The original VeRCYe algorithm is <a href="https://doi.org/10.1007/s13593-024-00974-4">published here</a>.</p>
-<p>Currently the documentation is a work in progress, so please visit again soon.</p>
-<h3 id="features">Features</h3>
-<ul>
-<li>Tools to greatly reduce manual effort required for executing the VERYCE crop yield estimate pipeline.</li>
-<li>All workflow steps are wrapped in a well-documented CLI interface to permit step by step execution.</li>
-<li>The core CLI steps are also wrapped in a Snakemake-based data processing pipeline to batch execute yield estimates in an easy to run and reproducible manner.</li>
-</ul>
+<p>This documentation aims to provide a comprehensive guide to running the Versatile Crop Yield Estimate (VeRCYe) pipeline. The original VeRCYe algorithm is <a href="https://doi.org/10.1007/s13593-024-00974-4">published here</a>.</p>
 <h3 id="overview">Overview</h3>
-<p>The <strong>VeRCYe</strong> pipeline is split into two main components:</p>
+<p>The <strong>VeRCYe Repository</strong> contains a number of components:</p>
 <ul>
-<li><strong>LAI Generation</strong>: Download remotely sensed imagery and predict Leaf Area Index (LAI) values per pixel.</li>
+<li><strong>The VerCYe Library</strong>: Contains all steps to run the VeRCYe algorithm as individual python scripts. The scripts are orchestrated into a pipeline using <code>Snakemake</code>. In general the library is split into two components:<ul>
+<li><strong>LAI Generation</strong>: Downloads remotely sensed imagery and predicst Leaf Area Index (LAI) values per pixel.</li>
 <li><strong>Yield Simulation and Prediction</strong>: Simulate numerous likely configurations using APSIM and identify the best-matching simulations with the LAI data. This step also includes evaluation and reporting tools.</li>
 </ul>
+</li>
+<li><strong>The VeRCYe Webapp</strong>: Provides a webapp wrapper around the core library. Runs a backend service and a frontendservice that facilitates using VeRCYe operationally.</li>
+</ul>
 <hr />
-<h3 id="setup">Setup</h3>
+<h3 id="vercye-library-setup">VeRCYe Library Setup</h3>
 <h4 id="0-clone-this-repository">0. Clone this repository</h4>
 <pre><code class="language-bash">git clone https://github.com/JPLMLIA/vercye_ops.git
 </code></pre>
 <h4 id="1-check-python-version-and-gdal">1. Check Python Version and GDAL</h4>
-<p>This repository has been tested and run with <code>python 3.10.16</code> and with <code>gdal==3.1.0</code>. Ensure you have installed the corresponding versions (<code>python --version</code> and <code>gdalinfo --version</code>).
-If you are running your code on a shared cluster, you might have to run <code>module load gdal/3.1.0</code>, before being able to use <code>GDAL</code>.</p>
+<p>This repository has been tested and run with <code>python 3.13.5</code> and with <code>gdal==3.11.0</code>. Ensure you have installed the corresponding versions (<code>python --version</code> and <code>gdalinfo --version</code>). It might or might not work with other versions.</p>
 <h4 id="2-install-the-requirements">2. Install the requirements</h4>
-<p>Navigate to this package's root directory and run:</p>
-<pre><code class="language-bash">conda install --yes --file requirements.txt
-# or
+<p>It is reccomended to use a conda environement. Ensure you have conda installed.
+Navigate to this package's root directory and run:</p>
+<pre><code class="language-bash">conda create --name vercye python=3.13.5
+
+conda activate vercye
+
+conda install -c conda-forge gdal=3.11
+
 pip install -r requirements.txt
 </code></pre>
+<p>Currently we are mixing pip and conda dependancies.</p>
 <blockquote>
-<p><strong>Note</strong>: As of June 2024, if using <code>conda</code>, you may also need to install <code>Snakemake</code> and a specific dependency manually via pip:</p>
+<p><strong>Note</strong>: As of June 2024, if using <code>conda</code>, for all requirements you may also need to install <code>Snakemake</code> and a specific dependency manually via pip:</p>
 <p><code>bash
 pip install snakemake pulp==2.7.0</code></p>
 </blockquote>
@@ -697,11 +846,12 @@ pip install snakemake pulp==2.7.0</code></p>
 <p>There are two options for running APSIM:</p>
 <ul>
 <li><strong>Using Docker</strong>: Simply set a parameter during configuration of your yield study. The Docker container will build automatically. (Ensure <code>docker</code> is installed.)</li>
-<li><strong>Building the binary manually</strong>: See instructions in <a href="vercye_ops/apsim/README.md">vercye_ops/apsim/README.md</a>.</li>
+<li><strong>Building the APSIM-NextGen binary manually</strong>: See instructions in the <a href="Vercye/apsim/">APSIM Section</a>.</li>
 </ul>
 <blockquote>
 <p><strong>Note</strong>: If running on UMD systems, APSIM is pre-installed at:</p>
-<p><code>/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models</code></p>
+<p><code>/gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models</code>
+However, you might have to install <code>dotnet</code> from source as outlined in the <a href="Vercye/apsim/">APSIM Section</a>.</p>
 </blockquote>
 <h4 id="5-install-jq">5. Install <code>jq</code></h4>
 <p>To manipulate JSON files via the command line:</p>
@@ -711,13 +861,95 @@ pip install snakemake pulp==2.7.0</code></p>
 </ul>
 <pre><code class="language-bash">module load jq
 </code></pre>
+<h4 id="5-authenticate-google-earth-engine">5. Authenticate Google Earth Engine</h4>
+<p>The ERA5 meteorological data is currently still fetched through Google Earth Engine. For this to work, you will have to authenticate yourself with earth engine.
+Run <code>ee authenticate</code> and follow the instructions on the screen.</p>
 <h3 id="running-your-first-yield-study">Running your first yield study</h3>
+<p><strong>Quickstart</strong></p>
+<p>The <code>VeRCYe CLI</code> allows you to get your yield study up an running quickly. However, if you want more options to cutomize different hyperparameters in a more structured way, you might want to run the study manually, as outlined in the next section.</p>
+<ol>
+<li>Activate your virtual environment (depending on your venv setup). E.g:</li>
+</ol>
+<pre><code class="language-bash">conda activate vercye
+</code></pre>
+<ol>
+<li>Initialize a new yield study.</li>
+</ol>
+<pre><code class="language-bash">vercye init --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>[Optional] Download remotely sensed imagery &amp; create LAI.</p>
+</li>
+<li>
+<p>Only required if the LAI data for your region of interest is not yet available locally.</p>
+</li>
+<li>Fill in the lai configuration under <code>/path/to/study/store/lai_config.yaml</code>.</li>
+<li>Run the following command to download the imagery:</li>
+</ol>
+<pre><code class="language-bash">vercye lai --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>Prepare your study</p>
+</li>
+<li>
+<p>Fill in the run congfiguration under <code>/path/to/study/store/setup_config.yaml</code>.</p>
+</li>
+<li>Run the following command to create your study directory and config template.</li>
+</ol>
+<pre><code class="language-bash">vercye prep --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>Set your run options</p>
+</li>
+<li>
+<p>Fill in the run congfiguration under <code>/path/to/study/store/study/config.yaml</code>.</p>
+</li>
+<li>
+<p>If you already had the LAI data available locally, ensure to adapt the <code>lai_dir</code>, <code>lai_region</code> and <code>lai_resolution</code>.</p>
+</li>
+<li>
+<p>[Optional] Download the chirps data.</p>
+</li>
+<li>
+<p>Only required if chirps data is not yet downloaded for the complete study range.</p>
+</li>
+<li>Ensure you have completed step 4, and have set <code>apsim_params.chirps_dir</code> correctly in <code>/path/to/study/store/study/config.yaml</code>.</li>
+</ol>
+<pre><code class="language-bash">vercye chirps --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>Run your study</p>
+</li>
+<li>
+<p>You might want to adapt the number of cores to use in /path/to/study/store depending on your system.</p>
+</li>
+</ol>
+<pre><code class="language-bash">vercye run --name your-study-name --dir /path/to/study/store/profile/config.yaml
+</code></pre>
+<p><strong>Running VeRCYe manually</strong></p>
+<p>While the CLI provides a conveniert way to run a yield study, for larger experiments with different configurations, you might want more freedom. For this the general process is as follows:</p>
+<ol>
+<li>
 <p>You will first have to generate <strong>LAI</strong> data from remotely sensed imagery. Refer to the <a href="LAI/running/">LAI Creation Guide</a> for details.</p>
+</li>
+<li>
 <p>Once you have generated the <strong>LAI</strong> data, you can run your yield study, by following the <a href="Vercye/running/">Running a Yieldstudy Guide</a>.</p>
+</li>
+</ol>
+<h3 id="vercye-webapp-setup">VeRCYe Webapp Setup</h3>
+<p>On information for setting up and running the webapp, visit the <a href="">Webapp Section</a>.</p>
 <h3 id="technical-details">Technical Details</h3>
-<p>The technical implementation details are outlined in he <a href="Vercye/architecture/">Architecture Section</a>. Fore more details check out the code in <code>vercye_ops</code>.</p>
+<p><img alt="VeRCYe Architecture Diagram" src="vercye_highlevel.png" /></p>
+<ul>
+<li><strong>Library Details</strong>: The technical implementation details of the vercye library are outlined in the <a href="Vercye/architecture/">VeRCYe Architecture Section</a>. Fore more details check out the code in <code>vercye_ops</code>.</li>
+<li><strong>Webapp Details</strong>: The details on architectural decisions of the webapp are documented under <a href="Vercye/webapp/">VeRCYe Webapp</a>.</li>
+</ul>
 <h3 id="development">Development</h3>
-<p>Development tipps and best practices are documented under <a href="devtipps.md">Development Tipps</a></p>
+<p>Development tips and best practices are documented under <a href="devtipps.md">Development Tipps</a></p>
 
 
 
@@ -766,10 +998,10 @@ pip install snakemake pulp==2.7.0</code></p>
     
     
       
-      <script id="__config" type="application/json">{"base": ".", "features": ["navigation.tracking", "toc.integrate"], "search": "assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": ".", "features": ["navigation.tracking", "toc.integrate"], "search": "assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="assets/javascripts/bundle.13a4f30d.min.js"></script>
+      <script src="assets/javascripts/bundle.f55a23d4.min.js"></script>
       
     
   </body>

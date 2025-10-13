@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../../LAI/running/">
+        <link rel="prev" href="../outputs/">
       
       
-        <link rel="next" href="../cli/">
+        <link rel="next" href="../metdata/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Introduction - VeRCYE Documentation</title>
+        <title>VeRCYe Webapp - VeRCYE Documentation</title>
       
     
     
@@ -61,6 +61,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#setup" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -93,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              VeRCYe Webapp
             
           </span>
         </div>
@@ -341,17 +346,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
         
   
   
@@ -362,7 +360,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -533,10 +530,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../webapp/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    VeRCYe Webapp
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -547,6 +564,51 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setup
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      Architecture
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -644,9 +706,43 @@
 
 
 
-  <h1>Introduction</h1>
+  <h1>VeRCYe Webapp</h1>
 
-
+<p>The VeRCYe webapp is an interface to core functionality, wrapping the CLI utility and extending it with more convenient functions. It provides a webbased UI to interactively start yield studies and explore results.</p>
+<h3 id="setup">Setup</h3>
+<ol>
+<li>Ensure you have installed the VeRCYe core library as described in <a href="../../#vercye-library-setup"></a>.</li>
+<li>The webapp requires you to set a number of default folders, for example for the storage of cached outputs, the path to the APSIM installation and others. For this set the environmental variables by copying  <code>vercye_ops/.env_examples</code> to <code>vercye_ops/.env</code> and setting the actual values.</li>
+<li>Navigate to <code>vercye_ops/vercye_webapp/</code>: <code>cd vercye_ops/vercye_webapp</code>.</li>
+<li>Install the additional requirements for the webapp: Ensure you have loaded your environment from step 1 and run <code>pip install -r requirements.txt</code>.</li>
+<li>To queue incoming jobs and allow workers to fetch jobs independantly, <code>redis</code> is used. Install redis for your system by following the <a href="">official instructions</a>.</li>
+<li>You will now have to specify a few more environmental variables for the webapp. For this copy <code>vercye_webapp/.env_example</code> to <code>vercye_webapp/.env</code> and set the values.</li>
+</ol>
+<h3 id="running">Running</h3>
+<ol>
+<li>Ensure you have loaded your environment with all requirements installed as described in the section above.</li>
+<li>Ensure redis is running.</li>
+<li>Navigate to <code>vercye_ops/vercye_webapp/</code></li>
+<li>Run <code>./run.sh</code>. You should now be able to connect to the app under your specified socketname.</li>
+</ol>
+<h3 id="architecture">Architecture</h3>
+<p>The webapp is split into a few components and consitutes a wrapper around the core <code>vercye</code> library.</p>
+<ul>
+<li>
+<p><strong>Backend</strong>: FastAPI API exposing an interface to setup yield studies and run them. Uses the vercye core module (<code>vercye_ops/vercye_ops/</code>) in the backend to run specific functions. Triggers snakemake pipeline executions, that are run on celery workers.</p>
+</li>
+<li>
+<p><strong>Frontend</strong>: Simple HTML+JS files served by the FastAPI API.</p>
+</li>
+<li>
+<p><strong>Workers</strong>: Individual Celery workers runs Snakemake pipelines for complete vercye runs. Celery workers fetch a job (=complete vercye pipeline to run) from a queue in a Redis cache.</p>
+</li>
+<li>
+<p><strong>Queing</strong>: Redis Queing System for Pipeline executions - Limits nuber of pipeline to be runnable to a single execution at a time currently.</p>
+</li>
+</ul>
+<p><strong>Understanding the Flow</strong>: User request new pipeline execution -&gt; Frontend uses JS to send a request with specific paramters to the FastAPI Restful API backend that is exposed on a UNIX Socket.
+The FastAPI backend then handles handles this and if a execution is requested it prepares a job that is queued via Redis. Once a Celery worker becomes available, the worker will fetch the job and process it, by starting and monitoring the snakemake pipeline.</p>
 
 
 

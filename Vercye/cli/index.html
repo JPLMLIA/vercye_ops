@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../../LAI/running/">
+        <link rel="prev" href="../intro/">
       
       
-        <link rel="next" href="../cli/">
+        <link rel="next" href="../running/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Introduction - VeRCYE Documentation</title>
+        <title>CLI - VeRCYE Documentation</title>
       
     
     
@@ -61,6 +61,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#usage" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -93,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              CLI
             
           </span>
         </div>
@@ -341,17 +346,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
         
   
   
@@ -362,7 +360,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -372,18 +369,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
         
           
           <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
@@ -399,7 +398,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             Running VeRCYe
@@ -410,10 +409,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -424,6 +443,33 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -644,9 +690,88 @@
 
 
 
-  <h1>Introduction</h1>
+  <h1>CLI</h1>
 
-
+<p>The <code>VeRCYe CLI</code> (command line interface), simplifies data ingestion and execution of yield studies.</p>
+<h3 id="usage">Usage</h3>
+<p>Make sure you have folled the setup instructions and have installed <code>vercye</code> with <code>pip install -e .</code> in this project's root directory and have activated your virtual environment.</p>
+<p><strong>Optional: Set up environemental defaults</strong></p>
+<p>If you have a system wide installation and want all studies to be saved in the same directory, copy the <code>.env_example</code> file to <code>.env</code> in the projects root. And set the paths to your shared storage and cache directories. Then, you will not have to provide the <code>--dir</code> option in the following instructions.</p>
+<ol>
+<li>Activate your virtual environment with the <code>vercye</code> instalation (depending on your venv setup). E.g:</li>
+</ol>
+<pre><code class="language-bash">conda activate vercye
+</code></pre>
+<ol>
+<li>Initialize a new yield study.</li>
+</ol>
+<pre><code class="language-bash">vercye init --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>[Optional] Download remotely sensed imagery &amp; create LAI.</p>
+</li>
+<li>
+<p>Only required if the LAI data for your region of interest is not yet available locally.</p>
+</li>
+<li>Fill in the lai configuration under <code>/path/to/study/store/lai_config.yaml</code>.</li>
+<li>Run the following command to download the imagery:</li>
+</ol>
+<pre><code class="language-bash">vercye lai --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>Prepare your study</p>
+</li>
+<li>
+<p>Fill in the run congfiguration under <code>/path/to/study/store/setup_config.yaml</code>.</p>
+</li>
+<li>Run the following command to create your study directory and config template.</li>
+</ol>
+<pre><code class="language-bash">vercye prep --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>Set your run options</p>
+</li>
+<li>
+<p>Fill in the run congfiguration under <code>/path/to/study/store/study/config.yaml</code>.</p>
+</li>
+<li>
+<p>If you already had the LAI data available locally, ensure to adapt the <code>lai_dir</code>, <code>lai_region</code> and <code>lai_resolution</code>.</p>
+</li>
+<li>
+<p>[Optional] Download the chirps data.</p>
+</li>
+<li>
+<p>Only required if chirps data is not yet downloaded for the complete study range.</p>
+</li>
+<li>Ensure you have completed step 4, and have set <code>apsim_params.chirps_dir</code> correctly in <code>/path/to/study/store/study/config.yaml</code>.</li>
+</ol>
+<pre><code class="language-bash">vercye chirps --name your-study-name --dir /path/to/study/store
+</code></pre>
+<ol>
+<li>
+<p>[Optional] Authenticate with EarthEngine</p>
+</li>
+<li>
+<p>Only required if using ERA5 meteorological data.</p>
+</li>
+<li>Requires authenticating with your earth engine account to submit jobs.</li>
+</ol>
+<pre><code class="language-bash">earthengine authenticate
+</code></pre>
+<p>Run this command and follow the promtes in the terminal.</p>
+<ol>
+<li>
+<p>Run your study</p>
+</li>
+<li>
+<p>You might want to adapt the number of cores to use in /path/to/study/store depending on your system.</p>
+</li>
+</ol>
+<pre><code class="language-bash">vercye run --name your-study-name --dir /path/to/study/store/profile/config.yaml
+</code></pre>
 
 
 

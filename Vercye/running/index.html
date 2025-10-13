@@ -9,22 +9,22 @@
       
       
       
-        <link rel="prev" href="../intro/">
+        <link rel="prev" href="../cli/">
       
       
-        <link rel="next" href="../inputs/">
+        <link rel="next" href="../troubleshooting/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.21">
     
     
       
-        <title>Yield Study Quickstart - VeRCYE Documentation</title>
+        <title>Manual execution - VeRCYE Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2a3383ac.min.css">
       
       
 
@@ -62,7 +62,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#quickstart-yield-study" class="md-skip">
+        <a href="#running-vercye-manuall" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Yield Study Quickstart
+              Manual execution
             
           </span>
         </div>
@@ -373,6 +373,69 @@
   
   
   
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Running VeRCYe
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Running VeRCYe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
     <li class="md-nav__item md-nav__item--active">
       
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
@@ -386,7 +449,7 @@
   
   
   <span class="md-ellipsis">
-    Yield Study Quickstart
+    Manual execution
     
   </span>
   
@@ -399,7 +462,7 @@
   
   
   <span class="md-ellipsis">
-    Yield Study Quickstart
+    Manual execution
     
   </span>
   
@@ -493,10 +556,42 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#troubleshooting-and-re-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting and re-running
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Troubleshooting
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -548,6 +643,37 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webapp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    VeRCYe Webapp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
               
                 
   
@@ -583,7 +709,30 @@
   
   
   <span class="md-ellipsis">
-    Architecture
+    Vercye Library Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../apsim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    APSIMX
     
   </span>
   
@@ -617,7 +766,7 @@
 
 
 
-<h1 id="quickstart-yield-study">Quickstart - Yield Study</h1>
+<h1 id="running-vercye-manuall">Running VeRCYE manuall</h1>
 <p>This guide walks you through the process of setting up and running a yield study using our framework, which helps you simulate crop yields across different regions.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>Before starting, ensure you have:</p>
@@ -637,29 +786,29 @@
 </ol>
 <p>While the individual steps are detailed in other pages of this living document, on this page we outline the quickstart using our setup helper.</p>
 <p>If you already have prepared a base directory and a configuration file, you can skip to step 4.
-Otherwise follow the steps below. You will typically want to run this on <strong>your local machine</strong> and not a remote cluster. You can transfer the final setup to the cluster after creation.</p>
+Otherwise follow the steps below. If you don't have a IDE with remote access, you might find it easier to run the setup (which esentially created a specific directory structure of APSIM templates &amp; GeoJSON files) on <strong>your local machine</strong> and not a remote cluster. You can transfer the final setup to the cluster after creation. In this case, make sure you have installed the python requirements + the vercye package locally, as descriped in the <a href="../../#Setup">setup</a>. Otherwise, it is reccomended to use an IDE such as <code>Visual Studio Code</code> with the <code>Remote SSH</code> extension.</p>
 <h2 id="1-defining-regions-of-interest">1. Defining Regions of Interest</h2>
 <p>Your yield study will run simulations for each defined region, typically specified in a shapefile.</p>
 <p><strong>Important requirements for your shapefile:</strong></p>
 <ul>
 <li>Contains geometries at the same administrative level only (e.g., all geometries are districts OR all counties)</li>
-<li>Includes an attribute column with region names (e.g., <code>NAME_2</code> containing "Cook County", "Orleans Parish")</li>
+<li>Includes an attribute column with region names (could be for example <code>NAME_2</code> containing "Cook County", "Orleans"...)</li>
 </ul>
-<p>[Experimental] If your shapefile contains mixed administrative levels, use the interactive helper script to normalize it to a single level:</p>
-<pre><code>python apsim/prepare_shapefile.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
+<p>[Optional] <strong>Only required if your shapefile contains mixed administrative levels</strong>: Use the interactive <code>remove_mixed_admin_levels.py</code> script to normalize it to a single level. The script will prompt you for a few inputs to remove mixed administrative levels:</p>
+<pre><code>python utils/remove_mixed_admin_levels.py --shp_fpath /path/to/your.shp --output_dir /path/to/save/dir
 </code></pre>
 <h2 id="2-defining-your-configuration">2. Defining Your Configuration</h2>
 <p>Create a configuration file that controls simulation parameters:</p>
 <ol>
 <li>Create an empty directory <code>new_basedir_path</code> that will be your basediretory of your study. Recommended to give it a meaningfull name.</li>
-<li>Navigate to <code>snakemake/example_setup/</code> and copy one of the example configurations to <code>new_basedir_path/config_template.yaml</code>.</li>
-<li>Modify parameters according to your study needs (years, date ranges, meteorological data sources). For now, leave the regions fields empty, as it will be filled in by the setup helper.</li>
+<li>Navigate to <code>vercye_ops/examples</code> and copy the <code>run_config_template.yaml</code> configuration to <code>new_basedir_path/run_config_template.yaml</code>. Ensure you keep the file named <code>run_config_template.yaml</code>.</li>
+<li>Modify parameters in the new configuration copy (<code>run_config_template.yaml</code>) according to your study needs (years, date ranges, meteorological data sources). For now, leave the <code>regions</code> fields empty, as it will be filled in by the setup helper. Ensure you read the description of each parameter in detail and refer to the <a href="../inputs/#6-Snakemake-Configuration">Inputs documentation (Section 6)</a> for more details on a specific parameter.</li>
 </ol>
-<p><strong>Note</strong> The script for matching remotely sensed LAI and APSIM predicted LAI is not publicly available in this repository. You will have to set the path to the true matching script in your <code>config</code> file under <code>scripts.match_sim_real</code>.</p>
+<p><strong>Note</strong> The script for matching remotely sensed LAI and APSIM predicted LAI is not publicly available in this repository. You will have to set the path to the true matching script in your <code>run_config_template.yaml</code> file under <code>scripts.match_sim_real</code>.</p>
 <p>The full configuration options are documented in the <a href="../inputs/#6-Snakemake-Configuration">Inputs documentation (Section 6)</a>.</p>
 <h2 id="3-setting-up-your-base-directory">3. Setting Up Your Base Directory</h2>
 <p>The <strong>base directory</strong> (your <code>study head dir</code>) organizes region-specific geometries and APSIM simulations by year, timepoint, and region <a href="../inputs/">(See Details)</a>.</p>
-<p>Use the provided Jupyter notebook (<code>vercye_setup_helper.ipynb</code>) to create this structure - just set the parameters below in the first cell and run it.</p>
+<p>Use the provided helper script (<code>prepare_yieldstudy.py</code>) to create this structure. For this, simply create an additional <code>setup_config.yaml</code> file in your base directory and fill it as described below. You can then run the setup helper with <code>python prepare_yieldstudy.py /path/to/basedirectory/setup_config.yaml</code>. For ease of use, start out with the example provided in <code>examples/setup_config.yaml</code>.</p>
 <ol>
 <li>
 <p><strong>Input shapefile &amp; region names</strong></p>
@@ -680,22 +829,8 @@ Otherwise follow the steps below. You will typically want to run this on <strong
 <p><strong><code>FILTER_COL_NAME</code></strong> Column for the higher-level admin unit (e.g. <code>NAME_1</code>).</p>
 </li>
 <li>
-<p><strong><code>FILTER_COL_VALUES</code></strong> List of values to keep, e.g. <code>['Texas', 'Colorado']</code>.<br />
+<p><strong><code>FILTER_COL_VALUES</code></strong> List of values to keep, e.g. <code>['Texas', 'Colorado']</code>.
   To include <em>all</em> regions, set <code>FILTER_COL_NAME = None</code> and leave <code>FILTER_COL_VALUES = []</code>.</p>
-</li>
-</ul>
-</li>
-<li>
-<p><strong>Intermediate &amp; output folders</strong></p>
-<ul>
-<li>
-<p><strong><code>GEOJSONS_FOLDER</code></strong> Temporary folder where the notebook extracts each region as a GeoJSON polygon.</p>
-</li>
-<li>
-<p><strong><code>OUTPUT_DIR</code></strong> Your new base directory. <strong>Place</strong> <code>config_template.yaml</code> (your Snakemake config) here.</p>
-</li>
-<li>
-<p><strong><code>SNAKEFILE_CONFIG</code></strong> Path to that prefilled <code>config_template.yaml</code> (it lives in <code>OUTPUT_DIR/config_template.yaml</code>; you can leave its <code>regions:</code> field empty).</p>
 </li>
 </ul>
 </li>
@@ -703,8 +838,8 @@ Otherwise follow the steps below. You will typically want to run this on <strong
 <p><strong>APSIM configuration templates</strong></p>
 <p>Rather than manually copying and editing an APSIM file for each year/region, the helper will:</p>
 <ol>
-<li>Copy a template for each higher-level region (e.g. state) into every year’s folder.  </li>
-<li>Auto-adjust the simulation dates.</li>
+<li>Copy a template for each higher-level region (e.g. state) into every year’s folder.</li>
+<li>Auto-adjust the simulation dates. NOTE: This will replace the <code>Models.Clock</code> parameter in the APSIM simulation to with the value specified in the <code>run_config_template.yaml</code> under <code>apsim_params.time_bounds</code>. If you require different simulation start/end-dates for various regions during a season, you will have to configure this manually in the APSIM files in the extracted directories.</li>
 </ol>
 <p>Configure this by setting:</p>
 <ul>
@@ -712,15 +847,15 @@ Otherwise follow the steps below. You will typically want to run this on <strong
 <p><strong><code>APSIM_TEMPLATE_PATHS_FILTER_COL_NAME</code></strong> Admin column that groups regions sharing a template (e.g. <code>NAME_1</code>).</p>
 </li>
 <li>
-<p><strong><code>APSIM_TEMPLATE_PATHS</code></strong> Dictionary mapping column values to template paths; e.g.<br />
-<code>yaml
+<p><strong><code>APSIM_TEMPLATE_PATHS</code></strong> Dictionary mapping column values to template paths; e.g.
+  <code>yaml
   APSIM_TEMPLATE_PATHS:
     Texas:    /path/to/texas_template.yaml
     Colorado: /path/to/colorado_template.yaml</code></p>
 </li>
 <li>
-<p><strong>Single-template setup</strong> If you only require one APSIM file for <em>all</em> regions, set:<br />
-<code>yaml
+<p><strong>Single-template setup</strong> If you only require one APSIM file for <em>all</em> regions, set:
+  <code>yaml
   APSIM_TEMPLATE_PATHS_FILTER_COL_NAME: None
   APSIM_TEMPLATE_PATHS:
     all: /your/path/to/generalApsimTemplate.yaml</code></p>
@@ -730,42 +865,49 @@ Otherwise follow the steps below. You will typically want to run this on <strong
 </ol>
 <p>Once all parameters are defined, run the notebook. It will:</p>
 <ul>
-<li>Create your <code>year/timepoint/region</code> directory tree under <code>OUTPUT_DIR</code>.  </li>
-<li>Generate a final <code>config.yaml</code> that merges your Snakemake settings with the selected regions.</li>
+<li>Create your <code>year/timepoint/region</code> directory tree under <code>OUTPUT_DIR</code>.</li>
+<li>Generate a final <code>run_config.yaml</code> that merges your Snakemake settings with the selected regions.</li>
 </ul>
 <p><strong>Note</strong>: Sometimes, you might want to add some custom conditionals or processing, that is why we have provided this code in a jupyter notebook. In that case make sure to read the <a href="../inputs/">input documentation</a>, to understand the required structure.</p>
 <h2 id="4-adding-reported-validation-data">4. Adding Reported Validation Data</h2>
 <p>The VeRCYE pipeline can automatically generate validation metrics (e.g., R², RMSE) if reported data is available. To enable this, you must manually add validation data for each year.</p>
 <p>Validation data can be provided at different geographic scales. It may be available at the smallest unit (e.g., ROI level used in simulations) or at a coarser level (e.g., government statistics). You must specify the scale so VeRCYE can aggregate predictions accordingly.</p>
 <p>Define aggregation levels in your <code>config file</code> under <code>eval_params.aggregation_levels</code>. For each level, provide a key-value pair where the key is a descriptive name and the value is the column in your original shapefile used for aggregation. For example, if state-level ground truth uses the ADMIN_1 column, specify <code>State: ADMIN_1</code>. If the validation data is at ROI level, no specification is needed—it will be automatically recognized.</p>
-<p>For each year and aggregation level, create a CSV file named: <code>{year}/groundtruth_{aggregation_name}-{year}.csv</code>, where aggregation_name matches the key in your config (case-sensitive!).</p>
-<p>Example: For 2024 state-level data, the file should be: <code>basedirectory/2024/groundtruth_State-2024.csv</code>
-For simulation ROI-level data, use <code>primary</code> as the aggregation name: <code>basedirectory/2024/groundtruth_primary-2024.csv</code></p>
+<p>For each year and aggregation level, create a CSV file named: <code>{year}/referencedata_{aggregation_name}-{year}.csv</code>, where aggregation_name matches the key in your config (case-sensitive!).</p>
+<p>Example: For 2024 state-level data, the file should be: <code>basedirectory/2024/referencedata__State-2024.csv</code>
+For simulation ROI-level data, use <code>primary</code> as the aggregation name: <code>basedirectory/2024/referencedata_primary-2024.csv</code></p>
 <p><strong>CSV Structure</strong></p>
 <ul>
 <li><code>region</code>: Name matching GeoJSON folder (for <code>primary aggregation level</code>) or matching attribute table column values for custom aggregation level (Column as specified under <code>eval_params.aggregation_levels</code> in tour <code>config.yaml</code>)</li>
 <li><code>reported_mean_yield_kg_ha</code>: Mean yield in kg/ha
 If unavailable, provide <code>reported_production_kg</code> instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.</li>
-<li>If your reference data contains area, it is recommended to also include this under <code>reported_area</code> even though this is not yet used in the evaluation pipeline.</li>
+<li>If your reference data contains area, it is recommended to also include this under <code>reported_area_ha</code> even though this is not yet used in the evaluation pipeline.</li>
 </ul>
 <h2 id="5-running-the-yield-study">5. Running the Yield Study</h2>
 <p>Once your setup is complete:</p>
 <ol>
-<li>Transfer your base directory to your HPC cluster (if using one).</li>
-<li>Adjust the <code>sim_study_head_dir</code> path in <code>config.yaml</code> to match the location you copied the directory to.</li>
+<li>Transfer your base directory to your HPC cluster (if having prepared the study locally).</li>
+<li>Adjust the <code>sim_study_head_dir</code> path in <code>run_config.yaml</code> to match the location you copied the directory to.</li>
 <li>Navigate to the snakemake directory: <code>cd vercye_ops/vercye_ops/snakemake</code>.</li>
 <li>Open a <code>tmux</code> session or similar to start the long running job: <code>tmux new -s vercye</code></li>
 <li>Ensure you have activated your virtual environment if applicable.</li>
-<li>Run the simulation in the tmux shell (This example will expect to use 110 CPU cores as defined in the <code>profile</code> file.):
+<li>Run the simulation in the tmux shell (This example will expect to use 110 CPU cores as defined in the <code>profile</code> file.). Ensure to not accidentally pass the <code>run_config_template.yaml</code> instead of the new <code>run_config.yaml</code>:
    <code>bash
-   snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml</code></li>
+   snakemake --profile profiles/hpc --configfile /path/to/your/run_config.yaml</code></li>
 </ol>
+<p>Note: In the cli arguments simply specify the path to the folder of the <code>profile.yaml</code>m not the <code>.yaml</code> file itself. See the example command above.</p>
 <p>For custom CPU core allocation, add the <code>-c</code> flag (e.g with 20 cores) or adapt the <code>profiles/hpc/config.yaml</code> file:
    <code>bash
    snakemake --profile profiles/hpc --configfile /path/to/your/config.yaml -c 20</code></p>
+<p>Additionally it is recommended to add <code>--directory path-to-your-working-directory</code> where all the logs and snakemake internal artifacts should be saved. This avoids possible conflicts between different studies.</p>
 <h2 id="output">Output</h2>
 <p>When the simulation completes, results will be available in your base directory. See the <a href="../outputs/">Outputs Documentation</a> for details on interpreting the results.</p>
 <p>To run the pipeline over the same region(s), either use Snakemake's <code>-F</code> flag or delete the log files at <code>vercye_ops/snakemake/logs_*</code>. Runtimes are in <code>vercye_ops/snakemake/benchmarks</code>.</p>
+<h2 id="troubleshooting-and-re-running">Troubleshooting and re-running</h2>
+<p>If your pipeline fails, you have a few options to re-run:
+- If you want to force the re-execution of all rules, even if they have already completed successfully, you can add the <code>-F</code> flag to the run command above. This will invalidate all outputs and require rerunning them.
+- Recommend: If you have fixed the section of your code that caused the problems, you can simply rerun with the normal run command and only the rules that have failed and their downstream dependencies will be run.</p>
+<p>Check out the troubleshooting page.</p>
 
 
 
@@ -814,10 +956,10 @@ If unavailable, provide <code>reported_production_kg</code> instead. The mean yi
     
     
       
-      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
     
   </body>

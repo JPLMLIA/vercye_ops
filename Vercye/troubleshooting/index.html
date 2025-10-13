@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../../LAI/running/">
+        <link rel="prev" href="../running/">
       
       
-        <link rel="next" href="../cli/">
+        <link rel="next" href="../inputs/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>Introduction - VeRCYE Documentation</title>
+        <title>Troubleshooting - VeRCYE Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Introduction
+              Troubleshooting
             
           </span>
         </div>
@@ -341,17 +341,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../intro/" class="md-nav__link">
         
   
   
@@ -362,7 +355,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -372,18 +364,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
         
           
           <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
@@ -399,7 +393,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             Running VeRCYe
@@ -456,10 +450,17 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -470,6 +471,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -644,9 +646,21 @@
 
 
 
-  <h1>Introduction</h1>
+  <h1>Troubleshooting</h1>
 
-
+<p>This section contains a few tips on what to do if you are encountering errors during pipeline execution.</p>
+<ul>
+<li>
+<p><code>Missing input files for rule xyz</code>: Check the error output under <code>affected files</code>. This outlines the files that snakemake expects to be present, however they are do not exist. You can manually check the directory if they exist. Typically this points to an error in the configuration, as for example when a <code>region.geojson</code> is supposed to be missing, this points to the basedirectory being incorrectly setup / the wrong path being provided to the base directory somewhere in the config.</p>
+</li>
+<li>
+<p><code>Error in rule LAI_analysis</code>: An error related to not enough points or something similar typicallt indicates that in all of your LAI data there are not sufficient dates that meet the required minimum pixels without clouds for the specific region.</p>
+</li>
+</ul>
+<p>However, this rarely should be the case when running with LAI data of multiple months (a typical season). Typically, this rather indicates that the <code>LAI parameters</code> were incorrectly set in the config. Check that the <code>lai_region</code>, <code>lai_resolution</code>, <code>lai_dir</code> and <code>file_ext</code> are correctly set.</p>
+<ul>
+<li><code>Error in rule match_sim_real:  KeyError: None</code>: Typically indicates that the APSIM simulation was externally interrupted or unexpectedly failed. In such a case you will have to find the <code>--db_path</code> option in the <code>shell</code> section in the tracelog and manually delete the <code>.db</code> file.</li>
+</ul>
 
 
 

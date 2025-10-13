@@ -12,17 +12,19 @@
         <link rel="prev" href="../metdata/">
       
       
+        <link rel="next" href="../apsim/">
+      
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.21">
     
     
       
-        <title>Architecture - VeRCYE Documentation</title>
+        <title>Vercye Library Architecture - VeRCYE Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2a3383ac.min.css">
       
       
 
@@ -96,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Architecture
+              Vercye Library Architecture
             
           </span>
         </div>
@@ -369,13 +371,97 @@
   
   
   
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Running VeRCYe
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Running VeRCYe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../running/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    Yield Study Quickstart
+    Manual execution
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Troubleshooting
     
   </span>
   
@@ -432,6 +518,37 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webapp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    VeRCYe Webapp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
               
                 
   
@@ -476,7 +593,7 @@
   
   
   <span class="md-ellipsis">
-    Architecture
+    Vercye Library Architecture
     
   </span>
   
@@ -489,7 +606,7 @@
   
   
   <span class="md-ellipsis">
-    Architecture
+    Vercye Library Architecture
     
   </span>
   
@@ -514,7 +631,7 @@
         <li class="md-nav__item">
   <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
-      🔍 Overview
+      Overview
     </span>
   </a>
   
@@ -523,7 +640,7 @@
         <li class="md-nav__item">
   <a href="#scripts" class="md-nav__link">
     <span class="md-ellipsis">
-      📂 Scripts
+      Scripts
     </span>
   </a>
   
@@ -532,7 +649,7 @@
         <li class="md-nav__item">
   <a href="#pipeline-execution-with-snakemake" class="md-nav__link">
     <span class="md-ellipsis">
-      ⚙️ Pipeline Execution with Snakemake
+      Pipeline Execution with Snakemake
     </span>
   </a>
   
@@ -541,7 +658,7 @@
         <li class="md-nav__item">
   <a href="#config-file" class="md-nav__link">
     <span class="md-ellipsis">
-      🧾 Config File
+      Config File
     </span>
   </a>
   
@@ -550,11 +667,11 @@
         <li class="md-nav__item">
   <a href="#pipeline-logic" class="md-nav__link">
     <span class="md-ellipsis">
-      🔄 Pipeline Logic
+      Pipeline Logic
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="🔄 Pipeline Logic">
+    <nav class="md-nav" aria-label="Pipeline Logic">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -648,13 +765,13 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#11-final-outputs" class="md-nav__link">
+  <a href="#11-reporting-final-outputs" class="md-nav__link">
     <span class="md-ellipsis">
-      11. Final Outputs
+      11. Reporting - Final Outputs
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="11. Final Outputs">
+    <nav class="md-nav" aria-label="11. Reporting - Final Outputs">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -697,7 +814,7 @@
         <li class="md-nav__item">
   <a href="#pipeline-diagram" class="md-nav__link">
     <span class="md-ellipsis">
-      📎 Pipeline Diagram
+      Pipeline Diagram
     </span>
   </a>
   
@@ -707,6 +824,29 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../apsim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    APSIMX
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -736,21 +876,23 @@
 
 
 <h1 id="vercye-architecture-documentation">📘 Vercye Architecture Documentation</h1>
-<h2 id="overview">🔍 Overview</h2>
-<p>The <strong>Vercye system</strong> orchestrates a modular, region-based crop yield simulation pipeline using <strong>Snakemake</strong> for dependency resolution and scalability. Each processing step is encapsulated in a standalone script, executed conditionally and in the correct order.</p>
+<h2 id="overview">Overview</h2>
+<p>The <strong>VeRCYe Library</strong> contains all core components to run the yield studies with the VeRCYe algorithm. The individual steps are contained as standalone scripts that can be individually executed via the <code>cli</code>.
+To simplify running the individual steps as a reproducible workflow, the scripts are orchestrated with <strong>Snakemake</strong> as a pipeline in which they are executed conditionally and in the correct order.</p>
 <hr />
-<h2 id="scripts">📂 Scripts</h2>
+<h2 id="scripts">Scripts</h2>
 <p>Each script is self-documented via CLI help using the <code>--help</code> flag. For additional specifics, you can run the script directly in the terminal.</p>
 <hr />
-<h2 id="pipeline-execution-with-snakemake">⚙️ Pipeline Execution with Snakemake</h2>
+<h2 id="pipeline-execution-with-snakemake">Pipeline Execution with Snakemake</h2>
 <p>Snakemake defines workflows as rules. Each rule specifies expected inputs and outputs, enabling:</p>
 <ul>
-<li><strong>Automatic dependency resolution</strong> – Only missing or outdated outputs are recomputed.</li>
-<li><strong>Resumability</strong> – Failed executions can resume from the point of failure.</li>
-<li><strong>Parallelization</strong> – Regions and timepoints are processed independently, increasing efficiency.</li>
+<li><strong>Automatic dependency resolution</strong> - Only missing or outdated outputs are recomputed if a pipeline is re-run.</li>
+<li><strong>Resumability</strong> - Failed executions of a pipeline can resume from the point of failure or be a rerun of all steps of the pipeline can be forced.</li>
+<li><strong>Parallelization</strong> - Regions and timepoints are processed independently, increasing efficiency.</li>
+<li><strong>Resolving of dependancies</strong>:  By using wildcard, we do not have to specify each individual job. Instead we specify a pattern of what output paths should be created. This allows snakemake to generate the jobs based on the provided arguments, e.g in our case regions and years that are specified in the Snakemake file. So instead of specifying each region-year combination for each job, we just specify what a job does in general, and snakemake will resolve all jobs that have to be created. Check out the Snakemake documentation for more details on this, as this is a core pattern to understanding the architecture.</li>
 </ul>
 <hr />
-<h2 id="config-file">🧾 Config File</h2>
+<h2 id="config-file">Config File</h2>
 <p>Every pipeline run uses a configuration file (YAML), which defines key parameters like:</p>
 <ul>
 <li>Data sources (e.g., LAI, meteorology)</li>
@@ -761,7 +903,7 @@
 </ul>
 <p>This design ensures reproducibility and clean separation of configuration from logic.</p>
 <hr />
-<h2 id="pipeline-logic">🔄 Pipeline Logic</h2>
+<h2 id="pipeline-logic">Pipeline Logic</h2>
 <p>The following lists a high level overview of some of the most important features of the snakemake based pipeline steps (non-exhaustive).
 The complete logic is defined in <code>vecrye_ops/snakemake/Snakefile</code>.</p>
 <h3 id="1-cropmask-reprojection">1. Cropmask Reprojection</h3>
@@ -795,14 +937,17 @@ The complete logic is defined in <code>vecrye_ops/snakemake/Snakefile</code>.</p
 <h3 id="5-lai-analysis">5. LAI Analysis</h3>
 <ul>
 <li><strong>Rule</strong>: <code>lai_analysis</code></li>
-<li>Computes daily LAI stats for the cropland pixels per region (e.g., mean LAI).</li>
+<li>Computes daily LAI stats for the cropland pixels per region (e.g., mean/median LAI).</li>
 <li>Optimized with windowed reading for performance.</li>
 </ul>
 <hr />
 <h3 id="6-apsim-simulation">6. APSIM Simulation</h3>
 <ul>
 <li><strong>Rule</strong>: <code>run_apsim</code></li>
-<li>Simulates many parameter combinations to model yield/LAI curves through APSIM.</li>
+<li>Simulates many parameter(soil, farm management, etc) combinations to model yield/LAI curves through APSIM.</li>
+<li>Apsim uses a <code>.apsimx</code> file from which all permutations of unkown parameters are derived.</li>
+<li>For each region we inject a few different parameters into this file: The meteorological data, if present the sowing date.</li>
+<li>The simulation daterange has to already be injected during pre-processing.</li>
 <li>Supports both <strong>Dockerized</strong> and <strong>local APSIM</strong> installations depending on config parameter.</li>
 </ul>
 <hr />
@@ -836,7 +981,8 @@ The complete logic is defined in <code>vecrye_ops/snakemake/Snakefile</code>.</p
 <li>Relative RMSE</li>
 </ul>
 <hr />
-<h3 id="11-final-outputs">11. Final Outputs</h3>
+<h3 id="11-reporting-final-outputs">11. Reporting - Final Outputs</h3>
+<p>A number of rules generate additional artifacts for reporting and analysis purposes. These are not documented in depth here, but the outputs are described in <a href="../outputs/">Outputs Documentation</a></p>
 <h4 id="per-timepoint">Per-Timepoint:</h4>
 <ul>
 <li>PDF report (via <code>generate_final_report</code>)</li>
@@ -866,8 +1012,8 @@ Additionally, if other outputs should be produced, this becomes slightly hacky d
 </li>
 </ul>
 <hr />
-<h2 id="pipeline-diagram">📎 Pipeline Diagram</h2>
-<p>See the pipeline diagram <code>vercye_pipeline_highlevel.png</code> for a visual reference of the individual rules and their dependancies / outputs.</p>
+<h2 id="pipeline-diagram">Pipeline Diagram</h2>
+<p>Will be added soon.</p>
 
 
 
@@ -916,10 +1062,10 @@ Additionally, if other outputs should be produced, this becomes slightly hacky d
     
     
       
-      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
     
   </body>
