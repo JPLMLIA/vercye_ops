@@ -1,24 +1,26 @@
+import os
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from glob import glob
-import os
 from pathlib import Path
+
 import click
 import rasterio as rio
-from rasterio.warp import Resampling, calculate_default_transform, reproject
 from rasterio.transform import from_origin
+from rasterio.warp import Resampling, calculate_default_transform, reproject
 
+from vercye_ops.utils.init_logger import get_logger
 
+logger = get_logger()
+logger.setLevel("INFO")
 
-import logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger(__name__)
 
 def is_within_date_range(vf, start_date, end_date):
     # files have pattern f"{s2_dir}/*_{resolution}m_{date}_LAI_tile.tif"
     date = Path(vf).stem.split("_")[-3]
     date = datetime.strptime(date, "%Y-%m-%d")
     return start_date <= date <= end_date
+
 
 def get_most_common_crs(files):
     """Identify the most common CRS from all files"""
@@ -70,6 +72,7 @@ def determine_target_resolution(lai_file, target_crs="EPSG:4326"):
     src = None  # Explicitely Close the file
     return (round(x_res_target, 6), round(y_res_target, 6))
 
+
 def identify_target_resolution(file_paths, target_crs):
     """
     Identify the target CRS and resolution based on the input files.
@@ -103,17 +106,19 @@ def standardize_lai(args):
 
             # Create metadata for the new file
             meta = src.meta.copy()
-            meta.update({
-                'crs': target_crs,
-                'transform': dst_transform,
-                'width': dst_width,
-                'height': dst_height,
-                'dtype': 'float32',
-                'compress': 'lzw'
-            })
+            meta.update(
+                {
+                    "crs": target_crs,
+                    "transform": dst_transform,
+                    "width": dst_width,
+                    "height": dst_height,
+                    "dtype": "float32",
+                    "compress": "lzw",
+                }
+            )
 
             # Reproject and write to new file
-            with rio.open(output_file, 'w', **meta) as dst:
+            with rio.open(output_file, "w", **meta) as dst:
                 for i in range(1, src.count + 1):
                     reproject(
                         source=rio.band(src, i),
@@ -122,7 +127,7 @@ def standardize_lai(args):
                         src_crs=src.crs,
                         dst_transform=dst_transform,
                         dst_crs=target_crs,
-                        resampling=Resampling.nearest
+                        resampling=Resampling.nearest,
                     )
         logger.info(f"Standardized LAI file saved: {output_file}")
 
@@ -135,6 +140,7 @@ def standardize_lai(args):
     except Exception as e:
         logger.warning(f"Failed to process {lai_file}: {e}")
         raise e
+
 
 @click.command()
 @click.argument("input-dir", type=click.Path(exists=True))
@@ -181,16 +187,12 @@ def main(input_dir, output_dir, resolution, start_date, end_date, remove_origina
 
     logger.info(f"Found {len(lai_files)} VRT files at {resolution}m in {input_dir}")
 
-    target_resolution = identify_target_resolution(
-        lai_files, target_crs
-    )
+    target_resolution = identify_target_resolution(lai_files, target_crs)
 
-    args = [
-        (lai_file, output_dir, target_crs, target_resolution, remove_original)
-        for lai_file in lai_files
-    ]
+    args = [(lai_file, output_dir, target_crs, target_resolution, remove_original) for lai_file in lai_files]
     with ProcessPoolExecutor(max_workers=num_cores) as executor:
         list(executor.map(standardize_lai, args))
+
 
 if __name__ == "__main__":
     main()

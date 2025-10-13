@@ -1,0 +1,6 @@
+aiofiles
+celery[redis]
+fastapi[standard]
+pyproj
+pyyaml
+zipfile

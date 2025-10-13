@@ -17,7 +17,7 @@
 </p>
 
 
-## ✨ Features
+## Features
 
 - Reduces manual effort required for executing the VeRCYe crop yield estimate pipeline.
 - All workflow steps exposed via a documented CLI for step-by-step execution.
@@ -26,13 +26,13 @@
 - Utilities to download meteorological data, Sentinel-2 Imagery and to generate LAI products
 
 
-## 🚀 Quick Start
+## Quick Start
 Follow the setup instructions in the  **[Documentation](https://jplmlia.github.io/vercye_ops/)** and refer to the [Running VeRCYe section](https://jplmlia.github.io/vercye_ops/Vercye/running.md) to setup and run your first yield study.
 
-## 📚 Documentation
+## Documentation
 Make sure to check out the documentation here: **[https://jplmlia.github.io/vercye_ops/](https://jplmlia.github.io/vercye_ops/)**.
 
-## 📄 License
+## License
 See the [LICENCE](LICENSE)
 
 ## © Copyright Notice
