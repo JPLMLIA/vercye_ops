@@ -585,7 +585,7 @@ def cancel_study(study_id: StudyID, background_tasks: BackgroundTasks):
 
     # kill the whole group since snakemake has subtasks
     try:
-        os.killpg(task_id, signal.SIGTERM)
+        os.killpg(task_id, signal.SIGINT)
     except Exception as e:
         print(f"Error killing Snakemake group: {e}")
 
@@ -616,7 +616,7 @@ def cancel_study(study_id: StudyID, background_tasks: BackgroundTasks):
 @router.get("/{study_id}/result-timepoints")
 def get_result_timepoints(study_id: StudyID):
     study_dir = os.path.join(studies_dir, study_id, study_id)
-    years = {f: [] for f in os.listdir(study_dir) if os.path.isdir(os.path.join(study_dir, f))}
+    years = {f: [] for f in os.listdir(study_dir) if os.path.isdir(os.path.join(study_dir, f)) and f.isdigit()}
     for year in years:
         year_timepoints = [
             f for f in os.listdir(os.path.join(study_dir, year)) if os.path.isdir(os.path.join(study_dir, year, f))

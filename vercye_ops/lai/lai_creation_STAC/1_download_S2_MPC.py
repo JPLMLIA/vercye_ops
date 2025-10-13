@@ -19,35 +19,47 @@ SCL_KEEP_CLASSES = [4, 5]
 logger = get_logger()
 
 
-def dedupliate(items):
-    if len(items) == 0:
-        print("Empty list of items received. Exiting")
+def deduplicate(items, per_day=False):
+
+    if not items:
         return items
 
-    item_entries = [
-        {
-            "mgrs_tile_id": item.id.split("_")[4],
-            "date": datetime.strptime(item.id.split("_")[2], "%Y%m%dT%H%M%S").date(),
-            "processing_date": datetime.strptime(item.id.split("_")[5], "%Y%m%dT%H%M%S"),
-            "item": item,
-            "invalid_formatting": len(item.id.split("_")[3]) != 4
-            or item.id.split("_")[3][0] != "R",  # Ensure filename pattern
-        }
-        for item in items
-    ]
-
-    df = pd.DataFrame(item_entries)
-
-    if df["invalid_formatting"].any():
-        first_invalid = df[df["invalid_formatting"] is True].iloc[0]
-        raise Exception(
-            f"Can't deduplicate due to unexpected item id formatting. Expecting id like S2B_MSIL2A_20230413T105619_R094_T31UDP_20240829T164929. Got {first_invalid['item'].id}."
+    rows = []
+    for it in items:
+        p = it.id.split("_")
+        if len(p) < 6:
+            raise Exception(f"Unexpected id format (too few parts): {it.id}")
+        sat = p[0]
+        sensing_dt = datetime.strptime(p[2], "%Y%m%dT%H%M%S")
+        rel_orbit = p[3]
+        tile_id = p[4]
+        proc_dt = datetime.strptime(p[5], "%Y%m%dT%H%M%S")
+        if not (len(rel_orbit) == 4 and rel_orbit[0] == "R"):
+            raise Exception(
+                "Can't deduplicate due to unexpected item id formatting. "
+                "Expecting id like S2B_MSIL2A_20230413T105619_R094_T31UDP_20240829T164929. "
+                f"Got {it.id}."
+            )
+        rows.append(
+            {
+                "item": it,
+                "sat": sat,
+                "tile": tile_id,
+                "rel_orbit": rel_orbit,
+                "sensing_dt": sensing_dt,
+                "proc_dt": proc_dt,
+            }
         )
 
-    # Group by tile_id and acuqisition data. Sort by processing date within group and only keep newest.
-    df_grouped = df.sort_values("processing_date").groupby(["mgrs_tile_id", "date"]).tail(1)
+    df = pd.DataFrame(rows)
+    if per_day:
+        df["date"] = df["sensing_dt"].dt.date
+        group_cols = ["tile", "date"]
+    else:
+        group_cols = ["tile", "sat", "rel_orbit", "sensing_dt"]
 
-    return df_grouped["item"].to_list()
+    df = df.sort_values("proc_dt").groupby(group_cols, as_index=False).tail(1)
+    return df["item"].to_list()
 
 
 @click.command()
@@ -185,7 +197,7 @@ def main(
             query={"eo:cloud_cover": {"lt": max_cloud_cover}},
         )
 
-    items = dedupliate(items)
+    items = deduplicate(items)
 
     print(f"Found {len(items)} items")
     logger.info(f"Found {len(items)} items")

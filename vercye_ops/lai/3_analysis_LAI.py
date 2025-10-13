@@ -74,62 +74,6 @@ def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
         sys.exit(1)
 
 
-@click.command()
-@click.argument("LAI_dir", type=click.Path(exists=True, file_okay=False))
-@click.argument("output_stats_fpath", type=click.Path(dir_okay=False))
-@click.argument("output_max_tif_fpath", type=click.Path(dir_okay=False))
-@click.argument("region", type=str)
-@click.argument("resolution", type=int)
-@click.argument("geometry_path", type=click.Path(exists=True))
-@click.option(
-    "--mode",
-    type=click.Choice(["raster", "poly_agg", "poly_iter"]),
-    default="raster",
-    help="What kind of geometry to expect and how to apply it. \
-                'raster' expects a pixelwise mask of zeros and ones. \
-                'poly_agg' expects a .shp or .geojson and combines all polygons. \
-                'poly_iter' iterates through each polygon.",
-)
-@click.option(
-    "--adjustment",
-    type=click.Choice(["none", "wheat", "maize"]),
-    default="none",
-    help="Adjustment to apply to the LAI estimate",
-)
-@click.option(
-    "--start_date",
-    type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="Start date for the image collection",
-)
-@click.option(
-    "--end_date",
-    type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="End date for the image collection",
-)
-@click.option(
-    "--LAI_file_ext",
-    type=click.Choice(["tif", "vrt"]),
-    help="File extension of the LAI files",
-    default="tif",
-)
-@click.option(
-    "--smoothed",
-    is_flag=True,
-    help="Whether the LAI curve should be smoothed (savgol), before interpolation.",
-)
-@click.option(
-    "--cloudcov_threshold",
-    type=float,
-    default=None,
-    help="Precentage (Range [0,1]) of pixels in ROI that are allowed to be clouds or snow. If exceeded, the LAI from this date is ignored. Default: None (no threshold).",
-)
-@click.option(
-    "--maxlai_keep_bands",
-    multiple=True,
-    type=str,
-    default=["estimateLAImax", "adjustedLAImax"],
-    help="Bands to keep in the max lai tif output. Space seperated. (estimateLAImax and/or adjustedLAImax)",
-)
 def main(
     lai_dir,
     output_stats_fpath,
@@ -161,12 +105,12 @@ def main(
     4. Calculate the appropriate LAI statistics for the CSV
     5. Calculate a maximum LAI raster for the geometry and date range
     """
-
     start = time.time()
 
     # Make sure output directory exists
     Path(output_stats_fpath).parent.mkdir(parents=True, exist_ok=True)
-    Path(output_max_tif_fpath).parent.mkdir(parents=True, exist_ok=True)
+    if output_max_tif_fpath:
+        Path(output_max_tif_fpath).parent.mkdir(parents=True, exist_ok=True)
 
     # Geometry
     geometry_name = Path(geometry_path).stem
@@ -516,7 +460,7 @@ def main(
                     rec[col + " Unsmoothed"] = rec[col]
 
             # Apply Savitzky–Golay Smoothing
-            window_length_default = 5
+            window_length_default = 9
             polyorder = 2
 
             for col in lai_cols:
@@ -528,6 +472,8 @@ def main(
                         valid_idxs.append(idx)
                         valid_values.append(row[col])
 
+                # max_idx = int(np.argmax(valid_values))
+
                 window_length = min(window_length_default, len(valid_values))
                 # window length should be uneven and bigger than polyorder to avoid jitter
                 if window_length % 2 == 0:
@@ -537,6 +483,10 @@ def main(
 
                 smooth_vals = savgol_filter(valid_values, window_length, polyorder)
                 smooth_vals = np.clip(smooth_vals, 0, None)
+
+                # Ensure the peak is not reduced and stays at the same date
+                # This might case troubles if an outlier is higher than the true peak, however in most cases it should work well.
+                # smooth_vals[max_idx] = valid_values[max_idx]
 
                 for idx, stats_row_idx in enumerate(valid_idxs):
                     statistics[stats_row_idx][col] = smooth_vals[idx]
@@ -594,24 +544,115 @@ def main(
 
         # Export running maximum
         # Set 0 to nan
-        band_count = len(maxlai_keep_bands)
-        src_meta["count"] = band_count
-        with rio.open(output_max_tif_fpath, "w", **src_meta) as dst:
-            if "estimateLAImax" in maxlai_keep_bands:
-                dst.write(lai_max, 1)
-                dst.set_band_description(1, "estimateLAImax")
+        if output_max_tif_fpath:
+            band_count = len(maxlai_keep_bands)
+            src_meta["count"] = band_count
+            with rio.open(output_max_tif_fpath, "w", **src_meta) as dst:
+                if "estimateLAImax" in maxlai_keep_bands:
+                    dst.write(lai_max, 1)
+                    dst.set_band_description(1, "estimateLAImax")
 
-                if "adjustedLAImax" in maxlai_keep_bands:
-                    dst.write(lai_adjusted_max, 2)
-                    dst.set_band_description(2, "adjustedLAImax")
+                    if "adjustedLAImax" in maxlai_keep_bands:
+                        dst.write(lai_adjusted_max, 2)
+                        dst.set_band_description(2, "adjustedLAImax")
 
-            elif "adjustedLAImax" in maxlai_keep_bands:
-                dst.write(lai_adjusted_max, 1)
-                dst.set_band_description(1, "adjustedLAImax")
-        print(f"Exported max LAI tif to {output_max_tif_fpath}")
+                elif "adjustedLAImax" in maxlai_keep_bands:
+                    dst.write(lai_adjusted_max, 1)
+                    dst.set_band_description(1, "adjustedLAImax")
+            print(f"Exported max LAI tif to {output_max_tif_fpath}")
 
     print(f"Finished in {time.time()-start:.2f} seconds")
 
 
+@click.command()
+@click.argument("LAI_dir", type=click.Path(exists=True, file_okay=False))
+@click.argument("output_stats_fpath", type=click.Path(dir_okay=False))
+@click.argument("output_max_tif_fpath", type=click.Path(dir_okay=False))
+@click.argument("region", type=str)
+@click.argument("resolution", type=int)
+@click.argument("geometry_path", type=click.Path(exists=True))
+@click.option(
+    "--mode",
+    type=click.Choice(["raster", "poly_agg", "poly_iter"]),
+    default="raster",
+    help="What kind of geometry to expect and how to apply it. \
+                'raster' expects a pixelwise mask of zeros and ones. \
+                'poly_agg' expects a .shp or .geojson and combines all polygons. \
+                'poly_iter' iterates through each polygon.",
+)
+@click.option(
+    "--adjustment",
+    type=click.Choice(["none", "wheat", "maize"]),
+    default="none",
+    help="Adjustment to apply to the LAI estimate",
+)
+@click.option(
+    "--start_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="Start date for the image collection",
+)
+@click.option(
+    "--end_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    help="End date for the image collection",
+)
+@click.option(
+    "--LAI_file_ext",
+    type=click.Choice(["tif", "vrt"]),
+    help="File extension of the LAI files",
+    default="tif",
+)
+@click.option(
+    "--smoothed",
+    is_flag=True,
+    help="Whether the LAI curve should be smoothed (savgol), before interpolation.",
+)
+@click.option(
+    "--cloudcov_threshold",
+    type=float,
+    default=None,
+    help="Precentage (Range [0,1]) of pixels in ROI that are allowed to be clouds or snow. If exceeded, the LAI from this date is ignored. Default: None (no threshold).",
+)
+@click.option(
+    "--maxlai_keep_bands",
+    multiple=True,
+    type=str,
+    default=["estimateLAImax", "adjustedLAImax"],
+    help="Bands to keep in the max lai tif output. Space seperated. (estimateLAImax and/or adjustedLAImax)",
+)
+def cli(
+    lai_dir,
+    output_stats_fpath,
+    output_max_tif_fpath,
+    region,
+    resolution,
+    geometry_path,
+    mode,
+    adjustment,
+    start_date,
+    end_date,
+    lai_file_ext,
+    smoothed,
+    cloudcov_threshold,
+    maxlai_keep_bands,
+):
+    main(
+        lai_dir,
+        output_stats_fpath,
+        output_max_tif_fpath,
+        region,
+        resolution,
+        geometry_path,
+        mode,
+        adjustment,
+        start_date,
+        end_date,
+        lai_file_ext,
+        smoothed,
+        cloudcov_threshold,
+        maxlai_keep_bands,
+    )
+
+
 if __name__ == "__main__":
-    main()
+    cli()

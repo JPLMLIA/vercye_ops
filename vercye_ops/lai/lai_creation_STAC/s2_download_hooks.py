@@ -228,6 +228,12 @@ def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: p
     baseline = float(item.properties["s2:processing_baseline"])
     if baseline >= 4.0:
         nodata_val = raster_profile["nodata"]
+
+        if not nodata_val:
+            nodata_val = 0
+            raster_profile["nodata"] = 0
+            print("No nodata found. Using 0.")
+
         raster = np.where(raster != nodata_val, raster - 1000, nodata_val)
 
     return raster, raster_profile

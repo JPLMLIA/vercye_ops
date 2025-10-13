@@ -1019,6 +1019,7 @@ class InteractiveMapGenerator:
                         <div class="control-panel">
                             <div class="level-indicator title" id="levelIndicator">Loading...</div>
                             <div class="stats-summary" id="statsSummary"></div>
+                            <button class="back-button" id="nextLevelBtn" style="margin-top: 8px;">Next Level →</button>
                             <div class="search-box" title="Jump to a field/region by its ID">
                                 <input id="featureSearchInput" type="text" placeholder="Go to id…" />
                                 <button id="featureSearchBtn">Go</button>
@@ -1748,14 +1749,12 @@ class InteractiveMapGenerator:
                                 document.getElementById('backButton').style.display = 'none';
                                 loadLevel(mapData.level_data[`level_0`]);
 
-                                // Reset map view
                                 const bounds = L.geoJSON(mapData.level_data.level_0).getBounds();
                                 map.fitBounds(bounds, {{ padding: [20, 20] }});
                             }} else {{
-                                // Go back one step in current level or previous level
+                                // Go back one step
                                 if (currentParent) {{
-                                    // We were in a subset, go back to full level
-                                    currentLevel--;
+                                    // We were in a subset, go back to full current level
                                     currentParent = null;
                                     loadLevel(mapData.level_data[`level_${{currentLevel}}`]);
                                 }} else if (currentLevel > 0) {{
@@ -1770,6 +1769,27 @@ class InteractiveMapGenerator:
                             updateUI();
                         }}
                     }}
+
+                    function goToNextLevel() {{
+                        if (currentLevel >= mapData.levels.length - 1) {{
+                            return; // Already at deepest level
+                        }}
+
+                        clearSelection();
+                        currentLevel++;
+                        currentParent = null;
+                        breadcrumbPath.push(capitalize(mapData.levels[currentLevel].name));
+
+                        loadLevel(mapData.level_data[`level_${{currentLevel}}`]);
+                        updateUI();
+
+                        // Fit map to bounds of entire next level
+                        const bounds = L.geoJSON(mapData.level_data[`level_${{currentLevel}}`]).getBounds();
+                        map.fitBounds(bounds, {{ padding: [20, 20] }});
+
+                        document.getElementById('backButton').style.display = 'block';
+                    }}
+
 
                     function onEachFeature(feature, layer) {{
                         featureLayerIndex.set(feature.properties.id, layer);
@@ -1847,6 +1867,13 @@ class InteractiveMapGenerator:
                     function updateUI() {{
                         updateBreadcrumb();
                         updateLevelIndicator();
+                        updateNextLevelButton();
+                    }}
+
+                    function updateNextLevelButton() {{
+                        const nextBtn = document.getElementById('nextLevelBtn');
+                        const canGoToNextLevel = currentLevel < mapData.levels.length - 1;
+                        nextBtn.disabled = !canGoToNextLevel;
                     }}
 
                     function updateBreadcrumb() {{
@@ -2339,6 +2366,9 @@ class InteractiveMapGenerator:
                             goToFeatureByName(e.target.value.trim());
                         }}
                     }});
+
+                    document.getElementById('nextLevelBtn').addEventListener('click', goToNextLevel);
+
 
                     // Initialize map
                     window.addEventListener('load', function () {{

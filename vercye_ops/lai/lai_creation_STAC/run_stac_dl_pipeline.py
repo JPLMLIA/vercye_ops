@@ -85,8 +85,16 @@ def init_meta(meta_file, resolution, geojson_path):
     if resolution not in meta["dates"]:
         meta["dates"][str(resolution)] = []
 
+    if "downloaded_dateranges" not in meta:
+        meta["downloaded_dateranges"] = []
+
+    if "lai_created_dateranges" not in meta:
+        meta["lai_created_dateranges"] = []
+
     with open(meta_file, "w", encoding="utf-8") as f:
         json.dump(meta, f)
+
+    return meta
 
 
 def update_status(meta_file, resolution, status):
@@ -97,6 +105,27 @@ def update_status(meta_file, resolution, status):
 
     with open(meta_file, "w", encoding="utf-8") as f:
         json.dump(meta, f)
+
+    return meta
+
+
+def update_processed(meta_file, date_range, process_type):
+    if process_type == "dl":
+        with open(meta_file, "r", encoding="utf-8") as file:
+            meta = json.load(file)
+        meta["downloaded_dateranges"].append(date_range)
+        with open(meta_file, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+    elif process_type == "lai":
+        with open(meta_file, "r", encoding="utf-8") as file:
+            meta = json.load(file)
+        meta["lai_created_dateranges"].append(date_range)
+        with open(meta_file, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+    else:
+        raise ValueError("Invalid process type provided.")
+
+    return meta
 
 
 def run_pipeline(config, logger):
@@ -159,7 +188,7 @@ def run_pipeline(config, logger):
         # Copy geojson to outdir for reproducability
         shutil.copyfile(geojson_path, shapefile_copy_path)
 
-    init_meta(metadata_index_file, resolution, geojson_path)
+    meta = init_meta(metadata_index_file, resolution, geojson_path)
     # Process all date ranges for step 0 and 1
     for i, dr in enumerate(date_ranges):
         try:
@@ -175,8 +204,9 @@ def run_pipeline(config, logger):
             for (start, end), cur_satellite in product(
                 batch_date_range(start_date, end_date, chunk_days=chunk_days), satellites
             ):
+
                 # Use different folders for s30 and l30
-                if from_step <= 0:
+                if from_step <= 0 and not [start, end] in meta["downloaded_dateranges"]:
                     os.makedirs(tiles_out_dir, exist_ok=True)
                     cmd = [
                         sys.executable,
@@ -197,8 +227,9 @@ def run_pipeline(config, logger):
                         cur_satellite,
                     ]
                     run_subprocess(cmd, f"Download tiles {start} to {end} for {cur_satellite}", logger=logger)
+                    meta = update_processed(metadata_index_file, (start, end), "dl")
 
-                if from_step <= 1:
+                if from_step <= 1 and not [start, end] in meta["lai_created_dateranges"]:
                     os.makedirs(lai_dir, exist_ok=True)
                     cmd = [
                         sys.executable,
@@ -220,6 +251,7 @@ def run_pipeline(config, logger):
                         cmd.append("--remove-original")
 
                     run_subprocess(cmd, f"Compute LAI for {start} to {end}", logger=logger)
+                    meta = update_processed(metadata_index_file, (start, end), "lai")
 
         except Exception as e:
             logger.error(f"Aborting further processing due to error in date range {start_date} to {end_date}: {e}")
@@ -245,7 +277,7 @@ def run_pipeline(config, logger):
             str(num_workers_lai),
             "--remove-original",
         ]
-        update_status(metadata_index_file, resolution, "standardizing")
+        meta = update_status(metadata_index_file, resolution, "standardizing")
         run_subprocess(cmd, "Standardize LAI files", logger=logger)
 
     if from_step <= 3:
@@ -263,12 +295,12 @@ def run_pipeline(config, logger):
             "--end-date",
             overall_end.strftime("%Y-%m-%d"),
         ]
-        update_status(metadata_index_file, resolution, "merging")
+        meta = update_status(metadata_index_file, resolution, "merging")
         run_subprocess(cmd, "Build daily VRTs for LAI", logger=logger)
 
     # Create/Update metadata index file
     if from_step <= 4:
-        update_status(metadata_index_file, resolution, "finalizing")
+        meta = update_status(metadata_index_file, resolution, "finalizing")
 
         with open(metadata_index_file, "r", encoding="utf-8") as file:
             meta = json.load(file)
@@ -282,7 +314,7 @@ def run_pipeline(config, logger):
         with open(metadata_index_file, "w", encoding="utf-8") as f:
             json.dump(meta, f)
 
-        update_status(metadata_index_file, resolution, "completed")
+        meta = update_status(metadata_index_file, resolution, "completed")
 
     logger.info("Pipeline completed successfully.")
 
