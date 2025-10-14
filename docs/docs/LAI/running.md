@@ -2,7 +2,7 @@
 The pipeline produces LAI products for VERCYe and is intended for scaled deployment on servers or HPC with minimal human intervention. The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox. We provide two methods for exporting remotely sensed imagery and deriving LAI products:
 
 - **A:** Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)
-- **B: **Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS or MPC (fast, inferior cloudmasking).
+- **B: **Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS or MPC/Azure (fast, inferior cloudmasking).
 
 The individual advantages are detailed in the [introduction](intro.md#lai-generation). This document details the instruction on how to download remotely sensed imagery and derive LAI data. For both approaches we provide pipelines that simply require specifying a configuration and then handle the complete process from exporting and downloading remotely sensed imagery to cloudmasking and deriving LAI estimates. Details of the invididual components of the pipelines can be found in the readme of the corresponding folders.
 
@@ -151,7 +151,7 @@ keep_imagery: false
 
 - `date_ranges`: Define multiple seasonal or arbitrary time windows to process (in YYY-MM-DD format).
 
-- `resolution`: Spatial resolution in meters. (Typically 10 or 20)
+- `resolution`: Spatial resolution in meters. (Typically 10 or 20). When specifying 10m - a different model for 10m resolution is used, which is not yet validated in depth!
 - `geojson-path`: Path to your regions of interest geojson. Will create a bounding box for each geometry and query the intersecting tiles.
 - `out_dir`: Output directory for all generated data.
 - `region_out_prefix`: Prefix for the output VRT filenames - typically the name of the GeoJSON region.

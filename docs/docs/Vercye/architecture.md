@@ -67,6 +67,7 @@ The complete logic is defined in `vecrye_ops/snakemake/Snakefile`.
 ### 4. Meteorological Data Acquisition
 
 **Supported Sources**:
+
 - **ERA5** (via Google Earth Engine): Max 10 concurrent jobs.
 - **NASAPower**: Uses a global cache to avoid API rate limits.
     - First job: One-time cache fill per region for its full date range (single job per region to avoid race conditions in cache write).

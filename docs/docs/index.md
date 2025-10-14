@@ -9,7 +9,7 @@ The **VeRCYe Repository** contains a number of components:
 - **The VerCYe Library**: Contains all steps to run the VeRCYe algorithm as individual python scripts. The scripts are orchestrated into a pipeline using `Snakemake`. In general the library is split into two components:
     - **LAI Generation**: Downloads remotely sensed imagery and predicst Leaf Area Index (LAI) values per pixel.
     - **Yield Simulation and Prediction**: Simulate numerous likely configurations using APSIM and identify the best-matching simulations with the LAI data. This step also includes evaluation and reporting tools.
-- **The VeRCYe Webapp**: Provides a webapp wrapper around the core library. Runs a backend service and a frontendservice that facilitates using VeRCYe operationally.
+- **The VeRCYe Webapp**: Provides a webapp wrapper around the core library. Runs a backend and a frontend service that facilitate using VeRCYe operationally.
 
 ---
 
@@ -57,10 +57,10 @@ pip install -e .
 
 #### 4. Install APSIMX
 
-There are two options for running APSIM:
+The simulations that produce yield predictions and phenology are run using the process based APSIM NextGen model. There are two options for running APSIM:
 
-- **Using Docker**: Simply set a parameter during configuration of your yield study. The Docker container will build automatically. (Ensure `docker` is installed.)
-- **Building the APSIM-NextGen binary manually**: See instructions in the [APSIM Section](Vercye/apsim.md).
+- **A: Using Docker**: Simply set a parameter during [configuration of your yield study](Vercye/running.md). The Docker container will build automatically. (Ensure `docker` is installed.). This option is**NOT** available on UMD systems.
+- **B: Building the APSIM-NextGen binary manually**: See instructions in the [APSIM Section](Vercye/apsim.md).
 
 > **Note**: If running on UMD systems, APSIM is pre-installed at:
 >
@@ -144,7 +144,7 @@ vercye run --name your-study-name --dir /path/to/study/store/profile/config.yaml
 
 **Running VeRCYe manually**
 
-While the CLI provides a conveniert way to run a yield study, for larger experiments with different configurations, you might want more freedom. For this the general process is as follows:
+While the CLI provides a convenient way to run a yield study, for larger experiments with different configurations, you might want more freedom. For this the general process is as follows:
 
 1. You will first have to generate **LAI** data from remotely sensed imagery. Refer to the [LAI Creation Guide](LAI/running.md) for details.
 
@@ -152,11 +152,11 @@ While the CLI provides a conveniert way to run a yield study, for larger experim
 
 ### VeRCYe Webapp Setup
 
-On information for setting up and running the webapp, visit the [Webapp Section]().
+On information for setting up and running the webapp, visit the [Webapp Section](Vercye/webapp.md).
 
 ### Technical Details
 
-![VeRCYe Architecture Diagram](vercye_highlevel.png)
+![VeRCYe Architecture Diagram](Vercye/vercye_highlevel.png)
 
 - **Library Details**: The technical implementation details of the vercye library are outlined in the [VeRCYe Architecture Section](Vercye/architecture.md). Fore more details check out the code in `vercye_ops`.
 - **Webapp Details**: The details on architectural decisions of the webapp are documented under [VeRCYe Webapp](Vercye/webapp.md).

@@ -1,4 +1,4 @@
-# Running VeRCYE manuall
+# Running VeRCYE manually
 
 This guide walks you through the process of setting up and running a yield study using our framework, which helps you simulate crop yields across different regions.
 
@@ -56,7 +56,7 @@ The full configuration options are documented in the [Inputs documentation (Sect
 
 The **base directory** (your `study head dir`) organizes region-specific geometries and APSIM simulations by year, timepoint, and region [(See Details)](inputs.md).
 
-Use the provided helper script (`prepare_yieldstudy.py`) to create this structure. For this, simply create an additional `setup_config.yaml` file in your base directory and fill it as described below. You can then run the setup helper with `python prepare_yieldstudy.py /path/to/basedirectory/setup_config.yaml`. For ease of use, start out with the example provided in `examples/setup_config.yaml`.
+Use the provided helper script (`prepare_yieldstudy.py`) to create this structure. For this, simply create an additional `setup_config.yaml` file in your base directory and fill it as described below. For ease of use, start out with the example provided in `examples/setup_config.yaml`.
 
 1. **Input shapefile & region names**
 
@@ -75,12 +75,16 @@ Use the provided helper script (`prepare_yieldstudy.py`) to create this structur
 
 3. **APSIM configuration templates**
 
+    VeRCYe requires an APSIM template that will be adjusted for each region. This APSIM template defines the general simulations that should be run for each region. i.e it defines the factorials of different input parameters that should be run. All of these should be manually configured based on expertise of the regions of interest.
+
+    Additionally, currently a precipitation based custom script that MUST be embedded in the APSIM file (provided by Yuval Sadeh) is used to estimate likely sowing dates (sowing window). However, if the true sowing date is known, this can also be injected in the pipeline, but it still requires the sowing window script to be present in the code, as the start/end/force sowing dates are overwritten to the true sowing date and the factorial is disabled.
+
     Rather than manually copying and editing an APSIM file for each year/region, the helper will:
 
     1. Copy a template for each higher-level region (e.g. state) into every year’s folder.
     2. Auto-adjust the simulation dates. NOTE: This will replace the `Models.Clock` parameter in the APSIM simulation to with the value specified in the `run_config_template.yaml` under `apsim_params.time_bounds`. If you require different simulation start/end-dates for various regions during a season, you will have to configure this manually in the APSIM files in the extracted directories.
 
-    Configure this by setting:
+    Configure this by setting the following parameters in your `setup_config.yaml` that you created in the previous step:
 
     - **`APSIM_TEMPLATE_PATHS_FILTER_COL_NAME`** Admin column that groups regions sharing a template (e.g. `NAME_1`).
 
@@ -99,12 +103,10 @@ Use the provided helper script (`prepare_yieldstudy.py`) to create this structur
       ```
 
 
-Once all parameters are defined, run the notebook. It will:
+Once all parameters are defined, run the prepartaion script with `python prepare_yieldstudy.py /path/to/basedirectory/setup_config.yaml`. It will:
 
-- Create your `year/timepoint/region` directory tree under `OUTPUT_DIR`.
+- Create your `year/timepoint/region` scaffolded directory tree under `OUTPUT_DIR`.
 - Generate a final `run_config.yaml` that merges your Snakemake settings with the selected regions.
-
-**Note**: Sometimes, you might want to add some custom conditionals or processing, that is why we have provided this code in a jupyter notebook. In that case make sure to read the [input documentation](inputs.md), to understand the required structure.
 
 ## 4. Adding Reported Validation Data
 
@@ -116,12 +118,12 @@ Define aggregation levels in your `config file` under `eval_params.aggregation_l
 
 For each year and aggregation level, create a CSV file named: `{year}/referencedata_{aggregation_name}-{year}.csv`, where aggregation_name matches the key in your config (case-sensitive!).
 
-Example: For 2024 state-level data, the file should be: `basedirectory/2024/referencedata__State-2024.csv`
+Example: For 2024 state-level data, the file should be: `basedirectory/2024/referencedata_State-2024.csv`
 For simulation ROI-level data, use `primary` as the aggregation name: `basedirectory/2024/referencedata_primary-2024.csv`
 
-**CSV Structure**
+**CSV Structure of validation name**
 
-- `region`: Name matching GeoJSON folder (for `primary aggregation level`) or matching attribute table column values for custom aggregation level (Column as specified under `eval_params.aggregation_levels` in tour `config.yaml`)
+- `region`: Name matching GeoJSON folder name (for `primary aggregation level`) or matching attribute table column values for custom aggregation level (Column as specified under `eval_params.aggregation_levels` in tour `config.yaml`)
 - `reported_mean_yield_kg_ha`: Mean yield in kg/ha
 If unavailable, provide `reported_production_kg` instead. The mean yield will then be calculated using cropmask area (note: subject to cropmask accuracy).If you do not have validation data for certain regions, simply do not include these in your CSV.
 - If your reference data contains area, it is recommended to also include this under `reported_area_ha` even though this is not yet used in the evaluation pipeline.
@@ -155,12 +157,11 @@ Once your setup is complete:
 
 When the simulation completes, results will be available in your base directory. See the [Outputs Documentation](outputs.md) for details on interpreting the results.
 
-To run the pipeline over the same region(s), either use Snakemake's `-F` flag or delete the log files at `vercye_ops/snakemake/logs_*`. Runtimes are in `vercye_ops/snakemake/benchmarks`.
-
 ## Troubleshooting and re-running
 
 If your pipeline fails, you have a few options to re-run:
 - If you want to force the re-execution of all rules, even if they have already completed successfully, you can add the `-F` flag to the run command above. This will invalidate all outputs and require rerunning them.
+- You can delete output files and these files and all downstream affected rules will be rerun.
 - Recommend: If you have fixed the section of your code that caused the problems, you can simply rerun with the normal run command and only the rules that have failed and their downstream dependencies will be run.
 
-Check out the troubleshooting page.
+Check out the [troubeshooting page](troubleshooting.md) for common errors.

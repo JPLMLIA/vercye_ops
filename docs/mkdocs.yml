@@ -8,18 +8,17 @@ theme:
 
 nav:
   - 'Home': 'index.md'
-  - 'LAI':
-    - 'Introduction': 'LAI/intro.md'
-    - 'Generating LAI Data': 'LAI/running.md'
-  - 'Vercye':
-    - 'Introduction': 'Vercye/intro.md'
+  - 'Vercye Pipeline':
     - 'Running VeRCYe':
       - 'CLI': 'Vercye/cli.md'
       - 'Manual execution': 'Vercye/running.md'
       - 'Troubleshooting': 'Vercye/troubleshooting.md'
       - 'Inputs': 'Vercye/inputs.md'
       - 'Outputs': 'Vercye/outputs.md'
-    - 'VeRCYe Webapp': 'Vercye/webapp.md'
     - 'Meteorological Data': 'Vercye/metdata.md'
     - 'Vercye Library Architecture': 'Vercye/architecture.md'
     - 'APSIMX': 'Vercye/apsim.md'
+  - 'LAI Pipeline':
+    - 'Introduction': 'LAI/intro.md'
+    - 'Generating LAI Data': 'LAI/running.md'
+  - 'Vercye Webapp': 'Vercye/webapp.md'

@@ -2,11 +2,11 @@ The VeRCYe webapp is an interface to core functionality, wrapping the CLI utilit
 
 
 ### Setup
-1. Ensure you have installed the VeRCYe core library as described in [](../index.md#vercye-library-setup).
+1. Ensure you have installed the VeRCYe core library as described in the [setup instruction](../index.md#vercye-library-setup).
 2. The webapp requires you to set a number of default folders, for example for the storage of cached outputs, the path to the APSIM installation and others. For this set the environmental variables by copying  `vercye_ops/.env_examples` to `vercye_ops/.env` and setting the actual values.
 3. Navigate to `vercye_ops/vercye_webapp/`: `cd vercye_ops/vercye_webapp`.
 4. Install the additional requirements for the webapp: Ensure you have loaded your environment from step 1 and run `pip install -r requirements.txt`.
-5. To queue incoming jobs and allow workers to fetch jobs independantly, `redis` is used. Install redis for your system by following the [official instructions]().
+5. To queue incoming jobs and allow workers to fetch jobs independantly, `redis` is used. Install redis for your system by following the [official instructions](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/).
 4. You will now have to specify a few more environmental variables for the webapp. For this copy `vercye_webapp/.env_example` to `vercye_webapp/.env` and set the values.
 
 
