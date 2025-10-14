@@ -34,8 +34,8 @@ Options:
   --help                   Show this message and exit.
 ```
 
-!Attention: This can amount to a few hundred GB of data when downloading many years of historical data. Therefore this is rather intended to be run on HPC environments.
+!Attention: This can amount to 100+ GB of data when downloading many years of historical data. Therefore this is rather intended to be run on HPC environments.
 
 This will first try to download all final [CHIRPS v2.0 global daily products](https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/cogs/p05/) at 0.05 degrees resolution. For days without data available, the downloader will fallback to the [preliminary product](https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_daily/tifs/p05/).
 
-The VeRCYe pipeline will then read local regions from this global files during runtime.
+The VeRCYe pipeline will then read local regions from these global files during runtime.
