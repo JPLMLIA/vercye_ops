@@ -76,7 +76,7 @@ apsim_params:
   # Parameters controlling meteoroligical data source
   met_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'ERA5']
   met_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for ERA5.
-  precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS' | 'ERA5']. If not using CHIRPS must be the same as met_source.
+  precipitation_source: 'NASA_POWER' # Options: ['NASA_POWER' | 'CHIRPS_V2' | 'CHIRPS_V3' | 'ERA5']. If not using CHIRPS must be the same as met_source.
   precipitation_agg_method: 'centroid' # Options: ['mean' | 'centroid']. Mean is currently only supported for CHIRPS.
   fallback_precipitation: False # If True, will use original precipitation data if region is out of bounds for CHIRPS data. Please be aware that changing this might make the precipitation data inconsistent. If set to False, ensure no regions outside of CHIRPS bounds are selected.
   chirps_dir: 'XXXX' # Only required to set if precipitation_source is 'CHIRPS'. Path to your downloaded CHIRPS data. No need to change if created through the webapp

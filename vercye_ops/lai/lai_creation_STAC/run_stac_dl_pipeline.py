@@ -43,7 +43,7 @@ def batch_date_range(start_date, end_date, chunk_days=30):
     start = start_date
     end = end_date
     if start == end:
-        end = end + +relativedelta(days=1)
+        end = end + relativedelta(days=1)
 
     while start < end:
         next_start = min(start + relativedelta(days=chunk_days), end)

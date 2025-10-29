@@ -234,6 +234,7 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
     # Keep only required columns for APSIM
     df = df[["date", "ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]]
+
     df.fillna(
         {"ALLSKY_SFC_SW_DWN": 0, "T2M": 0, "T2M_MAX": 0, "T2M_MIN": 0, "PRECTOTCORR": 0, "WS2M": 0},
         inplace=True,

@@ -2,6 +2,7 @@ import concurrent
 import os
 import os.path as op
 import time
+import traceback
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from glob import glob
@@ -82,13 +83,16 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         profile = s2_ds.profile
         nodata_val = s2_ds.nodata
 
+        if nodata_val is None:
+            raise ValueError(f"Received tif with no nodata value set. Can't process {vrt_path}.")
+
         # Validate that correct number of input bands is provided.
         if not s2_array.shape[0] == model.num_in_ch:
             raise ValueError(
                 f"Number of bands in {vrt_path} does not match the number of input channels. Expected {model.num_in_ch} but got {s2_array.shape[0]}"
             )
 
-        # If the last band of the image is all zeros, skip
+        # If the last band of the image is all nodata, skip
         if np.all(s2_array[-1] == nodata_val):
             logger.info(f"Skipping {Path(vrt_path).name} because it is all zeros")
             s2_ds.close()
@@ -127,6 +131,7 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
         driver="GTiff",
         blockxsize=256,
         blockysize=256,
+        tiled=True,
     )
     with rio.open(filename, "w", **profile) as dst:
         dst.write(LAI_estimate, 1)
@@ -235,6 +240,7 @@ def main(imagery_dir, lai_dir, resolution, start_date, end_date, num_cores, sate
                     all_results.append(result)
             except Exception as e:
                 logger.info(f"Error in worker {i}: {e}")
+                traceback.print_exc()
                 raise e
 
     output_files = [file for batch_result in all_results for file in batch_result if file is not None]

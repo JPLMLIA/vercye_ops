@@ -19,7 +19,7 @@ def compute_metrics(preds, obs):
     if len(preds) != len(obs):
         raise ValueError("Length of the predictions and observations do not match.")
 
-    errors_kg_ha = obs - preds
+    errors_kg_ha = preds - obs
     mean_err_kg_ha = np.mean(errors_kg_ha)
     median_err_kg_ha = np.median(errors_kg_ha)
     mean_abs_err_kg_ha = np.mean(np.abs(errors_kg_ha))
@@ -54,7 +54,7 @@ def compute_metrics(preds, obs):
 
 
 def compute_errors_per_region(preds, obs, region_names):
-    errors_kg_ha = obs - preds
+    errors_kg_ha = preds - obs
     rel_errors_percent = (errors_kg_ha / obs) * 100
 
     return {
@@ -100,7 +100,7 @@ def create_scatter_plot(preds, obs, obs_years=None):
     tick_values = np.arange(tick_start, max_plot + tick_step, tick_step)
 
     # compute regression line (use full range for line)
-    slope, intercept = np.polyfit(preds, obs, 1)
+    slope, intercept = np.polyfit(obs, preds, 1)
     x_line = np.linspace(min_plot, max_plot, 100)
     y_line = intercept + slope * x_line
 
@@ -108,7 +108,7 @@ def create_scatter_plot(preds, obs, obs_years=None):
     if obs_years is None:
         # try KDE‐based density
         try:
-            values = np.vstack([preds, obs])
+            values = np.vstack([obs, preds])
             density = stats.gaussian_kde(values)(values)
             use_density = True
         except Exception:
@@ -118,31 +118,31 @@ def create_scatter_plot(preds, obs, obs_years=None):
 
         if use_density:
             fig = px.scatter(
-                x=preds,
-                y=obs,
+                x=obs,
+                y=preds,
                 color=density,
                 color_continuous_scale=px.colors.sequential.Viridis,
                 labels={
-                    "x": "Predicted (kg/ha)",
-                    "y": "Reference (kg/ha)",
+                    "x": "Reference (kg/ha)",
+                    "y": "Predicted (kg/ha)",
                     "color": "Point Density",
                 },
             )
         else:
             fig = px.scatter(
-                x=preds,
-                y=obs,
-                labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)"},
+                x=obs,
+                y=preds,
+                labels={"x": "Reference (kg/ha)", "y": "Predicted (kg/ha)"},
             )
 
     else:
         # color by year
         fig = px.scatter(
-            x=preds,
-            y=obs,
+            x=obs,
+            y=preds,
             color=obs_years,
             color_discrete_sequence=px.colors.qualitative.Plotly,
-            labels={"x": "Predicted (kg/ha)", "y": "Reference (kg/ha)", "color": "Year"},
+            labels={"x": "Reference (kg/ha)", "y": "Predicted (kg/ha)", "color": "Year"},
         )
 
     # add 1:1 line (corrected coordinates)

@@ -109,7 +109,7 @@ rule construct_chirps_data:
     log:
         'logs_construct_chirps_data/{year}_{timepoint}_chirps.log',
     output:
-        csv = temp(op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')),
+        csv = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet'),
     shell:
         """
         python {params.script_fpath} \
@@ -142,7 +142,7 @@ rule fill_nasapower_cache:
     log:
         'logs_fetch_np_data_cache/{region}.log',
     output:
-        temp(op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt')),
+        op.join(config['sim_study_head_dir'], '{region}_np_cache_filled.txt'),
     resources:
         nasa_power_calls = 1
     retries: 2
@@ -188,7 +188,7 @@ rule fill_era5_cache:
     log:
         'logs_fetch_era5_data_cache/{region}.log',
     output:
-        temp(op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt')),
+        op.join(config['sim_study_head_dir'], '{region}_era5_cache_filled.txt'),
     resources:
         era5_calls = 1
     retries: 5 # ERA5 on GEE can be flaky

@@ -18,11 +18,12 @@ default_model_weights = {
         # This means for baseline >= 4, the offset of 1000 has to be subtracted.
         "default_resolution": 20,
         "configs": {
-            10: {
-                "weights_path": rel_path("../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth"),
-                "channels": ["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"],
-                "input_scaling": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
-            },
+            # Disabling 10m model for now, as it' not well validated yet
+            # 10: {
+            #     "weights_path": rel_path("../trained_models/s2_sl2p_weiss_or_prosail_10m_NNT1_Single_0_1_LAI.pth"),
+            #     "channels": ["cosVZA", "cosSZA", "cosRAA", "B2", "B3", "B4", "B8"],
+            #     "input_scaling": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
+            # },
             20: {
                 "weights_path": rel_path("../trained_models/s2_sl2p_weiss_or_prosail_NNT3_Single_0_1_LAI.pth"),
                 "channels": [

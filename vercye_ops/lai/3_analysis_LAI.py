@@ -125,11 +125,12 @@ def main(
         print(f"{geometry_name} will be read as a raster and used to 0/1 mask the primary raster.")
         print("NOTE: Preprocessing to project the raster mask to the primary LAI raster is required.")
         print("      Read the README and use 0_reproj_mask.py.")
+        # The cropmask is expected to be cropped to the region and have the same resolution as the LAI rasters
+        # If it is not cropped to the region, this will make the code very slow when running at national scale
         with rio.open(geometry_path) as ds:
-
             # Validate that the cropmask raster is binary
-            if not np.array_equal(np.unique(ds.read(1)), [0, 1]):
-                raise Exception(f"Cropmask {geometry_name} is not binary.")
+            # if not np.array_equal(np.unique(ds.read(1)), [0, 1]):
+            #     raise Exception(f"Cropmask {geometry_name} is not binary.")
 
             geometries.append(
                 {
@@ -310,9 +311,6 @@ def main(
                 window_cropmask = rio.windows.from_bounds(*intersection.bounds, transform=geometry["transform"])
 
                 # Read the LAI window
-                # lai_window_array = src.read(1, window=window_lai)
-
-                # Testing this - TODO validate
                 lai_window_array = src.read(1, window=window_lai, masked=True).filled(np.nan).astype(np.float32)
 
                 lai_window_bounds = bounds(window_lai, transform=src.transform)
@@ -324,17 +322,19 @@ def main(
                     # Read the cropmask windowcropmask_bounds
                     cropmask_window_array_debug = src_cropmask.read(1, window=window_cropmask)
 
-                # Check if the cropmask and LAI windows are the same size
-                if cropmask_window_array_debug.shape != lai_window_array.shape:
-                    print(
-                        f"ERROR: cropmask window shape {cropmask_window_array_debug.shape} != LAI window shape {lai_window_array.shape}"
-                    )
-                    print("Preprocessing to project the cropmask to the primary region LAI is required.")
-                    print("See the README and use 0_reproj_mask.py")
-                    sys.exit(1)
+                    # Check if the cropmask and LAI windows are the same size
+                    if cropmask_window_array_debug.shape != lai_window_array.shape:
+                        print(
+                            f"ERROR: cropmask window shape {cropmask_window_array_debug.shape} != LAI window shape {lai_window_array.shape}"
+                        )
+                        print("Preprocessing to project the cropmask to the primary region LAI is required.")
+                        print("See the README and use 0_reproj_mask.py")
+                        sys.exit(1)
 
                 # Pad the LAI window to the cropmask
-                # This is necessary because some LAI rasters might have partial coverages
+                # This is necessary because most LAI rasters have partial coverages of a region (Only available tiles are Mosaiked)
+                # And we always require the alignment to the shape of the cropmask, so that we can reliably update
+                # the max LAI raster later
                 lai_window_array_padded, is_padded = pad_to_raster(
                     lai_window_bounds,
                     lai_window_res,
@@ -373,6 +373,9 @@ def main(
                         }
                     )
 
+            # clip all negative values to nan, as they are invalid and should be ignored
+            masked_src[masked_src < 0] = np.nan
+
             should_skip = False
             if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold * 100:
                 print(f"{Path(LAI_path).name} [INSUFFICIENT DATA IN GEOMETRY]")
@@ -399,9 +402,7 @@ def main(
                 statistics.append(stat)
                 continue
 
-            # clip all negative values to zero
             LAI_estimate = masked_src
-            LAI_estimate[LAI_estimate < 0] = 0
 
             # Wheat and Maize calibrations
             if adjustment == "wheat":
@@ -472,8 +473,6 @@ def main(
                         valid_idxs.append(idx)
                         valid_values.append(row[col])
 
-                # max_idx = int(np.argmax(valid_values))
-
                 window_length = min(window_length_default, len(valid_values))
                 # window length should be uneven and bigger than polyorder to avoid jitter
                 if window_length % 2 == 0:
@@ -483,10 +482,6 @@ def main(
 
                 smooth_vals = savgol_filter(valid_values, window_length, polyorder)
                 smooth_vals = np.clip(smooth_vals, 0, None)
-
-                # Ensure the peak is not reduced and stays at the same date
-                # This might case troubles if an outlier is higher than the true peak, however in most cases it should work well.
-                # smooth_vals[max_idx] = valid_values[max_idx]
 
                 for idx, stats_row_idx in enumerate(valid_idxs):
                     statistics[stats_row_idx][col] = smooth_vals[idx]
@@ -543,7 +538,6 @@ def main(
         src_meta.update({"driver": "GTiff"})
 
         # Export running maximum
-        # Set 0 to nan
         if output_max_tif_fpath:
             band_count = len(maxlai_keep_bands)
             src_meta["count"] = band_count

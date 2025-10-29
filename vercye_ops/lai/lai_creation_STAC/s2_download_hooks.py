@@ -225,11 +225,15 @@ def s2_mask_processor(
 def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: pyStacItem):
     # Harmonizes scenes to match the baseline < 4.0 format.
     # Subtract a shift of -1000 to match the ESA introduced shift
+    if "s2:processing_baseline" not in item.properties:
+        raise Exception("s2:processing_baseline not found in item properties. Can't reliably harmonize.")
+
     baseline = float(item.properties["s2:processing_baseline"])
+
     if baseline >= 4.0:
         nodata_val = raster_profile["nodata"]
 
-        if not nodata_val:
+        if nodata_val is None:
             nodata_val = 0
             raster_profile["nodata"] = 0
             print("No nodata found. Using 0.")
