@@ -1,7 +1,12 @@
 # VeRCYe LAI Generation
 
-VeRCYE is designed to identify best matching APSIM simulations with actual remotely sensed Leaf Area Index (LAI) data. This documentation covers the LAI data generation pipeline, which is a separate but essential component of the VeRCYE workflow. The LAI is not a true remotely sensed value, but is rather estimated from a
-combination of bands using neural networks that were converted to Pytorch from the [Leaf Toolbox](https://github.com/rfernand387/LEAF-Toolbox).
+VeRCYE is designed to identify best matching APSIM simulations based on actual remotely sensed Leaf Area Index (LAI) data. This documentation covers the LAI data generation pipeline, which is a separate but essential component of the VeRCYE workflow. The LAI is not a true remotely sensed value, but is rather estimated from a
+combination of bands using neural networks that were converted to Pytorch from the [Leaf Toolbox](https://github.com/rfernand387/LEAF-Toolbox) that was developed by Fernandez et al.
+
+Two different LAI models from the Leaf Toolbox were re-implemented more efficiently with Pytorch:
+- The 20m general purpose and strongly validated model.
+- The 10m model, which should be considered experimental at the moment, as it was not yet validated in depth. Check the LEAF toolbox for details to the models.
+
 
 The LAI creation pipeline described in this documentation transforms Sentinel-2 satellite imagery into LAI estimates that can be used by the VeRCYE algorithm. Currently only Sentinel-2 data is supported, but a version using Harmonized Landsat-Sentinel Imagery is planned.
 
@@ -16,7 +21,7 @@ We provide two methods for exporting remotely sensed imagery and deriving LAI pr
 
 **A:** Exporting RS imagery from **Google Earth Engine**
 
-**B:** Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS.
+**B:** Downloading RS imagery through an open source **STAC catalog** and data hosted on AWS/Azure.
 
 **C:** Using your own LAI data
 
@@ -28,29 +33,29 @@ Google Drive or a Google Cloud Storage Bucket, from which it can be downloaded t
 
 **Pro:**
 
-- Directly export mosaics with bands resampled to the same resolution and CRS
+- Directly export mosaics with bands resampled to the same resolution and CRS (EPSG:4326).
 - Strong cloud masking algorithm (Google Cloud Score Plus)
 
 **Con**
 
-- Slow for large regions, due to limited number of parallel export processes
+- Very slow for large regions, due to limited number of parallel export processes
 - Exported data is exported to either Google Drive (Free) or Google Cloud Storage (Fees apply), and downloaded from there, but requires more manual setup which might be tedious especially on remote systems.
 
-### B: STAC & AWS Export
-This approach queries a STAC catalog to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS bucket.
+### B: STAC Based Export
+This approach queries a STAC catalog to identify all Sentinel-2 Tiles intersecting the region of interest within the timespan. The individual tiles are then downloaded from an AWS or Microsoft Planetary Computer (Azure) bucket.
 
-You can choose between selecting data hosted by Element84 on AWS (`Sentinel-2 L2A Colection 1` ), in which all historial data was processed using `Processing Baseline 5.0`, however this collection is currently missing large timespans (e.g 2022,2023). Alternativeley, you can use the Microsoft Planetary Computer (`Sentinel-2 L2A`).
+You can choose between selecting data hosted by Element84 on AWS (`Sentinel-2 L2A Colection 1` ), in which all historial data was processed using `Processing Baseline 5.0`, however this collection is currently missing large timespans (e.g 2022,2023). Alternativeley, as a default we  use the Microsoft Planetary Computer (`Sentinel-2 L2A`). The data is downloaded and processed to match the `S2_SR_Harmonized` collection in GEE.
 
 **Pro**:
 
 - Very fast download in HPC environment due to high level of parallelism
 - Completely free download of data
-- Harmonized to data in `Sentinel-2 L2A Colection 1` - all data processed using modern Baseline 5.0.
 
 **Con**:
 
-- Less Accurate Cloudmask in comparison to Google Cloud Score Plus. Cloud mask is based on SCL + S2-Cloudless.
-- As of May 27th 2025, `Sentinel-2 L2A Colection 1` does not contain data for 2022 and parts of 2023. According to ESA this backfill is scheduled to be completed until Q2 2025.
+- Less Accurate Cloudmask in comparison to Google Cloud Score Plus. Cloud mask is based on SCL.
+- As of May 27th 2025, `Sentinel-2 L2A Colection 1` does not contain data for 2022 and parts of 2023. According to ESA this backfill is scheduled to be completed until Q2 2025, however this needs to be validated.
+- Sentinel-2 data in MPC has inconsistent nodata values (should be all 0, but sometimes no nodata value is set), which might hint to differences in processing aswell.
 
 ### C: Bring your own LAI data
 If you already have LAI data or are planning to generate it with a different pipeline this is also possible. Simply ensure the file names match our required format. All files ned to be located in a single folder and the filename needs to satisfy the following format:
@@ -61,4 +66,4 @@ If you already have LAI data or are planning to generate it with a different pip
 - The `date` should be in the YYYY-MM-DD format.
 - The `file extension` can be either `.vrt` or `.tif`
 
-Additionally, you will have to ensure all your LAI files have exactly the same resolution and CRS and match the scale and offset as used in our inbuilt imagery.
+Additionally, you will have to ensure all your LAI files have exactly the same resolution and CRS and extent and match the scale and offset as used in our inbuilt imagery. Currently all the imagery is scaled by multiplying with 0.001 to convert the int data to float.
