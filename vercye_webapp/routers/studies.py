@@ -6,7 +6,7 @@ import shutil
 import signal
 import tempfile
 import zipfile
-from collections import defaultdict
+from collections import defaultdict, deque
 from glob import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -718,7 +718,10 @@ def get_study_logs(study_id: StudyID):
         raise HTTPException(status_code=404, detail="No log available. Check individual rules logs if necessary.")
 
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-        text = f.read()
+        last_lines = deque(f, maxlen=1000)
+
+    text = "SHOWING LAST 1000 lines only: \n\n...\n"
+    text += "".join(last_lines)
     return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 
 

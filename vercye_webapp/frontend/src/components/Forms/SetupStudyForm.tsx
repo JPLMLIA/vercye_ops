@@ -218,7 +218,6 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     setApsimColumn(initialData.apsimColumn || "");
     setApsimMapping(initialData.apsimMapping || {});
     setApsimFiles(initialData.apsimFiles.map((name) => new File([], name)));
-    console.log(initialData.apsimFiles)
 
     setReferenceMapping(initialData.referenceMapping || {});
     setReferenceYearsMapping(initialData.referenceYearsMapping || {});
@@ -260,6 +259,13 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     if (!isInitialized) return
     setApsimAllowedValues(loadColValues(apsimColumn, shapefileUpload));
   }, [apsimColumn, shapefileUpload, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    if(apsimFiles.length <= 1) {
+      setApsimColumn("")
+    }
+  }, apsimFiles)
 
   useEffect(() => {
     setTimepointPatterns(prev => {

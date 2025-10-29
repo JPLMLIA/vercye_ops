@@ -102,8 +102,8 @@ def generate_lai(lai_config: str = Form(...), region_shapefile: UploadFile = Fil
         shutil.copyfileobj(region_shapefile.file, f)
 
     if lai_config.resolution == 10:
-        num_cores_download = 120
-        num_cores_lai = 50
+        num_cores_download = 100
+        num_cores_lai = 35
     else:
         num_cores_download = 100
         num_cores_lai = 85

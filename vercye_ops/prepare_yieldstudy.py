@@ -184,7 +184,7 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
         snakefile_config["sim_study_head_dir"] = str(output_dir)
 
         # Fill in LAI section in run_config based on lai creation config if it exists
-        if os.path.exists(lai_config_path):
+        if lai_config_path is not None and os.path.exists(lai_config_path):
             lai_config, _ = load_yaml_ruamel(lai_config_path)
 
             # Check that the file was actually filled in as in not just the created template

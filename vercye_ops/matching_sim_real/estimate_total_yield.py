@@ -47,12 +47,23 @@ def estimate_yield(tif_path, output_yield_csv_fpath, target_crs):
         logger.info(f"Pixel area: {pixel_area_m2:0.4f} square meters, {pixel_area_ha:0.6f} hectares")
 
     # Estimate mean yield, total area, and total yield
-    mean_yield = int(np.nanmean(data))  # Use nansum as there are likely nodata values in the input data
-    median_yield = int(np.nanmedian(data))
-    total_area_ha = np.sum(~np.isnan(data)) * pixel_area_ha
-    total_yield = int(np.nansum(data * pixel_area_ha))  # Use nansum as there are likely nodata values in the input data
-    total_yield_tons = total_yield / 1000
-    total_yield_tons = round(total_yield_tons, 3)
+
+    if np.isnan(data).all():
+        print("All the converted yield data is nan - this is likely a bug and should be validated.")
+        mean_yield = 0
+        median_yield = 0
+        total_area_ha = -1
+        total_yield = 0
+        total_yield_tons = 0
+    else:
+        mean_yield = int(np.nanmean(data))  # Use nansum as there are likely nodata values in the input data
+        median_yield = int(np.nanmedian(data))
+        total_area_ha = np.sum(~np.isnan(data)) * pixel_area_ha
+        total_yield = int(
+            np.nansum(data * pixel_area_ha)
+        )  # Use nansum as there are likely nodata values in the input data
+        total_yield_tons = total_yield / 1000
+        total_yield_tons = round(total_yield_tons, 3)
     logger.info(
         f"Total yield: {total_yield} kg (mean of {mean_yield} and median of {median_yield} kg/ha) for {total_area_ha:0.2f} hectares)"
     )

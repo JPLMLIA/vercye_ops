@@ -15,7 +15,7 @@ from vercye_ops.reporting.generate_lai_plot import load_lai_files, parse_lai_fil
 color_palette = px.colors.qualitative.Plotly
 mean_palette = px.colors.qualitative.Set1
 
-# HTML template with Bootstrap for a modern, responsive layout
+# HTML template with Bootstrap for a modern layout
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -67,7 +67,6 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
             df["DayOfYear"] = df["Date"].dt.dayofyear
             # Map to a base year for plotting (e.g., 2000) to align traces by month/day
             df["PlotDate"] = df["Date"].apply(lambda d: d.replace(year=2000))
-            # df['Year'] = int(year)
             df["Year"] = df["Date"].dt.year
             df["Region"] = region
             true_years.extend(df["Date"].dt.year.unique())
@@ -82,66 +81,82 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         col += " Adjusted"
 
     fig = go.Figure()
-    year_traces = {y: [] for y in true_years}
+    year_traces = {int(y): [] for y in true_years}  # indices of REGION traces for each year
+    mean_idxs = []  # indices of YEAR MEAN traces
 
-    # Individual traces
+    # Region traces (hidden by default; legend shows regions only when a year is opened)
     for (region, year), grp in full_df.groupby(["Region", "Year"]):
+        year = int(year)
         idx = len(fig.data)
         fig.add_trace(
             go.Scatter(
                 x=grp["PlotDate"],
                 y=grp[col],
                 mode="lines",
-                name=f"{region} {year}",
-                legendgroup=str(year),
-                line=dict(width=2, color=color_palette[int(year) % len(color_palette)]),
-                opacity=0.3,
+                name=str(region),
+                legendgroup=f"y{year}",
+                line=dict(width=2, color=color_palette[hash(region) % len(color_palette)]),
+                opacity=0.6,
                 visible=False,
-                showlegend=False,
-                customdata=grp["Date"],  # for hover
+                showlegend=True,
+                customdata=grp["Date"],
                 hovertemplate="Date: %{customdata|%d/%m/%Y}<br>LAI: %{y:.2f}<extra></extra>",
             )
         )
         year_traces[year].append(idx)
 
-    # Mean trace per year
-    for i, year in enumerate(true_years):
-        df_y = full_df[full_df["Year"] == int(year)]
+    # Mean trace per year (visible in aggregated view; legend shows YEARS)
+    added_years = []
+    for year in sorted(set(map(int, true_years))):
+        df_y = full_df[full_df["Year"] == year]
         if df_y.empty:
             continue
-        # group by DayOfYear and compute mean of LAI
         m = df_y.groupby("DayOfYear")[col].mean().reset_index()
-        # map back to plotting dates in base year
         m["PlotDate"] = m["DayOfYear"].apply(
             lambda doy: pd.Timestamp(year=2000, month=1, day=1) + pd.Timedelta(days=doy - 1)
         )
+        idx = len(fig.data)
         fig.add_trace(
             go.Scatter(
                 x=m["PlotDate"],
                 y=m[col],
                 mode="lines",
-                name=f"{year} Mean",
-                legendgroup=str(year),
-                line=dict(width=4, color=mean_palette[i % len(mean_palette)]),
+                name=str(year),
+                legendgroup=f"y{year}",
+                line=dict(width=4, color=mean_palette[len(added_years) % len(mean_palette)]),
                 opacity=1,
                 visible=True,
+                showlegend=True,
                 hovertemplate="Date: %{x|%d/%m}<br>Mean LAI: %{y:.2f}<extra></extra>",
             )
         )
+        mean_idxs.append(idx)
+        added_years.append(year)
 
-    # Buttons to toggle individual traces by year
     buttons = []
-    for year, idxs in year_traces.items():
+    vis_agg = [False] * len(fig.data)
+    for i in mean_idxs:
+        vis_agg[i] = True
+    buttons.append(
+        dict(
+            label="All Years (aggregated)",
+            method="update",
+            args=[{"visible": vis_agg}, {"title": f"{col} by Day-of-Year — Aggregated by Year"}],
+        )
+    )
+
+    # One button per year -> within-year (regions only)
+    for year, idxs in sorted(year_traces.items()):
         if not idxs:
             continue
+        vis_year = [False] * len(fig.data)
+        for i in idxs:
+            vis_year[i] = True
         buttons.append(
             dict(
-                label=str(year),
+                label=f"{year} (regions)",
                 method="update",
-                args=[
-                    {"visible": [i in idxs for i in range(len(fig.data))]},
-                    {"title": f"{col} by Day-of-Year"},
-                ],
+                args=[{"visible": vis_year}, {"title": f"{col} by Day-of-Year — Regions in {year}"}],
             )
         )
 
@@ -151,7 +166,7 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     tick_text = month_starts.strftime("%b")
 
     fig.update_layout(
-        title=dict(text=f"{col} by Day-of-Year", x=0.5),
+        title=dict(text=f"{col} by Day-of-Year — Aggregated by Year", x=0.5),
         xaxis=dict(title="Month", tickmode="array", tickvals=tick_vals, ticktext=tick_text, type="date"),
         yaxis=dict(title=f'LAI {"Adjusted" if adjusted else "Non-Adjusted"}'),
         template="plotly_white",
@@ -163,15 +178,16 @@ def plot_lai_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
                 type="buttons",
                 direction="left",
                 buttons=buttons,
-                x=1.1,
-                y=1.1,
-                showactive=False,
+                x=1.0,
+                y=1.15,
+                showactive=True,
                 bgcolor="white",
                 bordercolor="LightSkyBlue",
                 borderwidth=1,
                 font=dict(size=12),
             )
         ],
+        legend=dict(title="", orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     )
 
     return fig

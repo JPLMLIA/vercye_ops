@@ -1,5 +1,7 @@
 import os
 import os.path as op
+from datetime import date as Date
+from typing import List
 
 import click
 import geopandas as gpd
@@ -11,35 +13,44 @@ from shapely.wkt import loads
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from vercye_ops.met_data.download_chirps_data import (
+    ProductType,
+    ProductVersion,
+    get_chirps_file_path,
+    version_supports_type,
+)
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
 
-def get_region_name(region_geometry_file):
+def get_region_name(region_geometry_file: str):
     return region_geometry_file.split("/")[-1].split(".")[0]
 
 
-def get_dates_range(start_date, end_date):
+def get_dates_range(start_date: Date, end_date: Date):
     """Generate a range of dates between the start and end dates."""
     return pd.date_range(start_date, end_date)
 
 
-def all_chirps_data_exists(dates, chirps_dir):
+def all_chirps_data_exists(dates: List[Date], chirps_dir: str, version: ProductVersion):
     """
     Validate that the CHIRPS data files exist for the given date range.
     """
     for date in dates:
-        chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
-        chirps_prelim_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}_prelim.tif')
-        if not op.exists(chirps_file_path) and not op.exists(chirps_prelim_file_path):
-            logger.error(
-                "CHIRPS data not found for date %s. This data should be present under: %s",
-                date,
-                chirps_file_path,
-            )
-            return False
+        chirps_file_path = get_chirps_file_path(chirps_dir, date, version, ProductType.FINAL)
+        if not op.exists(chirps_file_path):
+            if version_supports_type(version, ProductType.PRELIM):
+                if os.path.exists(get_chirps_file_path(chirps_dir, date, version, ProductType.PRELIM)):
+                    continue
 
+                logger.error(
+                    "CHIRPS data not found for date %s. This data should be present under: %s",
+                    date,
+                    chirps_file_path,
+                )
+
+            return False
     return True
 
 
@@ -65,7 +76,7 @@ def is_coord_within_bounds(lon, lat, bounds):
     return lon >= bounds[0] and lon <= bounds[2] and lat >= bounds[1] and lat <= bounds[3]
 
 
-def load_geometry(geometry_path, epsg=4326):
+def load_geometry(geometry_path: str, epsg=4326):
     geometry = gpd.read_file(geometry_path)
 
     if geometry.crs != rio.crs.CRS.from_epsg(epsg):
@@ -74,28 +85,30 @@ def load_geometry(geometry_path, epsg=4326):
     return geometry
 
 
-def read_chirps_file(chirps_dir, date):
-    """Generate the file path for a given date and read the CHIRPS data file."""
-    chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}.cog')
+def get_available_chirps_file(chirps_dir: str, date: Date, chirps_version: ProductVersion):
+    """Generate the file path (with fallback to prelim data) for a given date."""
+    chirps_file_path = get_chirps_file_path(chirps_dir, date, chirps_version, ProductType.FINAL)
 
     if not op.exists(chirps_file_path):
-        chirps_file_path = op.join(chirps_dir, f'chirps-v2.0.{date.strftime("%Y.%m.%d")}_prelim.tif')
+        try:
+            chirps_file_path = get_chirps_file_path(chirps_dir, date, chirps_version, ProductType.PRELIM)
+            if not os.path.exists(chirps_file_path):
+                raise FileNotFoundError()
+        except Exception:
+            raise FileNotFoundError(f"CHIRPS data not found for date {date}.")
 
-    if not op.exists(chirps_file_path):
-        raise FileNotFoundError(f"CHIRPS data not found for date {date}.")
-
-    return rio.open(chirps_file_path)
+    return chirps_file_path
 
 
-def process_centroid_data(chirps_dir, date, centroids):
+def process_centroid_data(chirps_file, centroids):
     """Process CHIRPS data using the centroid aggregation method."""
     centroid_values = []
 
-    with read_chirps_file(chirps_dir, date) as src:
+    with rio.open(chirps_file) as src:
         try:
             centroid_values = [val[0] for val in src.sample(centroids)]
         except IndexError as e:
-            raise IndexError(f"Coordinates out of bounds for date {date}: {e}")
+            raise IndexError(f"Coordinates out of bounds for  {chirps_file}: {e}")
 
     return centroid_values
 
@@ -138,11 +151,11 @@ def rasterize_geometries(dataset, geometries):
     return masks
 
 
-def process_mean_data(chirps_dir, date, geometry_masks):
+def process_mean_data(chirps_file, geometry_masks):
     """Process CHIRPS data using the mean aggregation method."""
     mean_values = []
 
-    with read_chirps_file(chirps_dir, date) as src:
+    with rio.open(chirps_file) as src:
         for mask_array, mask_window in geometry_masks:
             chirps_data = src.read(1, window=mask_window)
             masked_data = np.where(mask_array, chirps_data, np.nan)
@@ -150,7 +163,7 @@ def process_mean_data(chirps_dir, date, geometry_masks):
     return mean_values
 
 
-def construct_chirps_precipitation_files(dates, aggregation_method, regions_base_dir, chirps_dir):
+def construct_chirps_precipitation_file(dates, aggregation_method, regions_base_dir, chirps_dir, version):
     region_names = [
         region_name
         for region_name in os.listdir(regions_base_dir)
@@ -165,7 +178,7 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
 
     # Only keep those regions that have a valid geometry file
     prec_data = []
-    chirps_bounds = [-180.0, -50.0, 180.0, 50.0]
+    chirps_bounds = [-180.0, -60.0, 180.0, 60.0] if version == ProductVersion.V3 else [-180.0, -50.0, 180.0, 50.0]
 
     region_gdfs_unfiltered = [
         load_geometry(region_geometry_file, chirps_epsg) for region_geometry_file in region_geometry_files
@@ -188,7 +201,7 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
 
         logger.info("Rasterizing regions of interest.")
         geometry_masks = None
-        with read_chirps_file(chirps_dir, dates[0]) as ds:
+        with rio.open(get_available_chirps_file(chirps_dir, dates[0], version)) as ds:
             geometry_masks = rasterize_geometries(ds, region_gdfs)
     else:
         raise ValueError(f"Invalid aggregation method: {aggregation_method}")
@@ -196,10 +209,11 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
     logger.info(f'Computing daily results for each region with aggregation method "{aggregation_method}".')
     with logging_redirect_tqdm():
         for date in tqdm(dates, desc="Aggregating Chirps Data"):
+            chirps_file = get_available_chirps_file(chirps_dir, date, version)
             if aggregation_method == "centroid":
-                regional_results = process_centroid_data(chirps_dir, date, region_centroids)
+                regional_results = process_centroid_data(chirps_file, region_centroids)
             elif aggregation_method == "mean":
-                regional_results = process_mean_data(chirps_dir, date, geometry_masks)
+                regional_results = process_mean_data(chirps_file, geometry_masks)
             prec_data.append(regional_results)
 
     df = pd.DataFrame(prec_data, index=dates, columns=region_names)
@@ -230,22 +244,31 @@ def construct_chirps_precipitation_files(dates, aggregation_method, regions_base
     help="Method to spatially aggregate precipitation data.",
 )
 @click.option("--output_file", help="Output File", type=click.Path())
-def cli_wrapper(start_date, end_date, regions_base_dir, chirps_dir, aggregation_method, output_file):
-    # TODO: Currently keeping all results in memory for every region and date.
-    # We might want to add an iterative approach, defining a max number of regions to process at once
-    # and then saving the results to disk before moving on to the next batch.
+@click.option(
+    "--version",
+    type=click.Choice([2, 3]),
+    default=2,
+    show_default=True,
+    help="The CHIRPS data Version to use. Either 2 or 3.",
+)
+def cli_wrapper(start_date, end_date, regions_base_dir, chirps_dir, aggregation_method, output_file, version):
+    # TODO: we might want to add some parallelization by date.
     logger.setLevel("INFO")
     required_dates = get_dates_range(start_date, end_date)
 
+    version = ProductVersion(version)
+
     # Download CHIRPS data for the given data range
     logger.info("Validating that CHIRPS data is available for all dates.")
-    if not all_chirps_data_exists(required_dates, chirps_dir):
+    if not all_chirps_data_exists(required_dates, chirps_dir, version):
         raise FileNotFoundError(
             "CHIRPS data incomplete. Please download the data first. You may use the download_chirps_data.py script."
         )
 
     logger.info("Constructing Chirps precipitation data for all regions")
-    prec_df = construct_chirps_precipitation_files(required_dates, aggregation_method, regions_base_dir, chirps_dir)
+    prec_df = construct_chirps_precipitation_file(
+        required_dates, aggregation_method, regions_base_dir, chirps_dir, version
+    )
 
     logger.info("Saving Chirps precipitation data to %s", output_file)
     os.makedirs(op.dirname(output_file), exist_ok=True)

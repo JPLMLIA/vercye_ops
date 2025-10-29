@@ -331,7 +331,7 @@ const StudiesPage = () => {
               const s = statuses[id] ?? 'pending';
               const canResults = s === 'completed';
               const canCancel = s === 'running' || s === 'validating';
-              const canRun = s === 'ready' ||  s === 'failed' || s === 'completed';
+              const canRun = s === 'ready' ||  s === 'failed' || s === 'completed' || s === 'cancelled';
               const canConfigure = s !== 'running'
               return (
                 <tr key={id}>

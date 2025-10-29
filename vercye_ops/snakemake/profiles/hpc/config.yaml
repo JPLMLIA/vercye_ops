@@ -1,7 +1,7 @@
 # The profile for the execution of the yield study through snakemake
 # If the executon crashes, you might want to reduce the number of cores
 
-cores: 60 # Number of cores to use. Limits paralellism
+cores: 100 # Number of cores to use. Limits paralellism
 retries: 3 # Number of retries of failed rules
 
 # Do not change: Limit in paralellism for specific rules

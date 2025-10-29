@@ -129,7 +129,9 @@ def main(
             "granule-metadata",
         ]
         # 'cosVZA', 'cosSZA', 'cosRAA' will be prepended by the custom band processor
-        if resolution == 10:
+        # if resolution == 10:
+        print("ATTENTION 10m model disabled. Using 20m model for all.")
+        if False:
             # ['B2', 'B3', 'B4', 'B8']
             band_assets = ["B02", "B03", "B04", "B08"]
         else:
