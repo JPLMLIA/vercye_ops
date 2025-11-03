@@ -188,7 +188,7 @@ This file defines the study parameters and links the **simulation head directory
 
 
 #### Evaluation Parameters
-- `aggregation_levels`: Allows evaluation at multiple administrative levels: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results.
+- `aggregation_levels`: Allows evaluation at multiple administrative levels: Dictionary where the keys are names for levels at which results should be aggregated for evaluation and values are columns in the shapefile allowing to aggregate simulation level results. This is used to aggregate predicted yield, but also to report aggregated (mean) LAI curves per region.
 
 **IMPORTANT**: Neither the key nor the value may contain colons! If this is the case, please ensure you rename your shapefile.
 

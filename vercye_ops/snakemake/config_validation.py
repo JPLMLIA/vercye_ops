@@ -186,7 +186,7 @@ def _validate_apsim_params(config):
 
     # Validate precipitation source
     precip_source = apsim_params.get("precipitation_source", "")
-    valid_precip_sources = ["NASA_POWER", "CHIRPS", "ERA5"]
+    valid_precip_sources = ["NASA_POWER", "CHIRPS_V2", "CHIRPS_V3", "ERA5"]
     if precip_source not in valid_precip_sources:
         raise ValueError(f"Invalid precipitation_source: {precip_source}. Must be one of {valid_precip_sources}")
 
@@ -199,7 +199,7 @@ def _validate_apsim_params(config):
             print(f"✓ Created cache directory: {cache_dir}")
 
     # Validate CHIRPS directory if needed
-    if precip_source == "CHIRPS":
+    if "CHIRPS" in precip_source:
         chirps_dir = apsim_params.get("chirps_dir", "")
         if not chirps_dir:
             raise ValueError("chirps_dir is required when precipitation_source is 'CHIRPS'")

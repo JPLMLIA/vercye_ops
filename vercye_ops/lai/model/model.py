@@ -55,48 +55,49 @@ default_model_weights = {
             },
         },
     },
-    "HLS_S30": {
-        "default_resolution": 30,
-        "configs": {
-            30: {
-                "weights_path": rel_path(
-                    "../trained_models/L8_sl2p_weiss_or_prosail_NNT3_Single_0_1_fromGEEFC_LAI.pth"
-                ),
-                "channels": [
-                    "cosVZA",
-                    "cosSZA",
-                    "cosRAA",
-                    "B3",
-                    "B4",
-                    "B8A",
-                    "B11",
-                    "B12",
-                ],
-                "input_scaling": [0.0001, 0.0001, 0.0001, 1, 1, 1, 1, 1],
-            },
-        },
-    },
-    "HLS_L30": {
-        "default_resolution": 30,
-        "configs": {
-            30: {
-                "weights_path": rel_path(
-                    "../trained_models/L8_sl2p_weiss_or_prosail_NNT3_Single_0_1_fromGEEFC_LAI.pth"
-                ),
-                "channels": [
-                    "cosVZA",
-                    "cosSZA",
-                    "cosRAA",
-                    "B3",
-                    "B4",
-                    "B5",
-                    "B6",
-                    "B7",
-                ],
-                "input_scaling": [0.0001, 0.0001, 0.0001, 1, 1, 1, 1, 1],
-            },
-        },
-    },
+    # HLS is not yet properly working and is WIP that was accidentally merged on main
+    # "HLS_S30": {
+    #     "default_resolution": 30,
+    #     "configs": {
+    #         30: {
+    #             "weights_path": rel_path(
+    #                 "../trained_models/L8_sl2p_weiss_or_prosail_NNT3_Single_0_1_fromGEEFC_LAI.pth"
+    #             ),
+    #             "channels": [
+    #                 "cosVZA",
+    #                 "cosSZA",
+    #                 "cosRAA",
+    #                 "B3",
+    #                 "B4",
+    #                 "B8A",
+    #                 "B11",
+    #                 "B12",
+    #             ],
+    #             "input_scaling": [0.0001, 0.0001, 0.0001, 1, 1, 1, 1, 1],
+    #         },
+    #     },
+    # },
+    # "HLS_L30": {
+    #     "default_resolution": 30,
+    #     "configs": {
+    #         30: {
+    #             "weights_path": rel_path(
+    #                 "../trained_models/L8_sl2p_weiss_or_prosail_NNT3_Single_0_1_fromGEEFC_LAI.pth"
+    #             ),
+    #             "channels": [
+    #                 "cosVZA",
+    #                 "cosSZA",
+    #                 "cosRAA",
+    #                 "B3",
+    #                 "B4",
+    #                 "B5",
+    #                 "B6",
+    #                 "B7",
+    #             ],
+    #             "input_scaling": [0.0001, 0.0001, 0.0001, 1, 1, 1, 1, 1],
+    #         },
+    #     },
+    # },
 }
 
 

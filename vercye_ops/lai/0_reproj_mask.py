@@ -31,7 +31,7 @@ def find_union_extent_LAI_info(
 
     if not lai_files:
         raise Exception(
-            f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution} and extension {lai_file_ext} and specified date range."
+            f"No LAI files found in {lai_dir} for region {lai_region} with resolution {lai_resolution} and extension {lai_file_ext} and date range {start_date} - {end_date}."
         )
 
     union_bounds = None

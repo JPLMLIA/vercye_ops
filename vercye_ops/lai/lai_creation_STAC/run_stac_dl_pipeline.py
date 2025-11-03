@@ -182,7 +182,7 @@ def run_pipeline(config, logger):
 
             if geo1 != geo2:
                 raise ValueError(
-                    "Cant create LAI data in an output directory with existing LAI data that was produced with a different shapefile."
+                    "Can't create LAI data in an output directory with existing LAI data that was produced with a different shapefile. Ensure to use the same!"
                 )
     else:
         # Copy geojson to outdir for reproducability

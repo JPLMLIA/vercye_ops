@@ -57,29 +57,25 @@ def read_met_file(filepath):
     return df
 
 
-def plot_map(gdf, column, cmap, title, legend_label, pdf_pages):
-    fig, ax = plt.subplots(1, 1, figsize=(14, 14))
+def plot_map_on_ax(gdf, column, cmap, title, legend_label, ax):
+    # draw polygons and borders
     gdf.boundary.plot(ax=ax, linewidth=1, edgecolor="black")
     gdf.plot(column=column, ax=ax, cmap=cmap, alpha=0.6, edgecolor="k")
 
-    # Add colorbar
+    # colorbar per axis
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%")
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=gdf[column].min(), vmax=gdf[column].max()))
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    norm = plt.Normalize(vmin=gdf[column].min(), vmax=gdf[column].max())
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm._A = []
-    cbar = fig.colorbar(sm, cax=cax)
-    cbar.set_label(legend_label, fontsize=14)
+    cbar = plt.colorbar(sm, cax=cax)
+    cbar.set_label(legend_label, fontsize=10)
 
-    ax.set_title(title, fontsize=18, loc="left", pad=20)
-    plt.xlabel("Longitude", fontsize=14)
-    plt.ylabel("Latitude", fontsize=14)
-
-    plt.tight_layout()
-    fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-    fig.set_facecolor("white")
-
-    pdf_pages.savefig(fig)
-    plt.close(fig)
+    # axis cosmetics
+    ax.set_title(title, fontsize=12, loc="left", pad=8)
+    ax.set_xlabel("Longitude", fontsize=9)
+    ax.set_ylabel("Latitude", fontsize=9)
+    ax.tick_params(labelsize=8)
 
 
 def aggregate_data(data):
@@ -172,105 +168,43 @@ def aggregate_met_stats(regions_base_dir, year, num_last_years):
 
 
 def plot_stats_and_save(single_year_data, multi_year_data, year, num_last_years, out_file_path):
-    with PdfPages(out_file_path) as pdf_pages:
-        plot_map(
-            single_year_data,
-            "rain",
-            "Blues",
-            f"Year {year}: Average Annual Rainfall (mm)",
-            "Annual Rainfall (mm)",
-            pdf_pages,
-        )
-        plot_map(
-            single_year_data,
-            "meant",
-            "coolwarm",
-            f"Year {year}: Average Mean Temperature (°C)",
-            "Mean Temperature (°C)",
-            pdf_pages,
-        )
-        plot_map(
-            single_year_data,
-            "maxt",
-            "OrRd",
-            f"Year {year}: Average Max Temperature (°C)",
-            "Max Temperature (°C)",
-            pdf_pages,
-        )
-        plot_map(
-            single_year_data,
-            "mint",
-            "Blues",
-            f"Year {year}: Average Min Temperature (°C)",
-            "Min Temperature (°C)",
-            pdf_pages,
-        )
-        plot_map(
-            single_year_data,
-            "radn",
-            "YlOrBr",
-            f"Year {year}: Average Radiation (MJ/m^2)",
-            "Radiation (MJ/m^2)",
-            pdf_pages,
-        )
-        plot_map(
-            single_year_data,
-            "wind",
-            "PuBu",
-            f"Year {year}: Average Wind Speed (km/h)",
-            "Wind Speed (km/h)",
-            pdf_pages,
-        )
+    # 12 plots total (6 single-year + 6 multi-year) -> 3 rows x 4 columns
+    fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(28, 18), constrained_layout=False)
 
-        plot_map(
-            multi_year_data,
-            "rain",
-            "Blues",
-            f"Last {num_last_years} years: Average Annual Rainfall (mm)",
-            "Annual Rainfall (mm)",
-            pdf_pages,
-        )
-        plot_map(
-            multi_year_data,
-            "meant",
-            "coolwarm",
-            f"Last {num_last_years} years: Average Mean Temperature (°C)",
-            "Mean Temperature (°C)",
-            pdf_pages,
-        )
-        plot_map(
-            multi_year_data,
-            "maxt",
-            "OrRd",
-            f"Last {num_last_years} years: Average Max Temperature (°C)",
-            "Max Temperature (°C)",
-            pdf_pages,
-        )
-        plot_map(
-            multi_year_data,
-            "mint",
-            "Blues",
-            f"Last {num_last_years} years: Average Min Temperature (°C)",
-            "Min Temperature (°C)",
-            pdf_pages,
-        )
-        plot_map(
-            multi_year_data,
-            "radn",
-            "YlOrBr",
-            f"Last {num_last_years} years:Average Radiation (MJ/m^2)",
-            "Radiation (MJ/m^2)",
-            pdf_pages,
-        )
-        plot_map(
-            multi_year_data,
-            "wind",
-            "PuBu",
-            f"Last {num_last_years} years: Average Wind Speed (km/h)",
-            "Wind Speed (km/h)",
-            pdf_pages,
-        )
-        pdf_pages.close()
+    # Define plot specs once
+    specs = [
+        ("rain", "Blues", "Average Annual Rainfall (mm)", "Annual Rainfall (mm)"),
+        ("meant", "coolwarm", "Average Mean Temperature (°C)", "Mean Temperature (°C)"),
+        ("maxt", "OrRd", "Average Max Temperature (°C)", "Max Temperature (°C)"),
+        ("mint", "Blues", "Average Min Temperature (°C)", "Min Temperature (°C)"),
+        ("radn", "YlOrBr", "Average Radiation (MJ/m^2)", "Radiation (MJ/m^2)"),
+        ("wind", "PuBu", "Average Wind Speed (km/h)", "Wind Speed (km/h)"),
+    ]
+
+    # Row 0–1: single-year (first 6) and multi-year (next 6) spread across 3x4 grid
+    # We'll fill left-to-right, top-to-bottom
+    all_items = []
+    for var, cmap, base_title, legend in specs:
+        all_items.append((single_year_data, var, cmap, f"Year {year}: {base_title}", legend))
+    for var, cmap, base_title, legend in specs:
+        all_items.append((multi_year_data, var, cmap, f"Last {num_last_years} years: {base_title}", legend))
+
+    # Plot each item into the grid
+    for i, (gdf, var, cmap, title, legend) in enumerate(all_items):
+        r, c = divmod(i, 4)
+        ax = axes[r, c]
+        plot_map_on_ax(gdf, var, cmap, title, legend, ax)
+
+    # Big overall title
+    fig.suptitle(f"Meteorological Summary — Year {year} vs Last {num_last_years} Years", fontsize=18, y=0.98)
+
+    # Tighter layout with room for colorbars
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    # Save a single page PDF
+    with PdfPages(out_file_path) as pdf_pages:
+        pdf_pages.savefig(fig, facecolor="white")
+    plt.close(fig)
 
 
 def get_reference_metadata(reference_tif):
