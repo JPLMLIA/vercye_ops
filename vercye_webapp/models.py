@@ -137,3 +137,10 @@ class LAIGenerationConfig(BaseModel):
     date_ranges: List[LAIGenerationDateRange]
     imagery_src: Literal["MPC", "ES_S2C1"]
     chunk_days: int
+
+class AddLaiDatesConfig(BaseModel):
+    resolution: int
+    keep_imagery: bool
+    name: str
+    date_ranges: List[LAIGenerationDateRange]
+    chunk_days: int

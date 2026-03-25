@@ -67,7 +67,7 @@ rule all:
         final_report = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         #interactive_viz = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_viz_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
-        multiyear_report = op.join(config['sim_study_head_dir'], 'multiyear_summary_{}.html'.format(sanitize_filename(config['study_id']))),
+        multiyear_report = op.join(config['sim_study_head_dir'], 'multiyear_summary_{}.zip'.format(sanitize_filename(config['study_id']))),
         interactive_vizs = expand(
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_map_{}_{}_{}.zip'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
             year=config['years'],
@@ -109,7 +109,7 @@ rule construct_chirps_data:
     log:
         'logs_construct_chirps_data/{year}_{timepoint}_chirps.log',
     output:
-        csv = temp(op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet')),
+        csv = op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet'),
     shell:
         """
         python {params.script_fpath} \
@@ -352,23 +352,31 @@ rule update_apsimx_template:
     output:
         apsimx_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx')
     shell:
-        """
+        r"""
         # If sowing date available load and ingest it into APSIM template
         {params.jq_load_statement}
-        SOWINGDATE_CMD=""
+
+        SOWINGDATE_CMD=()
         if [[ -n "{params.sowing_date_col}" ]]; then
-            SOWINGDATE=$(jq -r ".features[].properties.{params.sowing_date_col} // empty" "{input.geometry}" | cut -d'T' -f1)
+            # Read the sowing date from the GeoJSON, even if the key has spaces.
+            SOWINGDATE=$(
+                jq -r --arg key "{params.sowing_date_col}" '
+                    .features[].properties[$key] // empty
+                    | (split("T")[0])
+                ' "{input.geometry}"
+            )
+
             if [[ -n "$SOWINGDATE" && "$SOWINGDATE" != "null" ]]; then
-                SOWINGDATE_CMD="--sowing_date $SOWINGDATE"
+                SOWINGDATE_CMD=(--sowing_date "$SOWINGDATE")
             fi
         fi
 
         python {params.script_fpath} \
-        --apsimx_template_fpath {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_template.apsimx \
-        --apsimx_output_fpath {output.apsimx_fpath} \
-        --new_met_fpath {input.met_fpath} \
-        ${{SOWINGDATE_CMD}} \
-        --verbose > {log}
+          --apsimx_template_fpath {params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_template.apsimx \
+          --apsimx_output_fpath {output.apsimx_fpath} \
+          --new_met_fpath {input.met_fpath} \
+          ${{SOWINGDATE_CMD[@]}} \
+          --verbose > {log}
         """
 
 # Rule to run the APSIM executable either with docker or local executable on .apsimx files
@@ -385,6 +393,7 @@ rule execute_simulations:
             config['apsim_execution']['docker']['platform'],
             config['apsim_execution']['local']['executable_fpath'],
             config['apsim_execution']['local']['n_jobs'],
+            config["apsim_execution"]["local"]["dotnet_root"],
             input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
@@ -418,6 +427,7 @@ rule reproject_cropmask:
         lai_resolution = config['lai_params']['lai_resolution'],
         lai_file_ext = config['lai_params']['file_ext'],
         date_range = lambda wildcards: get_lai_date_range(config['lai_params']['time_bounds'][int(wildcards.year)]),
+        ref_lai_fp = glob.glob(os.path.join(config['lai_params']['lai_dir'], f"{config['lai_params']['lai_region']}_{config['lai_params']['lai_resolution']}m_*"))[0]
     log:
         'logs_reproject_cropmask/{year}.log'
     output:
@@ -427,12 +437,7 @@ rule reproject_cropmask:
         python {params.executable_fpath} \
         {input.original_cropmask} \
         {output.reproj_cropmask} \
-        --lai_dir {params.lai_dir} \
-        --lai_region {params.lai_region} \
-        --lai_file_ext {params.lai_file_ext} \
-        --start_date {params.date_range[0]} \
-        --end_date {params.date_range[1]} \
-        --lai_resolution {params.lai_resolution} > {log}
+        --lai_path {params.ref_lai_fp} > {log}
         """ if config['lai_params']['do_cropmask_reprojection'] else 'cp {input.original_cropmask} {output.reproj_cropmask}'
 
 # Clip the original cropmask
@@ -1002,7 +1007,7 @@ rule generate_multiyear_comparison:
     log:
         op.join('logs_generate_multiyear_summary', f"{config['study_id']}_multiyear_summary.log")
     output:
-        op.join(config['sim_study_head_dir'], f"multiyear_summary_{config['study_id']}.html")
+        op.join(config['sim_study_head_dir'], f"multiyear_summary_{config['study_id']}.zip")
     shell:
         """
         python {params.executable_fpath} \

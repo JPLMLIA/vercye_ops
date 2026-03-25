@@ -131,7 +131,7 @@ const buildCartesianWindows = (
 };
 
 function loadColValues(column: string, _shapefileFile?: File | null): string[] {
-  if (!column) return ["all"];
+  if (!column) return [];
 
   // Expect the parsed GeoJSON to be set during handleFileUpload:
   // (window as any).__lastShapefileGeoJSON = geojson;
@@ -151,7 +151,7 @@ function loadColValues(column: string, _shapefileFile?: File | null): string[] {
     )
   ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 
-  return ["all", ...values];
+  return values;
 }
 
 const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }) => {
@@ -173,9 +173,6 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
   const [timepoints, setTimepoints] = useState<string[]>([])
   const [windows, setWindows] = useState<WindowConfig[]>([])
 
-  const updateWindow = (id: string, patch: Partial<WindowConfig>) =>
-    setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch } : w)));
-
   // APSIM mapping: each APSIM file -> one target from regionAllowedValues
   const apsimSources: MapperSource[] = useMemo(
     () => apsimFiles.map((f, i) => ({ id: f.name, label: f.name, file: f })),
@@ -193,17 +190,17 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
   const [referenceYearsMapping, setReferenceYearsMapping] = useState<MappingState>({})
 
   const [isInitialized, setIsInitialized] = useState(false)
-
   const [usePattern, setUsePattern] = useState(false)
-
   const [timepointPatterns, setTimepointPatterns] = useState<{[tp: string]: TimepointPattern}>({})
 
   const { show, Toast } = useToast();
 
+  const updateWindow = (id: string, patch: Partial<WindowConfig>) =>
+    setWindows((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch } : w)));
+
   useEffect(() => {
     if (!initialData) {setIsInitialized(true); return}
     (window as any).__lastShapefileGeoJSON = initialData.shapefileData;
-    console.log(initialData.shapefileName)
     setShapefileUpload(new File([], initialData.shapefileName))
 
     const detectedColumns = getAllColumnNames(initialData.shapefileData)
@@ -219,6 +216,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     setApsimMapping(initialData.apsimMapping || {});
     setApsimFiles(initialData.apsimFiles.map((name) => new File([], name)));
 
+    setAggregationLevels([...new Set(Object.values(initialData.referenceMapping))]);
     setReferenceMapping(initialData.referenceMapping || {});
     setReferenceYearsMapping(initialData.referenceYearsMapping || {});
     setReferenceFiles(initialData.referenceFiles.map((name) => new File([], name)));
@@ -241,14 +239,39 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     });
   }, [apsimSources, isInitialized]);
 
+  // Keep reference mapping in sync when reference files change (cleanup removed sources)
   useEffect(() => {
-    if (!isInitialized) return
+    if (!isInitialized) return;
     setReferenceMapping((prev) => {
       const next: MappingState = {};
-      refSources.forEach((s) => (next[s.id] = prev[s.id] || ""));
+      refSources.forEach((s) => (next[s.id] = (prev[s.id] ?? "") as string));
       return next;
     });
   }, [refSources, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    setReferenceYearsMapping(prev => {
+      const next: MappingState = {};
+      refSources.forEach(s => {
+        const v = prev[s.id];
+        // keep only if still a valid year, otherwise reset
+        next[s.id] = (typeof v === 'string' && years.includes(v)) ? v : "";
+      });
+      return next;
+    });
+  }, [refSources, years, isInitialized]);
+
+    useEffect(() => {
+    if (!isInitialized) return;
+    setReferenceYearsMapping(prev => {
+      const next: MappingState = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        next[k] = (typeof v === 'string' && years.includes(v)) ? v : "";
+      });
+      return next;
+    });
+  }, [years, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return
@@ -446,6 +469,15 @@ useEffect(() => {
         ? { column: regionFilterColumn, allow: regionAllowedValues }
         : undefined;
 
+    if (referenceFiles.length > 0) {
+      for (const f of referenceFiles) {
+        const y = referenceYearsMapping[f.name];
+        if (!y || typeof y !== 'string' || !years.includes(y)) {
+          throw new Error(`Please select a valid year for reference file: ${f.name}`);
+        }
+      }
+    }
+
     return {
       shapefile: shapefileUpload,
       regionExtraction: {
@@ -565,7 +597,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* ========================= Region Extraction ========================= */}
+      {/* Region Extraction */}
       <Fieldset
         legend="Region Extraction"
         hint="Choose your shapefile source, projection, and optional filter to restrict extracted features."
@@ -578,8 +610,20 @@ useEffect(() => {
           label="📁 Choose zipped shapefile (.zip)"
           value={shapefileUpload ? [shapefileUpload] : []}
           onChange={(files) => {
-            setShapefileUpload(files[0] ?? null);
-            if (files[0]) handleFileUpload(files);
+            const newFile = files[0] ?? null;
+            setShapefileUpload(newFile);
+
+            if (newFile) {
+              handleFileUpload(files);
+            } else {
+              setDetectedColumns([]);
+              setAdminNameColumn("");
+              setRegionFilterColumn("");
+              setRegionAllowedValues([]);
+              setApsimColumn("");
+              setApsimAllowedValues(["all"]);
+              (window as any).__lastShapefileGeoJSON = undefined;
+            }
           }}
         />
     </div>
@@ -666,7 +710,7 @@ useEffect(() => {
         </div> */}
       </Fieldset>
 
-      {/* ========================= Simulation Windows ========================= */}
+      {/* Simulation Windows*/}
       <Fieldset
         legend="Simulation Windows (Years & Timepoints)"
         hint="Add years and timepoints and fill in the required dates. These will be injected into APSIM and data fetchers."
@@ -1109,16 +1153,18 @@ useEffect(() => {
           </div>
 
 
-        <SourceTargetMapper
+        {apsimColumn ? <SourceTargetMapper
           title="Map APSIM to Region Value"
           hint="For each APSIM file, choose a target value from the the specified column."
           sources={apsimSources}
           targets={apsimAllowedValues}
           value={apsimMapping}
           onChange={setApsimMapping}
-          allowDuplicateTargets={true}
-            multi={true}
-        /></>) : ''}
+          allowDuplicateTargets={false}
+          multi={true}
+        /> : <b>Select a column in your APSIM file first!</b>
+        }
+        </>) : ''}
       </Fieldset>
 
       {/* ========================= Reference Data ========================= */}

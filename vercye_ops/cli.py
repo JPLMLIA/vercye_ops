@@ -1,11 +1,15 @@
+import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from typing import List
 
 import click
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import run_pipeline as run_imagery_dl_pipeline
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
@@ -17,6 +21,7 @@ from vercye_ops.utils.env_utils import (
     get_run_config_file_path,
     get_run_profile_path,
     get_setup_config_file_path,
+    get_snakemake_run_status_file_path,
     get_snakemake_rundir_path,
     get_snakemake_runlog_path,
     get_study_path,
@@ -135,6 +140,60 @@ def download_chirps(
     run_chirps_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
 
 
+def _is_snakemake_running_for_dir(snakemake_run_dir: str) -> bool:
+    """Check if any snakemake process is currently running with the given working directory.
+
+    Uses pgrep to search for snakemake processes whose command line references this directory.
+    Returns True if a conflicting process is found, False otherwise.
+    """
+    abs_dir = os.path.abspath(snakemake_run_dir)
+    try:
+        result = subprocess.run(
+            ["pgrep", "-af", "snakemake"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return False
+
+        for line in result.stdout.strip().splitlines():
+            if abs_dir in line and "--unlock" not in line:
+                return True
+        return False
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        # If pgrep is unavailable or times out, err on the side of caution
+        logger.warning("Could not check for running snakemake processes (pgrep unavailable or timed out).")
+        return True
+
+
+def _safe_unlock_if_needed(cmd: list, snakemake_run_dir: str):
+    """Unlock snakemake working directory only if locks are stale.
+
+    Checks for the presence of .snakemake/locks and whether any snakemake process
+    is still actively using this directory. Only unlocks if locks exist but no
+    snakemake process is running (i.e. locks are leftover from a crash/kill).
+
+    Raises RuntimeError if locks exist and a snakemake process is still running.
+    """
+    lock_dir = os.path.join(snakemake_run_dir, ".snakemake", "locks")
+
+    if not os.path.exists(lock_dir) or not os.listdir(lock_dir):
+        return  # No locks present, nothing to do
+
+    if _is_snakemake_running_for_dir(snakemake_run_dir):
+        raise RuntimeError(
+            f"Snakemake working directory '{snakemake_run_dir}' is locked and a snakemake "
+            f"process is still running for this directory. Cancel the running process first."
+        )
+
+    print(f"Stale snakemake lock detected in {snakemake_run_dir}. Auto-unlocking...")
+    cmd_unlock = cmd.copy()
+    cmd_unlock.append("--unlock")
+    subprocess.run(cmd_unlock)
+    print("Unlock complete.")
+
+
 def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snakemake_args: List[str] = None):
     """Runs the study pipeline with snakemake and the specified profile.
 
@@ -168,10 +227,18 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
     # TODO load taskset max num cores from profile file
     # Limiting with taskset since APSIM does not respect the maximum provided number of cores
 
+    profile_file = os.path.join(profile_dir, "config.yaml")
+    if not os.path.exists(profile_file):
+        raise ValueError("Profile file does not exist. Can't specify number of cores.")
+    
+    with open(profile_file, "r") as f:
+        profile = yaml.safe_load(f)
+        num_cores = str(min(int(profile["cores"]), os.cpu_count()))
+
     cmd = [
         "taskset",
         "-c",
-        "0-80",
+        f"0-{num_cores}",
         "snakemake",
         "--snakefile",
         snakefile_path,
@@ -185,11 +252,10 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
         "--rerun-incomplete",
     ]
 
-    # Need to change this!! This is Unsafe, but needed a quick workaround for operational use
-    # but can cause multiple snakemake processes on the same directory in an edgecase which we want to avoid!
-    # cmd_unlock = cmd.copy()
-    # cmd_unlock.append('--unlock')
-    # subprocess.run(cmd_unlock)
+    print("Running snakemake cmd:", " ".join(cmd))
+
+    # Auto-unlock only if locks are stale (no running snakemake for this directory)
+    _safe_unlock_if_needed(cmd, snakemake_run_dir)
 
     # Add extra snakemake args if provided, allows to run custom snaekmake options
     if extra_snakemake_args:
@@ -210,8 +276,11 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
                 preexec_fn=os.setsid,
             )
 
-            # Write process group ID to be able to call sigterm later
-            pgid = os.getpgid(process.pid)
+            # Write process group ID for external termination (e.g., from webapp)
+            # Since we use preexec_fn=os.setsid, the process becomes the leader of a new
+            # process group, so process.pid == PGID. This allows us to use os.killpg()
+            # to send signals to snakemake and all its child processes.
+            pgid = process.pid
             with open(os.path.join(snakemake_run_dir, "snakemake_task_id.txt"), "w") as f:
                 f.write(str(pgid))
 
@@ -225,8 +294,22 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
                 print("Snakemake completed successfully!")
                 update_study_status(studies_dir, study_name, "completed")
             else:
-                print(f"\nSnakemake failed with exit code: {process.returncode}")
-                update_study_status(studies_dir, study_name, "failed")
+                # Check if this was a cancellation (status set to "cancelling" by the webapp)
+                # rather than a genuine failure. Don't overwrite "cancelling" with "failed".
+                status_file = get_snakemake_run_status_file_path(studies_dir, study_name)
+                current_status = ""
+                try:
+                    with open(status_file, "r") as f:
+                        current_status = f.read().strip()
+                except OSError:
+                    pass
+
+                if current_status in ("cancelling", "cancelled"):
+                    print("\nSnakemake was cancelled.")
+                    update_study_status(studies_dir, study_name, "cancelled")
+                else:
+                    print(f"\nSnakemake failed with exit code: {process.returncode}")
+                    update_study_status(studies_dir, study_name, "failed")
                 sys.exit(process.returncode)
 
     except Exception as e:

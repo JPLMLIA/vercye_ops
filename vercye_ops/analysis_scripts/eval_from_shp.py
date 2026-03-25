@@ -7,37 +7,41 @@ from exactextract import exact_extract
 
 from vercye_ops.evaluation.evaluate_yield_estimates import compute_metrics, create_scatter_plot, save_scatter_plot
 
-shapefile = "/gpfs/data1/cmongp2/vercye/experiemnts/rayons_ref/Rayons_yield_WinterWheat-26-8-2025.shp"
-yield_column = "yield_t_ha"
+shapefile = "/gpfs/data1/cmongp2/vercye/data/yieldstudies/ukraine_best_config_03_11_25/shapefile/UKR_adm1.shp"
+yield_column = "reported_mean_yield_kg_ha"
 year_column = "year"
-yield_conversion_factor = 1000  # t/ha to kg/ha
-out_dir = "/gpfs/data1/cmongp2/vercye/experiemnts/rayons_eval_ukr_v7"
+yield_conversion_factor = 1  # t/ha to kg/ha
+out_dir = "/gpfs/data1/cmongp2/vercye/data/yieldstudies/ukraine_best_config_03_11_25/exps"
 os.makedirs(out_dir, exist_ok=True)
 
 years_rasters = {
-    "2019": "/gpfs/data1/cmongp2/sawahnr/data/ukraine/vercye_runs/Ukraine_National_V7/2019/T-0/aggregated_yield_map_ukr_v7_2019_T-0.tif",
-    "2020": "/gpfs/data1/cmongp2/sawahnr/data/ukraine/vercye_runs/Ukraine_National_V7/2020/T-0/aggregated_yield_map_ukr_v7_2020_T-0.tif",
-    "2021": "/gpfs/data1/cmongp2/sawahnr/data/ukraine/vercye_runs/Ukraine_National_V7/2021/T-0/aggregated_yield_map_ukr_v7_2021_T-0.tif",
-    "2022": "/gpfs/data1/cmongp2/sawahnr/data/ukraine/vercye_runs/Ukraine_National_V7/2022/T-0/aggregated_yield_map_ukr_v7_2022_T-0.tif",
+    "2022": "/gpfs/data1/cmongp2/vercye/data/yieldstudies/ukraine_best_config_03_11_25/ukraine_best_config_03_11_25/2022/T-0/aggregated_yield_map_ukraine_best_config_03_1_2022_T-0.tif",
 }
+
+refdata_2022 = "/gpfs/data1/cmongp2/vercye/data/yieldstudies/ukraine_best_config_03_11_25/reference_data/referencedata_oblast-2022.csv"
 
 all_gdfs = {}
 
 for year, raster in years_rasters.items():
     print(year)
     gdf = gpd.read_file(shapefile)
-    gdf = gdf[gdf[year_column] == year].copy()
+
+    # merge reported data
+    reported_gdf = gpd.read_file(refdata_2022)
+    gdf = gdf.merge(reported_gdf, left_on="NAME_1", right_on="region")
+    gdf[yield_column] =  gdf[yield_column].astype(float)
+
+    #gdf = gdf[gdf[year_column] == year].copy()
     gdf["reported_yield"] = gdf[yield_column] * yield_conversion_factor
 
     # Exactextract statistics
     with rasterio.open(raster) as src:
         print(src.nodata)
-        exit()
         stats = exact_extract(
             src,
             gdf,
             ["mean", "median"],
-            include_cols=["reported_yield", "NAME_1", "NAME_2", "year"],
+            include_cols=["reported_yield", "NAME_1",],
             output="pandas",
             include_geom=True,
         )

@@ -196,7 +196,7 @@ def plot_stats_and_save(single_year_data, multi_year_data, year, num_last_years,
         plot_map_on_ax(gdf, var, cmap, title, legend, ax)
 
     # Big overall title
-    fig.suptitle(f"Meteorological Summary — Year {year} vs Last {num_last_years} Years", fontsize=18, y=0.98)
+    fig.suptitle(f"Meteorological Summary - Year {year} vs Last {num_last_years} Years", fontsize=18, y=0.98)
 
     # Tighter layout with room for colorbars
     plt.tight_layout(rect=[0, 0, 1, 0.96])

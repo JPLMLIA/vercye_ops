@@ -47,9 +47,9 @@ studies_dir = read_studies_dir_from_env()
 
 
 @celery_app.task(name="tasks.setup_vercye_task")
-def setup_vercye_task(study_id: str, run_cfg_template_path: str = None):
+def setup_vercye_task(study_id: str, studies_dir: str):
     setup_cfg_path = get_setup_config_file_path(studies_dir, study_id)
-    config, _ = load_yaml_ruamel(setup_cfg_path)
+    setup_config, _ = load_yaml_ruamel(setup_cfg_path)
 
     real_output_dir = str(Path(setup_cfg_path).parent / Path(setup_cfg_path).parent.name)
     lai_config_path = str(Path(setup_cfg_path).parent / "lai_config.yaml")
@@ -58,15 +58,28 @@ def setup_vercye_task(study_id: str, run_cfg_template_path: str = None):
         temp_output_dir = os.path.join(temp_dir, "output")
 
         try:
-            config_path = prepare_vercye_study(config, temp_output_dir, lai_config_path)
 
-            # Update the tmppath to real study dir
-            new_config, ruamel_yaml = load_yaml_ruamel(config_path)
+            # If a config already exists, it means that the study was already prepared
+            # and the user is re-preparing it. 
+            # In this case we use the existing config as base and it has precedence over a template.
+            existing_run_cfg_path = get_run_config_file_path(studies_dir, study_id)
+            if os.path.exists(existing_run_cfg_path):
+                run_cfg_template_path = existing_run_cfg_path
+            else:
+                run_cfg_template_path = get_run_config_template_file_path(studies_dir, study_id)
 
+            # Load template config if it exists
+            template_config = None
             if os.path.exists(run_cfg_template_path):
-                # If a template file is existing, use this to prefill most run parameters
-                # Since changes might have occured during the setup these need to be transferred from the new config
                 template_config, ruamel_yaml = load_yaml_ruamel(run_cfg_template_path)
+
+            # Generate the study: Unfold regions & create config
+            config_path = prepare_vercye_study(setup_config, temp_output_dir, lai_config_path)
+            new_config, ruamel_yaml = load_yaml_ruamel(config_path)
+            
+            # If the study was created from a template, use the template
+            if template_config:
+                # Overwrite the template with all possible changes from the setup (new config)
                 template_config["regions_shp_name"] = new_config["regions_shp_name"]
                 template_config["regions"] = new_config["regions"]
                 template_config["years"] = new_config["years"]
@@ -96,11 +109,13 @@ def setup_vercye_task(study_id: str, run_cfg_template_path: str = None):
             with open(config_path, "w") as f:
                 ruamel_yaml.dump(new_config, f)
 
-            # Only move to final destination if everything succeeds
-            if os.path.exists(real_output_dir):
-                shutil.rmtree(real_output_dir)
-
-            shutil.move(temp_output_dir, real_output_dir)
+            print(config_path)
+            # Copy to final destination, overwriting existing files but keeping others
+            # TODO this will lead to snakemake having to re-run everything if files were changed
+            os.makedirs(real_output_dir, exist_ok=True)
+            shutil.copytree(temp_output_dir, real_output_dir, dirs_exist_ok=True)
+            print(temp_output_dir)
+            print(real_output_dir)
 
             # Set config status metadata after success
             run_cfg_status_path = os.path.join(studies_dir, study_id, study_id, "config_status.txt")
@@ -139,8 +154,7 @@ def uses_chirps(study_id):
 
 def ensure_chirps_daterange_complete(study_id):
     config = load_config(study_id)
-    env_vars = get_env_vars()
-    chirps_cache_dir = env_vars.get("CHIRPS_DIR", None)
+    chirps_cache_dir = config["apsim_params"][""]
     log_file_path = get_snakemake_runlog_path(studies_dir, study_id)
 
     def extract_dates(obj):

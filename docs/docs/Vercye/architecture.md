@@ -1,10 +1,11 @@
-# 📘 Vercye Architecture Documentation
+# Vercye Architecture Documentation
 
 ## Overview
 
+![VeRCYe Architecture Diagram](vercye_highlevel.png)
+
 The **VeRCYe Library** contains all core components to run the yield studies with the VeRCYe algorithm. The individual steps are contained as standalone scripts that can be individually executed via the `cli`.
 To simplify running the individual steps as a reproducible workflow, the scripts are orchestrated with **Snakemake** as a pipeline in which they are executed conditionally and in the correct order.
-
 
 ---
 

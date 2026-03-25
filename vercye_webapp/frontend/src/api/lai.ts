@@ -1,5 +1,5 @@
 
-import { GenerateLAIPayload } from '@/components/Forms/GenerateLAIForm';
+import { AddDatesPayload, GenerateLAIPayload } from '@/components/Forms/GenerateLAIForm';
 import { http } from './client';
 import type { LAIEntry } from '@/types';
 
@@ -24,6 +24,21 @@ export const LAIAPI = {
     fd.append("lai_config", JSON.stringify(laiConfigSnakeCase));
 
     return http.post<void, FormData>(`/lai/actions/generate`, fd);
+  },
+  addDates: (payload: AddDatesPayload) => {
+    const laiConfig = {
+      resolution: payload.resolution,
+      keep_imagery: payload.keep_imagery,
+      name: payload.name,
+      date_ranges: payload.date_ranges.map(dr => ({
+        start_date: dr.start_date,
+        end_date: dr.end_date
+      })),
+      chunk_days: payload.chunk_days
+    }
+    const fd = new FormData()
+    fd.append("config", JSON.stringify(laiConfig))
+    return http.post<void, FormData>(`/lai/actions/add`, fd)
   },
   retryCreate: (laiID: string, resolution: number) => {
     return http.post<void, FormData>(`/lai/${laiID}/${resolution}/actions/regenerate`);

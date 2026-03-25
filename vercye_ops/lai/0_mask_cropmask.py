@@ -1,6 +1,7 @@
 import click
 import geopandas as gpd
 import rasterio as rio
+from pyproj import CRS
 from rasterio.mask import mask
 
 
@@ -9,17 +10,31 @@ from rasterio.mask import mask
 @click.argument("shp_path", type=click.Path(exists=True))
 @click.argument("out_path", type=click.Path())
 def main(mask_path, shp_path, out_path):
-    """Zero's out cropmask outside of shp geometry"""
+    """Crop and zero's out cropmask outside of shp geometry"""
 
     # Load the input shapefile/geojson and original mask
     shp = gpd.read_file(shp_path)
-    src = rio.open(mask_path)
 
-    # Zero out pixels outside the input geometry
-    masked_src, masked_transform = mask(src, shp.geometry, crop=True, nodata=0, indexes=1)
+    with rio.open(mask_path) as src:
+        expected_crs = CRS.from_epsg(4326)
 
-    # Get metadata from the source file
-    out_meta = src.meta.copy()
+        # Validate that both inputs are in EPSG:4326
+        if src.crs is None or not CRS(src.crs).equals(expected_crs):
+            raise ValueError(
+                f"Cropmask raster CRS is {src.crs}, expected EPSG:4326. "
+                "Reproject the cropmask before running this step."
+            )
+        if shp.crs is None or not CRS(shp.crs).equals(expected_crs):
+            raise ValueError(
+                f"Geometry CRS is {shp.crs}, expected EPSG:4326. "
+                "Reproject the geometry before running this step."
+            )
+
+        # Zero out pixels outside the input geometry
+        masked_src, masked_transform = mask(src, shp.geometry, crop=True, nodata=0, indexes=1)
+
+        # Get metadata from the source file
+        out_meta = src.meta.copy()
 
     # Update the metadata with new dimensions and transform
     out_meta.update(

@@ -45,14 +45,12 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
     apsim_template_paths_filter_col = config.get("APSIM_TEMPLATE_PATHS_FILTER_COL_NAME")
     apsim_template_paths = config["APSIM_TEMPLATE_PATHS"]
 
-    if os.path.exists(output_dir):
-        raise ValueError(f"A basedirectory already exists under {output_dir}.")
-    os.makedirs(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
 
     snakefile_template_config_path = rel_path("examples/run_config_template.yaml")
     snakefile_config, ruamel_yaml = load_yaml_ruamel(snakefile_template_config_path)
 
-    # Update snakemakefile with values from the template
+    # Update snakemakefile template with real values
     snakefile_config["years"] = config["years"]
     snakefile_config["timepoints"] = config["timepoints"]
     snakefile_config["apsim_params"]["time_bounds"] = config["timepoints_config"]
@@ -224,6 +222,9 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
 
             if "EE_PROJECT_NAME" in env_vars:
                 snakefile_config["apsim_params"]["ee_project"] = env_vars["EE_PROJECT_NAME"]
+
+            if "DOTNET_ROOT_PATH" in env_vars:
+                snakefile_config["apsim_execution"]["local"]["dotnet_root"] = env_vars["DOTNET_ROOT_PATH"]
 
             if "APSIM_PATH" in env_vars:
                 snakefile_config["apsim_execution"]["local"]["executable_fpath"] = env_vars["APSIM_PATH"]

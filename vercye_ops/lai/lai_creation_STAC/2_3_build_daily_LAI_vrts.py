@@ -5,11 +5,14 @@ from collections import defaultdict
 from datetime import datetime
 from glob import glob
 from pathlib import Path
+import geopandas as gpd
 
 import click
 import rasterio as rio
 
 from vercye_ops.utils.init_logger import get_logger
+
+import multiprocessing
 
 logger = get_logger()
 logger.setLevel("INFO")
@@ -32,6 +35,36 @@ def resolutions_are_close(res_set, tolerance=1e-3):
             return False
     return True
 
+def get_geojson_bounds(geojson_path, target_crs):
+    """Extract bounds from GeoJSON file, reprojecting to target CRS if needed."""
+    gdf = gpd.read_file(geojson_path)
+    
+    # Reproject to target CRS if needed
+    if gdf.crs != target_crs:
+        logger.info(f"Reprojecting GeoJSON from {gdf.crs} to {target_crs}")
+        gdf = gdf.to_crs(target_crs)
+    
+    # Get total bounds (minx, miny, maxx, maxy)
+    return gdf.total_bounds
+
+def check_crs_and_resolution(lai_file):
+    with rio.open(lai_file) as lai_ds:
+        lai_crs = lai_ds.crs
+        res_x, res_y = lai_ds.res
+    return lai_crs, (res_x, res_y)
+
+def build_vrt(args):
+    date, paths, out_dir, region_out_prefix, res_x, res_y, crs_str, minx, miny, maxx, maxy, resolution = args
+    out_file = os.path.join(out_dir, f"{region_out_prefix}_{resolution}m_{date}_LAI.vrt")
+    logger.info(f"Processing for {out_file}")
+    result = subprocess.run(
+        ["gdalbuildvrt", "-tap", "-te", str(minx), str(miny), str(maxx), str(maxy), "-tr", str(res_x), str(res_y), 
+         "-a_srs", crs_str, out_file] + paths
+    )
+    if result.returncode != 0:
+        logger.error(f"Error creating VRT for {date}: {result.stderr}")
+    else:
+        logger.info(f"VRT created successfully for {date} at {out_file}")
 
 @click.command()
 @click.argument("lai-dir", type=click.Path(exists=True, file_okay=False))
@@ -57,7 +90,20 @@ def resolutions_are_close(res_set, tolerance=1e-3):
     required=False,
     default=None,
 )
-def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
+@click.option(
+    "--geojson-path",
+    type=click.Path(file_okay=True),
+    help="ROI GeoJson path for aligned extent.",
+    required=True,
+    default=None,
+)
+@click.option(
+    "--num-workers",
+    type=int,
+    default=1,
+    help="Number of cores to use for parallel processing.",
+)
+def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date, geojson_path, num_workers):
     """Generate daily VRTs for LAI data, combining all regions in the provided folder into a single one.
 
     Parameters
@@ -72,6 +118,8 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
         The start date for the VRTs in YYYY-MM-DD.
     end_date : str
         The end date for the VRTs in YYYY-MM-DD.
+    geojson_path: str
+        Path to ROI GeoJSON for common extent.
     """
 
     # Validate that all files have the same CRS and resolution
@@ -86,14 +134,16 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
         logger.error(f"No LAI files found in {lai_dir} with resolution {resolution}m")
         return
 
+    # Validate that all input files have the same CRS and resolution
+    # This allows for downstream tasks to assume consistent spatial properties
+    # and to be faster as they don't need to reproject or resample on the fly on each regional read
     logger.info(f"Found {len(lai_files)} LAI files in {lai_dir} with resolution {resolution}m")
     logger.info("Validating CRS and Resolution...")
-    for lai_file in lai_files:
-        with rio.open(lai_file) as lai_ds:
-            lai_crs = lai_ds.crs
-            res_x, res_y = lai_ds.res
-            crs.append(lai_crs)
-            resolutions.append((res_x, res_y))
+    with multiprocessing.Pool(num_workers) as pool:
+        crs_resolutions = pool.map(check_crs_and_resolution, lai_files)
+
+    crs = [cr for cr, _ in crs_resolutions]
+    resolutions = [res for _, res in crs_resolutions]
 
     resolutions_set = set(resolutions)
     crs_set = set(crs)
@@ -114,10 +164,24 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date):
     # Use the most frequent resolution
     res_x, res_y = max(resolutions, key=resolutions.count)
 
+    with rio.open(lai_files[0]) as src:
+        crs = src.crs
+        crs_str = crs.to_string()
+
+    # Ensure geojson is in same crs
+    bounds = get_geojson_bounds(geojson_path, crs)
+    minx, miny, maxx, maxy = bounds
+
     # Create vrt per group
-    for date, paths in date_groups.items():
-        out_file = os.path.join(out_dir, f"{region_out_prefix}_{resolution}m_{date}_LAI.vrt")
-        subprocess.run(["gdalbuildvrt", "-tr", str(res_x), str(res_y), out_file] + paths)
+    # Ensure all have same extent and resolution and crs to make them stackable
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    with multiprocessing.Pool(num_workers) as pool:
+        pool.map(build_vrt, [
+            (date, paths, out_dir, region_out_prefix, res_x, res_y, crs_str, minx, miny, maxx, maxy, resolution)
+            for date, paths in date_groups.items()
+        ])
 
     logger.info(f"VRTS created successfully in {out_dir} with prefix {region_out_prefix}")
 

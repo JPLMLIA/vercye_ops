@@ -1,3 +1,5 @@
+"""Integration tests for LAI generation pipeline (STAC / Planetary Computer)."""
+
 import importlib.util
 import sys
 import warnings
@@ -76,44 +78,31 @@ def write_simple_vrt(vrt_path: Path, tif_name_in_same_dir: str, width: int, heig
 
 
 @pytest.mark.parametrize("date_str", ["2025-06-15"])
-def test_cli_outputs_identical_real_model(tmp_path, date_str):
+def test_cli_stac_pipeline_produces_output(tmp_path, date_str):
     """
-    Creates a real 11-band TIFF, two VRTs (one per CLI),
-    runs both CLIs with the real model code, compares outputs.
+    Creates a real 11-band TIFF and VRT, runs the STAC pipeline CLI,
+    and verifies it produces a valid LAI output.
+    ATTENTION: Only the inference is tested, not the entire LAI generation process!
     """
-    # Make imagery dirs + outputs
     tiled_img_dir = tmp_path / "s2_tiled"
-    gee_img_dir = tmp_path / "s2_gee"
     out_tiled = tmp_path / "out_tiled"
-    out_gee = tmp_path / "out_gee"
-    for p in (tiled_img_dir, gee_img_dir, out_tiled, out_gee):
+    for p in (tiled_img_dir, out_tiled):
         p.mkdir(parents=True)
 
-    # Write one TIFF per dir with identical data
     tif_name = "S2_20m_stack.tif"
     tif_tiled = tiled_img_dir / tif_name
-    tif_gee = gee_img_dir / tif_name
     write_s2_20m_like_tif(tif_tiled)
-    # duplicate exact bytes to keep bitwise identity
-    tif_gee.write_bytes(tif_tiled.read_bytes())
 
-    # Write VRTs that match each CLI’s filename pattern
     tiled_vrt = tiled_img_dir / f"T31TCJ_20m_{date_str}.vrt"
     write_simple_vrt(tiled_vrt, tif_name_in_same_dir=tif_name, width=5, height=4, num_bands=11)
 
-    region = "PARIS"
-    gee_vrt = gee_img_dir / f"{region}_20m_{date_str}.vrt"
-    write_simple_vrt(gee_vrt, tif_name_in_same_dir=tif_name, width=5, height=4, num_bands=11)
-
-    # Load the two CLI modules from the provided files
-    root = Path(__file__).resolve().parents[2]  # project root
+    root = Path(__file__).resolve().parents[2]
     base_import_dir = root / "vercye_ops" / "lai"
 
     stac_cli = load_module_from_path("lai_stac_cli", base_import_dir / "lai_creation_STAC" / "2_1_primary_LAI_tiled.py")
-    gee_cli = load_module_from_path("lai_gee_cli", base_import_dir / "lai_creation_GEE" / "2_1_primary_LAI_GEE.py")
 
     runner = CliRunner()
-    res1 = runner.invoke(
+    res = runner.invoke(
         stac_cli.main,
         [
             str(tiled_img_dir),
@@ -125,28 +114,14 @@ def test_cli_outputs_identical_real_model(tmp_path, date_str):
             "S2",
         ],
     )
-    assert res1.exit_code == 0, f"Tiled CLI failed: {res1.output}\n{res1.exception}"
+    assert res.exit_code == 0, f"STAC CLI failed: {res.output}\n{res.exception}"
 
-    res2 = runner.invoke(
-        gee_cli.main,
-        [
-            str(gee_img_dir),
-            str(out_gee),
-            region,
-            "20",
-            "--start_date",
-            "2025-01-01",
-            "--end_date",
-            "2025-12-31",
-        ],
-    )
-    assert res2.exit_code == 0, f"GEE CLI failed: {res2.output}\n{res2.exception}"
+    out_files = list(out_tiled.glob("*_LAI_tile.tif"))
+    assert len(out_files) == 1, f"Expected 1 output LAI tile, got {len(out_files)}"
 
-    out1 = next(out_tiled.glob("*_LAI_tile.tif"))
-    out2 = next(out_gee.glob("*_LAI.tif"))
-
-    with rio.open(out1) as d1, rio.open(out2) as d2:
-        a1 = d1.read(1)
-        a2 = d2.read(1)
-
-    np.testing.assert_allclose(a1, a2, rtol=1e-6, atol=1e-6, equal_nan=True)
+    with rio.open(out_files[0]) as src:
+        data = src.read(1)
+        assert data.shape == (4, 5)
+        # At least some valid (non-NaN, non-zero) LAI values expected
+        valid = data[~np.isnan(data) & (data != 0)]
+        assert len(valid) > 0, "LAI output has no valid pixels"

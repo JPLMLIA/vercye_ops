@@ -1,0 +1,43 @@
+name: vercye
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+  - defaults
+
+dependencies:
+  - python=3.13
+  - gdal=3.11
+  - click
+  - colorlog
+  - earthengine-api
+  - geopandas
+  - google-auth
+  - google-auth-oauthlib
+  - joblib
+  - kaleido=0.2.1
+  - matplotlib
+  - numpy
+  - pandas
+  - pathvalidate
+  - pillow
+  - planetary-computer
+  - plotly=6.0.1
+  # - pulp=2.7.0
+  - pystac_client
+  - pyarrow
+  - rasterio
+  - requests
+  - ruamel.yaml
+  - scipy>=1.14
+  - scikit-learn
+  - seaborn
+  - snakemake
+  - tenacity
+  - pytorch
+  - tqdm
+  - xhtml2pdf
+  - jq
+  - pip
+  - pip:
+      - STAC-Downloader @ git+https://github.com/rohansaw/STAC-Downloader

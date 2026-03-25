@@ -1,6 +1,7 @@
 import json
 import os
 import signal
+import time
 
 import yaml
 
@@ -24,6 +25,22 @@ def quoted_scalar_representer(dumper, data):
 yaml.add_representer(QuotedString, quoted_scalar_representer)
 
 
+def _graceful_kill_pg(pid: int, grace_seconds: int = 5):
+    """Send SIGINT to a process group, wait, then escalate to SIGKILL if needed."""
+    try:
+        os.killpg(pid, signal.SIGINT)
+        for _ in range(grace_seconds * 10):
+            time.sleep(0.1)
+            try:
+                os.killpg(pid, 0)  # check if still alive
+            except ProcessLookupError:
+                return  # exited cleanly
+        # Still alive after grace period — force kill
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass  # already gone
+
+
 def clean_running_tasks():
     print("cleaning running tasks")
     studies_dir = read_studies_dir_from_env()
@@ -42,17 +59,14 @@ def clean_running_tasks():
             with open(status_file_pth, "r") as f:
                 status = f.read()
 
-            if status.lower() in ["running", "queued"]:
+            if status.lower() in ["running", "queued", "cancelling"]:
                 task_id_file = os.path.join(studies_dir, study, "snakemake", "snakemake_task_id.txt")
                 if os.path.exists(task_id_file):
                     with open(task_id_file, "r") as f:
                         pid = int(f.read().strip())
 
-                    try:
-                        os.killpg(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                update_study_status(studies_dir, study, "failed")
+                    _graceful_kill_pg(pid)
+                update_study_status(studies_dir, study, "cancelled" if status.lower() == "cancelling" else "failed")
         except Exception as e:
             print(f"Error during killing of study task: {str(e)}")
 
@@ -87,10 +101,7 @@ def clean_running_tasks():
                     with open(task_id_file, "r") as f:
                         pid = int(f.read().strip())
 
-                    try:
-                        os.killpg(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                    _graceful_kill_pg(pid)
                     metadata["status"][res] = "failed"
 
             # Update metadata

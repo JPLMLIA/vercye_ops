@@ -15,12 +15,10 @@ import {
   ChartData
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import GenerateLAIForm, { GenerateLAIPayload } from '@/components/Forms/GenerateLAIForm';
+import GenerateLAIForm, { GenerateLAIPayload, GenerationMode, AddDatesPayload } from '@/components/Forms/GenerateLAIForm';
 import useToast from '@/components/Toast';
-import { Geometry } from "geojson";
 import { ApiError } from '@/api/client';
 import { ansiToHtml } from '@/utils/utils';
-
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -28,28 +26,34 @@ const LAIPage = () => {
   const [data, setData] = useState<LAIEntry[] | null>(null);
   const [view, setView] = useState<'table' | 'map'>('table');
   const mapRef = useRef<L.Map | null>(null);
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailsEntry, setDetailsEntry] = useState<LAIEntry | null>(null);
+
   const [createOpen, setCreateOpen] = useState(false);
-  const [logsOpen, setLogsOpen] = useState(false)
+
+  const [addDatesOpen, setAddDatesOpen] = useState(false);
+  const [addDatesTarget, setAddDatesTarget] = useState<LAIEntry | null>(null);
+
+  const [logsOpen, setLogsOpen] = useState(false);
   const [logs, setLogs] = useState<string>('Loading logs...');
 
   const { show, Toast } = useToast();
 
   const loadLaiData = async () => {
     try {
-        const res = await LAIAPI.list();
-        setData(res);
+      const res = await LAIAPI.list();
+      setData(res);
     } catch {
-        setData([]);
-        show('Failed to load lai entries', 'error');
+      setData([]);
+      show('Failed to load lai entries', 'error');
     }
   };
 
   useEffect(() => {
     loadLaiData();
     const iv = setInterval(async () => {
-      loadLaiData()
+      loadLaiData();
     }, 10000);
     return () => clearInterval(iv);
   }, []);
@@ -81,7 +85,6 @@ const LAIPage = () => {
         lng: number;
       }> = {};
 
-      // Merge entries
       for (const e of data) {
         if (mergedLAIData[e.id]) {
           mergedLAIData[e.id].resolutions.push(e.resolution);
@@ -122,7 +125,6 @@ const LAIPage = () => {
         }
       }
 
-      // Only fit bounds if this is the first time data is loaded on map
       if (!map.hasLayer(layer) && totalBounds.isValid()) {
         map.fitBounds(totalBounds, { padding: [40, 40] });
       }
@@ -137,30 +139,30 @@ const LAIPage = () => {
     setLogs('Loading logs...');
     setLogsOpen(true);
     try {
-      const res = await LAIAPI.logs(laiId)
-      setLogs(res)
+      const res = await LAIAPI.logs(laiId);
+      setLogs(res);
     } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to load logs', 'error');
-        }
+      if (err instanceof ApiError) {
+        show(err.message, 'error');
+      } else {
+        show('Failed to load logs', 'error');
       }
-  }
+    }
+  };
 
-  const cancelGeneration = async (laiId:string, resolution: number) => {
+  const cancelGeneration = async (laiId: string, resolution: number) => {
     try {
-      await LAIAPI.cancelGeneration(laiId, resolution)
-      show('LAI generation successfully cancelled.', 'success')
-      loadLaiData()
+      await LAIAPI.cancelGeneration(laiId, resolution);
+      show('LAI generation successfully cancelled.', 'success');
+      loadLaiData();
     } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to load logs', 'error');
-        }
+      if (err instanceof ApiError) {
+        show(err.message, 'error');
+      } else {
+        show('Failed to load logs', 'error');
       }
-  }
+    }
+  };
 
   const table = useMemo(() => {
     if (!data)
@@ -192,7 +194,7 @@ const LAIPage = () => {
           </thead>
           <tbody>
             {data.map((e) => (
-              <tr key={e.id}>
+              <tr key={`${e.id}-${e.resolution}`}>
                 <td>{e.id}</td>
                 <td>{e.resolution}m</td>
                 <td>{e.lat}, {e.lng}</td>
@@ -215,7 +217,7 @@ const LAIPage = () => {
                       Details
                     </button>
 
-                    {e.status !== "pending" &&
+                    {e.status !== "pending" && (
                       <button
                         className="btn btn-sm btn-primary"
                         onClick={() => {
@@ -224,30 +226,41 @@ const LAIPage = () => {
                       >
                         Logs
                       </button>
-                    }
+                    )}
 
-                    {e.status === "generating" &&
+                    {["generating", "standardizing", "finalizing"].includes(e.status) && (
                       <button
                         className="btn btn-sm btn-danger"
                         onClick={() => {
-                          cancelGeneration(e.id, e.resolution)
+                          cancelGeneration(e.id, e.resolution);
                         }}
                       >
                         Cancel
                       </button>
-                    }
+                    )}
 
-
-                    {(e.status === "failed" || e.status === "cancelled") &&
+                    {(e.status === "completed" || e.status === "cancelled" || e.status === "failed") && (
                       <button
                         className="btn btn-sm btn-primary"
                         onClick={() => {
-                          retryLAIGeneration(e.id, e.resolution)
+                          setAddDatesTarget(e);
+                          setAddDatesOpen(true);
+                        }}
+                      >
+                        + Dates
+                      </button>
+                    )}
+
+                    {(e.status === "failed" || e.status === "cancelled") && (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => {
+                          retryLAIGeneration(e.id, e.resolution);
                         }}
                       >
                         ↻  Retry
                       </button>
-                    }
+                    )}
                   </div>
                 </td>
               </tr>
@@ -262,12 +275,8 @@ const LAIPage = () => {
     if (!detailsEntry) return null;
 
     const availableDates = new Set(detailsEntry.dates);
-    const minDate = new Date(
-      Math.min(...detailsEntry.dates.map((d) => new Date(d).getTime()))
-    );
-    const maxDate = new Date(
-      Math.max(...detailsEntry.dates.map((d) => new Date(d).getTime()))
-    );
+    const minDate = new Date(Math.min(...detailsEntry.dates.map((d) => new Date(d).getTime())));
+    const maxDate = new Date(Math.max(...detailsEntry.dates.map((d) => new Date(d).getTime())));
 
     const allDates: string[] = [];
     const values: number[] = [];
@@ -314,8 +323,7 @@ const LAIPage = () => {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) =>
-              ctx.raw ? 'Available' : 'Missing',
+            label: (ctx) => (ctx.raw ? 'Available' : 'Missing'),
           },
         },
       },
@@ -323,35 +331,51 @@ const LAIPage = () => {
     []
   );
 
- const handleCreateLAI = async (payload: GenerateLAIPayload) => {
+  const handleCreateLAI = async (payload: GenerateLAIPayload) => {
     try {
       await LAIAPI.create(payload);
       show('LAI generation started', 'success');
-      loadLaiData()
+      loadLaiData();
       setCreateOpen(false);
-    }  catch (err) {
+    } catch (err) {
       if (err instanceof ApiError) {
         show(err.message, 'error');
       } else {
         show('Failed to create lai data', 'error');
       }
     }
-  }
+  };
 
-   const retryLAIGeneration = async (laiID: string, resolution: number) => {
+  const handleAddDates = async (payload: AddDatesPayload) => {
+    try {
+      await LAIAPI.addDates(payload);
+      show('Dates added to LAI entry', 'success');
+      loadLaiData();
+      setAddDatesOpen(false);
+      setAddDatesTarget(null);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        show(err.message, 'error');
+      } else {
+        show('Failed to add dates', 'error');
+      }
+    }
+  };
+
+  const retryLAIGeneration = async (laiID: string, resolution: number) => {
     try {
       await LAIAPI.retryCreate(laiID, resolution);
       show('Retrying LAI generation', 'success');
-      loadLaiData()
+      loadLaiData();
       setCreateOpen(false);
-    }  catch (err) {
+    } catch (err) {
       if (err instanceof ApiError) {
         show(err.message, 'error');
       } else {
         show('Failed to retry lai generation', 'error');
       }
     }
-  }
+  };
 
   return (
     <div className="container">
@@ -365,19 +389,11 @@ const LAIPage = () => {
         </button>
       </div>
       <div className="view-toggle">
-        <span style={{ color: 'var(--gray-700)', fontWeight: 500, marginRight: 10 }}>
-          View:
-        </span>
-        <button
-          className={`toggle-btn ${view === 'table' ? 'active' : ''}`}
-          onClick={() => setView('table')}
-        >
+        <span style={{ color: 'var(--gray-700)', fontWeight: 500, marginRight: 10 }}>View:</span>
+        <button className={`toggle-btn ${view === 'table' ? 'active' : ''}`} onClick={() => setView('table')}>
           Table View
         </button>
-        <button
-          className={`toggle-btn ${view === 'map' ? 'active' : ''}`}
-          onClick={() => setView('map')}
-        >
+        <button className={`toggle-btn ${view === 'map' ? 'active' : ''}`} onClick={() => setView('map')}>
           Map View
         </button>
       </div>
@@ -404,8 +420,32 @@ const LAIPage = () => {
         )}
       </Modal>
 
+      {/* Create */}
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create New LAI Entry" width={800}>
-        <GenerateLAIForm onSubmit={handleCreateLAI} />
+        <GenerateLAIForm
+          mode={GenerationMode.InitialCreate}
+          onSubmitCreate={handleCreateLAI}
+        />
+      </Modal>
+
+      {/* Add Dates */}
+      <Modal
+        open={addDatesOpen}
+        onClose={() => {
+          setAddDatesOpen(false);
+          setAddDatesTarget(null);
+        }}
+        title={`Add Dates${addDatesTarget ? ` - ${addDatesTarget.id} (${addDatesTarget.resolution}m)` : ''}`}
+        width={800}
+      >
+        {addDatesTarget && (
+          <GenerateLAIForm
+            mode={GenerationMode.AddDates}
+            initialName={addDatesTarget.id}
+            initialResolution={addDatesTarget.resolution}
+            onSubmitAddDates={handleAddDates}
+          />
+        )}
       </Modal>
 
       <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Logs" width={1100}>
@@ -417,6 +457,6 @@ const LAIPage = () => {
       <Toast />
     </div>
   );
-}
+};
 
-export default LAIPage
+export default LAIPage;

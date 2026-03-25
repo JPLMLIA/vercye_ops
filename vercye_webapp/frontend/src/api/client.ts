@@ -28,6 +28,10 @@ async function handle<T>(res: Response): Promise<T> {
     throw new ApiError(message, res.status);
   }
 
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
+
   const ct = res.headers.get('content-type') || '';
   if (ct.includes('application/json')) {
     return (await res.json()) as T;

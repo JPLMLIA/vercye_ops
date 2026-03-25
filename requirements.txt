@@ -1,13 +1,10 @@
 click
 colorlog
 earthengine-api
-ee
-earthengine-api
 gdal
 geopandas
 google-auth
 google-auth-oauthlib
-joblib
 kaleido==0.2.1  # For static image plots in plotly
 matplotlib
 numpy
@@ -26,7 +23,6 @@ scipy>=1.14  # For Akima interpolator
 scikit-learn
 seaborn
 snakemake  # If using mamba/conda, install from the bioconda channel
-tenacity
 torch
 tqdm
 xhtml2pdf

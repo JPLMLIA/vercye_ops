@@ -16,7 +16,7 @@ else
 fi
 
 # Load NVM (needed to use npm/node in non-interactive shells)
-export NVM_DIR="$HOME/.nvm"
+export NVM_DIR="$ENV_BASE/env/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 # Required env vars

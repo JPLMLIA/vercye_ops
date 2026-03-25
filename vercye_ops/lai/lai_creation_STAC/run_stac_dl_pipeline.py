@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -51,7 +50,7 @@ def batch_date_range(start_date, end_date, chunk_days=30):
         start = next_start
 
 
-def init_meta(meta_file, resolution, geojson_path):
+def init_meta(meta_file, resolution, geojson_path, imagery_source):
     meta = {}
     if os.path.exists(meta_file):
         with open(meta_file, "r", encoding="utf-8") as file:
@@ -78,6 +77,7 @@ def init_meta(meta_file, resolution, geojson_path):
         meta["status"] = {}
 
     meta["status"][str(resolution)] = "generating"
+    meta["imagery_source"] = imagery_source
 
     if "dates" not in meta:
         meta["dates"] = {}
@@ -176,19 +176,18 @@ def run_pipeline(config, logger):
     # Validate that if there is already LAI data present it was produced by the same shapefile
     shapefile_copy_path = os.path.join(out_dir, "region.geojson")
     if os.path.exists(shapefile_copy_path):
-        with open(geojson_path) as f1, open(shapefile_copy_path) as f2:
-            geo1 = json.load(f1)
-            geo2 = json.load(f2)
-
-            if geo1 != geo2:
-                raise ValueError(
-                    "Can't create LAI data in an output directory with existing LAI data that was produced with a different shapefile. Ensure to use the same!"
-                )
+        uploaded_gdf = gpd.read_file(geojson_path)
+        existing_gdf = gpd.read_file(shapefile_copy_path)
+        if not uploaded_gdf.equals(existing_gdf):
+            raise ValueError(
+                "Can't create LAI data in an output directory with existing LAI data that was produced with a different shapefile. Ensure to use the same!"
+            )
     else:
         # Copy geojson to outdir for reproducability
-        shutil.copyfile(geojson_path, shapefile_copy_path)
+        gdf = gpd.read_file(geojson_path)
+        gdf.to_file(shapefile_copy_path)
 
-    meta = init_meta(metadata_index_file, resolution, geojson_path)
+    meta = init_meta(metadata_index_file, resolution, geojson_path, source)
     # Process all date ranges for step 0 and 1
     for i, dr in enumerate(date_ranges):
         try:
@@ -294,6 +293,10 @@ def run_pipeline(config, logger):
             overall_start.strftime("%Y-%m-%d"),
             "--end-date",
             overall_end.strftime("%Y-%m-%d"),
+            "--geojson-path",
+            geojson_path,
+            "--num-workers",
+            str(num_workers_lai)
         ]
         meta = update_status(metadata_index_file, resolution, "merging")
         run_subprocess(cmd, "Build daily VRTs for LAI", logger=logger)

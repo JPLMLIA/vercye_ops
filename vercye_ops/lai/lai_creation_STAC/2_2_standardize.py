@@ -1,3 +1,4 @@
+import math
 import os
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
@@ -70,14 +71,26 @@ def determine_target_resolution(lai_file, target_crs="EPSG:4326"):
         logger.info(f"Target resolution: {x_res_target:.8f}, {y_res_target:.8f} in {target_crs}")
         src = None  # Explicitely Close the file
     src = None  # Explicitely Close the file
-    return (round(x_res_target, 6), round(y_res_target, 6))
+    return (x_res_target, y_res_target)
 
 
-def identify_target_resolution(file_paths, target_crs):
+def identify_target_resolution(file_paths, target_crs, output_dir):
     """
     Identify the target CRS and resolution based on the input files.
     """
-    # Identify the most common CRS
+
+    # If there are already files in the output dir, match their crs & resolution
+    if not len(os.listdir(output_dir)) == 0:
+        with rio.open(os.path.join(output_dir, os.listdir(output_dir)[0])) as src:
+            crs = src.crs
+            if crs is None:
+                raise ValueError("CRS of reference file is None.")
+            xres = abs(src.transform.a)
+            yres = abs(src.transform.e)
+            target_res = (xres, yres)
+        return target_res
+
+    # Identify the most common CRS to use this as the reference for target resolution
     most_common_crs, sample_file = get_most_common_crs(file_paths)
     logger.info(f"Most common CRS: {target_crs}")
 
@@ -88,20 +101,31 @@ def identify_target_resolution(file_paths, target_crs):
     return target_resolution
 
 
+def snap_bounds_to_grid(bounds, xres, yres):
+    left, bottom, right, top = bounds
+    left   = math.floor(left  / xres) * xres
+    right  = math.ceil (right / xres) * xres
+    bottom = math.floor(bottom/ yres) * yres
+    top    = math.ceil (top   / yres) * yres
+    return left, bottom, right, top
+
+
 def standardize_lai(args):
     lai_file, output_dir, target_crs, target_resolution, remove_original = args
+    xres, yres = target_resolution
     try:
         with rio.open(lai_file) as src:
             # Create output filename
             output_file = Path(lai_file).stem.replace("_LAI_tile", "_LAI_tile_standardized") + ".tif"
             output_file = Path(output_dir) / output_file
 
-            # Calculate transform to target CRS
-            left, bottom, right, top = rio.warp.transform_bounds(src.crs, target_crs, *src.bounds)
-            xres, yres = target_resolution
+            raw_bounds = rio.warp.transform_bounds(src.crs, target_crs, *src.bounds)
+            left, bottom, right, top = snap_bounds_to_grid(raw_bounds, xres, yres)
 
-            dst_width = int((right - left) / xres)
-            dst_height = int((top - bottom) / yres)
+            # Compute dimensions (use round to avoid float slop)
+            dst_width  = int(round((right - left) / xres))
+            dst_height = int(round((top - bottom) / yres))
+
             dst_transform = from_origin(left, top, xres, yres)
 
             # Create metadata for the new file
@@ -127,7 +151,7 @@ def standardize_lai(args):
                         src_crs=src.crs,
                         dst_transform=dst_transform,
                         dst_crs=target_crs,
-                        resampling=Resampling.nearest,
+                        resampling=Resampling.bilinear,
                     )
         logger.info(f"Standardized LAI file saved: {output_file}")
 
@@ -149,14 +173,14 @@ def standardize_lai(args):
 @click.option(
     "--start-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="Start date",
+    help="Start date. Optional to constrain the range of tiles in the folder that should be standardized.",
     required=False,
     default=None,
 )
 @click.option(
     "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="End date",
+    help="End date. Optional to constrain the range of tiles in the folder that should be standardized.",
     required=False,
     default=None,
 )
@@ -185,9 +209,9 @@ def main(input_dir, output_dir, resolution, start_date, end_date, remove_origina
     if start_date is not None and end_date is not None:
         lai_files = [vf for vf in lai_files if is_within_date_range(vf, start_date, end_date)]
 
-    logger.info(f"Found {len(lai_files)} VRT files at {resolution}m in {input_dir}")
+    logger.info(f"Found {len(lai_files)} tif files at {resolution}m in {input_dir}")
 
-    target_resolution = identify_target_resolution(lai_files, target_crs)
+    target_resolution = identify_target_resolution(lai_files, target_crs, output_dir)
 
     args = [(lai_file, output_dir, target_crs, target_resolution, remove_original) for lai_file in lai_files]
     with ProcessPoolExecutor(max_workers=num_cores) as executor:

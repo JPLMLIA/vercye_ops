@@ -5,6 +5,8 @@ import os
 import shutil
 import signal
 import tempfile
+import threading
+import time
 import zipfile
 from collections import defaultdict, deque
 from glob import glob
@@ -192,13 +194,6 @@ async def setup_study(
     refdata_paths_to_modify = {}
 
     async def save_refdata_files(files, dest_dir):
-        # all_available_files = {
-        #     Path(filename).name: filename
-        #     for year_dicts in  current_setup_config["REFERENCE_DATA_PATHS"].values()
-        #     for d in year_dicts
-        #     for filename in d.values()
-        # }
-
         all_available_files = {f: os.path.join(refdata_dir, f) for f in os.listdir(refdata_dir)}
 
         if not files:
@@ -290,23 +285,15 @@ async def setup_study(
         ref_data_paths[int(refdata_year)].append({admin_lvl: refdata_file_dst_name})
 
     setup_cfg["REFERENCE_DATA_PATHS"] = dict(ref_data_paths)
-
     setup_cfg["creation_request_params"] = setup_submission.dict()
 
     setup_cfg_path = study_root / "setup_config.yaml"
     with setup_cfg_path.open("w") as f:
         yaml.dump(setup_cfg, f, default_flow_style=False, sort_keys=False)
 
-    # If a run already exists this will be deleted for a clean restart
-    # Avoids mixing outputs from different versions due to actual input file changes
-    study_dir = os.path.join(get_study_path(studies_dir, study_id), study_id)
-    if os.path.exists(study_dir):
-        shutil.rmtree(study_dir)
-
     # Extract and prepare APSIM files and geojsons and create run config for user to fill in
     try:
-        run_cfg_template_path = get_run_config_template_file_path(studies_dir, study_id)
-        setup_vercye_task(study_id, run_cfg_template_path=run_cfg_template_path)
+        setup_vercye_task(study_id, studies_dir)
     except Exception as e:
         logger.exception(e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -572,8 +559,48 @@ def run_study(study_id: StudyID, force_rerun: bool = Query(False, alias="forceRe
         raise HTTPException(status_code=500, detail=str(e))
 
 
+CANCEL_ESCALATION_TIMEOUT_SECONDS = 120
+
+
+def _escalate_cancel(pgid: int, status_file_path: str, timeout: int = CANCEL_ESCALATION_TIMEOUT_SECONDS):
+    """Background thread: wait for graceful shutdown, escalate to SIGKILL if needed.
+
+    After sending SIGINT, snakemake should finish running jobs and exit. If it hasn't
+    terminated after `timeout` seconds, we escalate to SIGKILL to ensure the process
+    group is fully stopped.
+    """
+    time.sleep(timeout)
+    try:
+        os.killpg(pgid, 0)  # Check if still alive
+    except ProcessLookupError:
+        return  # Already exited cleanly
+
+    logger.warning(f"Process group {pgid} still running after {timeout}s, escalating to SIGKILL")
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+        with open(status_file_path, "w") as f:
+            f.write("cancelled")
+    except ProcessLookupError:
+        pass  # Exited between check and kill
+    except Exception as e:
+        logger.error(f"Failed to escalate kill for process group {pgid}: {e}")
+
+
 @router.post("/{study_id}/actions/cancel")
-def cancel_study(study_id: StudyID, background_tasks: BackgroundTasks):
+def cancel_study(study_id: StudyID, force: bool = Query(False, description="Force kill with SIGKILL instead of graceful SIGINT")):
+    """Cancel a running snakemake study.
+
+    By default sends SIGINT to the process group which triggers a graceful shutdown:
+    - Snakemake stops accepting new jobs
+    - Running jobs are allowed to complete
+    - Snakemake cleans up and exits
+
+    This mimics pressing Ctrl+C in the terminal. If snakemake does not exit within
+    2 minutes, the signal is automatically escalated to SIGKILL.
+
+    If force=True, sends SIGKILL immediately which terminates all processes
+    without cleanup. Use this only if you need instant termination.
+    """
     task_id_file = os.path.join(studies_dir, study_id, "snakemake", "snakemake_task_id.txt")
     status_file_path = os.path.join(studies_dir, study_id, "snakemake", "status.txt")
 
@@ -581,36 +608,45 @@ def cancel_study(study_id: StudyID, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=404, detail="Study does not have an associated task.")
 
     with open(task_id_file, "r") as f:
-        task_id = int(f.read().strip())
+        pgid = int(f.read().strip())
 
-    # kill the whole group since snakemake has subtasks
+    # Check if process group is still running
     try:
-        os.killpg(task_id, signal.SIGINT)
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        logger.info(f"Process group {pgid} for study {study_id} is not running")
+        return {"status": "not_running", "detail": "The study process is no longer running."}
+    except PermissionError:
+        pass
+
+    try:
+        if force:
+            os.killpg(pgid, signal.SIGKILL)
+            logger.info(f"Sent SIGKILL to process group {pgid} for study {study_id}")
+            status = "cancelled"
+        else:
+            os.killpg(pgid, signal.SIGINT)
+            logger.info(f"Sent SIGINT to process group {pgid} for study {study_id}")
+            status = "cancelling"
+
+            # Spawn background thread to escalate to SIGKILL if snakemake doesn't exit
+            escalation_thread = threading.Thread(
+                target=_escalate_cancel,
+                args=(pgid, status_file_path),
+                daemon=True,
+            )
+            escalation_thread.start()
+    except ProcessLookupError:
+        logger.info(f"Process group {pgid} already terminated")
+        return {"status": "not_running", "detail": "The study process terminated before signal could be sent."}
     except Exception as e:
-        print(f"Error killing Snakemake group: {e}")
+        logger.error(f"Error sending signal to process group {pgid}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to cancel study: {e}")
 
-    # Schedule escalation with SIGKILL if process doesn't terminate
-    # def escalate_kill(pgid: int, delay: int = 30):
-    #     time.sleep(delay)
-    #     try:
-    #         os.killpg(pgid, signal.SIGKILL)
-    #         print(f"Escalated: Sent SIGKILL to process group {pgid}")
-    #     except ProcessLookupError:
-    #         print(f"Process group {pgid} already terminated.")
-    #     except Exception as e:
-    #         print(f"Error during SIGKILL escalation: {e}")
-
-    # Update status
     with open(status_file_path, "w") as f:
-        f.write("cancelled")
+        f.write(status)
 
-    # background_tasks.add_task(escalate_kill, task_id)
-
-    # Update status
-    with open(status_file_path, "w") as f:
-        f.write("cancelled")
-
-    return {"status": "cancelled"}
+    return {"status": status, "signal": "SIGKILL" if force else "SIGINT"}
 
 
 @router.get("/{study_id}/result-timepoints")
@@ -694,25 +730,52 @@ def get_map_results(study_id: StudyID, year: int, timepoint: str):
         )
         return HTMLResponse(content=content)
 
+@router.get("/{study_id}/multiyear-report/assets/{asset_path:path}")
+def get_multiyear_report_asset(study_id: StudyID, asset_path: str):
+    base_path = Path(studies_dir) / study_id / "snakemake" / "multiyear_report" / "assets"
+    file_path = (base_path / asset_path).resolve(strict=False)
+
+    try:
+        if not file_path.is_file() or not str(file_path).startswith(str(base_path.resolve())):
+            raise HTTPException(status_code=403, detail="Invalid asset path.")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid asset path.")
+
+    return FileResponse(file_path)
 
 @router.get("/{study_id}/multiyear-report")
 def get_multiyear_report(study_id: StudyID):
     report_path_candidates = glob(
-        os.path.join(get_study_path(studies_dir, study_id), study_id, "multiyear_summary_*.html")
+        os.path.join(get_study_path(studies_dir, study_id), study_id, "multiyear_summary_*.zip")
     )
     if len(report_path_candidates) != 1:
         raise HTTPException(
-            f"Found {len(report_path_candidates)} entries with multiyear_summary_ in the name in study folder."
+            status_code=400,
+            detail=f"Found {len(report_path_candidates)} entries with multiyear_summary_ in the name in study folder."
         )
 
-    with open(report_path_candidates[0]) as f:
+    target_dir = Path(studies_dir) / study_id / "snakemake" / "multiyear_report"
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    with zipfile.ZipFile(report_path_candidates[0]) as z:
+        z.extractall(target_dir)
+
+    report_path = target_dir / "report.html"
+    if not report_path.exists():
+        raise HTTPException(status_code=404, detail="No multiyear report available.")
+
+    with open(report_path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    assets_base = f"/api/studies/{study_id}/multiyear-report/assets"
+    content = content.replace('src="assets/', f'src="{assets_base}/')
+    content = content.replace("src='assets/", f"src='{assets_base}/")
 
     return HTMLResponse(content=content)
 
 
-@router.get("/{study_id}/logs")
-def get_study_logs(study_id: StudyID):
+@router.get("/{study_id}/log")
+def get_study_log(study_id: StudyID):
     log_path = os.path.join(studies_dir, study_id, "snakemake", "log.txt")
     if not os.path.exists(log_path):
         raise HTTPException(status_code=404, detail="No log available. Check individual rules logs if necessary.")
@@ -724,44 +787,79 @@ def get_study_logs(study_id: StudyID):
     text += "".join(last_lines)
     return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 
+@router.get("/{study_id}/full-log")
+def get_complete_study_log(study_id: StudyID):
+    log_path = os.path.join(studies_dir, study_id, "snakemake", "log.txt")
+    if not os.path.exists(log_path):
+        raise HTTPException(status_code=404, detail="No log available. Check individual rules logs if necessary.")
 
-@router.get("/{study_id}/status")
-async def get_study_status(study_id: str):
-    status_file_path = os.path.join(studies_dir, study_id, "snakemake", "status.txt")
+    return FileResponse(
+        path=log_path,
+        media_type="text/plain",
+        filename=f"{study_id}_log.txt"
+    )
 
-    # Async check if file exists
-    if not await asyncio.to_thread(os.path.exists, status_file_path):
-        return {"status": "pending"}
+@router.get("/status")
+async def get_many_status(ids: List[str] = Query(..., description="Repeated ?ids=studyA&ids=studyB")):
+    """Batch status fetch for multiple studies."""
+    async def read_status(study_id: str):
+        status_file_path = os.path.join(studies_dir, study_id, "snakemake", "status.txt")
+        exists = await asyncio.to_thread(os.path.exists, status_file_path)
+        if not exists:
+            return study_id, "pending"
+        mtime = await asyncio.to_thread(lambda: os.path.getmtime(status_file_path))
+        if study_id in status_cache and status_cache[study_id][0] == mtime:
+            return study_id, status_cache[study_id][1]
+        async with aiofiles.open(status_file_path, mode="r") as f:
+            contents = await f.read()
+        status_cache[study_id] = (mtime, contents)
+        return study_id, contents
 
-    # Get file modification time
-    mtime = await asyncio.to_thread(lambda: os.path.getmtime(status_file_path))
-
-    # Use cache if mtime matches
-    if study_id in status_cache and status_cache[study_id][0] == mtime:
-        return {"status": status_cache[study_id][1]}
-
-    # Otherwise, read file and update cache
-    async with aiofiles.open(status_file_path, mode="r") as f:
-        contents = await f.read()
-
-    status_cache[study_id] = (mtime, contents)
-    return {"status": contents}
+    pairs = await asyncio.gather(*(read_status(sid) for sid in ids))
+    return {k: v for k, v in pairs}
 
 
 @router.get("")
-def get_all_studies():
+def get_all_studies(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200)):
+    """Paginated list of studies, newest first."""
     if not os.path.exists(studies_dir):
-        return []
+        return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
     studies = [name for name in os.listdir(studies_dir) if os.path.isdir(os.path.join(studies_dir, name))]
-
-    # sort by creation time newest first
     studies.sort(key=lambda name: os.path.getctime(os.path.join(studies_dir, name)), reverse=True)
 
-    return studies
+    total = len(studies)
+    start = (page - 1) * page_size
+    end = start + page_size
+    items = studies[start:end]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/combined-stats")
 def get_combined_stats():
     """Compute the stats from multiple studies combined and with all years present in each study"""
     pass
+
+@router.delete("/{study_id}")
+def delete_study(study_id: StudyID):
+    """Delete a study directory."""
+    path = os.path.join(studies_dir, study_id)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Study not found.")
+
+    # Safety: avoid deleting while a run might be active
+    status_file_path = os.path.join(path, "snakemake", "status.txt")
+    running_like = {"running", "queued"}
+    if os.path.exists(status_file_path):
+        try:
+            with open(status_file_path) as f:
+                current = f.read().strip()
+            if current in running_like:
+                raise HTTPException(status_code=409, detail="Study is currently running; cancel it before deleting.")
+        except Exception:
+            pass
+
+    shutil.rmtree(path, ignore_errors=False)
+    # also invalidate cache
+    status_cache.pop(study_id, None)
+    return {"status": "deleted", "study_id": study_id}

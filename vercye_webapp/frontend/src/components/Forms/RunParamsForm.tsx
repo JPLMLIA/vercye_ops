@@ -37,14 +37,18 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
     const [cropmaskMapping, setCropmaskMapping] = useState<MappingState>({})
     const [configFiles, setConfigFiles] = useState<File[]>([]);
 
-
     const { show, Toast } = useToast();
 
     useEffect(() => {
-        if (!initialData) return;
-        setLaiSource({id: initialData.laiId, resolution: initialData.laiResolution})
-        setCropmaskMapping(initialData.cropmasks)
-    }, [initialData])
+        if (!initialData || laiLoading || laiSources.length === 0 || cropmasks.length === 0) return;
+
+        const matchingLAI = laiSources.find(
+            (lai) => lai.id === initialData.laiId && lai.resolution === initialData.laiResolution
+        );
+        if (matchingLAI) setLaiSource(matchingLAI);
+
+        if (initialData.cropmasks) setCropmaskMapping(initialData.cropmasks);
+    }, [initialData, laiSources, cropmasks, laiLoading]);
 
     useEffect(() => {
         (async () => {

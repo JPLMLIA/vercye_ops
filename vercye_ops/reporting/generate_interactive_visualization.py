@@ -1376,8 +1376,8 @@ class InteractiveMapGenerator:
                                 showLine: false,                 // no connecting line
                                 pointRadius: 4,                  // radius of each dot
                                 pointHoverRadius: 6,             // hoverradius
-                                pointBackgroundColor: color,     // <— must be set to force draw circles
-                                pointBorderColor: color,         // <— ditto
+                                pointBackgroundColor: color,     // <- must be set to force draw circles
+                                pointBorderColor: color,         // <- ditto
                                 borderWidth: 0
                             }});
                         }});

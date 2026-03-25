@@ -19,35 +19,30 @@ The **VeRCYe Repository** contains a number of components:
 
 ```bash
 git clone https://github.com/JPLMLIA/vercye_ops.git
+cd vercye_ops
 ```
 
-#### 1. Check Python Version and GDAL
+#### 1. Install the requirements
 
-This repository has been tested and run with `python 3.13.5` and with `gdal==3.11.0`. Ensure you have installed the corresponding versions (`python --version` and `gdalinfo --version`). It might or might not work with other versions.
+VeRCYe is distributed as a Python package with a [conda-managed](https://docs.conda.io/projects/conda/en/stable/user-guide/install/index.html) runtime.
 
-#### 2. Install the requirements
-
-It is reccomended to use a conda environement. Ensure you have conda installed.
-Navigate to this package's root directory and run:
+**Conda (recommended)** - Conda is the only fully supported installation method. It bundles GDAL, Snakemake, Earth Engine, and all other native dependencies into a single self-contained environment. A `requirements.txt` is provided for reference, but pip-only installs are **not** supported - GDAL and other system-level libraries are difficult to install correctly through pip alone.
 
 ```bash
-conda create --name vercye python=3.13.5
-
+# Production environment
+conda env create -f environment/environment.yaml
 conda activate vercye
-
-conda install -c conda-forge gdal=3.11
-
-pip install -r requirements.txt
 ```
 
-Currently we are mixing pip and conda dependancies.
-> **Note**: As of June 2024, if using `conda`, for all requirements you may also need to install `Snakemake` and a specific dependency manually via pip:
->
-> ```bash
-> pip install snakemake pulp==2.7.0
-> ```
+For development (includes linting, testing, and type-checking tools):
 
-#### 3. Install the VeRCYe package
+```bash
+# Development environment
+conda env create -f environment/environment.dev.yaml
+conda activate vercye-dev
+```
+
+#### 2. Install the VeRCYe package
 
 From the root directory, run:
 
@@ -55,40 +50,26 @@ From the root directory, run:
 pip install -e .
 ```
 
-#### 4. Install APSIMX
+#### 3. Install APSIMX
 
-The simulations that produce yield predictions and phenology are run using the process based APSIM NextGen model. There are two options for running APSIM:
+VeRCYe depends on process-based APSIM NextGen model for yield & phenology(LAI) simulation. Two modes are supported:
+- Docker-based APSIM
+- Local APSIM binary
 
-- **A: Using Docker**: Simply set a parameter during [configuration of your yield study](Vercye/running.md). The Docker container will build automatically. (Ensure `docker` is installed.). This option is**NOT** available on UMD systems.
-- **B: Building the APSIM-NextGen binary manually**: See instructions in the [APSIM Section](Vercye/apsim.md).
+See the the [APSIM Section](Vercye/apsim.md) for details.
 
-> **Note**: If running on UMD systems, APSIM is pre-installed at:
->
-> ```
-> /gpfs/data1/cmongp2/wronk/Builds/ApsimX/bin/Release/net6.0/Models
-> ```
-However, you might have to install `dotnet` from source as outlined in the [APSIM Section](Vercye/apsim.md).
 
-#### 5. Install `jq`
-
-To manipulate JSON files via the command line:
-
-- Install from [https://jqlang.github.io/jq/](https://jqlang.github.io/jq/)
-- Or on HPC systems, load it with:
-
+#### 4. Authenticate Google Earth Engine
+The ERA5 meteorological data is currently still fetched through Google Earth Engine. Authenticate yourself with earth engine and follow the browser flow:
 ```bash
-module load jq
+ee authenticate
 ```
-
-#### 5. Authenticate Google Earth Engine
-The ERA5 meteorological data is currently still fetched through Google Earth Engine. For this to work, you will have to authenticate yourself with earth engine.
-Run `ee authenticate` and follow the instructions on the screen.
 
 ### Running your first yield study
 
 **Quickstart**
 
-The `VeRCYe CLI` allows you to get your yield study up an running quickly. However, if you want more options to cutomize different hyperparameters in a more structured way, you might want to run the study manually, as outlined in the next section.
+The `VeRCYe CLI` allows you to get your yield study up an running quickly. However, if you want more options to customize different hyperparameters in a more structured way, you might want to run the study manually, as outlined in the next section.
 
 0. Activate your virtual environment (depending on your venv setup). E.g:
 

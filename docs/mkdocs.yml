@@ -5,6 +5,8 @@ theme:
   features:
     - navigation.tracking
     - toc.integrate
+    - search.suggest
+    - search.highlight
 
 nav:
   - 'Home': 'index.md'
@@ -21,4 +23,14 @@ nav:
   - 'LAI Pipeline':
     - 'Introduction': 'LAI/intro.md'
     - 'Generating LAI Data': 'LAI/running.md'
+    - 'GEE Pipeline Architecture': 'LAI/gee_architecture.md'
+    - 'STAC Pipeline Architecture': 'LAI/stac_architecture.md'
   - 'Vercye Webapp': 'Vercye/webapp.md'
+
+markdown_extensions:
+  - toc:
+      permalink: true
+      toc_depth: 2
+
+plugins:
+  - search

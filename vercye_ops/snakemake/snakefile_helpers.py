@@ -1,12 +1,19 @@
+import os
 import os.path as op
 from datetime import datetime
 from types import SimpleNamespace
+import uuid
 
 
 def build_apsim_execution_command(
-    head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, input_file
+    head_dir, use_docker, docker_image, docker_platform, executable_fpath, n_jobs, dotnet_root, input_file
 ):
     """Builds the APSIM execution command depending on whether we are using APSIM in Docker or not"""
+
+    # As snakemake passes a list of input files, we only take the first one
+    # Sanity check to ensure it is a list and not a single string
+    if isinstance(input_file, list):
+        input_file = input_file[0]
 
     if use_docker:
         return (
@@ -17,7 +24,20 @@ def build_apsim_execution_command(
             f"{input_file} "
         )
     else:
-        return f"{executable_fpath} " f"{input_file} " f"--cpu-count {n_jobs} "
+
+        tmp_uuid = uuid.uuid4().hex
+        tmpdir = op.join(op.dirname(input_file), tmp_uuid)
+        os.makedirs(tmpdir, exist_ok=True)
+
+        return (
+            f'export DOTNET_ROOT="{dotnet_root}" '
+            f'&& export DOTNET_SYSTEM_IO_TMPDIR="{tmpdir}" '
+            f'&& export TMPDIR="{tmpdir}" '
+            f'&& export TMP="{tmpdir}" '
+            f'&& export TEMP="{tmpdir}" '
+            f'&& {executable_fpath} {input_file} --cpu-count {n_jobs} '
+            f'&& rm -rf "{tmpdir}" '
+        )
 
 
 def get_evaluation_results_path_func(config):

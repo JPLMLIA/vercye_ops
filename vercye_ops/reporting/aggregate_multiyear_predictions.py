@@ -19,11 +19,11 @@ def get_available_timepoints(base_dir):
 
             timepoints.append(timepoint)
 
-    return timepoints
+    return list(set(timepoints))
 
 
 def get_avaiable_agg_levels(base_dir):
-    agg_levels = []
+    all_agg_levels = []
     for year in os.listdir(base_dir):
         year_path = os.path.join(base_dir, year)
         if not os.path.isdir(year_path):
@@ -33,14 +33,14 @@ def get_avaiable_agg_levels(base_dir):
             tp_path = os.path.join(year_path, timepoint)
             if not os.path.isdir(tp_path):
                 continue
-
+            
             preds_pattern = os.path.join(base_dir, year, timepoint, "agg_yield_estimates_*_*.csv")
             agg_preds_files = glob(preds_pattern)
             agg_levels = [os.path.basename(f).split("_")[3] for f in agg_preds_files]
 
-            agg_levels.extend(agg_levels)
+            all_agg_levels.extend(agg_levels)
 
-    return list(set(agg_levels))
+    return list(set(all_agg_levels))
 
 
 def collect_files(base_dir, agg_lvl_name, timepoint):
@@ -70,10 +70,19 @@ def merge_preds_gt_yearly(preds_paths, gt_paths):
     yearly_dfs = []
     for year, year_pred_path in preds_paths.items():
         df_pred = pd.read_csv(year_pred_path)
+
+        # Rename any existing 'year' column to avoid conflicts
+        if "year" in df_pred.columns:
+            df_pred["year_original"] = df_pred["year"]
+            df_pred.drop(columns=["year"], inplace=True)
+
         df_pred["year"] = year
 
         if year in gt_paths:
             df_gt = pd.read_csv(gt_paths[year])
+            if "year" in df_gt.columns:
+                df_gt["year_ref_original"] = df_gt["year"]
+                df_gt.drop(columns=["year"], inplace=True)
             df_merged = pd.merge(df_pred, df_gt, on="region")  # Inner join
             yearly_dfs.append(df_merged)
         else:
@@ -84,6 +93,8 @@ def merge_preds_gt_yearly(preds_paths, gt_paths):
 
 def aggregate_years(base_dir, agg_lvl_name, timepoint):
     preds_paths, gt_paths = collect_files(base_dir, agg_lvl_name, timepoint)
+    if not preds_paths:
+        return pd.DataFrame({})
 
     yearly_merged_dfs = merge_preds_gt_yearly(preds_paths, gt_paths)
 

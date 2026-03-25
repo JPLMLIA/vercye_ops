@@ -3,14 +3,19 @@ import { http } from './client';
 import type { StudyId, StudyStatusResponse, RunConfigStatusResponse, SetupConfigTemplate, RunConfigFormParams } from '@/types';
 import { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 
+export type PagedStudies = { items: StudyId[]; total: number; page: number; page_size: number };
+
 export const StudiesAPI = {
-  list: () => http.get<StudyId[]>('/studies'),
+  listPaged: (page: number, pageSize: number) =>
+    http.get<PagedStudies>(`/studies?page=${page}&page_size=${pageSize}`),
 
   create: (study_id: string) =>
     http.post<void, { study_id: string }>('/studies', { study_id }),
 
-  status: (id: StudyId) =>
-    http.get<StudyStatusResponse>(`/studies/${id}/status`),
+  statusMany: (ids: StudyId[]) =>
+    http.get<Record<string, StudyStatusResponse["status"]>>(
+      `/studies/status?${ids.map(id => `ids=${encodeURIComponent(id)}`).join("&")}`
+    ),
 
   runConfig: (id: StudyId) =>
     http.get<Blob>(`/studies/${id}/run-config`),
@@ -100,11 +105,17 @@ export const StudiesAPI = {
   cancel: (id: StudyId) =>
     http.post<void>(`/studies/${id}/actions/cancel`),
 
+  forceCancel: (id: StudyId) =>
+    http.post<void>(`/studies/${id}/actions/cancel?force=true`),
+
   resultsUrl: (id: StudyId) =>
     `/api/studies/${id}/results`,
 
   logs: (id: StudyId) =>
-    http.get<string>(`/studies/${id}/logs`),
+    http.get<string>(`/studies/${id}/log`),
+
+  fullLog: (id: StudyId) =>
+    http.download(`/studies/${id}/full-log`),
 
   resultTimepoints: (id: StudyId) =>
     http.get<{ timepoints: Record<string, string[]> }>(`/studies/${id}/result-timepoints`),
@@ -125,4 +136,7 @@ export const StudiesAPI = {
       `/studies/${existingStudyId}/duplicate`,
       { new_study_id: newStudyId }
     ),
+
+    delete: (id: StudyId) =>
+      http.del<void>(`/studies/${id}`),
 };

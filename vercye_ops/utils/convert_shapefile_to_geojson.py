@@ -18,13 +18,11 @@ def generate_met_points(gdf_row):
 
 
 def clean_region_name(region_name):
-    print(region_name)
     region_name = str(region_name)
     region_name = region_name.replace("'", "").replace('"', "")
     region_name = re.sub(r"[^\w.-]", "_", region_name)
     region_name = region_name.lower()
     region_name = "".join(c for c in unicodedata.normalize("NFKD", region_name) if not unicodedata.combining(c))
-    print(region_name)
     return region_name
 
 

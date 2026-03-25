@@ -1,0 +1,1 @@
+Architecture and full documentation of STAC based LAI pipeline coming soon.

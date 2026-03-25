@@ -156,7 +156,13 @@ def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, 
         sowing_rule_manager_parameters = sowing_rule_manager_obj["Parameters"]
         update_kv_list(sowing_rule_manager_parameters, key="StartDate", value=apsim_date_str, verbose=verbose)
         update_kv_list(sowing_rule_manager_parameters, key="EndDate", value=apsim_date_str, verbose=verbose)
-        update_kv_list(sowing_rule_manager_parameters, key="ForceSowing", value=apsim_date_str, verbose=verbose)
+
+        # Older APSIM files didnt have ForceSwoing
+        try:
+            update_kv_list(sowing_rule_manager_parameters, key="ForceSowing", value=apsim_date_str, verbose=verbose)
+        except:
+            print("No ForceSowingEntry found.")
+
 
     # Save out updated .apsimx json to disk
     with open(apsimx_output_fpath, "w") as file:

@@ -1,4 +1,4 @@
-# 🌿 LAI Generation
+# LAI Generation
 The pipeline produces LAI products for VERCYe and is intended for scaled deployment on servers or HPC with minimal human intervention. The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox. We provide two methods for exporting remotely sensed imagery and deriving LAI products:
 
 - **A:** Exporting RS imagery from **Google Earth Engine** (slow, more setup required, better cloudmasks)

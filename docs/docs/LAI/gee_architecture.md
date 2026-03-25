@@ -1,7 +1,10 @@
 # VERCYE LAI Pipeline
 
+
 ## Description
 
+
+# THIS FILE IS DEPRECATED!! and needs to be updated!!
 This LAI Pipeline produces LAI products for VERCYE. It is intended for scaled deployment on servers or HPC with minimal human intervention.
 
 The Sentinel-2 LAI model is by Fernandes et al. from https://github.com/rfernand387/LEAF-Toolbox

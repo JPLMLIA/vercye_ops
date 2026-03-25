@@ -10,7 +10,7 @@ import geopandas as gpd
 import yaml
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
-from models import LAIEntry, LAIGenerationConfig
+from models import AddLaiDatesConfig, LAIEntry, LAIGenerationConfig
 from worker import run_lai_generation
 
 from vercye_ops.utils.env_utils import read_lai_dir_from_env
@@ -21,6 +21,17 @@ router = APIRouter(
 )
 
 lai_dir = read_lai_dir_from_env()
+
+
+def get_num_processing_cores(resolution):
+    if resolution <= 10:
+        num_cores_download = 100
+        num_cores_lai = 35
+    else:
+        num_cores_download = 100
+        num_cores_lai = 85
+
+    return num_cores_lai, num_cores_lai
 
 
 @router.get("")
@@ -63,6 +74,78 @@ def get_all_lai_entries() -> List[LAIEntry]:
 
     return entries
 
+@router.post("/actions/add")
+def add_dates(config: str = Form(...)):
+    try:
+        lai_config = AddLaiDatesConfig(**json.loads(config))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON for lai_config")
+
+    region_out_prefix = lai_config.name
+    out_dir = os.path.join(lai_dir, region_out_prefix)
+
+
+    if not os.path.exists(out_dir):
+        raise HTTPException(status_code=400, detail=f"No existing lai for region {region_out_prefix}.")
+
+    # Validate date ranges
+    # TODO might want to check with existing dates that there is no doubles but maybe also ok for now
+    for dr in lai_config.date_ranges:
+        start = datetime.strptime(dr.start_date, "%Y-%m-%d")
+        end = datetime.strptime(dr.end_date, "%Y-%m-%d")
+        if end <= start:
+            raise HTTPException(
+                status_code=400,
+                detail=f"End date {dr.end_date} must be after start date {dr.start_date}",
+            )
+        
+    num_cores_lai, num_cores_download = get_num_processing_cores(lai_config.resolution)
+
+    geojson_path = os.path.join(out_dir, "region.geojson")
+
+    meta_file = os.path.join(out_dir, "meta.json")
+    with open(meta_file, "r", encoding="utf-8") as file:
+        meta = json.load(file)
+
+    for res, status in meta["status"].items():
+        if status in ["generating", "standardizing", "merging", "finalizing"]:
+            raise HTTPException(status_code=400, detail="There already is an execution of this LAI product running. Wait for it to complete before adding dates.")
+
+    imagery_src = meta["imagery_source"]
+
+    # Prepare YAML configuration
+    config_dict = {
+        "date_ranges": [{"start_date": dr.start_date, "end_date": dr.end_date} for dr in lai_config.date_ranges],
+        "resolution": lai_config.resolution,
+        "geojson_path": geojson_path,
+        "out_dir": out_dir,
+        "region_out_prefix": region_out_prefix,
+        "from_step": 0,
+        "num_cores_download": num_cores_download,
+        "num_cores_lai": num_cores_lai,
+        "chunk_days": lai_config.chunk_days,
+        "imagery_src": imagery_src,
+        "keep_imagery": lai_config.keep_imagery,
+        "satellite": "S2",
+    }
+
+    executions_dir = os.path.join(out_dir, "executions")
+    suffix = (
+        max(
+            [int(f) for f in os.listdir(executions_dir) if os.path.isdir(os.path.join(executions_dir, f))],
+            default=0,
+        )
+        + 1
+    )
+    execuction_dir = os.path.join(out_dir, "executions", str(suffix))
+    os.makedirs(execuction_dir, exist_ok=True)
+
+    config_path = os.path.join(execuction_dir, "config.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump(config_dict, f, sort_keys=False)
+
+    run_lai_generation.delay(config_path)
+
 
 @router.post("/actions/generate")
 def generate_lai(lai_config: str = Form(...), region_shapefile: UploadFile = File(...)):
@@ -98,15 +181,10 @@ def generate_lai(lai_config: str = Form(...), region_shapefile: UploadFile = Fil
     # we should update this if users encounter errors based on bad input
 
     # Save uploaded shapefile (its a geojson) to geojson_path
-    with open(geojson_path, "wb") as f:
-        shutil.copyfileobj(region_shapefile.file, f)
+    gdf = gpd.read_file(region_shapefile.file)
+    gdf.to_file(geojson_path)
 
-    if lai_config.resolution == 10:
-        num_cores_download = 100
-        num_cores_lai = 35
-    else:
-        num_cores_download = 100
-        num_cores_lai = 85
+    num_cores_lai, num_cores_download = get_num_processing_cores(lai_config.resolution)
 
     # Prepare YAML configuration
     config_dict = {
@@ -199,7 +277,12 @@ def get_logs(lai_id: str):
 
 
 @router.post("/{lai_id}/{resolution}/actions/cancel")
-def cancel_generation(lai_id: str, resolution: int):
+def cancel_generation(lai_id: str, resolution: int, force: bool = False):
+    """Cancel a running LAI generation process.
+
+    Sends SIGINT for graceful shutdown, then escalates to SIGKILL after 10 seconds
+    if the process is still running. Use force=True for immediate SIGKILL.
+    """
     lai_entry_dir = os.path.join(lai_dir, lai_id)
     executions_dir = os.path.join(lai_entry_dir, "executions")
     suffix = max(
@@ -215,18 +298,40 @@ def cancel_generation(lai_id: str, resolution: int):
         raise HTTPException(status_code=404, detail="LAI generation does not have an associated task.")
 
     with open(task_id_file, "r") as f:
-        task_id = int(f.read().strip())
+        pgid = int(f.read().strip())
 
-    # kill the whole group
+    # Check if process group is still running
     try:
-        os.killpg(task_id, signal.SIGKILL)
-    except Exception as e:
-        print(f"Error killing Snakemake group: {e}")
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        # Already terminated — just update status
+        pass
+    else:
+        try:
+            if force:
+                os.killpg(pgid, signal.SIGKILL)
+            else:
+                # Graceful: SIGINT then wait up to 10s, escalate to SIGKILL
+                os.killpg(pgid, signal.SIGINT)
+                import time
+
+                for _ in range(100):
+                    time.sleep(0.1)
+                    try:
+                        os.killpg(pgid, 0)
+                    except ProcessLookupError:
+                        break
+                else:
+                    os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # Exited during shutdown
+        except Exception as e:
+            print(f"Error killing LAI process group {pgid}: {e}")
 
     # Update status
     with open(metadata_path, "r", encoding="utf-8") as file:
         metadata = json.load(file)
-        metadata["status"][resolution] = "cancelled"
+        metadata["status"][str(resolution)] = "cancelled"
 
     with open(metadata_path, "w") as file:
         json.dump(metadata, file)

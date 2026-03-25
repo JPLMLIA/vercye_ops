@@ -30,6 +30,7 @@ def save_sims(sims: pd.DataFrame, out_path: str):
 
 def extract_and_save_sims(db_path: str, matches_path: str, num_sims: int, out_path: str):
     ids_to_keep = get_best_matches(matches_path, num_sims)
+    print(ids_to_keep)
 
     sim_data_to_keep = get_sims(db_path, ids_to_keep)
 

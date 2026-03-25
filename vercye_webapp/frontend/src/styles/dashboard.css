@@ -97,7 +97,7 @@ p { font-size: 14px; }
 .btn-secondary:hover:not(:disabled) { background: var(--dark-primary); color: white; }
 .btn-sm { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
 
-.table-container { background: var(--white); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid var(--gray-200); }
+.table-container { background: var(--white); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid var(--gray-200); }
 .table { width: 100%; border-collapse: collapse; }
 .table th {
     background: var(--dark-white); padding: 15px; text-align: left; font-weight: 600; color: var(--dark-gray);
@@ -292,59 +292,44 @@ p { font-size: 14px; }
 .lai-marker { background: var(--primary); border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: all 0.2s ease; }
 .lai-marker:hover { transform: scale(1.2); background: var(--primary-hover); }
 
-/* Subtle effects preserved */
 .btn:hover:not(:disabled) { transform: translateY(-2px); }
 .table-container:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
 .modal-content { animation: modalSlideIn 0.3s ease; }
-@keyframes modalSlideIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1); } }
+@keyframes modalSlideIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.btn-split { display: inline-flex; position: relative; }
+.btn-split > .btn { margin: 0 !important; }
+.btn-split .btn-part1 {border-radius: 8px 0px 0px 8px}
+.btn-split .btn-part2 {border-radius: 0px 8px 8px 0px}
+.btn-split .btn:hover {transform: none}
+.btn-split .btn-part1.open {border-radius: 8px 0px 0px 0px !important}
+.btn-split .btn-part2.open {border-radius:  0px 8px 0px 0px !important}
+.btn-delete {color: var(--danger)!important}
 
-.btn-split {
-  display: inline-flex;
-  position: relative;
-}
-
-.btn-caret {
-  width: 28px;
-  padding: 0;
-  text-align: center;
-  border-left: 1px solid rgba(255,255,255,0.3);
-}
-
-.dropdown-menu-custom {
+.btn-caret { width: 28px; padding: 8px; text-align: center; border-left: 2px solid rgba(0,0,0,0.08); }
+.dropdown-menu {
+  margin: 0px;
   position: absolute;
   top: 100%;
   right: 0;
-  background: white;
+  background: var(--white);
   border: 1px solid var(--gray-200);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  margin-top: 4px;
-  min-width: 140px;
-  z-index: 10;
-  list-style: none;
-  padding: 4px 0;
+  border-radius: 0px 0px 8px 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  min-width: 180px;
+  z-index: 20;
+  padding: 6px;
+  margin-top: 0;
 }
-
-.dropdown-item-custom {
+.dropdown-item {
   display: block;
   width: 100%;
-  padding: 8px 12px;
   text-align: left;
-  background: none;
+  background: transparent;
   border: none;
-  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
   font-size: 13px;
+  color: var(--gray-700);
+  cursor: pointer;
 }
-
-.dropdown-item-custom:hover {
-  background: var(--gray-50);
-}
-
-.dropdown-item-custom.danger {
-  color: var(--danger);
-}
-
-.dropdown-item-custom.danger:hover {
-  background: var(--danger-hover);
-  color: white;
-}
+.dropdown-item:hover { background: var(--gray-50); }

@@ -126,7 +126,7 @@ def create_map(regions_summary, combined_geojson):
             ax.text(
                 x=centroid.x,
                 y=centroid.y,
-                s=f"{row['region']} \n {int(row['mean_yield_kg_ha'])}",
+                s=f"{row['region']} \n {safe_int(row['mean_yield_kg_ha'])}",
                 horizontalalignment="center",
                 fontsize=7,
                 weight="bold",
@@ -288,6 +288,8 @@ def save_report(report, out_fpath):
         if pisa_status.err:
             print("An error occured!")
 
+def safe_int(value, default="N/A"):
+    return default if pd.isna(value) else int(value)
 
 def fill_section_template(
     section_name,
@@ -310,7 +312,7 @@ def fill_section_template(
     if reference_yield_agg is not None:
         html_content += f"""
             <p style='-pdf-keep-with-next: true;'>
-                <strong>Aggregated Reference Yield (kg/ha):</strong> {int(reference_yield_agg)} kg/ha</br>
+                <strong>Aggregated Reference Yield (kg/ha):</strong> {safe_int(reference_yield_agg)} kg/ha</br>
                 Aggregated from all regions with reference data in this section, so possibly incomplete for complete study area.</br>
             </p>
         """
@@ -325,11 +327,11 @@ def fill_section_template(
                             <strong>Note:</strong> The evaluation metrics are only computed for those regions where ground truth (reference) data is available (See table below).<br>
                             <strong>Number of Regions Evaluated:</strong> {evaluation_results['n_regions'].iloc[0]}<br>
                             <strong>Mape: </strong> {evaluation_results['mape'].iloc[0] if 'mape' in evaluation_results else '-'} <br>
-                            <strong>Mean Error:</strong> {int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha<br>
-                            <strong>Median Error:</strong> {int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha<br>
-                            <strong>Mean Absolute Error:</strong> {int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha<br>
-                            <strong>Median Absolute Error:</strong> {int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha<br>
-                            <strong>RMSE:</strong> {int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Mean Error:</strong> {safe_int(evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Median Error:</strong> {safe_int(evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Mean Absolute Error:</strong> {safe_int(evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Median Absolute Error:</strong> {safe_int(evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>RMSE:</strong> {safe_int(evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha<br>
                             <strong>Relative RMSE:</strong> {evaluation_results['rrmse'].iloc[0]:.2f} %<br>
                             <strong>R2 (Coefficient of Determination):</strong> {evaluation_results['r2_scikit'].iloc[0]:.3f}<br>
                             <strong>R2 (Pearson Correlation Coefficient):</strong> {evaluation_results['r2_rsq_excel'].iloc[0]:.3f}<br>
@@ -374,12 +376,12 @@ def fill_section_template(
         html_content += f"""
                     <tr>
                         <td>{insert_word_breaks(row['region'])}</td>
-                        <td>{int(row['mean_yield_kg_ha'])}</td>
-                        <td>{int(row['median_yield_kg_ha'])}</td>
-                        {f'<td>{int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A"}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
+                        <td>{safe_int(row['mean_yield_kg_ha'])}</td>
+                        <td>{safe_int(row['median_yield_kg_ha'])}</td>
+                        {f'<td>{safe_int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A"}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
                         <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
                         {f'<td>{"{:,.2f}".format((row["reported_production_kg"] / 1000)) if not pd.isna(row["reported_production_kg"]) else "N/A"}</td>' if 'reported_production_kg' in row else ''}
-                        {f'<td>{int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
+                        {f'<td>{safe_int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
                         <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
                     </tr>
         """
@@ -492,8 +494,8 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <strong>Description:</strong> {description}</br>
             <strong>LAI Source:</strong> {lai_source}</br>
             <strong>Regions Shapefile:</strong> {original_regions_shp}</br></br>
-            <strong>Estimated Yield (Weighted Mean):</strong> {int(global_summary['mean_yield_kg'])} kg/ha</br>
-            {f"<strong>Reported Yield (Weighted Mean):</strong> {int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
+            <strong>Estimated Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_yield_kg'])} kg/ha</br>
+            {f"<strong>Reported Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
             {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t (from {num_available_regions_production}/{num_regions} regions)</br>" if global_summary['reported_total_production_ton'] is not None else ''}
             <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>

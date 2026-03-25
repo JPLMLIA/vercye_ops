@@ -1,9 +1,10 @@
 import csv
+import math
 import os.path as op
 import sys
 import time
 import warnings
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import click
@@ -11,24 +12,22 @@ import geopandas as gpd
 import numpy as np
 import rasterio as rio
 from rasterio.mask import mask
-from rasterio.windows import bounds
 from scipy.interpolate import Akima1DInterpolator
 from scipy.signal import savgol_filter
+from pyproj import CRS as ProjCRS
 from shapely import LineString, box
+from rasterio.coords import BoundingBox
 
 
 def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
-
     if not rio.coords.disjoint_bounds(src.bounds, geometry.total_bounds):
-        left_pad = int(np.round((src.bounds.left - geometry.total_bounds[0]) / src.res[0]))
-        left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.round((src.bounds.bottom - geometry.total_bounds[1]) / src.res[1]))
-        bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.round((geometry.total_bounds[2] - src.bounds.right) / src.res[0]))
-        right_pad = int(max(right_pad, 0))
-        top_pad = int(np.round((geometry.total_bounds[3] - src.bounds.top) / src.res[1]))
-        top_pad = int(max(top_pad, 0))
+        gx = abs(src.res[0])
+        gy = abs(src.res[1])
+        left_pad = max(0, int(np.round((src.bounds.left - geometry.total_bounds[0]) / gx)))
+        bottom_pad = max(0, int(np.round((src.bounds.bottom - geometry.total_bounds[1]) / gy)))
+        right_pad = max(0, int(np.round((geometry.total_bounds[2] - src.bounds.right) / gx)))
+        top_pad = max(0, int(np.round((geometry.total_bounds[3] - src.bounds.top) / gy)))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
             return masked_src, False
@@ -47,78 +46,158 @@ def pad_to_polygon(src, geometry, masked_src):
         sys.exit(1)
 
 
-def pad_to_raster(src_bounds, src_res, src_array, cropmask, cropmask_bounds):
-    if not rio.coords.disjoint_bounds(src_bounds, cropmask_bounds):
-        left_pad = int(np.round((src_bounds[0] - cropmask_bounds[0]) / src_res[0]))
-        left_pad = int(max(left_pad, 0))
-        bottom_pad = int(np.round((src_bounds[1] - cropmask_bounds[1]) / src_res[1]))
-        bottom_pad = int(max(bottom_pad, 0))
-        right_pad = int(np.round((cropmask_bounds[2] - src_bounds[2]) / src_res[0]))
-        right_pad = int(max(right_pad, 0))
-        top_pad = int(np.round((cropmask_bounds[3] - src_bounds[3]) / src_res[1]))
-        top_pad = int(max(top_pad, 0))
-
-        if left_pad + bottom_pad + right_pad + top_pad == 0:
-            return src_array, False
-        else:
-            print(f"Padding {src_array.shape} by {[top_pad, bottom_pad, left_pad, right_pad]} to {cropmask.shape}")
-            padded_src = np.pad(
-                src_array,
-                pad_width=((top_pad, bottom_pad), (left_pad, right_pad)),
-                mode="constant",
-                constant_values=np.nan,
-            )
-            return padded_src, True
-    else:
-        print("ERROR: The cropmask and the source raster do not overlap.")
-        sys.exit(1)
-
-
-def main(
-    lai_dir,
-    output_stats_fpath,
-    output_max_tif_fpath,
-    region,
-    resolution,
-    geometry_path,
-    mode,
-    adjustment,
-    start_date,
-    end_date,
-    lai_file_ext,
-    smoothed,
-    cloudcov_threshold,
-    maxlai_keep_bands,
-):
-    """LAI Analysis function
-
-    LAI_dir: Local path to the directory containing regional primary LAI rasters
-
-    region: Name of the primary region from which regions should be cropped
-
-    resolution: Resolution in meters of the LAI. Shoud match with the value used in export.
-
-    This pipeline does the following:
-    1. For each date in the range start_date to end_date
-    2. Find the primary LAI raster for the given region, resolution and date
-    3. Apply the provided mask as specified by the mode
-    4. Calculate the appropriate LAI statistics for the CSV
-    5. Calculate a maximum LAI raster for the geometry and date range
+def assert_grids_aligned(src, geom_t, tol_pix=1e-6):
     """
-    start = time.time()
+    Ensure src.transform and geom_t describe the same north-up grid,
+    up to an integer pixel translation.
+    Raises SystemExit with a helpful message if not aligned.
+    """
+    st = src.transform
+    gt = geom_t
 
-    # Make sure output directory exists
-    Path(output_stats_fpath).parent.mkdir(parents=True, exist_ok=True)
-    if output_max_tif_fpath:
-        Path(output_max_tif_fpath).parent.mkdir(parents=True, exist_ok=True)
+    # No rotation/shear (north-up)
+    if any(abs(v) > 1e-9 for v in (st.b, st.d, gt.b, gt.d)):
+        raise SystemExit("Transforms are rotated/sheared; only north-up grids are supported.")
 
-    # Geometry
-    geometry_name = Path(geometry_path).stem
+    # Pixel sizes equal (allow tiny epsilon)
+    if not math.isclose(st.a, gt.a, abs_tol=1e-9) or not math.isclose(st.e, gt.e, abs_tol=1e-9):
+        raise SystemExit(f"Pixel sizes differ: src {st.a, st.e} vs mask {gt.a, gt.e}")
 
-    maxlai_keep_bands = list(maxlai_keep_bands)
-    if len(maxlai_keep_bands) == 0:
-        raise ValueError("No bands to keep for the LAI data provided. Specify either estimateLAImax or adjustedLAImax.")
+    # Origin alignment in *pixel units*
+    px = abs(st.a)
+    py = abs(st.e)
 
+    dx_pix = (gt.c - st.c) / px
+    dy_pix = (gt.f - st.f) / py
+
+    mis_x = abs(dx_pix - round(dx_pix))
+    mis_y = abs(dy_pix - round(dy_pix))
+
+    if mis_x > tol_pix or mis_y > tol_pix:
+        raise SystemExit(
+            "Pixel grids are not aligned (origin mismatch).\n"
+            f"  LAI origin:      ({st.c}, {st.f})\n"
+            f"  Mask origin:     ({gt.c}, {gt.f})\n"
+            f"  Pixel size:      ({st.a}, {st.e})\n"
+            f"  Misalignment px: dx={dx_pix:.6f} (|Δ|={mis_x:.3g}), "
+            f"dy={dy_pix:.6f} (|Δ|={mis_y:.3g})\n"
+            "Reproject/snap the mask to the LAI grid."
+        )
+
+
+def build_lai_window_for_cropmask(src, cropmask_bounds, cropmask_shape):
+    """
+    Read a LAI window aligned to the cropmask extent on the LAI grid.
+    """
+    if isinstance(cropmask_bounds, BoundingBox):
+        bounds_tuple = (
+            cropmask_bounds.left,
+            cropmask_bounds.bottom,
+            cropmask_bounds.right,
+            cropmask_bounds.top,
+        )
+    else:
+        bounds_tuple = tuple(cropmask_bounds)
+
+    window = rio.windows.from_bounds(*bounds_tuple, transform=src.transform)
+    height, width = cropmask_shape
+
+    lai_window_array_padded = src.read(
+        1,
+        window=window,
+        boundless=True,
+        fill_value=np.nan,
+        out_shape=(height, width),
+        resampling=rio.enums.Resampling.nearest,  # grids should be aligned, so no real resampling occurs
+    ).astype(np.float32)
+
+    return lai_window_array_padded
+
+def compute_cloud_snow_percentage(lai_window_array_padded, cropmask_array):
+    cropmask_bool = cropmask_array.astype(bool)
+    cloud_snow_pixels = np.sum(np.isnan(lai_window_array_padded) & cropmask_bool)
+    total_pixels_in_region = np.sum(cropmask_bool)
+    cloud_snow_percentage = (
+        cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0.0
+    )
+    return cloud_snow_percentage
+
+def mask_lai_with_binary_cropmask(lai_window_array_padded, cropmask_array):
+    """
+    Apply a 0/1 binary cropmask to a LAI window.
+    """
+    if lai_window_array_padded.shape != cropmask_array.shape:
+        raise ValueError("LAI window and cropmask must have the same shape.")
+
+    cropmask_float = cropmask_array.astype(float)
+    cropmask_float[cropmask_float == 0] = np.nan
+
+    masked_src = lai_window_array_padded * cropmask_float
+
+    return masked_src
+
+
+def clip_negative_lai(lai_array):
+    """
+    Clip negative LAI values to NaN.
+    """
+    result = lai_array.astype(float, copy=True)
+    result[result < 0] = np.nan
+    return result
+
+
+def compute_lai_adjusted(lai_estimate, adjustment):
+    """
+    Apply crop-specific adjustment to LAI estimate.
+    """
+    if adjustment == "wheat":
+        return lai_estimate**2 * 0.0482 + lai_estimate * 0.9161 + 0.0026
+    elif adjustment == "maize":
+        return lai_estimate**2 * -0.078 + lai_estimate * 1.4 - 0.18
+    elif adjustment in ("none", None):
+        return lai_estimate
+    else:
+        raise ValueError(f"Unknown adjustment type: {adjustment}")
+
+
+def compute_basic_stats(arr):
+    """
+    Compute basic statistics for a LAI array, ignoring NaNs.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        mean = float(np.nanmean(arr))
+        median = float(np.nanmedian(arr))
+        stddev = float(np.nanstd(arr))
+        n_pixels = int(np.sum(~np.isnan(arr)))
+    return mean, median, stddev, n_pixels
+
+
+def update_max_lai(current_max, new_lai):
+    """
+    Update the running maximum LAI raster.
+    """
+    if current_max is None:
+        return new_lai
+    return np.nanmax([current_max, new_lai], axis=0)
+
+
+def raster_and_mask_intersect(lai_bounds, cropmask_bounds):
+    """
+    Check if LAI raster and cropmask have a non-empty, non-degenerate intersection.
+    """
+    bbox_lai = box(*lai_bounds)
+    bbox_cropmask = box(*cropmask_bounds)
+    intersection = bbox_lai.intersection(bbox_cropmask)
+    if intersection.is_empty or isinstance(intersection, LineString):
+        return False
+    return True
+
+def load_geometries(geometry_path, mode, geometry_name):
+    """
+    Load geometries based on the specified mode. Can be either raster,
+    vector polygons aggregated (if multiple in file), or vector polygons iterated.
+    """
     geometries = []
     if mode == "raster":
         print("MODE: raster")
@@ -126,16 +205,11 @@ def main(
         print("NOTE: Preprocessing to project the raster mask to the primary LAI raster is required.")
         print("      Read the README and use 0_reproj_mask.py.")
         # The cropmask is expected to be cropped to the region and have the same resolution as the LAI rasters
-        # If it is not cropped to the region, this will make the code very slow when running at national scale
         with rio.open(geometry_path) as ds:
-            # Validate that the cropmask raster is binary
-            # if not np.array_equal(np.unique(ds.read(1)), [0, 1]):
-            #     raise Exception(f"Cropmask {geometry_name} is not binary.")
-
             geometries.append(
                 {
                     "array": ds.read(1),
-                    "res": ds.res[0],
+                    "res": ds.res,
                     "bounds": ds.bounds,
                     "transform": ds.transform,
                     "crs": ds.crs,
@@ -155,367 +229,444 @@ def main(
                 row_dict = {"geometry": s.geometry, "FID": s.FID}
             except Exception:
                 print("[WARN] Attribute 'FID' not found, ignoring")
-                row_dict = {"geometry": s.gemoetry}
+                row_dict = {"geometry": s.geometry}
             row_gdf = gpd.GeoDataFrame([row_dict], geometry="geometry", crs=shp.crs)
             geometries.append(row_gdf)
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
 
-    # "geometries" list is now either:
-    # [a single raster mask]
-    # [a single shp geometry with multiple polygons]
-    # [polygon, polygon, polygon, polygon]
+    return geometries
+
+def ensure_output_dirs(output_stats_fpath, output_max_tif_fpath):
+    """
+    Ensure that the directories for output statistics and maximum LAI TIFF files exist.
+    """
+    Path(output_stats_fpath).parent.mkdir(parents=True, exist_ok=True)
+    if output_max_tif_fpath:
+        Path(output_max_tif_fpath).parent.mkdir(parents=True, exist_ok=True)
+
+
+def validate_maxlai_keep_bands(maxlai_keep_bands):
+    """
+    Validate the bands to keep for the maximum LAI output.
+    """
+    bands = list(maxlai_keep_bands)
+    if not bands:
+        raise ValueError(
+            "No bands to keep for the LAI data provided. "
+            "Specify either estimateLAImax or adjustedLAImax."
+        )
+    return bands
+
+
+def build_date_range(start_date, end_date):
+    """
+    Build lists of dates in ISO and slash formats between start_date and end_date.
+    """
+    all_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    dates_iso = [d.strftime("%Y-%m-%d") for d in all_dates]
+    dates_slash = [d.strftime("%d/%m/%Y") for d in all_dates]
+    return dates_iso, dates_slash
+
+
+def make_empty_stat_row(date_slash, cloud_snow_percentage=None, interpolated=0):
+    return {
+        "Date": date_slash,
+        "n_pixels": 0,
+        "interpolated": interpolated,
+        "LAI Mean": None,
+        "LAI Median": None,
+        "LAI Stddev": None,
+        "LAI Mean Adjusted": None,
+        "LAI Median Adjusted": None,
+        "LAI Stddev Adjusted": None,
+        "Cloud or Snow Percentage": cloud_snow_percentage,
+    }
+
+def apply_savgol_smoothing(statistics):
+    """
+    Apply Savitzky-Golay smoothing to LAI statistics.
+    Stores unsmoothed values in new columns with " Unsmoothed" suffix.
+    """
+    if not statistics:
+        return statistics
+
+    lai_cols = [
+        "LAI Mean",
+        "LAI Median",
+        "LAI Stddev",
+        "LAI Mean Adjusted",
+        "LAI Median Adjusted",
+        "LAI Stddev Adjusted",
+    ]
+
+    for rec in statistics:
+        for col in lai_cols:
+            rec[col + " Unsmoothed"] = rec[col]
+
+    window_length_default = 9
+    polyorder = 2
+
+    for col in lai_cols:
+        valid_idxs = []
+        valid_values = []
+
+        for idx_stat, row in enumerate(statistics):
+            if row[col] is not None:
+                valid_idxs.append(idx_stat)
+                valid_values.append(row[col])
+
+        if not valid_values:
+            continue
+
+        window_length = min(window_length_default, len(valid_values))
+        if window_length % 2 == 0:
+            window_length -= 1
+        if window_length < polyorder + 2:
+            window_length = polyorder + 2
+
+        smooth_vals = savgol_filter(valid_values, window_length, polyorder)
+        smooth_vals = np.clip(smooth_vals, 0, None)
+
+        for idx_val, stats_row_idx in enumerate(valid_idxs):
+            statistics[stats_row_idx][col] = float(smooth_vals[idx_val])
+
+    return statistics
+
+def apply_akima_interpolation(statistics, smoothed):
+    """
+    Apply Akima interpolation to fill missing LAI statistics.
+    Marks interpolated entries with 'interpolated' = 1.
+    """
+    if not statistics:
+        return statistics
+
+    interpolation_cols = ["LAI Mean", "LAI Mean Adjusted", "LAI Median", "LAI Median Adjusted"]
+
+    if smoothed:
+        interpolation_cols += [
+            "LAI Mean Unsmoothed",
+            "LAI Mean Adjusted Unsmoothed",
+            "LAI Median Unsmoothed",
+            "LAI Median Adjusted Unsmoothed",
+        ]
+
+    for col in interpolation_cols:
+        real_X = []
+        real_Y = []
+        nan_X = []
+
+        for i, stat in enumerate(statistics):
+            if stat[col] is None:
+                nan_X.append(i)
+            else:
+                real_X.append(i)
+                real_Y.append(stat[col])
+
+        if not real_X:
+            continue
+
+        cs = Akima1DInterpolator(
+            np.array(real_X),
+            np.array(real_Y),
+            method="akima",
+            extrapolate=False,
+        )
+        for i in nan_X:
+            val = cs(i)
+            if np.isnan(val):
+                continue
+            statistics[i][col] = max(float(val), 0.0)
+            statistics[i]["interpolated"] = 1
+
+    return statistics
+
+def ensure_raster_alignment(src, geometry, tol_pix=1e-6):
+    """
+    Ensure that the LAI raster and the cropmask raster are aligned. 
+    Required so that masking works correctly and no pixel shifts occur.
+    """
+    if not ProjCRS(src.crs).equals(ProjCRS(geometry["crs"])):
+        print(f"ERROR: CRS mismatch: LAI {src.crs} vs cropmask {geometry['crs']}. Reproject the mask first.")
+        sys.exit(1)
+
+    if (
+        not np.isclose(src.res[0], geometry["res"][0])
+        or not np.isclose(src.res[1], geometry["res"][1])
+    ):
+        print(f"ERROR: Resolution mismatch: LAI {src.res} vs cropmask {geometry['res']}")
+        sys.exit(1)
+
+    assert_grids_aligned(src, geometry["transform"], tol_pix=1e-6)
+
+
+def write_statistics_csv(output_stats_fpath, statistics):
+    if not statistics:
+        return
+    with open(output_stats_fpath, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=statistics[0].keys())
+        writer.writeheader()
+        writer.writerows(statistics)
+    print(f"Exported stats to {output_stats_fpath}")
+
+
+def write_max_lai_raster(
+    output_max_tif_fpath,
+    src_meta,
+    maxlai_keep_bands,
+    lai_max,
+    lai_adjusted_max,
+):
+    """Write the maximum LAI raster to a GeoTIFF file. """
+    if not output_max_tif_fpath or src_meta is None:
+        return
+
+    band_count = len(maxlai_keep_bands)
+    src_meta = src_meta.copy()
+    src_meta["count"] = band_count
+    src_meta.update({"driver": "GTiff", "nodata": np.nan})
+
+    with rio.open(output_max_tif_fpath, "w", **src_meta) as dst:
+        band_idx = 1
+        if "estimateLAImax" in maxlai_keep_bands:
+            dst.write(lai_max, band_idx)
+            dst.set_band_description(band_idx, "estimateLAImax")
+            band_idx += 1
+
+        if "adjustedLAImax" in maxlai_keep_bands:
+            dst.write(lai_adjusted_max, band_idx)
+            dst.set_band_description(band_idx, "adjustedLAImax")
+
+    print(f"Exported max LAI tif to {output_max_tif_fpath}")
+
+
+def process_single_date(
+    lai_dir,
+    region,
+    resolution,
+    lai_file_ext,
+    geometry,
+    mode,
+    adjustment,
+    date_iso,
+    date_slash,
+    cloudcov_threshold,
+    src_meta,
+):
+    """
+    Process LAI data for a single date, applying masking, adjustments, and computing statistics and maximum LAI rasters.
+    """
+    LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{date_iso}_LAI.{lai_file_ext}")
+
+    if not op.exists(LAI_path):
+        print(f"{Path(LAI_path).name} [DOES NOT EXIST]")
+        return make_empty_stat_row(date_slash), None, None, src_meta
+
+    # Open LAI raster
+    src = rio.open(LAI_path)
+
+    if "poly" in mode:
+        try:
+            masked_src, masked_transform = mask(
+                src,
+                geometry.geometry,
+                crop=True,
+                nodata=np.nan,
+                indexes=1,
+            )
+        except ValueError:
+            # mask doesn't intersect source
+            print(f"{Path(LAI_path).name} [NODATA IN GEOMETRY]")
+            return make_empty_stat_row(date_slash), None, None, src_meta
+
+        masked_src, is_padded = pad_to_polygon(src, geometry, masked_src)
+
+        if not is_padded and src_meta is None:
+            src_meta = src.meta
+            src_meta.update(
+                {
+                    "height": masked_src.shape[0],
+                    "width": masked_src.shape[1],
+                    "transform": masked_transform,
+                    "count": 2,
+                }
+            )
+
+        cloud_snow_percentage = -1  # Not yet supported for polygon mode
+
+    elif mode == "raster":
+        # Sanity check: ensure LAI raster and cropmask are aligned
+        ensure_raster_alignment(src, geometry)
+
+        cropmask_array = geometry["array"]
+        cropmask_bounds = geometry["bounds"]
+        cm_h, cm_w = cropmask_array.shape
+
+        # Check for intersection between LAI raster and cropmask
+        if not raster_and_mask_intersect(src.bounds, cropmask_bounds):
+            print(f"{Path(LAI_path).name} [NO INTERSECTION OF CROPMASK AND LAI]")
+            return make_empty_stat_row(date_slash), None, None, src_meta
+
+        # Build LAI window array padded for dimensions of the cropmask
+        lai_window_array_padded = build_lai_window_for_cropmask(
+            src,
+            cropmask_bounds,
+            (cm_h, cm_w),
+        )
+
+        # Compute percentage of pixels that are cloud/snow and actually would be cropland (i.e., inside cropmask)
+        cloud_snow_percentage = compute_cloud_snow_percentage(lai_window_array_padded, cropmask_array)
+
+        # Mask LAI window array with binary cropmask
+        masked_src = mask_lai_with_binary_cropmask(
+            lai_window_array_padded,
+            cropmask_array,
+        )
+
+        if src_meta is None:
+            src_meta = src.meta
+            src_meta.update(
+                {
+                    "height": masked_src.shape[0],
+                    "width": masked_src.shape[1],
+                    "transform": geometry["transform"],
+                    "count": 2,
+                    "compress": "lzw",
+                    "driver": "GTiff",
+                }
+            )
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+    masked_src = clip_negative_lai(masked_src)
+
+    should_skip = False
+    if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold * 100:
+        print(f"{Path(LAI_path).name} [INSUFFICIENT DATA IN GEOMETRY]")
+        should_skip = True
+
+    if np.all(np.isnan(masked_src)):
+        print(f"{Path(LAI_path).name} [NO DATA IN GEOMETRY]")
+        should_skip = True
+
+    if should_skip:
+        stat = make_empty_stat_row(date_slash, cloud_snow_percentage=cloud_snow_percentage)
+        return stat, None, None, src_meta
+
+    LAI_estimate = masked_src
+    LAI_adjusted = compute_lai_adjusted(LAI_estimate, adjustment) # Adjust for croptype
+
+    lai_mean, lai_median, lai_stddev, n_pixels = compute_basic_stats(LAI_estimate)
+    lai_adj_mean, lai_adj_median, lai_adj_stddev, _ = compute_basic_stats(LAI_adjusted)
+
+    stat = {
+        "Date": date_slash,
+        "n_pixels": n_pixels,
+        "interpolated": 0,
+        "LAI Mean": lai_mean,
+        "LAI Median": lai_median,
+        "LAI Stddev": lai_stddev,
+        "LAI Mean Adjusted": lai_adj_mean,
+        "LAI Median Adjusted": lai_adj_median,
+        "LAI Stddev Adjusted": lai_adj_stddev,
+        "Cloud or Snow Percentage": cloud_snow_percentage,
+    }
+
+    print(f"{Path(LAI_path).name} [SUCCESS]")
+    return stat, LAI_estimate, LAI_adjusted, src_meta
+
+
+def process_geometry(
+    lai_dir,
+    region,
+    resolution,
+    lai_file_ext,
+    geometry,
+    mode,
+    adjustment,
+    dates_iso,
+    dates_slash,
+    cloudcov_threshold,
+):
+    """Process all dates for a given geometry, returning statistics and maximum LAI rasters.
+    """
+    statistics = []
+    lai_max = None
+    lai_adjusted_max = None
+    src_meta = None
+
+    # Process all dates for this geometry
+    for date_iso, date_slash in zip(dates_iso, dates_slash):
+        stat, lai_estimate, lai_adjusted, src_meta = process_single_date(
+            lai_dir=lai_dir,
+            region=region,
+            resolution=resolution,
+            lai_file_ext=lai_file_ext,
+            geometry=geometry,
+            mode=mode,
+            adjustment=adjustment,
+            date_iso=date_iso,
+            date_slash=date_slash,
+            cloudcov_threshold=cloudcov_threshold,
+            src_meta=src_meta,
+        )
+        statistics.append(stat)
+
+        if lai_estimate is not None:
+            lai_max = update_max_lai(lai_max, lai_estimate)
+        if lai_adjusted is not None:
+            lai_adjusted_max = update_max_lai(lai_adjusted_max, lai_adjusted)
+
+    return statistics, lai_max, lai_adjusted_max, src_meta
+
+def main(
+    lai_dir,
+    output_stats_fpath,
+    output_max_tif_fpath,
+    region,
+    resolution,
+    geometry_path,
+    mode,
+    adjustment,
+    start_date,
+    end_date,
+    lai_file_ext,
+    smoothed,
+    cloudcov_threshold,
+    maxlai_keep_bands,
+):
+    start = time.time()
+
+    ensure_output_dirs(output_stats_fpath, output_max_tif_fpath)
+    maxlai_keep_bands = validate_maxlai_keep_bands(maxlai_keep_bands)
+
+    geometry_name = Path(geometry_path).stem
+    geometries = load_geometries(geometry_path, mode, geometry_name)
+
+    dates_iso, dates_slash = build_date_range(start_date, end_date)
 
     for idx, geometry in enumerate(geometries):
         print(f"Processing {idx+1} of {len(geometries)} geometries")
 
-        # Iterate through each date
-        dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
-        dates = [date.strftime("%Y-%m-%d") for date in dates]
-
-        # Keep track of statistics
-        statistics = []
-        # Keep track of maximum raster
-        lai_max = None
-        # Keep track of adjusted maximum raster
-        lai_adjusted_max = None
-        src_meta = None
-        for d in dates:
-            # The csv requires the date in day/month/year format
-            d_slash = datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m/%Y")
-
-            # See if the LAI raster exists
-            LAI_path = op.join(lai_dir, f"{region}_{str(resolution)}m_{d}_LAI.{lai_file_ext}")
-            if not op.exists(LAI_path):
-                print(f"{Path(LAI_path).name} [DOES NOT EXIST]")
-
-                stat = {
-                    "Date": d_slash,
-                    "n_pixels": 0,
-                    "interpolated": 0,
-                    "LAI Mean": None,
-                    "LAI Median": None,
-                    "LAI Stddev": None,
-                    "LAI Mean Adjusted": None,
-                    "LAI Median Adjusted": None,
-                    "LAI Stddev Adjusted": None,
-                    "Cloud or Snow Percentage": None,
-                }
-                statistics.append(stat)
-                continue
-
-            # Load the LAI raster
-            src = rio.open(LAI_path)
-
-            if src.crs != geometry["crs"]:
-
-                print(f"ERROR: CRS mismatch: LAI {src.crs} vs cropmask {geometry['crs']}. Reproject the mask first.")
-                sys.exit(1)
-
-            if not np.isclose(src.res[0], geometry["res"]) or not np.isclose(src.res[1], geometry["res"]):
-                print(f"ERROR: Resolution mismatch: LAI {src.res} vs cropmask {(geometry['res'], geometry['res'])}")
-                sys.exit(1)
-
-            # check pixel grid alignment (origins)
-            gx0, gy0 = (geometry["transform"].c, geometry["transform"].f)
-            sx0, sy0 = (src.transform.c, src.transform.f)
-            if (abs((gx0 - sx0) % src.res[0]) > 1e-6) or (abs((gy0 - sy0) % src.res[1]) > 1e-6):
-                gx0, gy0 = (geometry["transform"].c, geometry["transform"].f)
-                sx0, sy0 = (src.transform.c, src.transform.f)
-
-                dx = (gx0 - sx0) % src.res[0]
-                dy = (gy0 - sy0) % src.res[1]
-
-                if (abs(dx) > 1e-6) or (abs(dy) > 1e-6):
-                    print("ERROR: Pixel grids are not aligned (origin mismatch).")
-                    print(f"  LAI origin:      ({sx0}, {sy0})")
-                    print(f"  Mask origin:     ({gx0}, {gy0})")
-                    print(f"  Resolution:      {src.res}")
-                    print(f"  Misalignment dx: {dx} (should be ~0)")
-                    print(f"  Misalignment dy: {dy} (should be ~0)")
-                print("ERROR: Pixel grids are not aligned (origin mismatch). Reproject/snap the mask to the LAI grid.")
-
-            # Cropping via rasters or polygons
-            if "poly" in mode:
-                # Mask the raster with the shp
-                try:
-                    masked_src, masked_transform = mask(src, geometry.geometry, crop=True, nodata=np.nan, indexes=1)
-                except ValueError:
-                    # mask doesn't intersect source
-                    print(f"{Path(LAI_path).name} [NODATA IN GEOMETRY]")
-                    stat = {
-                        "Date": d_slash,
-                        "n_pixels": 0,
-                        "interpolated": 0,
-                        "LAI Mean": None,
-                        "LAI Median": None,
-                        "LAI Stddev": None,
-                        "LAI Mean Adjusted": None,
-                        "LAI Median Adjusted": None,
-                        "LAI Stddev Adjusted": None,
-                        "Cloud or Snow Percentage": None,
-                    }
-                    statistics.append(stat)
-                    continue
-
-                # There is an edge case where if the extent of src is less than that of geometry,
-                # then rio.mask.mask will not pad - it will only crop. This function will pad
-                # so that masked_src always fills the extent of geometry.
-                masked_src, is_padded = pad_to_polygon(src, geometry, masked_src)
-
-                if not is_padded and src_meta is None:
-                    src_meta = src.meta
-                    src_meta.update(
-                        {
-                            "height": masked_src.shape[0],
-                            "width": masked_src.shape[1],
-                            "transform": masked_transform,
-                            "count": 2,
-                        }
-                    )
-
-                cloud_snow_percentage = -1  # Not yet supported
-
-            elif mode == "raster":
-                # Mask the raster with the raster
-                cropmask_array = geometry["array"]
-                cropmask_res = geometry["res"]
-                cropmask_bounds = geometry["bounds"]
-                if src.res[0] != cropmask_res:
-                    print(f"ERROR: cropmask resolution {cropmask_res} != LAI resolution {src.res[0]}")
-                    print("Preprocessing to project the cropmask to the primary region LAI is required.")
-                    print("See the README and use 0_reproj_mask.py")
-                    sys.exit(1)
-
-                bbox_lai = box(*src.bounds)
-                bbox_cropmask = box(*cropmask_bounds)
-                intersection = bbox_lai.intersection(bbox_cropmask)
-                # If is empty or has no height or width, ignore
-                if intersection.is_empty or isinstance(intersection, LineString):
-                    print(f"{Path(LAI_path).name} [NO INTERSECTION OF CROPMASK AND LAI]")
-                    stat = {
-                        "Date": d_slash,
-                        "n_pixels": 0,
-                        "interpolated": 0,
-                        "LAI Mean": None,
-                        "LAI Median": None,
-                        "LAI Stddev": None,
-                        "LAI Mean Adjusted": None,
-                        "LAI Median Adjusted": None,
-                        "LAI Stddev Adjusted": None,
-                        "Cloud or Snow Percentage": None,
-                    }
-                    statistics.append(stat)
-                    continue
-
-                # Read the intersection from the cropmask and LAI
-                window_lai = rio.windows.from_bounds(*intersection.bounds, transform=src.transform)
-                window_cropmask = rio.windows.from_bounds(*intersection.bounds, transform=geometry["transform"])
-
-                # Read the LAI window
-                lai_window_array = src.read(1, window=window_lai, masked=True).filled(np.nan).astype(np.float32)
-
-                lai_window_bounds = bounds(window_lai, transform=src.transform)
-                lai_window_res = src.res
-
-                # This can be removed in production as it is causing overheads
-                # Currently keeping this to ensure the windowing logic does not have a missed edge case
-                with rio.open(geometry_path) as src_cropmask:
-                    # Read the cropmask windowcropmask_bounds
-                    cropmask_window_array_debug = src_cropmask.read(1, window=window_cropmask)
-
-                    # Check if the cropmask and LAI windows are the same size
-                    if cropmask_window_array_debug.shape != lai_window_array.shape:
-                        print(
-                            f"ERROR: cropmask window shape {cropmask_window_array_debug.shape} != LAI window shape {lai_window_array.shape}"
-                        )
-                        print("Preprocessing to project the cropmask to the primary region LAI is required.")
-                        print("See the README and use 0_reproj_mask.py")
-                        sys.exit(1)
-
-                # Pad the LAI window to the cropmask
-                # This is necessary because most LAI rasters have partial coverages of a region (Only available tiles are Mosaiked)
-                # And we always require the alignment to the shape of the cropmask, so that we can reliably update
-                # the max LAI raster later
-                lai_window_array_padded, is_padded = pad_to_raster(
-                    lai_window_bounds,
-                    lai_window_res,
-                    lai_window_array,
-                    cropmask_array,
-                    cropmask_bounds,
-                )
-
-                # replace zeros with NaN's
-                cropmask_array_bool = cropmask_array.copy().astype(bool)
-                cropmask_array = cropmask_array.astype(float)
-
-                # Computing the percentage of pixels that are clouds or snow (and thus are nan)
-                cloud_snow_pixels = np.sum(np.isnan(lai_window_array_padded) & cropmask_array_bool)
-                total_pixels_in_region = np.sum(cropmask_array_bool)
-                cloud_snow_percentage = (
-                    cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0
-                )
-
-                # Set the cropmask to NaN where it is 0
-                cropmask_array[cropmask_array == 0] = np.nan
-
-                # apply binary mask
-                masked_src = lai_window_array_padded * cropmask_array
-
-                if not is_padded and src_meta is None:
-                    src_meta = src.meta
-                    src_meta.update(
-                        {
-                            "height": masked_src.shape[0],
-                            "width": masked_src.shape[1],
-                            "transform": geometry["transform"],
-                            "count": 2,
-                            "compress": "lzw",
-                            "driver": "GTiff",
-                        }
-                    )
-
-            # clip all negative values to nan, as they are invalid and should be ignored
-            masked_src[masked_src < 0] = np.nan
-
-            should_skip = False
-            if cloudcov_threshold is not None and cloud_snow_percentage > cloudcov_threshold * 100:
-                print(f"{Path(LAI_path).name} [INSUFFICIENT DATA IN GEOMETRY]")
-                should_skip = True
-
-            if np.all(np.isnan(masked_src)):
-                print(f"{Path(LAI_path).name} [NO DATA IN GEOMETRY]")
-                should_skip = True
-
-            # If the raster after masking is all nan, skip
-            if should_skip:
-                stat = {
-                    "Date": d_slash,
-                    "n_pixels": 0,
-                    "interpolated": 0,
-                    "LAI Mean": None,
-                    "LAI Median": None,
-                    "LAI Stddev": None,
-                    "LAI Mean Adjusted": None,
-                    "LAI Median Adjusted": None,
-                    "LAI Stddev Adjusted": None,
-                    "Cloud or Snow Percentage": cloud_snow_percentage,
-                }
-                statistics.append(stat)
-                continue
-
-            LAI_estimate = masked_src
-
-            # Wheat and Maize calibrations
-            if adjustment == "wheat":
-                LAI_adjusted = LAI_estimate**2 * 0.0482 + LAI_estimate * 0.9161 + 0.0026
-            elif adjustment == "maize":
-                LAI_adjusted = LAI_estimate**2 * -0.078 + LAI_estimate * 1.4 - 0.18
-            else:
-                LAI_adjusted = LAI_estimate
-
-            # Calculate statistics for valid raster
-            # Catching runtime warnings when numpy complains that a pixel only has NaNs
-            # This is expected
-
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=RuntimeWarning)
-                statistics.append(
-                    {
-                        "Date": d_slash,
-                        "n_pixels": np.sum(~np.isnan(masked_src)),
-                        "interpolated": 0,
-                        "LAI Mean": np.nanmean(LAI_estimate),
-                        "LAI Median": np.nanmedian(LAI_estimate),
-                        "LAI Stddev": np.nanstd(LAI_estimate),
-                        "LAI Mean Adjusted": np.nanmean(LAI_adjusted),
-                        "LAI Median Adjusted": np.nanmedian(LAI_adjusted),
-                        "LAI Stddev Adjusted": np.nanstd(LAI_adjusted),
-                        "Cloud or Snow Percentage": cloud_snow_percentage,
-                    }
-                )
-
-                # Update running maximum rasters
-                if lai_max is None:
-                    lai_max = LAI_estimate
-                else:
-                    lai_max = np.nanmax([lai_max, LAI_estimate], axis=0)
-
-                if lai_adjusted_max is None:
-                    lai_adjusted_max = LAI_adjusted
-                else:
-                    lai_adjusted_max = np.nanmax([lai_adjusted_max, LAI_adjusted], axis=0)
-
-            print(f"{Path(LAI_path).name} [SUCCESS]")
+        statistics, lai_max, lai_adjusted_max, src_meta = process_geometry(
+            lai_dir=lai_dir,
+            region=region,
+            resolution=resolution,
+            lai_file_ext=lai_file_ext,
+            geometry=geometry,
+            mode=mode,
+            adjustment=adjustment,
+            dates_iso=dates_iso,
+            dates_slash=dates_slash,
+            cloudcov_threshold=cloudcov_threshold,
+        )
 
         if smoothed:
-            lai_cols = [
-                "LAI Mean",
-                "LAI Median",
-                "LAI Stddev",
-                "LAI Mean Adjusted",
-                "LAI Median Adjusted",
-                "LAI Stddev Adjusted",
-            ]
+            statistics = apply_savgol_smoothing(statistics)
 
-            for rec in statistics:
-                for col in lai_cols:
-                    rec[col + " Unsmoothed"] = rec[col]
+        statistics = apply_akima_interpolation(statistics, smoothed=smoothed)
 
-            # Apply Savitzky–Golay Smoothing
-            window_length_default = 9
-            polyorder = 2
-
-            for col in lai_cols:
-                valid_idxs = []
-                valid_values = []
-
-                for idx, row in enumerate(statistics):
-                    if row[col] is not None:
-                        valid_idxs.append(idx)
-                        valid_values.append(row[col])
-
-                window_length = min(window_length_default, len(valid_values))
-                # window length should be uneven and bigger than polyorder to avoid jitter
-                if window_length % 2 == 0:
-                    window_length -= 1
-                if window_length < polyorder + 2:
-                    window_length = polyorder + 2
-
-                smooth_vals = savgol_filter(valid_values, window_length, polyorder)
-                smooth_vals = np.clip(smooth_vals, 0, None)
-
-                for idx, stats_row_idx in enumerate(valid_idxs):
-                    statistics[stats_row_idx][col] = smooth_vals[idx]
-
-        # Akima spline interpolation
-        interpolation_cols = ["LAI Mean", "LAI Mean Adjusted", "LAI Median", "LAI Median Adjusted"]
-
-        if smoothed:
-            interpolation_cols += [
-                "LAI Mean Unsmoothed",
-                "LAI Mean Adjusted Unsmoothed",
-                "LAI Median Unsmoothed",
-                "LAI Median Adjusted Unsmoothed",
-            ]
-
-        for col in interpolation_cols:
-            real_X = []
-            real_Y = []
-            nan_X = []
-            for i, stat in enumerate(statistics):
-                if stat[col] is None:
-                    nan_X.append(i)
-                else:
-                    real_X.append(i)
-                    real_Y.append(stat[col])
-
-            # Akima Interpolation
-            cs = Akima1DInterpolator(np.array(real_X), np.array(real_Y), method="akima", extrapolate=False)
-            for i in nan_X:
-                # Clip negative values to zero
-                statistics[i][col] = max(cs(i), 0)
-                # Mark row as interpolated
-                statistics[i]["interpolated"] = 1
-
+        # geometry-specific naming hook preserved (if you later want to change output paths)
         new_geometry_name = geometry_name
         if mode == "poly_iter":
             try:
@@ -525,35 +676,14 @@ def main(
                 print("Using incrementing index instead to avoid overwriting files.")
                 new_geometry_name += f"_{str(idx)}"
 
-        ########################
-        # Generating LAI outputs
-
-        # Write statistics to CSV
-        with open(output_stats_fpath, "w") as f:
-            writer = csv.DictWriter(f, fieldnames=statistics[0].keys())
-            writer.writeheader()
-            writer.writerows(statistics)
-        print(f"Exported stats to {output_stats_fpath}")
-
-        src_meta.update({"driver": "GTiff"})
-
-        # Export running maximum
-        if output_max_tif_fpath:
-            band_count = len(maxlai_keep_bands)
-            src_meta["count"] = band_count
-            with rio.open(output_max_tif_fpath, "w", **src_meta) as dst:
-                if "estimateLAImax" in maxlai_keep_bands:
-                    dst.write(lai_max, 1)
-                    dst.set_band_description(1, "estimateLAImax")
-
-                    if "adjustedLAImax" in maxlai_keep_bands:
-                        dst.write(lai_adjusted_max, 2)
-                        dst.set_band_description(2, "adjustedLAImax")
-
-                elif "adjustedLAImax" in maxlai_keep_bands:
-                    dst.write(lai_adjusted_max, 1)
-                    dst.set_band_description(1, "adjustedLAImax")
-            print(f"Exported max LAI tif to {output_max_tif_fpath}")
+        write_statistics_csv(output_stats_fpath, statistics)
+        write_max_lai_raster(
+            output_max_tif_fpath=output_max_tif_fpath,
+            src_meta=src_meta,
+            maxlai_keep_bands=maxlai_keep_bands,
+            lai_max=lai_max,
+            lai_adjusted_max=lai_adjusted_max,
+        )
 
     print(f"Finished in {time.time()-start:.2f} seconds")
 
@@ -569,10 +699,10 @@ def main(
     "--mode",
     type=click.Choice(["raster", "poly_agg", "poly_iter"]),
     default="raster",
-    help="What kind of geometry to expect and how to apply it. \
-                'raster' expects a pixelwise mask of zeros and ones. \
-                'poly_agg' expects a .shp or .geojson and combines all polygons. \
-                'poly_iter' iterates through each polygon.",
+    help="What kind of geometry to expect and how to apply it. "
+    "'raster' expects a pixelwise mask of zeros and ones. "
+    "'poly_agg' expects a .shp or .geojson and combines all polygons. "
+    "'poly_iter' iterates through each polygon.",
 )
 @click.option(
     "--adjustment",
@@ -605,14 +735,16 @@ def main(
     "--cloudcov_threshold",
     type=float,
     default=None,
-    help="Precentage (Range [0,1]) of pixels in ROI that are allowed to be clouds or snow. If exceeded, the LAI from this date is ignored. Default: None (no threshold).",
+    help="Precentage (Range [0,1]) of pixels in ROI that are allowed to be clouds or snow. "
+    "If exceeded, the LAI from this date is ignored. Default: None (no threshold).",
 )
 @click.option(
     "--maxlai_keep_bands",
     multiple=True,
     type=str,
     default=["estimateLAImax", "adjustedLAImax"],
-    help="Bands to keep in the max lai tif output. Space seperated. (estimateLAImax and/or adjustedLAImax)",
+    help="Bands to keep in the max lai tif output. Space seperated. "
+    "(estimateLAImax and/or adjustedLAImax)",
 )
 def cli(
     lai_dir,

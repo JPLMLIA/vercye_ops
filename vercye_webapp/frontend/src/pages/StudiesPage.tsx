@@ -28,8 +28,37 @@ enum Result {
   Report = "Report"
 }
 
+const SplitButton: React.FC<{
+  label: string;
+  onPrimary: () => void;
+  disabled?: boolean;
+  variant?: 'primary'|'success'|'secondary'|'danger';
+  menu: { label: string; onClick: () => void; tooltip?: string }[];
+}> = ({ label, onPrimary, disabled, variant='primary', menu }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="btn-split" onMouseLeave={() => setOpen(false)}>
+      <button className={`btn btn-sm btn-${variant} btn-part1 ${open? 'open' : ''}`} onClick={onPrimary} disabled={disabled}>{label}</button>
+      <button
+        className={`btn btn-sm btn-${variant} btn-part2 btn-caret ${open? 'open' : ''}`}
+        aria-haspopup="menu" aria-expanded={open} aria-label="More options"
+        onClick={() => setOpen(o=>!o)} disabled={disabled}
+      > ▾</button>
+      {open && (
+        <div role="menu" className="dropdown-menu">
+          {menu.map((m, i) => (
+            <button key={i} className="dropdown-item" onClick={() => { setOpen(false); m.onClick(); }}
+              title={m.tooltip || ''}>
+              {m.label}{m.tooltip ? <span aria-hidden style={{marginLeft:6, fontWeight:600}}> ?</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StudiesPage = () => {
-  const [studies, setStudies] = useState<StudyId[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [detailOpen, setDetailOpen] = useState(false);
@@ -38,10 +67,17 @@ const StudiesPage = () => {
   const [runConfigMessage, setRunConfigMessage] = useState('');
   const [logsOpen, setLogsOpen] = useState(false);
   const [logs, setLogs] = useState<string>('Loading logs...');
-  const [statuses, setStatuses] = useState<Record<string, StudyStatus>>({});
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [initialSetupData, setInitialSetupData] = useState<SetupConfigTemplate | null>(null)
   const [initialRunConfigData, setInitialRunConfigData] = useState<RunConfigFormParams | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // pagination state
+  const [studies, setStudies] = useState<StudyId[] | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, StudyStatus>>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
   // Results selector modal state
   const [resultYears, setResultYears] = useState<Record<string, string[]>>({});
@@ -69,36 +105,36 @@ const StudiesPage = () => {
     }
   };
 
+  useEffect(() => { withLoading(load, 'Loading studies…'); }, [page, pageSize]);
+
   useEffect(() => {
-    load();
+    if (!studies?.length) return;
     const iv = setInterval(async () => {
-      if (!studies) return;
-      for (const id of studies) {
-        try {
-          const s = await StudiesAPI.status(id);
-          setStatuses((prev) => ({ ...prev, [id]: s.status }));
-        } catch {}
-      }
+      try {
+        const map = await StudiesAPI.statusMany(studies);
+        setStatuses(prev => ({ ...prev, ...map as any }));
+      } catch {}
     }, 10000);
     return () => clearInterval(iv);
-  }, [studies?.length]);
+  }, [studies?.join(',')]);
 
   const load = async () => {
     try {
-      const data = await StudiesAPI.list() as unknown;
-      const studies = toArray(data);
-      setStudies(studies);
-      for (const id of studies) {
+      const { items, total, page: p, page_size } = await StudiesAPI.listPaged(page, pageSize);
+      setStudies(items);
+      setTotal(total);
+      // initial bulk status for visible IDs
+      if (items.length) {
         try {
-          const s = await StudiesAPI.status(id);
-          setStatuses((prev) => ({ ...prev, [id]: s.status }));
+          const map = await StudiesAPI.statusMany(items);
+          setStatuses(prev => ({ ...prev, ...map as any }));
         } catch {}
       }
     } catch {
       setStudies([]);
       show('Failed to load studies', 'error');
     }
-  }
+  };
 
   const fetchSetInitialSetupData = async (studyID: StudyId) => {
     try {
@@ -188,12 +224,17 @@ const StudiesPage = () => {
     }, 'Starting run…');
   }
 
-  const cancelRun = async (id: StudyId) => {
+  const cancelRun = async (id: StudyId, force: boolean = false) => {
     await withLoading(async () => {
       try {
-        await StudiesAPI.cancel(id);
-        show('Run cancelled', 'success');
-        setStatuses((s) => ({ ...s, [id]: 'cancelled' } as any));
+        if (force) {
+          await StudiesAPI.forceCancel(id);
+          show('Run force-killed', 'success');
+        } else {
+          await StudiesAPI.cancel(id);
+          show('Cancelling run (graceful)...', 'success');
+        }
+        setStatuses((s) => ({ ...s, [id]: force ? 'cancelled' : 'cancelling' } as any));
       } catch (err) {
         if (err instanceof ApiError) {
           show(err.message, 'error');
@@ -201,17 +242,47 @@ const StudiesPage = () => {
           show('Failed to cancel run', 'error');
         }
       }
-    }, 'Cancelling…');
+    }, force ? 'Force killing…' : 'Cancelling…');
   }
+
+  // delete handler with confirm
+  const requestDelete = (id: StudyId) => { setDetailStudy(id); setDeleteOpen(true); }
+  const confirmDelete = async () => {
+    if (!detailStudy) return;
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.delete(detailStudy);
+        show(`Deleted "${detailStudy}"`, 'success');
+        setDeleteOpen(false);
+        setDetailStudy(null);
+        await load();
+      } catch (err) {
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to delete study', 'error');
+      }
+    }, 'Deleting…');
+  };
 
   const openLogs = async (id: StudyId) => {
     setLogs('Loading logs...');
+    setDetailStudy(id); 
     setLogsOpen(true);
     try {
       const l = await StudiesAPI.logs(id);
       setLogs(l);
     } catch {
       setLogs('Failed to load logs');
+    }
+  }
+
+  const downloadFullLog = async (id: StudyId) => {
+    try {
+      const blob = await StudiesAPI.fullLog(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${id}_log.txt`; a.click(); URL.revokeObjectURL(url);
+    } catch {
+      setLogs('Failed to download full log');
     }
   }
 
@@ -321,6 +392,7 @@ const StudiesPage = () => {
       </div>
     );
     return (
+      <>
       <div className="table-container">
         <table className="table">
           <thead>
@@ -330,7 +402,7 @@ const StudiesPage = () => {
             {studies.map((id) => {
               const s = statuses[id] ?? 'pending';
               const canResults = s === 'completed';
-              const canCancel = s === 'running' || s === 'validating';
+              const canCancel = s === 'running' || s === 'validating' || s === 'cancelling';
               const canRun = s === 'ready' ||  s === 'failed' || s === 'completed' || s === 'cancelled';
               const canConfigure = s !== 'running'
               return (
@@ -340,26 +412,40 @@ const StudiesPage = () => {
                   <td>
                     <div className="actions-cell">
                       <button className="btn btn-sm btn-primary" onClick={() => openDetail(id)} disabled={!canConfigure}>Configure</button>
-                        <button
-                          className="btn btn-sm btn-success"
-                          onClick={() => runStudy(id, false)}
-                          disabled={!canRun}
-                        >
-                          Run
-                        </button>
-                      <button
-                        className="btn btn-sm btn-success"
-                        onClick={() => runStudy(id, true)}
-                         disabled={!canRun}
-                      >
-                        Force Rerun
-                      </button>
-                      {canCancel && <button className="btn btn-sm btn-danger" onClick={() => cancelRun(id)}>Cancel</button>}
-                      <button className="btn btn-sm btn-secondary" onClick={() => openMapResultsSelector(id)} style={{display: canResults ? 'inline-flex' : 'none'}}>Results map</button>
-                      <button className="btn btn-sm btn-secondary" onClick={() => showMultiyearResultsReport(id)} style={{display: canResults ? 'inline-flex' : 'none'}}>Multiyer report</button>
-                      <button className="btn btn-sm btn-secondary" onClick={() => openReportResultsSelector(id)} style={{display: canResults ? 'inline-flex' : 'none'}}>Yearly reports</button>
+                      <SplitButton
+                        label="Run"
+                        variant="success"
+                        onPrimary={() => runStudy(id, false)}
+                        disabled={!canRun}
+                        menu={[
+                          { label: 'Force Rerun', onClick: () => runStudy(id, true), tooltip: 'Rerun every step of the pipeline from scratch, ignoring already completed results.' }
+                        ]}
+                      />
+                      {canCancel && (
+                        <SplitButton
+                          label="Cancel"
+                          variant="danger"
+                          onPrimary={() => cancelRun(id)}
+                          menu={[
+                            { label: 'Force Kill', onClick: () => cancelRun(id, true), tooltip: 'Immediately kills all processes without cleanup. May leave incomplete output files.' }
+                          ]}
+                        />
+                      )}
+                      {canResults && (
+                        <SplitButton
+                          label="Results"
+                          variant="secondary"
+                          onPrimary={() => openMapResultsSelector(id)}
+                          menu={[
+                            { label: 'Result Analytics Map', onClick: () => openMapResultsSelector(id) },
+                            { label: 'Multiyear Summary', onClick: () => showMultiyearResultsReport(id) },
+                            { label: 'Yearly Reports', onClick: () => openReportResultsSelector(id)},
+                          ]}
+                        />
+                      )}
                       <button className="btn btn-sm btn-secondary" onClick={() => openLogs(id)}>Logs</button>
                       <button className="btn btn-sm btn-secondary" onClick={() => {setDetailStudy(id); setDuplicateOpen(true)}}>Use as template</button>
+                      <button className="btn btn-sm btn-secondary btn-delete" onClick={() => requestDelete(id)}>🗑</button>
                     </div>
                   </td>
                 </tr>
@@ -368,6 +454,22 @@ const StudiesPage = () => {
           </tbody>
         </table>
       </div>
+
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12}}>
+        <div style={{fontSize:13, color:'#4a5568'}}>
+          Showing <strong>{studies.length ? (page-1)*pageSize+1 : 0}</strong>–
+          <strong>{Math.min(page*pageSize, total)}</strong> of <strong>{total}</strong>
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          <label className="form-label" style={{margin:0}}>Per page</label>
+          <select className="form-input" value={pageSize} onChange={e=>{ setPage(1); setPageSize(Number(e.target.value)); }} style={{width:90, padding:'6px 8px', height:34}}>
+            {[10,20,50,100].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <button className="btn btn-secondary btn-sm" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>← Prev</button>
+          <button className="btn btn-secondary btn-sm" onClick={()=>setPage(p=> (p*pageSize < total ? p+1 : p))} disabled={page*pageSize>=total}>Next →</button>
+        </div>
+      </div>
+      </>
     );
   }, [studies, statuses]);
 
@@ -378,6 +480,7 @@ const StudiesPage = () => {
         await StudiesAPI.uploadSetup(detailStudy, payload);
         show('Setup uploaded', 'success');
         await fetchSetInitialSetupData(detailStudy);
+        await fetchSetInitialRunConfigData(detailStudy);
         setStep(3);
       } catch (err) {
         if (err instanceof ApiError) {
@@ -454,6 +557,7 @@ const StudiesPage = () => {
           {step === 2 &&  <SetupStudyForm onSubmit={handleSetupSubmission} initialData={initialSetupData}/>}
 
           {step === 3 && <RunParamsForm
+              key={detailStudy ?? 'no-study'}
               onSubmit={handleRunParamsSubmission}
               onDownloadTemplate={handleDownloadTemplate}
               runConfigMessage={runConfigMessage}
@@ -506,12 +610,19 @@ const StudiesPage = () => {
       </Modal>
 
       {/* Logs */}
-      <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Study Logs" width={800}>
+      <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Study Logs" width={1300}>
         <button
           onClick={handleCopyLogs}
           className="btn btn-sm btn-secondary"
         >
           📋 Copy logs
+        </button>
+        <button
+          onClick={() => {if(detailStudy) downloadFullLog(detailStudy)}}
+          className="btn btn-sm btn-secondary"
+          style={{marginLeft: "10px"}}
+        >
+          ⬇️ Download Full Log File
         </button>
         <div className="logs-container" style={{ marginTop: '2rem' }}>
           <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(logs || 'No logs available') }} />
@@ -530,6 +641,17 @@ const StudiesPage = () => {
         <div style={{ display:'flex', gap: '0.75rem', justifyContent:'flex-end' }}>
           <button className="btn btn-secondary" onClick={()=>setDuplicateOpen(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={() => {duplicateStudy(); setDuplicateOpen(false)}}>Create Study</button>
+        </div>
+      </Modal>
+
+      {/* Delete Study */}
+      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Study">
+        <p className="subtitle" style={{ marginTop: 4 }}>
+          This will permanently remove the study folder and its results. This cannot be undone.
+        </p>
+        <div style={{ display:'flex', gap: '0.75rem', justifyContent:'flex-end', marginTop:12 }}>
+          <button className="btn btn-secondary" onClick={()=>setDeleteOpen(false)}>Cancel</button>
+          <button className="btn btn-danger" onClick={confirmDelete}>Confirm Delete</button>
         </div>
       </Modal>
 
