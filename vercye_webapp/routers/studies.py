@@ -17,13 +17,13 @@ import aiofiles
 import geopandas as gpd
 import yaml
 from celery.result import AsyncResult
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from models import (
     DuplicateStudyRequest,
     LAIConfigRunParams,
-    RegionExtraction,
+    RegionExtractionResponse,
     RunConfigFormParams,
     SetupConfigTemplate,
     SetupSubmissionsRequest,
@@ -42,7 +42,6 @@ from vercye_ops.cli import init_study, validate_run_config
 from vercye_ops.utils.env_utils import (
     get_run_config,
     get_run_config_file_path,
-    get_run_config_template_file_path,
     get_setup_config,
     get_setup_config_file_path,
     get_study_path,
@@ -83,12 +82,16 @@ def register_new_study(request: StudyCreateRequest):
 async def register_from_existing(existing_study_id: str, body: DuplicateStudyRequest):
 
     if os.path.exists(get_study_path(studies_dir, body.new_study_id)):
-        raise HTTPException("A study with this id already exists. Please choose a different id.")
+        raise HTTPException(
+            status_code=409, detail="A study with this id already exists. Please choose a different id."
+        )
 
     task = duplicate_vercye_study_task.delay(existing_study_id, body.new_study_id)
 
-    # Poll celery task status in a non-blocking way
-    while True:
+    # Poll celery task status with timeout
+    max_wait_seconds = 300
+    elapsed = 0
+    while elapsed < max_wait_seconds:
         result = AsyncResult(task.id)
         if result.ready():
             if result.successful():
@@ -96,6 +99,11 @@ async def register_from_existing(existing_study_id: str, body: DuplicateStudyReq
             else:
                 raise HTTPException(status_code=500, detail=str(result.result))
         await asyncio.sleep(2)
+        elapsed += 2
+
+    raise HTTPException(
+        status_code=504, detail="Study duplication timed out. The task may still be running in the background."
+    )
 
 
 @router.post("/{study_id}/setup")
@@ -316,7 +324,7 @@ def fetch_setup_config(study_id: StudyID):
 
     # region extraction
     region_cfg = raw.get("region_extraction", {})
-    region_extraction = RegionExtraction(
+    region_extraction = RegionExtractionResponse(
         adminNameColumn=str(region_cfg.get("admin_name_column", "")),
         targetProjection=str(region_cfg.get("target_projection", "")),
         filter=region_cfg.get("filter"),
@@ -486,7 +494,7 @@ def get_run_config_status(study_id: StudyID):
     with open(run_cfg_status_path) as f:
         status = f.read()
 
-    if not os.path.isfile(run_cfg_status_path):
+    if not os.path.isfile(run_cfg_status_details_path):
         status_details = "No details available"
     else:
         with open(run_cfg_status_details_path) as f:
@@ -512,9 +520,9 @@ def do_runconfig_validation(study_id: StudyID):
             f.write("invalid")
 
         with open(run_cfg_status_details_path, "w") as f:
-            f.write(e)
+            f.write(str(e))
 
-        return {"status": "invalid", "detail": "{e}"}
+        return {"status": "invalid", "detail": f"{e}"}
 
     with open(run_cfg_status_path, "w") as f:
         f.write("valid")
@@ -587,7 +595,9 @@ def _escalate_cancel(pgid: int, status_file_path: str, timeout: int = CANCEL_ESC
 
 
 @router.post("/{study_id}/actions/cancel")
-def cancel_study(study_id: StudyID, force: bool = Query(False, description="Force kill with SIGKILL instead of graceful SIGINT")):
+def cancel_study(
+    study_id: StudyID, force: bool = Query(False, description="Force kill with SIGKILL instead of graceful SIGINT")
+):
     """Cancel a running snakemake study.
 
     By default sends SIGINT to the process group which triggers a graceful shutdown:
@@ -730,6 +740,7 @@ def get_map_results(study_id: StudyID, year: int, timepoint: str):
         )
         return HTMLResponse(content=content)
 
+
 @router.get("/{study_id}/multiyear-report/assets/{asset_path:path}")
 def get_multiyear_report_asset(study_id: StudyID, asset_path: str):
     base_path = Path(studies_dir) / study_id / "snakemake" / "multiyear_report" / "assets"
@@ -743,6 +754,7 @@ def get_multiyear_report_asset(study_id: StudyID, asset_path: str):
 
     return FileResponse(file_path)
 
+
 @router.get("/{study_id}/multiyear-report")
 def get_multiyear_report(study_id: StudyID):
     report_path_candidates = glob(
@@ -751,7 +763,7 @@ def get_multiyear_report(study_id: StudyID):
     if len(report_path_candidates) != 1:
         raise HTTPException(
             status_code=400,
-            detail=f"Found {len(report_path_candidates)} entries with multiyear_summary_ in the name in study folder."
+            detail=f"Found {len(report_path_candidates)} entries with multiyear_summary_ in the name in study folder.",
         )
 
     target_dir = Path(studies_dir) / study_id / "snakemake" / "multiyear_report"
@@ -787,21 +799,20 @@ def get_study_log(study_id: StudyID):
     text += "".join(last_lines)
     return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 
+
 @router.get("/{study_id}/full-log")
 def get_complete_study_log(study_id: StudyID):
     log_path = os.path.join(studies_dir, study_id, "snakemake", "log.txt")
     if not os.path.exists(log_path):
         raise HTTPException(status_code=404, detail="No log available. Check individual rules logs if necessary.")
 
-    return FileResponse(
-        path=log_path,
-        media_type="text/plain",
-        filename=f"{study_id}_log.txt"
-    )
+    return FileResponse(path=log_path, media_type="text/plain", filename=f"{study_id}_log.txt")
+
 
 @router.get("/status")
 async def get_many_status(ids: List[str] = Query(..., description="Repeated ?ids=studyA&ids=studyB")):
     """Batch status fetch for multiple studies."""
+
     async def read_status(study_id: str):
         status_file_path = os.path.join(studies_dir, study_id, "snakemake", "status.txt")
         exists = await asyncio.to_thread(os.path.exists, status_file_path)
@@ -839,6 +850,7 @@ def get_all_studies(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1,
 def get_combined_stats():
     """Compute the stats from multiple studies combined and with all years present in each study"""
     pass
+
 
 @router.delete("/{study_id}")
 def delete_study(study_id: StudyID):

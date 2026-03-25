@@ -69,18 +69,15 @@ def load_simulation_data(db_path, crop_name=None, query=None):
             remaining = dups
             if not remaining.empty:
                 for group_key, g in remaining.groupby(keys):
-                    diff_cols = [
-                        c for c in g.columns
-                        if c not in keys and g[c].nunique(dropna=False) > 1
-                    ]
+                    diff_cols = [c for c in g.columns if c not in keys and g[c].nunique(dropna=False) > 1]
 
-                    logger.error(
-                        f"Group {group_key} has differing columns: {diff_cols}"
-                    )
+                    logger.error(f"Group {group_key} has differing columns: {diff_cols}")
 
                     cols_to_show = keys + diff_cols
                     logger.error(f"\n{g[cols_to_show]}")
-                logger.error("Duplicate entries found for the same date in simulation and no resolvable column to break ties.")
+                logger.error(
+                    "Duplicate entries found for the same date in simulation and no resolvable column to break ties."
+                )
                 logger.error(f"\n{remaining}")
                 raise ValueError("Duplicate entries still found in the simulation data and no column to resolve them.")
 
@@ -136,17 +133,14 @@ def load_simulation_data(db_path, crop_name=None, query=None):
         # If any groups still have duplicates, they differ in other columns which cannot be resolved automatically
         remaining = df[df.duplicated(subset=keys, keep=False)]
         if not remaining.empty:
-            logger.error("Duplicate entries found for the same date in simulation (differences beyond allowed varying columns):")
+            logger.error(
+                "Duplicate entries found for the same date in simulation (differences beyond allowed varying columns):"
+            )
 
             for group_key, g in remaining.groupby(keys):
-                diff_cols = [
-                    c for c in g.columns
-                    if c not in keys and g[c].nunique(dropna=False) > 1
-                ]
+                diff_cols = [c for c in g.columns if c not in keys and g[c].nunique(dropna=False) > 1]
 
-                logger.error(
-                    f"Group {group_key} has differing columns: {diff_cols}"
-                )
+                logger.error(f"Group {group_key} has differing columns: {diff_cols}")
 
                 cols_to_show = keys + diff_cols
                 logger.error(f"\n{g[cols_to_show]}")

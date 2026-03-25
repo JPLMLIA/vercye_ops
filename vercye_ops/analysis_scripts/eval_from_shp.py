@@ -29,9 +29,9 @@ for year, raster in years_rasters.items():
     # merge reported data
     reported_gdf = gpd.read_file(refdata_2022)
     gdf = gdf.merge(reported_gdf, left_on="NAME_1", right_on="region")
-    gdf[yield_column] =  gdf[yield_column].astype(float)
+    gdf[yield_column] = gdf[yield_column].astype(float)
 
-    #gdf = gdf[gdf[year_column] == year].copy()
+    # gdf = gdf[gdf[year_column] == year].copy()
     gdf["reported_yield"] = gdf[yield_column] * yield_conversion_factor
 
     # Exactextract statistics
@@ -41,7 +41,10 @@ for year, raster in years_rasters.items():
             src,
             gdf,
             ["mean", "median"],
-            include_cols=["reported_yield", "NAME_1",],
+            include_cols=[
+                "reported_yield",
+                "NAME_1",
+            ],
             output="pandas",
             include_geom=True,
         )

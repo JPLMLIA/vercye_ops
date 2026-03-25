@@ -216,7 +216,7 @@ def main(
         output_folder=output_dir,
         overwrite=overwrite,
         resolution=resolution,
-        resampling_method=RESAMPLING_METHOD,
+        resampling_spec=RESAMPLING_METHOD,
         num_workers=num_workers,
     )
 

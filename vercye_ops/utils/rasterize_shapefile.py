@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import click
+import geopandas as gpd
 import numpy as np
 import rasterio
 from rasterio.features import rasterize
-import geopandas as gpd
 
 
 @click.command()
@@ -52,7 +52,6 @@ def rasterize_shapefile(shapefile, reference, out_raster):
 
     # Write output
     profile.update(
-
         dtype=out_dtype,
         count=1,
         nodata=nodata,

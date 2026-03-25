@@ -1,8 +1,8 @@
 import os
 import os.path as op
+import uuid
 from datetime import datetime
 from types import SimpleNamespace
-import uuid
 
 
 def build_apsim_execution_command(
@@ -35,7 +35,7 @@ def build_apsim_execution_command(
             f'&& export TMPDIR="{tmpdir}" '
             f'&& export TMP="{tmpdir}" '
             f'&& export TEMP="{tmpdir}" '
-            f'&& {executable_fpath} {input_file} --cpu-count {n_jobs} '
+            f"&& {executable_fpath} {input_file} --cpu-count {n_jobs} "
             f'&& rm -rf "{tmpdir}" '
         )
 

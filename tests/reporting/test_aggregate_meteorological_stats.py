@@ -13,7 +13,6 @@ from vercye_ops.reporting.aggregate_meteorological_stats import (
     read_met_file,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -46,10 +45,13 @@ def _write_met_file(path, data_lines, header=None):
 class TestReadMetFile:
     def test_basic_parsing(self, tmp_path):
         fpath = tmp_path / "test.met"
-        _write_met_file(fpath, [
-            "2022  1  15.0  5.0  10.0  0.0  2.5  3.0",
-            "2022  2  16.0  6.0  11.0  1.0  0.0  2.5",
-        ])
+        _write_met_file(
+            fpath,
+            [
+                "2022  1  15.0  5.0  10.0  0.0  2.5  3.0",
+                "2022  2  16.0  6.0  11.0  1.0  0.0  2.5",
+            ],
+        )
         df = read_met_file(str(fpath))
 
         assert len(df) == 2
@@ -64,9 +66,12 @@ class TestReadMetFile:
 
     def test_date_parsing(self, tmp_path):
         fpath = tmp_path / "test.met"
-        _write_met_file(fpath, [
-            "2022  32  15.0  5.0  10.0  0.0  2.5  3.0",  # Feb 1
-        ])
+        _write_met_file(
+            fpath,
+            [
+                "2022  32  15.0  5.0  10.0  0.0  2.5  3.0",  # Feb 1
+            ],
+        )
         df = read_met_file(str(fpath))
         assert df["date"].iloc[0].month == 2
         assert df["date"].iloc[0].day == 1
@@ -87,9 +92,12 @@ class TestReadMetFile:
         """
         fpath = tmp_path / "test.met"
         # maxt is -999 (missing), but meant (parts[3]) is valid
-        _write_met_file(fpath, [
-            "2022  1  15.0  5.0  -999  0.0  2.5  3.0",
-        ])
+        _write_met_file(
+            fpath,
+            [
+                "2022  1  15.0  5.0  -999  0.0  2.5  3.0",
+            ],
+        )
         df = read_met_file(str(fpath))
 
         # Due to the bug: maxt will be -999 instead of 0, because the code
@@ -104,9 +112,12 @@ class TestReadMetFile:
         """radn is the only variable where the missing-data check is correct
         (it checks its own column parts[2])."""
         fpath = tmp_path / "test.met"
-        _write_met_file(fpath, [
-            "2022  1  -999  5.0  10.0  0.0  2.5  3.0",
-        ])
+        _write_met_file(
+            fpath,
+            [
+                "2022  1  -999  5.0  10.0  0.0  2.5  3.0",
+            ],
+        )
         df = read_met_file(str(fpath))
         assert df["radn"].iloc[0] == pytest.approx(0.0)
 
@@ -118,17 +129,19 @@ class TestReadMetFile:
 
 class TestAggregateData:
     def test_single_location_single_year(self):
-        df = pd.DataFrame({
-            "date": pd.to_datetime(["2022-01-01", "2022-01-02"]),
-            "latitude": [48.5, 48.5],
-            "longitude": [30.0, 30.0],
-            "radn": [15.0, 17.0],
-            "meant": [5.0, 7.0],
-            "maxt": [10.0, 12.0],
-            "mint": [0.0, 2.0],
-            "rain": [2.0, 4.0],
-            "wind": [3.0, 5.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2022-01-01", "2022-01-02"]),
+                "latitude": [48.5, 48.5],
+                "longitude": [30.0, 30.0],
+                "radn": [15.0, 17.0],
+                "meant": [5.0, 7.0],
+                "maxt": [10.0, 12.0],
+                "mint": [0.0, 2.0],
+                "rain": [2.0, 4.0],
+                "wind": [3.0, 5.0],
+            }
+        )
         result = aggregate_data(df)
 
         assert len(result) == 1
@@ -140,52 +153,62 @@ class TestAggregateData:
 
     def test_rainfall_is_annual_average(self):
         """Rainfall should be summed per year, then averaged across years."""
-        dates = pd.to_datetime([
-            "2021-06-01", "2021-06-02",  # year 1: total rain = 10
-            "2022-06-01", "2022-06-02",  # year 2: total rain = 20
-        ])
-        df = pd.DataFrame({
-            "date": dates,
-            "latitude": [48.5] * 4,
-            "longitude": [30.0] * 4,
-            "radn": [15.0] * 4,
-            "meant": [5.0] * 4,
-            "maxt": [10.0] * 4,
-            "mint": [0.0] * 4,
-            "rain": [5.0, 5.0, 10.0, 10.0],
-            "wind": [3.0] * 4,
-        })
+        dates = pd.to_datetime(
+            [
+                "2021-06-01",
+                "2021-06-02",  # year 1: total rain = 10
+                "2022-06-01",
+                "2022-06-02",  # year 2: total rain = 20
+            ]
+        )
+        df = pd.DataFrame(
+            {
+                "date": dates,
+                "latitude": [48.5] * 4,
+                "longitude": [30.0] * 4,
+                "radn": [15.0] * 4,
+                "meant": [5.0] * 4,
+                "maxt": [10.0] * 4,
+                "mint": [0.0] * 4,
+                "rain": [5.0, 5.0, 10.0, 10.0],
+                "wind": [3.0] * 4,
+            }
+        )
         result = aggregate_data(df)
         # Annual rain: 2021=10, 2022=20, average=15
         assert result["rain"].iloc[0] == pytest.approx(15.0)
 
     def test_multiple_locations(self):
-        df = pd.DataFrame({
-            "date": pd.to_datetime(["2022-01-01", "2022-01-01"]),
-            "latitude": [48.5, 49.0],
-            "longitude": [30.0, 31.0],
-            "radn": [15.0, 20.0],
-            "meant": [5.0, 10.0],
-            "maxt": [10.0, 15.0],
-            "mint": [0.0, 5.0],
-            "rain": [2.0, 8.0],
-            "wind": [3.0, 6.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2022-01-01", "2022-01-01"]),
+                "latitude": [48.5, 49.0],
+                "longitude": [30.0, 31.0],
+                "radn": [15.0, 20.0],
+                "meant": [5.0, 10.0],
+                "maxt": [10.0, 15.0],
+                "mint": [0.0, 5.0],
+                "rain": [2.0, 8.0],
+                "wind": [3.0, 6.0],
+            }
+        )
         result = aggregate_data(df)
         assert len(result) == 2
 
     def test_wind_conversion_m_s_to_km_h(self):
         """Verify wind is converted: 1 m/s = 3.6 km/h."""
-        df = pd.DataFrame({
-            "date": pd.to_datetime(["2022-01-01"]),
-            "latitude": [48.5],
-            "longitude": [30.0],
-            "radn": [15.0],
-            "meant": [5.0],
-            "maxt": [10.0],
-            "mint": [0.0],
-            "rain": [2.0],
-            "wind": [10.0],
-        })
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2022-01-01"]),
+                "latitude": [48.5],
+                "longitude": [30.0],
+                "radn": [15.0],
+                "meant": [5.0],
+                "maxt": [10.0],
+                "mint": [0.0],
+                "rain": [2.0],
+                "wind": [10.0],
+            }
+        )
         result = aggregate_data(df)
         assert result["wind"].iloc[0] == pytest.approx(36.0)

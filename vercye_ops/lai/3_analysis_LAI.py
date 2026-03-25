@@ -11,12 +11,12 @@ import click
 import geopandas as gpd
 import numpy as np
 import rasterio as rio
+from pyproj import CRS as ProjCRS
+from rasterio.coords import BoundingBox
 from rasterio.mask import mask
 from scipy.interpolate import Akima1DInterpolator
 from scipy.signal import savgol_filter
-from pyproj import CRS as ProjCRS
 from shapely import LineString, box
-from rasterio.coords import BoundingBox
 
 
 def pad_to_polygon(src, geometry, masked_src):
@@ -113,14 +113,14 @@ def build_lai_window_for_cropmask(src, cropmask_bounds, cropmask_shape):
 
     return lai_window_array_padded
 
+
 def compute_cloud_snow_percentage(lai_window_array_padded, cropmask_array):
     cropmask_bool = cropmask_array.astype(bool)
     cloud_snow_pixels = np.sum(np.isnan(lai_window_array_padded) & cropmask_bool)
     total_pixels_in_region = np.sum(cropmask_bool)
-    cloud_snow_percentage = (
-        cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0.0
-    )
+    cloud_snow_percentage = cloud_snow_pixels / total_pixels_in_region * 100 if total_pixels_in_region > 0 else 0.0
     return cloud_snow_percentage
+
 
 def mask_lai_with_binary_cropmask(lai_window_array_padded, cropmask_array):
     """
@@ -193,6 +193,7 @@ def raster_and_mask_intersect(lai_bounds, cropmask_bounds):
         return False
     return True
 
+
 def load_geometries(geometry_path, mode, geometry_name):
     """
     Load geometries based on the specified mode. Can be either raster,
@@ -237,6 +238,7 @@ def load_geometries(geometry_path, mode, geometry_name):
 
     return geometries
 
+
 def ensure_output_dirs(output_stats_fpath, output_max_tif_fpath):
     """
     Ensure that the directories for output statistics and maximum LAI TIFF files exist.
@@ -253,8 +255,7 @@ def validate_maxlai_keep_bands(maxlai_keep_bands):
     bands = list(maxlai_keep_bands)
     if not bands:
         raise ValueError(
-            "No bands to keep for the LAI data provided. "
-            "Specify either estimateLAImax or adjustedLAImax."
+            "No bands to keep for the LAI data provided. " "Specify either estimateLAImax or adjustedLAImax."
         )
     return bands
 
@@ -282,6 +283,7 @@ def make_empty_stat_row(date_slash, cloud_snow_percentage=None, interpolated=0):
         "LAI Stddev Adjusted": None,
         "Cloud or Snow Percentage": cloud_snow_percentage,
     }
+
 
 def apply_savgol_smoothing(statistics):
     """
@@ -333,6 +335,7 @@ def apply_savgol_smoothing(statistics):
 
     return statistics
 
+
 def apply_akima_interpolation(statistics, smoothed):
     """
     Apply Akima interpolation to fill missing LAI statistics.
@@ -381,19 +384,17 @@ def apply_akima_interpolation(statistics, smoothed):
 
     return statistics
 
+
 def ensure_raster_alignment(src, geometry, tol_pix=1e-6):
     """
-    Ensure that the LAI raster and the cropmask raster are aligned. 
+    Ensure that the LAI raster and the cropmask raster are aligned.
     Required so that masking works correctly and no pixel shifts occur.
     """
     if not ProjCRS(src.crs).equals(ProjCRS(geometry["crs"])):
         print(f"ERROR: CRS mismatch: LAI {src.crs} vs cropmask {geometry['crs']}. Reproject the mask first.")
         sys.exit(1)
 
-    if (
-        not np.isclose(src.res[0], geometry["res"][0])
-        or not np.isclose(src.res[1], geometry["res"][1])
-    ):
+    if not np.isclose(src.res[0], geometry["res"][0]) or not np.isclose(src.res[1], geometry["res"][1]):
         print(f"ERROR: Resolution mismatch: LAI {src.res} vs cropmask {geometry['res']}")
         sys.exit(1)
 
@@ -417,7 +418,7 @@ def write_max_lai_raster(
     lai_max,
     lai_adjusted_max,
 ):
-    """Write the maximum LAI raster to a GeoTIFF file. """
+    """Write the maximum LAI raster to a GeoTIFF file."""
     if not output_max_tif_fpath or src_meta is None:
         return
 
@@ -554,7 +555,7 @@ def process_single_date(
         return stat, None, None, src_meta
 
     LAI_estimate = masked_src
-    LAI_adjusted = compute_lai_adjusted(LAI_estimate, adjustment) # Adjust for croptype
+    LAI_adjusted = compute_lai_adjusted(LAI_estimate, adjustment)  # Adjust for croptype
 
     lai_mean, lai_median, lai_stddev, n_pixels = compute_basic_stats(LAI_estimate)
     lai_adj_mean, lai_adj_median, lai_adj_stddev, _ = compute_basic_stats(LAI_adjusted)
@@ -588,8 +589,7 @@ def process_geometry(
     dates_slash,
     cloudcov_threshold,
 ):
-    """Process all dates for a given geometry, returning statistics and maximum LAI rasters.
-    """
+    """Process all dates for a given geometry, returning statistics and maximum LAI rasters."""
     statistics = []
     lai_max = None
     lai_adjusted_max = None
@@ -618,6 +618,7 @@ def process_geometry(
             lai_adjusted_max = update_max_lai(lai_adjusted_max, lai_adjusted)
 
     return statistics, lai_max, lai_adjusted_max, src_meta
+
 
 def main(
     lai_dir,
@@ -743,8 +744,7 @@ def main(
     multiple=True,
     type=str,
     default=["estimateLAImax", "adjustedLAImax"],
-    help="Bands to keep in the max lai tif output. Space seperated. "
-    "(estimateLAImax and/or adjustedLAImax)",
+    help="Bands to keep in the max lai tif output. Space seperated. " "(estimateLAImax and/or adjustedLAImax)",
 )
 def cli(
     lai_dir,

@@ -23,7 +23,7 @@ import rasterio as rio
 )
 def main(input_path, output_path, px_threshold):
     """Validates if a minimum number of pixels are cropland in the cropmask.
-    
+
     Outputs a "valid" or "invalid" flag file.
     """
     with rio.open(input_path) as src:

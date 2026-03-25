@@ -11,7 +11,6 @@ from vercye_ops.matching_sim_real.utils import (
     load_simulation_data,
 )
 
-
 # ---------------------------------------------------------------------------
 # build_default_query
 # ---------------------------------------------------------------------------
@@ -39,8 +38,10 @@ class TestComputePixelArea:
         """At the equator, 1 degree ~ 111 km, so a 0.01-degree pixel ~ 1.11 km.
         Area should be approximately 1.11 * 1.11 = ~1.23 km^2 = 1_230_000 m^2."""
         area = compute_pixel_area(
-            lon=0.0, lat=0.0,
-            pixel_width_deg=0.01, pixel_height_deg=0.01,
+            lon=0.0,
+            lat=0.0,
+            pixel_width_deg=0.01,
+            pixel_height_deg=0.01,
             output_crs="EPSG:32631",  # UTM zone 31N (near equator)
         )
         # ~1.23 km^2 = 1,230,000 m^2 with some tolerance
@@ -50,18 +51,27 @@ class TestComputePixelArea:
         """Pixel area in degrees should be smaller (in m^2) at higher latitudes
         due to meridian convergence."""
         area_equator = compute_pixel_area(
-            lon=0.0, lat=0.0, pixel_width_deg=0.01, pixel_height_deg=0.01,
+            lon=0.0,
+            lat=0.0,
+            pixel_width_deg=0.01,
+            pixel_height_deg=0.01,
             output_crs="EPSG:32631",
         )
         area_60n = compute_pixel_area(
-            lon=10.0, lat=60.0, pixel_width_deg=0.01, pixel_height_deg=0.01,
+            lon=10.0,
+            lat=60.0,
+            pixel_width_deg=0.01,
+            pixel_height_deg=0.01,
             output_crs="EPSG:32632",
         )
         assert area_60n < area_equator
 
     def test_zero_pixel_size(self):
         area = compute_pixel_area(
-            lon=10.0, lat=45.0, pixel_width_deg=0.0, pixel_height_deg=0.0,
+            lon=10.0,
+            lat=45.0,
+            pixel_width_deg=0.0,
+            pixel_height_deg=0.0,
             output_crs="EPSG:32632",
         )
         assert area == 0.0
@@ -70,8 +80,10 @@ class TestComputePixelArea:
         """Should work with a non-WGS84 input CRS (though unusual)."""
         # Just verifying it doesn't crash
         area = compute_pixel_area(
-            lon=500000.0, lat=5000000.0,
-            pixel_width_deg=100, pixel_height_deg=100,
+            lon=500000.0,
+            lat=5000000.0,
+            pixel_width_deg=100,
+            pixel_height_deg=100,
             output_crs="EPSG:32632",
             input_crs="EPSG:32632",
         )
@@ -88,7 +100,9 @@ def _create_test_db(db_path, rows, extra_columns=None):
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
-    cols = "SimulationID INTEGER, `Clock.Today` TEXT, `Clock.Today.DayOfYear` INTEGER, `Wheat.Leaf.LAI` REAL, Yield REAL"
+    cols = (
+        "SimulationID INTEGER, `Clock.Today` TEXT, `Clock.Today.DayOfYear` INTEGER, `Wheat.Leaf.LAI` REAL, Yield REAL"
+    )
     if extra_columns:
         for col_name, col_type in extra_columns:
             cols += f", `{col_name}` {col_type}"
@@ -106,11 +120,14 @@ def _create_test_db(db_path, rows, extra_columns=None):
 class TestLoadSimulationData:
     def test_basic_load(self, tmp_path):
         db = tmp_path / "test.db"
-        _create_test_db(db, [
-            (1, "2023-01-15", 15, 0.5, 3000),
-            (1, "2023-02-15", 46, 1.2, 3000),
-            (2, "2023-01-15", 15, 0.3, 2500),
-        ])
+        _create_test_db(
+            db,
+            [
+                (1, "2023-01-15", 15, 0.5, 3000),
+                (1, "2023-02-15", 46, 1.2, 3000),
+                (2, "2023-01-15", 15, 0.3, 2500),
+            ],
+        )
         df = load_simulation_data(str(db), crop_name="wheat")
         assert len(df) == 3
         assert "Wheat.Leaf.LAI" in df.columns
@@ -121,10 +138,13 @@ class TestLoadSimulationData:
 
     def test_exact_duplicates_dropped(self, tmp_path):
         db = tmp_path / "test.db"
-        _create_test_db(db, [
-            (1, "2023-01-15", 15, 0.5, 3000),
-            (1, "2023-01-15", 15, 0.5, 3000),  # exact duplicate
-        ])
+        _create_test_db(
+            db,
+            [
+                (1, "2023-01-15", 15, 0.5, 3000),
+                (1, "2023-01-15", 15, 0.5, 3000),  # exact duplicate
+            ],
+        )
         df = load_simulation_data(str(db), crop_name="wheat")
         assert len(df) == 1
 
@@ -150,27 +170,36 @@ class TestLoadSimulationData:
     def test_unresolvable_duplicates_raise(self, tmp_path):
         """Duplicates differing in non-allowed columns should raise."""
         db = tmp_path / "test.db"
-        _create_test_db(db, [
-            (1, "2023-01-15", 15, 0.5, 3000),
-            (1, "2023-01-15", 15, 0.5, 4000),  # different Yield
-        ])
+        _create_test_db(
+            db,
+            [
+                (1, "2023-01-15", 15, 0.5, 3000),
+                (1, "2023-01-15", 15, 0.5, 4000),  # different Yield
+            ],
+        )
         with pytest.raises(ValueError, match="Duplicate"):
             load_simulation_data(str(db), crop_name="wheat")
 
     def test_date_index_is_set(self, tmp_path):
         db = tmp_path / "test.db"
-        _create_test_db(db, [
-            (1, "2023-01-15", 15, 0.5, 3000),
-        ])
+        _create_test_db(
+            db,
+            [
+                (1, "2023-01-15", 15, 0.5, 3000),
+            ],
+        )
         df = load_simulation_data(str(db), crop_name="wheat")
         assert df.index.name == "Date"
         assert pd.api.types.is_datetime64_any_dtype(df.index)
 
     def test_custom_query(self, tmp_path):
         db = tmp_path / "test.db"
-        _create_test_db(db, [
-            (1, "2023-01-15", 15, 0.5, 3000),
-        ])
+        _create_test_db(
+            db,
+            [
+                (1, "2023-01-15", 15, 0.5, 3000),
+            ],
+        )
         df = load_simulation_data(
             str(db),
             query="SELECT SimulationID, `Clock.Today`, Yield FROM Report",
@@ -180,8 +209,11 @@ class TestLoadSimulationData:
 
     def test_crop_name_case_insensitive(self, tmp_path):
         db = tmp_path / "test.db"
-        _create_test_db(db, [
-            (1, "2023-01-15", 15, 0.5, 3000),
-        ])
+        _create_test_db(
+            db,
+            [
+                (1, "2023-01-15", 15, 0.5, 3000),
+            ],
+        )
         df = load_simulation_data(str(db), crop_name="WHEAT")
         assert len(df) == 1

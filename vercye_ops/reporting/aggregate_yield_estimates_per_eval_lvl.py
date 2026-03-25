@@ -40,7 +40,9 @@ def aggregate(estimation_data, col_name):
                 "total_yield_production_kg": group["total_yield_production_kg"].astype(int).sum(),
                 "total_yield_production_ton": round(group["total_yield_production_ton"].sum(), 3),
                 "total_area_ha": group["total_area_ha"].sum(),
-                "apsim_mean_yield_estimate_kg_ha": weighted_mean(group["apsim_mean_yield_estimate_kg_ha"], group["total_area_ha"])
+                "apsim_mean_yield_estimate_kg_ha": weighted_mean(
+                    group["apsim_mean_yield_estimate_kg_ha"], group["total_area_ha"]
+                ),
             }
         )
 

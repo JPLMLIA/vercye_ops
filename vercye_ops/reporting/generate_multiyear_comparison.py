@@ -1,8 +1,8 @@
 import os
 import re
 import shutil
-import zipfile
 import tempfile
+import zipfile
 from glob import glob
 
 import click
@@ -17,7 +17,6 @@ from vercye_ops.reporting.generate_lai_plot import load_lai_files, parse_lai_fil
 
 color_palette = px.colors.qualitative.Plotly
 mean_palette = px.colors.qualitative.Set1
-
 
 
 HTML_TEMPLATE = """
@@ -54,10 +53,12 @@ HTML_TEMPLATE = """
 </html>
 """
 
+
 def sanitize(s: str) -> str:
     s = re.sub(r"[^A-Za-z0-9_-]+", "_", str(s))
     s = re.sub(r"_+", "_", s).strip("_")
     return s
+
 
 def get_available_years(input_dir):
     years = []
@@ -67,8 +68,10 @@ def get_available_years(input_dir):
             years.append(entry)
     return sorted(years)
 
+
 def get_available_timepoints(reference_year_dir):
     return sorted(d for d in os.listdir(reference_year_dir) if os.path.isdir(os.path.join(reference_year_dir, d)))
+
 
 def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     combined = []
@@ -133,6 +136,7 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         legend=dict(title="", orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     )
     return fig
+
 
 def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted, assets_dir):
     cards = []
@@ -202,6 +206,7 @@ def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted
         return "", []
     return f"<div class='row'>{''.join(cards)}</div>", produced
 
+
 def load_obs_preds(input_dir, timepoint, years, agg_levels):
     results = {}
     for lvl in agg_levels:
@@ -228,11 +233,14 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
         }
     return results
 
+
 def create_predictions_plot(preds, years):
     df = pd.DataFrame({"Predictions": preds, "Year": years})
     fig = go.Figure()
     for yr, grp in df.groupby("Year"):
-        fig.add_trace(go.Violin(x=[yr] * len(grp), y=grp["Predictions"], name=yr, box_visible=True, meanline_visible=True))
+        fig.add_trace(
+            go.Violin(x=[yr] * len(grp), y=grp["Predictions"], name=yr, box_visible=True, meanline_visible=True)
+        )
     fig.update_layout(
         title=dict(text="Yield Predictions Distribution by Year from all simulation regions.", x=0.5),
         template="plotly_white",
@@ -244,6 +252,7 @@ def create_predictions_plot(preds, years):
     )
     return fig
 
+
 def identify_agg_levels(input_dir, years):
     lvls = set(["primary"])
     for y in years:
@@ -252,6 +261,7 @@ def identify_agg_levels(input_dir, years):
             lvl = os.path.basename(f).split("_")[3]
             lvls.add(lvl)
     return sorted(lvls)
+
 
 def load_yearly_eval_data(input_dir, timepoint, agg_levels, years):
     results = {}
@@ -271,7 +281,12 @@ def load_yearly_eval_data(input_dir, timepoint, agg_levels, years):
             if not (eval_plot_std and eval_metrics_std) and not (eval_plot_npc and eval_metrics_npc):
                 continue  # nothing to show for this year/level
 
-            if len(eval_plot_std) > 1 or len(eval_metrics_std) > 1 or len(eval_plot_npc) > 1 or len(eval_metrics_npc) > 1:
+            if (
+                len(eval_plot_std) > 1
+                or len(eval_metrics_std) > 1
+                or len(eval_plot_npc) > 1
+                or len(eval_metrics_npc) > 1
+            ):
                 raise ValueError(f"Multiple eval files found for {year} at level {lvl}.")
 
             results[lvl][year] = {
@@ -286,18 +301,21 @@ def load_yearly_eval_data(input_dir, timepoint, agg_levels, years):
             }
     return results
 
+
 def _metrics_csv_to_table_html(csv_path: str, title: str = "Metrics") -> str:
     df = load_csv(csv_path)
     rows = []
     if df.shape[1] == 2 and df.shape[0] >= 1:
         col_a, col_b = df.columns.tolist()
         for _, r in df.iterrows():
-            k = str(r[col_a]); v = r[col_b]
+            k = str(r[col_a])
+            v = r[col_b]
             rows.append((k, v))
     elif df.shape[0] >= 1:
         rec = df.iloc[0].to_dict()
         for k, v in rec.items():
-            if k is None or str(k).strip() == "": continue
+            if k is None or str(k).strip() == "":
+                continue
             rows.append((str(k), v))
     else:
         return "<p><em>No metrics found.</em></p>"
@@ -316,6 +334,7 @@ def _metrics_csv_to_table_html(csv_path: str, title: str = "Metrics") -> str:
     </div>
     """
 
+
 def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) -> tuple[str, list, dict, bool]:
     data_for_lvl = yearly_eval_data.get(lvl, {})
     if not data_for_lvl:
@@ -332,16 +351,24 @@ def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) ->
     for year in sorted(data_for_lvl.keys(), key=lambda y: int(y) if str(y).isdigit() else y):
         rec = data_for_lvl[year]
         std_plot = rec["std"]["plot"]
-        std_csv  = rec["std"]["metrics"]
+        std_csv = rec["std"]["metrics"]
         npc_plot = rec["npc"]["plot"]
-        npc_csv  = rec["npc"]["metrics"]
+        npc_csv = rec["npc"]["metrics"]
 
         has_alt = bool(npc_plot and npc_csv)
         has_alt_any = has_alt_any or has_alt
 
         # Build metrics tables
-        table_std = _metrics_csv_to_table_html(std_csv, title=f"Metrics ({lvl}, {year})") if std_csv else "<p><em>No metrics (std).</em></p>"
-        table_npc = _metrics_csv_to_table_html(npc_csv, title=f"Metrics (no-pixel, {lvl}, {year})") if npc_csv else "<p><em>No metrics (no-pixel).</em></p>"
+        table_std = (
+            _metrics_csv_to_table_html(std_csv, title=f"Metrics ({lvl}, {year})")
+            if std_csv
+            else "<p><em>No metrics (std).</em></p>"
+        )
+        table_npc = (
+            _metrics_csv_to_table_html(npc_csv, title=f"Metrics (no-pixel, {lvl}, {year})")
+            if npc_csv
+            else "<p><em>No metrics (no-pixel).</em></p>"
+        )
 
         # Track/copy images and suggest names
         yr_tag = sanitize(year)
@@ -363,8 +390,16 @@ def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) ->
             plot_npc_src = npc_plot
 
         # Two stacked versions
-        img_std_html = f"<img src=\"{plot_std_src}\" alt=\"Evaluation {lvl} {year}\" class=\"img-fit rounded ver-{group_id}-std\" style=\"display:;\">" if plot_std_src else ""
-        img_npc_html = f"<img src=\"{plot_npc_src}\" alt=\"Evaluation {lvl} {year} (no-pixel)\" class=\"img-fit rounded ver-{group_id}-npc\" style=\"display:none;\">" if plot_npc_src else ""
+        img_std_html = (
+            f'<img src="{plot_std_src}" alt="Evaluation {lvl} {year}" class="img-fit rounded ver-{group_id}-std" style="display:;">'
+            if plot_std_src
+            else ""
+        )
+        img_npc_html = (
+            f'<img src="{plot_npc_src}" alt="Evaluation {lvl} {year} (no-pixel)" class="img-fit rounded ver-{group_id}-npc" style="display:none;">'
+            if plot_npc_src
+            else ""
+        )
 
         tbl_std_html = f"<div class='ver-{group_id}-std' style='display:;'>{table_std}</div>"
         tbl_npc_html = f"<div class='ver-{group_id}-npc' style='display:none;'>{table_npc}</div>" if has_alt else ""
@@ -399,22 +434,36 @@ def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) ->
         </button>
     """
 
-    return f"""
+    return (
+        f"""
     <div class="d-flex align-items-center mb-2">
       <strong>Yearly evaluation ({lvl})</strong>
        {toggle_btn if has_alt_any else ""}
     </div>
     <div class="row">{''.join(cards)}</div>
-    """, used_imgs, name_map, has_alt_any
+    """,
+        used_imgs,
+        name_map,
+        has_alt_any,
+    )
+
 
 @click.command()
 @click.option("--input-dir", type=click.Path(exists=True), required=True)
 @click.option("--lai-agg-type", type=click.Choice(["mean", "median"]), default="mean")
 @click.option("--adjusted", is_flag=True)
-@click.option("--title", type=str, default="Multiyear Interactive Summary",
-              help="Title for the HTML report. Enclose in quotes if it contains spaces.")
-@click.option("--output-file", type=click.Path(), required=True,
-              help="Path for the resulting ZIP. If not ending with .zip, it will be appended.")
+@click.option(
+    "--title",
+    type=str,
+    default="Multiyear Interactive Summary",
+    help="Title for the HTML report. Enclose in quotes if it contains spaces.",
+)
+@click.option(
+    "--output-file",
+    type=click.Path(),
+    required=True,
+    help="Path for the resulting ZIP. If not ending with .zip, it will be appended.",
+)
 def main(input_dir, lai_agg_type, adjusted, title, output_file):
     years = get_available_years(input_dir)
     reference = os.path.join(input_dir, years[0])
@@ -433,7 +482,9 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
         lai_mean_fig = plot_lai_means_figure(input_dir, tp, years, lai_agg_type, adjusted)
         if lai_mean_fig is not None:
             lai_html = pio.to_html(lai_mean_fig, include_plotlyjs="cdn", full_html=False)
-            lai_years_html, lai_imgs = generate_lai_year_images(input_dir, tp, years, lai_agg_type, adjusted, assets_dir)
+            lai_years_html, lai_imgs = generate_lai_year_images(
+                input_dir, tp, years, lai_agg_type, adjusted, assets_dir
+            )
 
             # Collapse controls for yearly LAI images
             lai_collapse_id = f"collapse_lai_{sanitize(tp)}"
@@ -455,7 +506,8 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
                   </div>
                 """
 
-            content.append(f"""
+            content.append(
+                f"""
                 <div class='card mb-4'>
                   <div class='card-header'><h2>{tp} - LAI</h2></div>
                   <div class='card-body plot-container'>
@@ -465,7 +517,8 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
                     {lai_collapse_block}
                   </div>
                 </div>
-            """)
+            """
+            )
 
         obs_preds = load_obs_preds(input_dir, tp, years, agg_levels)
         yearly_eval_data = load_yearly_eval_data(input_dir, tp, agg_levels, years)
@@ -521,7 +574,8 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
                 {scatter_html}
                 """
 
-            content.append(f"""
+            content.append(
+                f"""
                 <div class='card mb-4'>
                   <div class='card-header'><h3>{tp} - Predictions {lvl}</h3></div>
                   <div class='card-body plot-container'>
@@ -530,7 +584,8 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
                     {multiyear_metrics_html}
                   </div>
                 </div>
-            """)
+            """
+            )
 
     path_map = {}
     seen, used_names = set(), set()
@@ -575,6 +630,7 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
 
     shutil.rmtree(temp_root, ignore_errors=True)
     print(f"Created bundle: {zip_out}")
+
 
 if __name__ == "__main__":
     main()

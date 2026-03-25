@@ -19,6 +19,11 @@ target-version = ["py311"]
 profile = "black"
 line_length = 120
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests that load heavy resources like PyTorch models (deselect with '-m \"not slow\"')",
+]
+
 [tool.flake8]
 max-line-length = 120
 extend-ignore = ["E203"]

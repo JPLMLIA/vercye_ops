@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 import geopandas as gpd
 
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
@@ -48,13 +49,13 @@ def convert_shapefile_to_geojson(shp_fpath, admin_name_col, output_head_dir, ver
     if gdf.empty:
         raise ValueError("The shapefile does not contain any polygons.")
     if gdf.crs.to_epsg() != 4326:
-        print("Shapefile not in WGS84. Reprojecting.")
+        logger.warning("Shapefile not in WGS84. Reprojecting.")
         gdf = gdf.to_crs(epsg=4326)
 
     if verbose:
         logging.info("Processing %i %s regions.", len(gdf))
 
-    print(
+    logger.info(
         "IMPORTANT: Ensure all geometries are at the same administrative level! \
           Use the prepare_shapefile.py script to standardize the shapefile with correct column names"
     )

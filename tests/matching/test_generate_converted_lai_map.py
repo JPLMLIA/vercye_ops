@@ -8,17 +8,22 @@ from affine import Affine
 
 from vercye_ops.matching_sim_real.generate_converted_lai_map import process_geotiff
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_tif(path, data, nodata=None):
     transform = Affine(0.01, 0, 30.0, 0, -0.01, 50.0)
     h, w = data.shape
     profile = {
-        "driver": "GTiff", "height": h, "width": w, "count": 1,
-        "dtype": data.dtype, "crs": "EPSG:4326", "transform": transform,
+        "driver": "GTiff",
+        "height": h,
+        "width": w,
+        "count": 1,
+        "dtype": data.dtype,
+        "crs": "EPSG:4326",
+        "transform": transform,
     }
     if nodata is not None:
         profile["nodata"] = nodata

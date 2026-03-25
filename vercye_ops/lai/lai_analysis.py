@@ -2,6 +2,7 @@
 # The 3_analysis_LAI.py script is kept as the CLI entry point referenced by Snakemake configs.
 import importlib.util
 import os
+from types import FunctionType as _FT
 
 _spec = importlib.util.spec_from_file_location(
     "_analysis_lai",
@@ -11,7 +12,6 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 # Re-export all public names
-from types import FunctionType as _FT
 
 for _name in dir(_mod):
     _obj = getattr(_mod, _name)

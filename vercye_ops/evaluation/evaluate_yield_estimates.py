@@ -68,11 +68,11 @@ def compute_metrics(preds, obs):
 
 def compute_errors_per_region(preds, obs, region_names):
     if len(preds) == 0 or len(obs) == 0:
-        return  {
-        "error_kg_ha": None,
-        "rel_error_percent": None,
-        "region": region_names,
-    }
+        return {
+            "error_kg_ha": None,
+            "rel_error_percent": None,
+            "region": region_names,
+        }
 
     errors_kg_ha = preds - obs
     rel_errors_percent = (errors_kg_ha / obs) * 100
@@ -93,6 +93,7 @@ def write_metrics(metrics, out_fpath):
     pd.DataFrame(metrics, index=[0]).to_csv(out_fpath, index=False)
     return out_fpath
 
+
 def create_scatter_plot(preds, obs, obs_years=None):
     preds = np.asarray(preds)
     obs = np.asarray(obs)
@@ -102,9 +103,12 @@ def create_scatter_plot(preds, obs, obs_years=None):
         fig = go.Figure()
         fig.add_annotation(
             text="No data available to plot",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="gray")
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font=dict(size=16, color="gray"),
         )
         fig.update_layout(
             template="simple_white",
@@ -244,7 +248,7 @@ def get_preds_obs(estimation_fpath, val_fpath, pixel_converted=True):
     gt = load_csv(val_fpath)
     pred = load_csv(estimation_fpath)
 
-    predictions_column = "mean_yield_kg_ha" if pixel_converted else "apsim_mean_yield_estimate_kg_ha" 
+    predictions_column = "mean_yield_kg_ha" if pixel_converted else "apsim_mean_yield_estimate_kg_ha"
 
     if "reported_mean_yield_kg_ha" in pred.columns:
         pred.drop(["reported_mean_yield_kg_ha"], axis="columns", inplace=True)

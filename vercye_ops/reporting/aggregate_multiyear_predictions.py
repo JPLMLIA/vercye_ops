@@ -33,7 +33,7 @@ def get_avaiable_agg_levels(base_dir):
             tp_path = os.path.join(year_path, timepoint)
             if not os.path.isdir(tp_path):
                 continue
-            
+
             preds_pattern = os.path.join(base_dir, year, timepoint, "agg_yield_estimates_*_*.csv")
             agg_preds_files = glob(preds_pattern)
             agg_levels = [os.path.basename(f).split("_")[3] for f in agg_preds_files]

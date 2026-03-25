@@ -77,6 +77,7 @@ def write_simple_vrt(vrt_path: Path, tif_name_in_same_dir: str, width: int, heig
     vrt_path.write_text(xml)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("date_str", ["2025-06-15"])
 def test_cli_stac_pipeline_produces_output(tmp_path, date_str):
     """

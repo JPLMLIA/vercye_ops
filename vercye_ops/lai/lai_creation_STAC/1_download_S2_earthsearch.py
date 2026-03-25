@@ -3,8 +3,7 @@ import time
 
 import click
 import geopandas as gpd
-import numpy as np
-from s2_download_hooks import add_geometry_bands, build_s2_masking_hook
+from s2_download_hooks import add_geometry_bands, build_s2_masking_hook, s2_harmonization_processor
 from shapely.validation import make_valid
 from stac_downloader.raster_processing import ResamplingMethod
 from stac_downloader.stac_downloader import STACDownloader
@@ -17,20 +16,6 @@ SCL_KEEP_CLASSES = [4, 5]
 logger = get_logger()
 logger.setLevel("INFO")
 
-
-# Register hook to harmonize the sentinel-2 data to match baseline < 4.0 (-1000 for newer)
-def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item):
-    # Harmonizes scenes to match the baseline < 4.0 format.
-    nodata_val = raster_profile["nodata"]
-
-    if nodata_val is None:
-        nodata_val = 0
-        raster_profile["nodata"] = 0
-        print("No nodata found. Using 0.")
-
-    raster = np.where(raster != nodata_val, raster - 1000, nodata_val)
-
-    return raster, raster_profile
 
 
 @click.command()
@@ -189,7 +174,7 @@ def main(
         output_folder=output_dir,
         overwrite=overwrite,
         resolution=resolution,
-        resampling_method=RESAMPLING_METHOD,
+        resampling_spec=RESAMPLING_METHOD,
         num_workers=num_workers,
     )
 

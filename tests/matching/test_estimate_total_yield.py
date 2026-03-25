@@ -8,10 +8,10 @@ from affine import Affine
 
 from vercye_ops.matching_sim_real.estimate_total_yield import estimate_yield
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_yield_tif(path, data, transform=None, crs="EPSG:4326"):
     """Write a single-band GeoTIFF with the given 2D array."""
@@ -19,9 +19,15 @@ def _create_yield_tif(path, data, transform=None, crs="EPSG:4326"):
         transform = Affine(0.01, 0, 30.0, 0, -0.01, 50.0)
     h, w = data.shape
     with rasterio.open(
-        str(path), "w", driver="GTiff",
-        height=h, width=w, count=1, dtype=data.dtype,
-        crs=crs, transform=transform,
+        str(path),
+        "w",
+        driver="GTiff",
+        height=h,
+        width=w,
+        count=1,
+        dtype=data.dtype,
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(data, 1)
 
@@ -111,7 +117,10 @@ class TestEstimateYield:
 
         df = pd.read_csv(csv_path)
         expected_cols = {
-            "mean_yield_kg_ha", "median_yield_kg_ha", "total_area_ha",
-            "total_yield_production_kg", "total_yield_production_ton",
+            "mean_yield_kg_ha",
+            "median_yield_kg_ha",
+            "total_area_ha",
+            "total_yield_production_kg",
+            "total_yield_production_ton",
         }
         assert set(df.columns) == expected_cols

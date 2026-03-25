@@ -8,15 +8,15 @@ import pytest
 from vercye_ops.reporting.aggregate_multiyear_predictions import (
     aggregate_years,
     collect_files,
-    get_available_timepoints,
     get_avaiable_agg_levels,
+    get_available_timepoints,
     merge_preds_gt_yearly,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_dir_structure(base, years_timepoints, agg_levels=None):
     """Create a realistic directory structure with prediction and GT files.
@@ -32,10 +32,12 @@ def _create_dir_structure(base, years_timepoints, agg_levels=None):
             tp_dir = os.path.join(base, year, tp)
             os.makedirs(tp_dir, exist_ok=True)
             for agg in agg_levels:
-                pred_df = pd.DataFrame({
-                    "region": ["A", "B"],
-                    "mean_yield_kg_ha": [1000, 2000],
-                })
+                pred_df = pd.DataFrame(
+                    {
+                        "region": ["A", "B"],
+                        "mean_yield_kg_ha": [1000, 2000],
+                    }
+                )
                 pred_df.to_csv(
                     os.path.join(tp_dir, f"agg_yield_estimates_{agg}_{year}.csv"),
                     index=False,
@@ -43,10 +45,12 @@ def _create_dir_structure(base, years_timepoints, agg_levels=None):
 
         # GT file per year per agg level
         for agg in agg_levels:
-            gt_df = pd.DataFrame({
-                "region": ["A", "B"],
-                "reported_mean_yield_kg_ha": [1100, 1900],
-            })
+            gt_df = pd.DataFrame(
+                {
+                    "region": ["A", "B"],
+                    "reported_mean_yield_kg_ha": [1100, 1900],
+                }
+            )
             gt_df.to_csv(
                 os.path.join(base, year, f"referencedata_{agg}-{year}.csv"),
                 index=False,
@@ -156,9 +160,7 @@ class TestMergePredsGtYearly:
         """If the prediction CSV already has a 'year' column, it should be
         preserved as 'year_original' and the new year column added."""
         pred_path = tmp_path / "pred.csv"
-        pd.DataFrame({
-            "region": ["A"], "mean_yield_kg_ha": [1000], "year": [2021]
-        }).to_csv(pred_path, index=False)
+        pd.DataFrame({"region": ["A"], "mean_yield_kg_ha": [1000], "year": [2021]}).to_csv(pred_path, index=False)
         gt_path = tmp_path / "gt.csv"
         pd.DataFrame({"region": ["A"], "reported_mean_yield_kg_ha": [1100]}).to_csv(gt_path, index=False)
 

@@ -1,15 +1,12 @@
 import logging
 import os
 import shutil
-import signal
 import subprocess
 import sys
 from typing import List
 
 import click
 import yaml
-
-logger = logging.getLogger(__name__)
 
 from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import run_pipeline as run_imagery_dl_pipeline
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
@@ -32,6 +29,8 @@ from vercye_ops.utils.env_utils import (
     update_study_status,
 )
 
+logger = logging.getLogger(__name__)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -45,7 +44,7 @@ def init_study(study_name, studies_dir):
     new_study_path = get_study_path(studies_dir, study_name)
 
     if os.path.exists(new_study_path):
-        print(f"Error: A yieldstudy with this name already exists under {new_study_path}")
+        logger.info(f"Error: A yieldstudy with this name already exists under {new_study_path}")
         return
 
     os.makedirs(new_study_path)
@@ -70,7 +69,7 @@ def init_study(study_name, studies_dir):
         lai_dir_placeholder = os.path.join(lai_dir, "XXXX")
         replace_in_file(new_imagery_config_path, "out_dir: XXXX", f"out_dir: {lai_dir_placeholder}")
 
-    print(f"Template successfully created! Navigate to {new_study_path} and start adjusting your options.")
+    logger.info(f"Template successfully created! Navigate to {new_study_path} and start adjusting your options.")
 
     return new_study_path
 
@@ -85,7 +84,7 @@ def create_lai_data(study_name, studies_dir):
     try:
         run_imagery_dl_pipeline(lai_config)
     except Exception as e:
-        print(f"Error: LAI Pipeline terminated with error: {e}")
+        logger.info(f"Error: LAI Pipeline terminated with error: {e}")
 
 
 def download_chirps(
@@ -187,11 +186,11 @@ def _safe_unlock_if_needed(cmd: list, snakemake_run_dir: str):
             f"process is still running for this directory. Cancel the running process first."
         )
 
-    print(f"Stale snakemake lock detected in {snakemake_run_dir}. Auto-unlocking...")
+    logger.info(f"Stale snakemake lock detected in {snakemake_run_dir}. Auto-unlocking...")
     cmd_unlock = cmd.copy()
     cmd_unlock.append("--unlock")
     subprocess.run(cmd_unlock)
-    print("Unlock complete.")
+    logger.info("Unlock complete.")
 
 
 def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snakemake_args: List[str] = None):
@@ -230,7 +229,7 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
     profile_file = os.path.join(profile_dir, "config.yaml")
     if not os.path.exists(profile_file):
         raise ValueError("Profile file does not exist. Can't specify number of cores.")
-    
+
     with open(profile_file, "r") as f:
         profile = yaml.safe_load(f)
         num_cores = str(min(int(profile["cores"]), os.cpu_count()))
@@ -252,14 +251,14 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
         "--rerun-incomplete",
     ]
 
-    print("Running snakemake cmd:", " ".join(cmd))
+    logger.info("Running snakemake cmd:", " ".join(cmd))
 
     # Auto-unlock only if locks are stale (no running snakemake for this directory)
     _safe_unlock_if_needed(cmd, snakemake_run_dir)
 
     # Add extra snakemake args if provided, allows to run custom snaekmake options
     if extra_snakemake_args:
-        print(f"Running snakemake with additional args: {extra_snakemake_args}.")
+        logger.info(f"Running snakemake with additional args: {extra_snakemake_args}.")
         cmd.extend(extra_snakemake_args)
 
     try:
@@ -285,13 +284,13 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
                 f.write(str(pgid))
 
             for line in process.stdout:
-                # print(line, end='') # Print to console
+                # logger.info(line, end='') # Print to console
                 log_file.write(line)  # Write to log file (includes ANSI codes)
 
             process.wait()
 
             if process.returncode == 0:
-                print("Snakemake completed successfully!")
+                logger.info("Snakemake completed successfully!")
                 update_study_status(studies_dir, study_name, "completed")
             else:
                 # Check if this was a cancellation (status set to "cancelling" by the webapp)
@@ -305,15 +304,15 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
                     pass
 
                 if current_status in ("cancelling", "cancelled"):
-                    print("\nSnakemake was cancelled.")
+                    logger.info("\nSnakemake was cancelled.")
                     update_study_status(studies_dir, study_name, "cancelled")
                 else:
-                    print(f"\nSnakemake failed with exit code: {process.returncode}")
+                    logger.info(f"\nSnakemake failed with exit code: {process.returncode}")
                     update_study_status(studies_dir, study_name, "failed")
                 sys.exit(process.returncode)
 
     except Exception as e:
-        print(f"\nError running snakemake: {e}")
+        logger.info(f"\nError running snakemake: {e}")
         update_study_status(studies_dir, study_name, "failed")
         if process:
             process.terminate()
@@ -402,7 +401,7 @@ def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_core
                 num_workers=chirps_cores,
             )
         elif mode == "run":
-            print(f"Running with extra args: {extra_args}")
+            logger.info(f"Running with extra args: {extra_args}")
             run_study(
                 studies_dir=dir,
                 study_name=name,

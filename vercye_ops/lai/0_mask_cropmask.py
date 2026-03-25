@@ -26,8 +26,7 @@ def main(mask_path, shp_path, out_path):
             )
         if shp.crs is None or not CRS(shp.crs).equals(expected_crs):
             raise ValueError(
-                f"Geometry CRS is {shp.crs}, expected EPSG:4326. "
-                "Reproject the geometry before running this step."
+                f"Geometry CRS is {shp.crs}, expected EPSG:4326. " "Reproject the geometry before running this step."
             )
 
         # Zero out pixels outside the input geometry

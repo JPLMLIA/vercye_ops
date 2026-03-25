@@ -16,15 +16,16 @@ from scipy.interpolate import Akima1DInterpolator
 from scipy.signal import savgol_filter
 from shapely import LineString, box
 
+
 def pad_to_polygon(src, geometry, masked_src):
     """Pads masked_src to the extent of geometry if it is smaller"""
     if not rio.coords.disjoint_bounds(src.bounds, geometry.total_bounds):
         gx = abs(src.res[0])
         gy = abs(src.res[1])
-        left_pad   = int(np.round((src.bounds.left   - geometry.total_bounds[0]) / gx))
+        left_pad = int(np.round((src.bounds.left - geometry.total_bounds[0]) / gx))
         bottom_pad = int(np.round((src.bounds.bottom - geometry.total_bounds[1]) / gy))
-        right_pad  = int(np.round((geometry.total_bounds[2] - src.bounds.right ) / gx))
-        top_pad    = int(np.round((geometry.total_bounds[3] - src.bounds.top   ) / gy))
+        right_pad = int(np.round((geometry.total_bounds[2] - src.bounds.right) / gx))
+        top_pad = int(np.round((geometry.total_bounds[3] - src.bounds.top) / gy))
 
         if left_pad + bottom_pad + right_pad + top_pad == 0:
             return masked_src, False
@@ -41,6 +42,7 @@ def pad_to_polygon(src, geometry, masked_src):
     else:
         print("ERROR: The polygon and the source raster do not overlap.")
         sys.exit(1)
+
 
 def assert_grids_aligned(src, geom_t, tol_pix=1e-6):
     """
@@ -79,6 +81,7 @@ def assert_grids_aligned(src, geom_t, tol_pix=1e-6):
             f"dy={dy_pix:.6f} (|Δ|={mis_y:.3g})\n"
             "Reproject/snap the mask to the LAI grid."
         )
+
 
 def main(
     lai_dir,
@@ -220,10 +223,7 @@ def main(
                 print(f"ERROR: CRS mismatch: LAI {src.crs} vs cropmask {geometry['crs']}. Reproject the mask first.")
                 sys.exit(1)
 
-            if (
-                not np.isclose(src.res[0], geometry["res"][0])
-                or not np.isclose(src.res[1], geometry["res"][1])
-            ):
+            if not np.isclose(src.res[0], geometry["res"][0]) or not np.isclose(src.res[1], geometry["res"][1]):
                 print(f"ERROR: Resolution mismatch: LAI {src.res} vs cropmask {geometry['res']}")
                 sys.exit(1)
 

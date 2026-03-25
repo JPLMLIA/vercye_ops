@@ -1,10 +1,10 @@
-from affine import Affine
 from datetime import datetime
+
 import numpy as np
 import pytest
 import rasterio as rio
+from affine import Affine
 from rasterio.transform import from_origin
-
 
 from vercye_ops.lai.lai_analysis import (
     apply_akima_interpolation,
@@ -42,6 +42,7 @@ WGS84_CRS = rio.CRS.from_wkt(WGS84_WKT)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _create_test_lai_raster(path, data, transform, crs=None):
     """Write a single-band float32 GeoTIFF. Returns the CRS as roundtripped by rasterio/GDAL."""
@@ -83,6 +84,7 @@ def _make_geometry_dict(array, transform, bounds=None, crs=None):
 # ===================================================================
 # Pure-array / unit tests (no raster I/O)
 # ===================================================================
+
 
 def test_clip_negative_lai():
     arr = np.array([[1.0, -0.5], [0.0, 2.0]], dtype=float)
@@ -420,6 +422,7 @@ def test_ensure_raster_alignment_ok_crs_mismatch_res_mismatch_and_nonint_shift()
 # Raster I/O tests - build_lai_window_for_cropmask
 # ===================================================================
 
+
 def test_build_lai_window_for_cropmask(tmp_path):
     data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     transform = from_origin(0, 2, 1, 1)  # left, top, xres, yres
@@ -477,10 +480,7 @@ def test_build_lai_window_for_cropmask_cropmask_larger_than_raster(tmp_path):
 def test_build_lai_window_for_cropmask_cropmask_smaller_than_raster(tmp_path):
     """Cropmask is a subset of the LAI raster → only the subset is returned."""
     data = np.array(
-        [[1.0, 2.0, 3.0, 4.0],
-         [5.0, 6.0, 7.0, 8.0],
-         [9.0, 10., 11., 12.],
-         [13., 14., 15., 16.]],
+        [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
         dtype=np.float32,
     )
     transform = from_origin(0, 4, 1, 1)  # 4x4 raster: left=0, top=4
@@ -545,6 +545,7 @@ def test_build_lai_window_for_cropmask_no_overlap(tmp_path):
 # Masking polarity - verify 0=excluded, 1=kept (not inverted)
 # ===================================================================
 
+
 def test_mask_polarity_zero_excludes_one_keeps():
     """Cropmask 0 → NaN (excluded), 1 → LAI value (kept). Not inverted."""
     lai = np.array([[10.0, 20.0], [30.0, 40.0]], dtype=float)
@@ -593,6 +594,7 @@ def test_mask_preserves_nan_in_lai():
 # ===================================================================
 # process_single_date - raster mode integration tests
 # ===================================================================
+
 
 def test_process_single_date_raster_mode_basic(tmp_path):
     """Basic raster mode: LAI and cropmask exactly aligned and same extent."""
@@ -909,6 +911,7 @@ def test_process_single_date_cloud_threshold_accepts_clear(tmp_path):
 # process_geometry - multi-date integration
 # ===================================================================
 
+
 def test_process_geometry_accumulates_max(tmp_path):
     # one date raster
     data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
@@ -980,6 +983,7 @@ def test_process_geometry_two_dates_max_is_elementwise(tmp_path):
 # write_max_lai_raster
 # ===================================================================
 
+
 def test_write_max_lai_raster(tmp_path):
     data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     transform = from_origin(0, 2, 1, 1)
@@ -1014,6 +1018,7 @@ def test_write_max_lai_raster(tmp_path):
 # ===================================================================
 # Pixel-precise alignment verification
 # ===================================================================
+
 
 def test_pixel_values_not_shifted_after_masking(tmp_path):
     """

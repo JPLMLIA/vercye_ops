@@ -103,10 +103,10 @@ def identify_target_resolution(file_paths, target_crs, output_dir):
 
 def snap_bounds_to_grid(bounds, xres, yres):
     left, bottom, right, top = bounds
-    left   = math.floor(left  / xres) * xres
-    right  = math.ceil (right / xres) * xres
-    bottom = math.floor(bottom/ yres) * yres
-    top    = math.ceil (top   / yres) * yres
+    left = math.floor(left / xres) * xres
+    right = math.ceil(right / xres) * xres
+    bottom = math.floor(bottom / yres) * yres
+    top = math.ceil(top / yres) * yres
     return left, bottom, right, top
 
 
@@ -123,7 +123,7 @@ def standardize_lai(args):
             left, bottom, right, top = snap_bounds_to_grid(raw_bounds, xres, yres)
 
             # Compute dimensions (use round to avoid float slop)
-            dst_width  = int(round((right - left) / xres))
+            dst_width = int(round((right - left) / xres))
             dst_height = int(round((top - bottom) / yres))
 
             dst_transform = from_origin(left, top, xres, yres)

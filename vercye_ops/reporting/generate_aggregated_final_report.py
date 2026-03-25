@@ -288,8 +288,10 @@ def save_report(report, out_fpath):
         if pisa_status.err:
             print("An error occured!")
 
+
 def safe_int(value, default="N/A"):
     return default if pd.isna(value) else int(value)
+
 
 def fill_section_template(
     section_name,

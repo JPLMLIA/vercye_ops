@@ -238,6 +238,12 @@ def s2_harmonization_processor(raster: np.ndarray, raster_profile: dict, item: p
             raster_profile["nodata"] = 0
             print("No nodata found. Using 0.")
 
-        raster = np.where(raster != nodata_val, raster - 1000, nodata_val)
+        # Subtract the shift from valid pixels, but keep nodata pixels unchanged
+        # Also ensuring no anomalous values can go below 0 after subtraction.
+        raster = np.where(
+            raster != nodata_val,
+            np.maximum(raster, np.uint16(1000)) - np.uint16(1000),
+            nodata_val
+        )
 
     return raster, raster_profile

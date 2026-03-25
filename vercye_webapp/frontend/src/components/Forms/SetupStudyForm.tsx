@@ -262,17 +262,6 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     });
   }, [refSources, years, isInitialized]);
 
-    useEffect(() => {
-    if (!isInitialized) return;
-    setReferenceYearsMapping(prev => {
-      const next: MappingState = {};
-      Object.entries(prev).forEach(([k, v]) => {
-        next[k] = (typeof v === 'string' && years.includes(v)) ? v : "";
-      });
-      return next;
-    });
-  }, [years, isInitialized]);
-
   useEffect(() => {
     if (!isInitialized) return
     setWindows(prev => buildCartesianWindows(years, timepoints, prev));
@@ -288,7 +277,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     if(apsimFiles.length <= 1) {
       setApsimColumn("")
     }
-  }, apsimFiles)
+  }, [apsimFiles])
 
   useEffect(() => {
     setTimepointPatterns(prev => {

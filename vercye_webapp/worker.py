@@ -15,7 +15,6 @@ from vercye_ops.cli import run_study as run_vercye
 from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import update_status
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
 from vercye_ops.utils.env_utils import (
-    get_env_vars,
     get_run_config,
     get_run_config_file_path,
     get_run_config_template_file_path,
@@ -60,7 +59,7 @@ def setup_vercye_task(study_id: str, studies_dir: str):
         try:
 
             # If a config already exists, it means that the study was already prepared
-            # and the user is re-preparing it. 
+            # and the user is re-preparing it.
             # In this case we use the existing config as base and it has precedence over a template.
             existing_run_cfg_path = get_run_config_file_path(studies_dir, study_id)
             if os.path.exists(existing_run_cfg_path):
@@ -76,7 +75,7 @@ def setup_vercye_task(study_id: str, studies_dir: str):
             # Generate the study: Unfold regions & create config
             config_path = prepare_vercye_study(setup_config, temp_output_dir, lai_config_path)
             new_config, ruamel_yaml = load_yaml_ruamel(config_path)
-            
+
             # If the study was created from a template, use the template
             if template_config:
                 # Overwrite the template with all possible changes from the setup (new config)
@@ -154,7 +153,7 @@ def uses_chirps(study_id):
 
 def ensure_chirps_daterange_complete(study_id):
     config = load_config(study_id)
-    chirps_cache_dir = config["apsim_params"][""]
+    chirps_cache_dir = config["apsim_params"]["chirps_dir"]
     log_file_path = get_snakemake_runlog_path(studies_dir, study_id)
 
     def extract_dates(obj):

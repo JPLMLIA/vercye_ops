@@ -31,7 +31,7 @@ def get_num_processing_cores(resolution):
         num_cores_download = 100
         num_cores_lai = 85
 
-    return num_cores_lai, num_cores_lai
+    return num_cores_download, num_cores_lai
 
 
 @router.get("")
@@ -74,6 +74,7 @@ def get_all_lai_entries() -> List[LAIEntry]:
 
     return entries
 
+
 @router.post("/actions/add")
 def add_dates(config: str = Form(...)):
     try:
@@ -83,7 +84,6 @@ def add_dates(config: str = Form(...)):
 
     region_out_prefix = lai_config.name
     out_dir = os.path.join(lai_dir, region_out_prefix)
-
 
     if not os.path.exists(out_dir):
         raise HTTPException(status_code=400, detail=f"No existing lai for region {region_out_prefix}.")
@@ -98,7 +98,7 @@ def add_dates(config: str = Form(...)):
                 status_code=400,
                 detail=f"End date {dr.end_date} must be after start date {dr.start_date}",
             )
-        
+
     num_cores_lai, num_cores_download = get_num_processing_cores(lai_config.resolution)
 
     geojson_path = os.path.join(out_dir, "region.geojson")
@@ -109,7 +109,10 @@ def add_dates(config: str = Form(...)):
 
     for res, status in meta["status"].items():
         if status in ["generating", "standardizing", "merging", "finalizing"]:
-            raise HTTPException(status_code=400, detail="There already is an execution of this LAI product running. Wait for it to complete before adding dates.")
+            raise HTTPException(
+                status_code=400,
+                detail="There already is an execution of this LAI product running. Wait for it to complete before adding dates.",
+            )
 
     imagery_src = meta["imagery_source"]
 

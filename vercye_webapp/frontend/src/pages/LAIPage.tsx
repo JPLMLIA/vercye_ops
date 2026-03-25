@@ -159,7 +159,7 @@ const LAIPage = () => {
       if (err instanceof ApiError) {
         show(err.message, 'error');
       } else {
-        show('Failed to load logs', 'error');
+        show('Failed to cancel generation', 'error');
       }
     }
   };

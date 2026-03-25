@@ -12,7 +12,6 @@ from vercye_ops.evaluation.evaluate_yield_estimates import (
     write_metrics,
 )
 
-
 # ---------------------------------------------------------------------------
 # compute_metrics
 # ---------------------------------------------------------------------------
@@ -63,7 +62,7 @@ class TestComputeMetrics:
         assert m["r2_rsq_excel"] == pytest.approx(1.0, abs=0.01)
 
     def test_empty_arrays_return_none_metrics(self):
-        m = compute_metrics(np.array([]), np.array([])  )
+        m = compute_metrics(np.array([]), np.array([]))
         assert m["n_regions"] == 0
         assert all(v is None for k, v in m.items() if k != "n_regions")
 
@@ -89,9 +88,17 @@ class TestComputeMetrics:
         preds = np.array([110.0, 210.0])
         m = compute_metrics(preds, obs)
         expected_keys = {
-            "n_regions", "mape", "mean_err_kg_ha", "median_err_kg_ha",
-            "mean_abs_err_kg_ha", "median_abs_err_kg_ha", "rmse_kg_ha",
-            "rrmse", "r2_scikit", "r2_rsq_excel", "r2_scikit_bestfit",
+            "n_regions",
+            "mape",
+            "mean_err_kg_ha",
+            "median_err_kg_ha",
+            "mean_abs_err_kg_ha",
+            "median_abs_err_kg_ha",
+            "rmse_kg_ha",
+            "rrmse",
+            "r2_scikit",
+            "r2_rsq_excel",
+            "r2_scikit_bestfit",
         }
         assert set(m.keys()) == expected_keys
 

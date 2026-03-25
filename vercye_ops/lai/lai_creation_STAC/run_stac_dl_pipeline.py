@@ -296,7 +296,7 @@ def run_pipeline(config, logger):
             "--geojson-path",
             geojson_path,
             "--num-workers",
-            str(num_workers_lai)
+            str(num_workers_lai),
         ]
         meta = update_status(metadata_index_file, resolution, "merging")
         run_subprocess(cmd, "Build daily VRTs for LAI", logger=logger)
