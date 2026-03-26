@@ -408,7 +408,7 @@ const StudiesPage = () => {
               return (
                 <tr key={id}>
                   <td><div style={{fontWeight: 500}}>{id}</div></td>
-                  <td><StatusBadge status={s as any} /></td>
+                  <td><StatusBadge status={s} /></td>
                   <td>
                     <div className="actions-cell">
                       <button className="btn btn-sm btn-primary" onClick={() => openDetail(id)} disabled={!canConfigure}>Configure</button>

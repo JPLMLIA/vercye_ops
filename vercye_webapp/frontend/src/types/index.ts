@@ -9,6 +9,7 @@ export type StudyStatus =
   | 'completed'
   | 'failed'
   | 'cancelled'
+  | 'cancelling'
   | 'validating'
   | 'ready';
 
