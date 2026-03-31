@@ -1,8 +1,8 @@
 import React, { useMemo, useState, ReactNode, useEffect } from "react";
-import FileUpload from "../FileUpload";
 import Fieldset from "./FieldSet";
 import MultiValueInput from "./MultiValueInput";
 import SourceTargetMapper, { MapperSource, MappingState } from "./SourceTargetMapper";
+import FileUpload from "../FileUpload";
 import shp from 'shpjs';
 import useToast from '@/components/Toast';
 import { SetupConfigTemplate } from "@/types";
@@ -28,6 +28,7 @@ interface ShapefileData {
 }
 
 interface SetupStudyFormProps {
+  studyId: string;
   onSubmit: (payload: SetupSubmissionsPayload) => void;
   initialData: SetupConfigTemplate | null
 }
@@ -45,9 +46,13 @@ export interface SetupSubmissionsPayload {
   apsimFiles: File[];
   apsimColumn: string;
   apsimMapping: MappingState;
-  referenceFiles: File[];
-  referenceMapping: MappingState;
-  referenceYearsMapping: MappingState;
+  aggregationShapefiles: {
+    level_name: string;
+    name_column: string;
+    reference_yield_column: string | null;
+    year_column: string | null;
+  }[];
+  aggregationShapefileFiles: File[];
   years: string[];
   timepoints: string[];
   simulationWindows: Omit<WindowConfig, "id">[];
@@ -154,13 +159,11 @@ function loadColValues(column: string, _shapefileFile?: File | null): string[] {
   return values;
 }
 
-const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }) => {
+const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ studyId, onSubmit, initialData }) => {
   const [shapefileUpload, setShapefileUpload] = useState<File | null>(null);
   const [apsimFiles, setApsimFiles] = useState<File[]>([]);
   const [apsimAllowedValues, setApsimAllowedValues] = useState<string[]>(['all']);
   const [apsimColumn, setApsimColumn] = useState("");
-
-  const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
 
   const [adminNameColumn, setAdminNameColumn] = useState("");
   const [targetProjection, setTargetProjection] = useState("");
@@ -180,14 +183,16 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
   );
   const [apsimMapping, setApsimMapping] = useState<MappingState>({});
 
-  // Reference CSV mapping: each CSV -> one target from aggregationLevels and year
-  const [aggregationLevels, setAggregationLevels] = useState<string[]>(['primary']);
-  const refSources: MapperSource[] = useMemo(
-    () => referenceFiles.map((f, i) => ({ id: f.name, label: f.name, file: f })),
-    [referenceFiles]
-  );
-  const [referenceMapping, setReferenceMapping] = useState<MappingState>({});
-  const [referenceYearsMapping, setReferenceYearsMapping] = useState<MappingState>({})
+  // Aggregation shapefiles: one per level
+  const [aggShapefileFiles, setAggShapefileFiles] = useState<File[]>([]);
+  const [aggShapefileConfigs, setAggShapefileConfigs] = useState<{
+    level_name: string;
+    name_column: string;
+    reference_yield_column: string | null;
+    year_column: string | null;
+    columns: { name: string; dtype: string; is_numeric: boolean }[];
+  }[]>([]);
+
 
   const [isInitialized, setIsInitialized] = useState(false)
   const [usePattern, setUsePattern] = useState(false)
@@ -216,10 +221,13 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     setApsimMapping(initialData.apsimMapping || {});
     setApsimFiles(initialData.apsimFiles.map((name) => new File([], name)));
 
-    setAggregationLevels([...new Set(Object.values(initialData.referenceMapping))]);
-    setReferenceMapping(initialData.referenceMapping || {});
-    setReferenceYearsMapping(initialData.referenceYearsMapping || {});
-    setReferenceFiles(initialData.referenceFiles.map((name) => new File([], name)));
+    // Load aggregation shapefile configs if available
+    if (initialData.aggregationShapefiles?.length) {
+      setAggShapefileConfigs(initialData.aggregationShapefiles.map(s => ({
+        ...s,
+        columns: [],  // columns not available from initial data; user will re-upload if editing
+      })));
+    }
 
     setYears(initialData.years);
     setTimepoints(initialData.timepoints);
@@ -239,28 +247,6 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ onSubmit, initialData }
     });
   }, [apsimSources, isInitialized]);
 
-  // Keep reference mapping in sync when reference files change (cleanup removed sources)
-  useEffect(() => {
-    if (!isInitialized) return;
-    setReferenceMapping((prev) => {
-      const next: MappingState = {};
-      refSources.forEach((s) => (next[s.id] = (prev[s.id] ?? "") as string));
-      return next;
-    });
-  }, [refSources, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    setReferenceYearsMapping(prev => {
-      const next: MappingState = {};
-      refSources.forEach(s => {
-        const v = prev[s.id];
-        // keep only if still a valid year, otherwise reset
-        next[s.id] = (typeof v === 'string' && years.includes(v)) ? v : "";
-      });
-      return next;
-    });
-  }, [refSources, years, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return
@@ -458,15 +444,6 @@ useEffect(() => {
         ? { column: regionFilterColumn, allow: regionAllowedValues }
         : undefined;
 
-    if (referenceFiles.length > 0) {
-      for (const f of referenceFiles) {
-        const y = referenceYearsMapping[f.name];
-        if (!y || typeof y !== 'string' || !years.includes(y)) {
-          throw new Error(`Please select a valid year for reference file: ${f.name}`);
-        }
-      }
-    }
-
     return {
       shapefile: shapefileUpload,
       regionExtraction: {
@@ -477,9 +454,13 @@ useEffect(() => {
       apsimFiles,
       apsimColumn,
       apsimMapping: finalApsimMapping,
-      referenceFiles,
-      referenceMapping,
-      referenceYearsMapping,
+      aggregationShapefiles: aggShapefileConfigs.map(c => ({
+        level_name: c.level_name,
+        name_column: c.name_column,
+        reference_yield_column: c.reference_yield_column,
+        year_column: c.year_column,
+      })),
+      aggregationShapefileFiles: aggShapefileFiles,
       years,
       timepoints,
       simulationWindows: windows.map(({ id, ...rest }) => rest),
@@ -490,9 +471,10 @@ useEffect(() => {
     const file = files[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".zip")) {
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".zip") && !lower.endsWith(".geojson") && !lower.endsWith(".json")) {
       show(
-        "Please upload a ZIP file containing shapefile components (.shp, .shx, .dbf, etc.)",
+        "Please upload a zipped shapefile (.zip) or a GeoJSON file (.geojson / .json)",
         "error"
       );
       return;
@@ -501,7 +483,14 @@ useEffect(() => {
     try {
       setShapefileUpload(file);
       const arrayBuffer = await file.arrayBuffer();
-      const geojson = (await shp(arrayBuffer)) as ShapefileData;
+
+      let geojson: ShapefileData;
+      if (lower.endsWith(".geojson") || lower.endsWith(".json")) {
+        const text = new TextDecoder().decode(arrayBuffer);
+        geojson = JSON.parse(text) as ShapefileData;
+      } else {
+        geojson = (await shp(arrayBuffer)) as ShapefileData;
+      }
       (window as any).__lastShapefileGeoJSON = geojson;
 
       const allColumnNames = getAllColumnNames(geojson);
@@ -586,17 +575,17 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Region Extraction */}
+      {/* Primary Simulation Regions */}
       <Fieldset
-        legend="Region Extraction"
-        hint="Choose your shapefile source, projection, and optional filter to restrict extracted features."
+        legend="Primary Simulation Regions"
+        hint="Upload a shapefile defining the smallest geographic units at which APSIM simulations will be run. Each polygon becomes one simulation region. Yield maps are produced per region, then stitched into a mosaic for aggregation at higher levels."
       >
         <div className="form-group">
-        <label className="form-label">Zipped Shapefile (.zip)</label>
+        <label className="form-label">Shapefile (.zip) or GeoJSON (.geojson)</label>
         <FileUpload
           id="shapefileFile"
-          accept=".zip"
-          label="📁 Choose zipped shapefile (.zip)"
+          accept=".zip,.geojson,.json"
+          label="📁 Choose shapefile (.zip) or GeoJSON (.geojson)"
           value={shapefileUpload ? [shapefileUpload] : []}
           onChange={(files) => {
             const newFile = files[0] ?? null;
@@ -625,7 +614,7 @@ useEffect(() => {
           }}
         >
           <div className="form-group">
-            <label className="form-label">Admin Name Column</label>
+            <label className="form-label">Region Name Column</label>
             <select
                 className="form-input"
                 value={adminNameColumn}
@@ -639,23 +628,24 @@ useEffect(() => {
                 ))}
               </select>
             <p className="subtitle" style={{ marginTop: 4 }}>
-              Column in the shapefile that contains the administrative name.
+              Column containing the name of each simulation region (used for labeling outputs).
             </p>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Target Projection (EPSG or proj string)</label>
+            <label className="form-label">Target Equal-Area Projection</label>
             <input
               className="form-input"
-              placeholder="e.g EPSG:4326 or +proj=longlat +datum=WGS84 +no_defs"
+              placeholder="e.g. EPSG:9854 or +proj=aea +lat_1=... "
               value={targetProjection}
               onChange={(e) => setTargetProjection(e.target.value)}
             />
             <p className="subtitle" style={{ marginTop: 4 }}>
-              Should be a local equal area projection (e.g Albers)
+              Equal-area projection for accurate area and production calculations (e.g., Albers Equal-Area for your study region).
             </p>
           </div>
         </div>
+
 
         {/* <div
           style={{
@@ -1156,49 +1146,137 @@ useEffect(() => {
         </>) : ''}
       </Fieldset>
 
-      {/* ========================= Reference Data ========================= */}
+      {/* Reference data is provided via aggregation shapefile columns (with year_column for filtering).
+           Primary-level evaluation is not supported (primary shapefile must have one row per region). */}
+
+      {/* ========================= Aggregation Shapefiles ========================= */}
       <Fieldset
-        legend="Optional: Reference Data"
-        hint="Upload CSVs and map each file to an aggregation level. Must contain columns: 'region' containing the admin names as specified above and a column 'reported_mean_yield_kg_ha'"
+        legend="Optional: Aggregation Shapefiles"
+        hint="Upload shapefiles for additional aggregation levels (e.g., districts, states). Each shapefile defines polygons at one level. Yield statistics will be computed for each polygon using the reprojected mosaic. If the shapefile has a column with reference yields, evaluation metrics will be computed automatically."
       >
         <div className="form-group">
-          <label className="form-label">Reference Data (.csv)</label>
-          <FileUpload
-            id="referenceFile"
-            accept=".csv"
+          <label className="form-label">Aggregation Shapefiles (.zip or .geojson)</label>
+          <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+            Upload one file per aggregation level. Each can be a zipped shapefile (.zip) or a GeoJSON (.geojson).
+          </p>
+          <input
+            type="file"
+            accept=".zip,.geojson,.json"
             multiple
-            label="📁 Choose one or more Referencedata files (.csv)"
-            value={referenceFiles}
-            onChange={setReferenceFiles}
+            onChange={async (e) => {
+              const files = Array.from(e.target.files || []);
+              setAggShapefileFiles(files);
+
+              // For each file, read columns from the backend
+              const newConfigs = [];
+              for (const f of files) {
+                try {
+                  const formData = new FormData();
+                  formData.append('shapefile', f);
+                  const resp = await fetch(`/api/studies/${studyId}/shapefile-columns`, {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  if (!resp.ok) throw new Error(await resp.text());
+                  const data = await resp.json();
+                  newConfigs.push({
+                    level_name: f.name.replace(/\.(zip|geojson|json)$/i, ''),
+                    name_column: '',
+                    reference_yield_column: null as string | null,
+                    year_column: null as string | null,
+                    columns: data.columns,
+                  });
+                } catch (err) {
+                  show(`Failed to read columns from ${f.name}: ${(err as Error).message}`, 'error');
+                }
+              }
+              setAggShapefileConfigs(newConfigs);
+            }}
           />
         </div>
 
-        <MultiValueInput
-          label="Aggregation levels"
-          placeholder="Specify levels at which to aggregate your data. Free choice of names. Primary is used for simulation level aggregation."
-          values={aggregationLevels}
-          setValues={setAggregationLevels}
-        />
+        {aggShapefileConfigs.map((cfg, idx) => (
+          <div key={idx} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+            <h4 style={{ margin: '0 0 0.5rem 0' }}>Level: {aggShapefileFiles[idx]?.name || `Level ${idx + 1}`}</h4>
 
-        <SourceTargetMapper
-          title="Map Reference CSV to Aggregation Level"
-          hint="For each CSV, choose an aggregation level specified above. If the aggregation level is the simulation level, choose primary."
-          sources={refSources}
-          targets={aggregationLevels}
-          value={referenceMapping}
-          onChange={setReferenceMapping}
-          allowDuplicateTargets={true}
-        />
+            <div className="form-group">
+              <label className="form-label">Level Name</label>
+              <input
+                type="text"
+                className="form-input"
+                value={cfg.level_name}
+                onChange={(e) => {
+                  const updated = [...aggShapefileConfigs];
+                  updated[idx] = { ...updated[idx], level_name: e.target.value };
+                  setAggShapefileConfigs(updated);
+                }}
+                placeholder="e.g., Oblast, District, National"
+              />
+            </div>
 
-        <SourceTargetMapper
-          title="Map Reference CSV to Years"
-          hint="For each CSV, choose a year it belongs to."
-          sources={refSources}
-          targets={years}
-          value={referenceYearsMapping}
-          onChange={setReferenceYearsMapping}
-          allowDuplicateTargets={true}
-        />
+            <div className="form-group">
+              <label className="form-label">Name Column (for region labels)</label>
+              <select
+                className="form-select"
+                value={cfg.name_column}
+                onChange={(e) => {
+                  const updated = [...aggShapefileConfigs];
+                  updated[idx] = { ...updated[idx], name_column: e.target.value };
+                  setAggShapefileConfigs(updated);
+                }}
+              >
+                <option value="">-- Select column --</option>
+                {cfg.columns.map(col => (
+                  <option key={col.name} value={col.name}>{col.name} ({col.dtype})</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Reference Yield Column (optional, for evaluation)</label>
+              <select
+                className="form-select"
+                value={cfg.reference_yield_column || ''}
+                onChange={(e) => {
+                  const updated = [...aggShapefileConfigs];
+                  updated[idx] = { ...updated[idx], reference_yield_column: e.target.value || null };
+                  setAggShapefileConfigs(updated);
+                }}
+              >
+                <option value="">-- None --</option>
+                {cfg.columns.filter(col => col.is_numeric).map(col => (
+                  <option key={col.name} value={col.name}>{col.name} ({col.dtype})</option>
+                ))}
+              </select>
+              <p className="subtitle" style={{ marginTop: 4 }}>
+                Column with observed yield in kg/ha. If set, the shapefile must have one row per region per year.
+              </p>
+            </div>
+
+            {cfg.reference_yield_column && (
+              <div className="form-group">
+                <label className="form-label">Year Column (required for evaluation)</label>
+                <select
+                  className="form-select"
+                  value={cfg.year_column || ''}
+                  onChange={(e) => {
+                    const updated = [...aggShapefileConfigs];
+                    updated[idx] = { ...updated[idx], year_column: e.target.value || null };
+                    setAggShapefileConfigs(updated);
+                  }}
+                >
+                  <option value="">-- Select column --</option>
+                  {cfg.columns.map(col => (
+                    <option key={col.name} value={col.name}>{col.name} ({col.dtype})</option>
+                  ))}
+                </select>
+                <p className="subtitle" style={{ marginTop: 4 }}>
+                  Column containing the year for each row (e.g., 2019, 2020). Used to match reference data to simulation years.
+                </p>
+              </div>
+            )}
+          </div>
+        ))}
       </Fieldset>
 
       <div style={{ display: "flex", gap: "0.75rem", justifyContent: "space-between" }}>

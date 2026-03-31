@@ -5,6 +5,8 @@ set -Eeuo pipefail
 # Ensure we use ONLY this conda env
 export PYTHONNOUSERSITE=1
 export PATH="/home/sawahnr/conda-env-vercye-local/bin:$PATH"
+# Redirect cache to GPFS to avoid filling up home directory
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/gpfs/data1/cmongp2/vercye/env/.cache}"
 
 # ============ Config & Preflight ============
 DATETIME_SUFFIX="$(date '+%Y%m%d_%H%M%S')"
@@ -31,12 +33,27 @@ export NVM_DIR="$ENV_BASE/env/.nvm"
 mkdir -p "$LOGS_PATH"
 mkdir -p static
 
-# Cleanup
+# Kill any stale celery workers from previous runs
+echo "[info] Cleaning up stale Celery workers..."
+pkill -f "celery.*worker.*vercye_processing" 2>/dev/null || true
+pkill -f "celery.*worker.*vercye_prep" 2>/dev/null || true
+sleep 1
+
+# Cleanup on exit: kill all children and celery worker trees
 cleanup() {
-  echo "[info] cleaning up background processes..."
-  pkill -P $$ || true
+  echo "[info] Shutting down all services..."
+  # Send SIGTERM to celery workers (graceful shutdown)
+  pkill -f "celery.*worker.*vercye_processing" 2>/dev/null || true
+  pkill -f "celery.*worker.*vercye_prep" 2>/dev/null || true
+  # Kill direct child processes (redis, uvicorn)
+  pkill -P $$ 2>/dev/null || true
+  # Wait briefly for graceful shutdown, then force-kill any remaining celery processes
+  sleep 2
+  pkill -9 -f "celery.*worker.*vercye_processing" 2>/dev/null || true
+  pkill -9 -f "celery.*worker.*vercye_prep" 2>/dev/null || true
+  echo "[info] Cleanup complete."
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # ============ Build Frontend ============
 echo "[info] Building frontend..."

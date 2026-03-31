@@ -64,14 +64,26 @@ export interface WindowConfigNoId {
   lai_end_date: string;
 }
 
+export interface AggregationShapefileConfig {
+  level_name: string;
+  name_column: string;
+  reference_yield_column: string | null;
+  year_column: string | null;
+}
+
+export interface ShapefileColumn {
+  name: string;
+  dtype: string;
+  is_numeric: boolean;
+}
+
 export interface SetupConfigTemplate {
   regionExtraction: RegionExtraction;
   apsimColumn: string;
   apsimMapping: Record<string, string[]>;
   apsimFiles: string[];
-  referenceMapping: Record<string, string>;
-  referenceYearsMapping: Record<string, string>;
-  referenceFiles: string[];
+  aggregationShapefiles: AggregationShapefileConfig[];
+  aggregationShapefileNames: string[];
   years: string[];
   timepoints: string[];
   simulationWindows: WindowConfigNoId[];

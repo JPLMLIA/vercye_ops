@@ -54,13 +54,12 @@ class InteractiveMapGenerator:
         print("Loading shapefile...")
         self.gdf = gpd.read_file(self.shapefile_path)
 
-        # Select columns to keep & append aggregation columns if they exist
+        # Select columns to keep - only include columns that actually exist in the primary GeoJSON
         keep_cols = ["cleaned_region_name_vercye", "geometry"]
-        keep_cols += [
-            self.aggregation_levels[i]["column"]
-            for i in range(len(self.aggregation_levels))
-            if self.aggregation_levels[i]["column"] not in keep_cols
-        ]
+        for level in self.aggregation_levels:
+            col = level["column"]
+            if col in self.gdf.columns and col not in keep_cols:
+                keep_cols.append(col)
         print(keep_cols)
 
         # Filter columns to reduce file size
@@ -2507,16 +2506,17 @@ class InteractiveMapGenerator:
 
 def parse_agg_level(ctx, param, value):
     # Parses CLI parameters for aggregation level in passed order
+    # Format: level_name:shapefile_path_or_none:csv_path
     agg_dict = {}
     for item in value:
         try:
-            level_name, column_name, csv_path = item.split(":", 2)
+            level_name, shapefile_or_column, csv_path = item.split(":", 2)
             csv_path = Path(csv_path)
             if not csv_path.exists():
                 raise click.BadParameter(f"CSV path does not exist: {csv_path}")
-            agg_dict[level_name] = (column_name, str(csv_path))
+            agg_dict[level_name] = (shapefile_or_column, str(csv_path))
         except ValueError:
-            raise click.BadParameter("Each --agg-level must be in format level:column:path")
+            raise click.BadParameter("Each --agg-level must be in format level:shapefile_or_column:path")
     return agg_dict
 
 

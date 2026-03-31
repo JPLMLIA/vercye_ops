@@ -176,15 +176,30 @@ matching_params:
 
 eval_params:
 
-  # Specify additional level on which to aggregate the yield estimates for evaluation
-  # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
-  # The key must match the agg level names specified in the setup config, and the value must be the column name of the admin levels to aggregate
-  # If you do not want additional aggregation level, set aggregation_levels: {}
-  # Ensure the name (key), matches those of the reference data set in the setup_config.yaml!
-  # ATTENTION: The name or column must NOT contain colons!!
+  # Aggregation levels define additional geographic levels at which yield statistics are computed.
+  # Each level requires a shapefile (with polygons for that level) and a name_column for labeling outputs.
+  # Optionally, a reference_yield_column can point to a column in the shapefile containing observed yields (kg/ha)
+  # for automatic evaluation at that level.
+  #
+  # Shapefile paths are relative to {sim_study_head_dir}/aggregation_shapefiles/ unless absolute.
+  # If you do not want additional aggregation levels, set aggregation_levels: {}
+  #
+  # Example:
+  #   aggregation_levels:
+  #     National:
+  #       shapefile: 'national_boundaries.shp'
+  #       name_column: 'NAME_0'
+  #       reference_yield_column: null
+  #     Oblast:
+  #       shapefile: 'oblast_boundaries.shp'
+  #       name_column: 'NAME_1'
+  #       reference_yield_column: 'ref_yield_kg_ha'
   aggregation_levels:
-    XXXX1: 'XXXX' # E.g: National: 'NAME_0'
-    XXXX2: 'XXXX' # E.g: Oblast: 'NAME_1'
+    XXXX1:
+      shapefile: 'XXXX'        # Path to shapefile (.shp or .geojson) for this aggregation level
+      name_column: 'XXXX'      # Column in shapefile for region labels in outputs
+      reference_yield_column: null  # Optional: column with reference yield (kg/ha) for evaluation
+      year_column: null         # Required if reference_yield_column is set: column containing the year for each row
 
 
 ########################################
@@ -210,13 +225,13 @@ scripts:
   lai_quicklook: '../lai/4_quicklook.py'
   match_sim_real_quicklook: '../reporting/generate_matching_report.py'
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
-  estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
-  aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
-  aggregate_maps : '../reporting/aggregate_maps.py'
+  mosaic_and_reproject: '../reporting/mosaic_and_reproject.py'
+  aggregate_primary_yield_stats: '../matching_sim_real/aggregate_primary_yield_stats.py'
+  aggregate_supplementary_maps: '../reporting/aggregate_supplementary_maps.py'
   generate_aggregated_lai_curves_plot: '../reporting/generate_lai_plot.py'
   aggregate_met_stats: '../reporting/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../evaluation/evaluate_yield_estimates.py'
-  aggregate_yield_estimates_per_eval_lvl: '../reporting/aggregate_yield_estimates_per_eval_lvl.py'
+  aggregate_yield_stats_per_level: '../reporting/aggregate_yield_stats_per_level.py'
   construct_chirps_data: '../met_data/construct_chirps_precipitation_files.py'
   reproject_cropmask: '../lai/0_reproj_mask.py'
   generate_multiyear_comparison: '../reporting/generate_multiyear_comparison.py'

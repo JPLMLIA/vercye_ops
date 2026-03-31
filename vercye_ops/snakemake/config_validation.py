@@ -1,12 +1,11 @@
 import glob
-import json
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
 
+import pandas as pd
 import yaml
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -422,79 +421,82 @@ def _validate_eval_params(config):
     eval_params = config.get("eval_params", {})
     aggregation_levels = eval_params.get("aggregation_levels", {})
 
-    # Check for colons in aggregation level names (not allowed)
-    for level_name, column_name in aggregation_levels.items():
+    # Check for colons/spaces in aggregation level names
+    for level_name in aggregation_levels:
         if ":" in level_name or " " in level_name:
             raise ValueError(f"Aggregation level name '{level_name}' contains colon or space, which is not allowed")
-        if ":" in column_name or " " in column_name:
-            raise ValueError(f"Aggregation level column '{column_name}' contains colon or space, which is not allowed")
 
-    # Validate aggregation levels exist in GeoJSON files
-    _validate_aggregation_levels_in_geojson(config)
-
-    _validate_aggregation_names(config)
+    # Validate aggregation shapefiles
+    _validate_aggregation_shapefiles(config)
 
     print("✓ Evaluation parameters validated")
 
 
-def _validate_aggregation_names(config):
-    """Validate that the aggregation names are matching with reference data"""
-    ref_files_agg_lvls = []
-    for year in config["years"]:
-        for timepoint in config["timepoints"]:
-            d = os.path.join(config["sim_study_head_dir"], str(year), timepoint)
-            pattern = "referencedata*.csv"
-            reference_data_files = glob.glob(os.path.join(d, pattern))
+def _validate_aggregation_shapefiles(config):
+    """Validate aggregation shapefiles exist and have required columns."""
+    import geopandas as gpd
 
-            for ref_file in reference_data_files:
-                agg_lvl = Path(ref_file).name.split("_")[1]
-                ref_files_agg_lvls.append(agg_lvl)
-
-    unused_agg_lvls = set(ref_files_agg_lvls) - set(config["eval_params"]["aggregation_levels"])
-
-    if len(unused_agg_lvls) != 0:
-        print(
-            f"⚠️  Found unused reference data at aggregation levels: {unused_agg_lvls}."
-            f"Ensure you have correctly set the eval_params.aggregation_levels keys to match these."
-        )
-
-
-def _validate_aggregation_levels_in_geojson(config):
-    """Validate that aggregation levels exist in GeoJSON files."""
-    regions = config.get("regions", [])
-    years = config.get("years", [])
-    timepoints = config.get("timepoints", [])
-    head_dir = config.get("sim_study_head_dir", "")
     aggregation_levels = config.get("eval_params", {}).get("aggregation_levels", {})
 
     if not aggregation_levels:
         return
 
-    # Check the first available GeoJSON file
-    for year in years:
-        for timepoint in timepoints:
-            for region in regions:
-                region_dir = os.path.join(head_dir, str(year), timepoint, region)
-                geojson_files = glob.glob(os.path.join(region_dir, "*.geojson"))
+    head_dir = config.get("sim_study_head_dir", "")
 
-                if geojson_files:
-                    try:
-                        with open(geojson_files[0], "r") as f:
-                            geojson_data = json.load(f)
+    for level_name, level_config in aggregation_levels.items():
+        if not isinstance(level_config, dict):
+            raise ValueError(
+                f"Aggregation level '{level_name}' must be a dict with 'shapefile', 'name_column', "
+                f"and optional 'reference_yield_column'. Got: {type(level_config)}"
+            )
 
-                        if "features" in geojson_data and geojson_data["features"]:
-                            properties = geojson_data["features"][0].get("properties", {})
+        shapefile_path = level_config.get("shapefile")
+        if not shapefile_path:
+            raise ValueError(f"Aggregation level '{level_name}' is missing 'shapefile' path.")
 
-                            for level_name, column_name in aggregation_levels.items():
-                                if column_name not in properties:
-                                    raise ValueError(
-                                        f"Aggregation level column '{column_name}' not found in GeoJSON properties"
-                                    )
+        # Resolve relative paths
+        if not os.path.isabs(shapefile_path):
+            shapefile_path = os.path.join(head_dir, "aggregation_shapefiles", shapefile_path)
 
-                        return  # Only need to check one file
+        if not os.path.exists(shapefile_path):
+            raise FileNotFoundError(f"Aggregation shapefile for level '{level_name}' not found at: {shapefile_path}")
 
-                    except (json.JSONDecodeError, KeyError) as e:
-                        raise ValueError(f"Invalid GeoJSON file {geojson_files[0]}: {e}")
+        # Read and validate
+        gdf = gpd.read_file(shapefile_path)
+
+        name_column = level_config.get("name_column")
+        if not name_column:
+            raise ValueError(f"Aggregation level '{level_name}' is missing 'name_column'.")
+        if name_column not in gdf.columns:
+            raise ValueError(
+                f"Column '{name_column}' not found in shapefile for level '{level_name}'. "
+                f"Available columns: {list(gdf.columns)}"
+            )
+
+        ref_yield_col = level_config.get("reference_yield_column")
+        if ref_yield_col:
+            if ref_yield_col not in gdf.columns:
+                raise ValueError(
+                    f"Reference yield column '{ref_yield_col}' not found in shapefile for level '{level_name}'. "
+                    f"Available columns: {list(gdf.columns)}"
+                )
+            if not pd.api.types.is_numeric_dtype(gdf[ref_yield_col]):
+                raise ValueError(f"Reference yield column '{ref_yield_col}' in level '{level_name}' must be numeric.")
+
+            # year_column is required when reference_yield_column is set
+            year_col = level_config.get("year_column")
+            if not year_col:
+                raise ValueError(
+                    f"Aggregation level '{level_name}' has reference_yield_column set but is missing 'year_column'. "
+                    "A year column is required to match reference data to simulation years."
+                )
+            if year_col not in gdf.columns:
+                raise ValueError(
+                    f"Year column '{year_col}' not found in shapefile for level '{level_name}'. "
+                    f"Available columns: {list(gdf.columns)}"
+                )
+
+        print(f"  ✓ Aggregation shapefile for '{level_name}' validated")
 
 
 def _validate_script_paths(config):

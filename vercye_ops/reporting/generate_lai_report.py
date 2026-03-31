@@ -90,8 +90,73 @@ def get_axis(axes, row, col, total_rows, n_cols):
         return axes[row, col]
 
 
-def create_agg_plots(basedir, out_path, admin_agg_column, lai_column):
+def _build_region_to_level_mapping(basedir, level_shapefile, name_column):
+    """Build a mapping from primary region names to level polygon names via spatial join."""
+    level_gdf = gpd.read_file(level_shapefile)
+
+    # Collect all region GeoJSONs and get their centroids
+    region_rows = []
+    for year in os.listdir(basedir):
+        year_path = os.path.join(basedir, year)
+        if not os.path.isdir(year_path):
+            continue
+        for timepoint in os.listdir(year_path):
+            tp_path = os.path.join(year_path, timepoint)
+            if not os.path.isdir(tp_path):
+                continue
+            for region in os.listdir(tp_path):
+                geojson_file = os.path.join(tp_path, region, f"{region}.geojson")
+                if os.path.exists(geojson_file):
+                    gdf = gpd.read_file(geojson_file)
+                    if len(gdf) > 0:
+                        region_rows.append({"region": region, "geometry": gdf.geometry.iloc[0].centroid})
+                    break  # Only need one copy per region
+            if region_rows:
+                break
+        if region_rows:
+            break
+
+    # Re-scan to get ALL regions (the above just got from one year/timepoint)
+    region_rows = []
+    first_year = sorted([y for y in os.listdir(basedir) if os.path.isdir(os.path.join(basedir, y))])[0]
+    first_tp_dir = os.path.join(basedir, first_year)
+    first_tp = sorted([t for t in os.listdir(first_tp_dir) if os.path.isdir(os.path.join(first_tp_dir, t))])[0]
+    tp_path = os.path.join(basedir, first_year, first_tp)
+
+    for region in os.listdir(tp_path):
+        geojson_file = os.path.join(tp_path, region, f"{region}.geojson")
+        if os.path.exists(geojson_file):
+            gdf = gpd.read_file(geojson_file)
+            if len(gdf) > 0:
+                region_rows.append({"region": region, "geometry": gdf.geometry.iloc[0].centroid})
+
+    if not region_rows:
+        return {}
+
+    regions_gdf = gpd.GeoDataFrame(region_rows, crs=gdf.crs)
+
+    # Reproject if needed
+    if regions_gdf.crs != level_gdf.crs:
+        regions_gdf = regions_gdf.to_crs(level_gdf.crs)
+
+    # Spatial join
+    joined = gpd.sjoin(regions_gdf, level_gdf[[name_column, "geometry"]], how="left", predicate="within")
+
+    mapping = {}
+    for _, row in joined.iterrows():
+        if pd.notna(row.get(name_column)):
+            mapping[row["region"]] = str(row[name_column])
+
+    return mapping
+
+
+def create_agg_plots(basedir, out_path, level_shapefile, name_column, lai_column):
     """Create plots for each timepoint, with subplots for each admin unit showing mean curves across years"""
+
+    # Build spatial mapping: region -> level polygon name
+    print(f"Building region-to-level mapping using {level_shapefile}...")
+    region_to_level = _build_region_to_level_mapping(basedir, level_shapefile, name_column)
+    print(f"Mapped {len(region_to_level)} regions to level polygons")
 
     # Collect all data organized by timepoint
     results = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -113,18 +178,10 @@ def create_agg_plots(basedir, out_path, admin_agg_column, lai_column):
                     continue
 
                 lai_stats_file = os.path.join(region_path, f"{region}_LAI_STATS.csv")
-                geojson_file = os.path.join(region_path, f"{region}.geojson")
 
-                if os.path.exists(lai_stats_file) and os.path.exists(geojson_file):
-                    try:
-                        gdf = gpd.read_file(geojson_file)
-                        if admin_agg_column in gdf.columns and len(gdf) > 0:
-                            admin_name = gdf[admin_agg_column].values[0]
-                            results[timepoint][year][admin_name].append(lai_stats_file)
-                        else:
-                            raise KeyError(f"{admin_agg_column} column not found or no data in shapefile.")
-                    except Exception as e:
-                        print(f"Error reading {geojson_file}: {e}")
+                if os.path.exists(lai_stats_file) and region in region_to_level:
+                    admin_name = region_to_level[region]
+                    results[timepoint][year][admin_name].append(lai_stats_file)
 
     # Get all unique timepoints and admin units
     all_timepoints = sorted(results.keys())
@@ -260,10 +317,16 @@ def create_agg_plots(basedir, out_path, admin_agg_column, lai_column):
 )
 @click.option("--out-path", type=click.Path(), required=True, help="Path to the output file. Must be .pdf")
 @click.option(
-    "--admin-agg-column",
+    "--level-shapefile",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to the aggregation shapefile for this level.",
+)
+@click.option(
+    "--name-column",
     type=str,
     required=True,
-    help="Shapefile column name that contains the admin names to aggregate by.",
+    help="Column in the shapefile for region names.",
 )
 @click.option(
     "--lai-agg-type",
@@ -271,10 +334,10 @@ def create_agg_plots(basedir, out_path, admin_agg_column, lai_column):
     help="Column of the LAI traces to use - either Mean or Median.",
 )
 @click.option("--adjusted", is_flag=True, default=False, help="Use the adjusted column in the LAI data.")
-def main(base_dir, out_path, admin_agg_column, lai_agg_type, adjusted):
+def main(base_dir, out_path, level_shapefile, name_column, lai_agg_type, adjusted):
     lai_column = "LAI Mean" if lai_agg_type == "Mean" else "LAI Median"
     lai_column = lai_column + " Adjusted" if adjusted else lai_column
-    create_agg_plots(base_dir, out_path, admin_agg_column, lai_column)
+    create_agg_plots(base_dir, out_path, level_shapefile, name_column, lai_column)
 
 
 if __name__ == "__main__":

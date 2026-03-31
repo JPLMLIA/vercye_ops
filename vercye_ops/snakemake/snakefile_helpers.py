@@ -46,31 +46,13 @@ def get_evaluation_results_path_func(config):
 
     def get_evaluation_results_path(wildcards):
         output_paths = []
-        # Check if the evaluation results at simulation level file exists
-        # This file must always be called referencedata_primary
-        if op.exists(
-            op.join(
-                config["sim_study_head_dir"],
-                wildcards.year,
-                f"referencedata_primary-{wildcards.year}.csv",
-            )
-        ):
-            primary_eval_file = op.join(
-                config["sim_study_head_dir"],
-                wildcards.year,
-                wildcards.timepoint,
-                "evaluation_primary.csv",
-            )
-            output_paths.append(primary_eval_file)
+        # Primary-level evaluation is not supported in the shapefile-based workflow
+        # (primary shapefile has one row per region, cannot carry year-specific reference data)
 
-        # Get all other evaluation results files from the config (wildcards)
-        for agg_name in config["eval_params"]["aggregation_levels"]:
-            gt_file = op.join(
-                config["sim_study_head_dir"],
-                wildcards.year,
-                f"referencedata_{agg_name}-{wildcards.year}.csv",
-            )
-            if op.exists(gt_file):
+        # Get evaluation results for aggregation levels that have reference data configured
+        for agg_name, agg_config in config["eval_params"]["aggregation_levels"].items():
+            has_ref = isinstance(agg_config, dict) and agg_config.get("reference_yield_column") is not None
+            if has_ref:
                 eval_file = op.join(
                     config["sim_study_head_dir"],
                     wildcards.year,

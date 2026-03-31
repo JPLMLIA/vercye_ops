@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import shutil
@@ -7,12 +8,13 @@ from typing import Dict, Optional
 
 import click
 import geopandas as gpd
-import pandas as pd
 from ruamel.yaml.comments import CommentedSeq
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString as DQ
 
-from vercye_ops.utils.convert_shapefile_to_geojson import clean_region_name, convert_shapefile_to_geojson
+from vercye_ops.utils.convert_shapefile_to_geojson import convert_shapefile_to_geojson
 from vercye_ops.utils.env_utils import get_env_vars, is_env_set, load_yaml_ruamel
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -147,31 +149,48 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
                     with open(out_path, "w", encoding="utf-8") as f:
                         f.write(data)
 
-        # Copy the reference data
-        known_agg_lvls = []
-        for year, path_list in config["REFERENCE_DATA_PATHS"].items():
-            for entry in path_list:
-                for reference_data_name, original_path in entry.items():
-                    if not Path(original_path).suffix == ".csv":
-                        raise ValueError(f"Reference data {original_path} must be .csv")
+        # Reference data for evaluation is provided via aggregation shapefile columns
+        # (with year_column for year filtering). Primary-level evaluation is not supported.
 
-                    new_name = f"referencedata_{reference_data_name}-{year}.csv"
-                    new_path = os.path.join(str(output_dir), str(year), new_name)
+        # Copy aggregation shapefiles
+        agg_shp_config = config.get("AGGREGATION_SHAPEFILES", {})
+        if agg_shp_config:
+            agg_shp_dir = os.path.join(str(output_dir), "aggregation_shapefiles")
+            os.makedirs(agg_shp_dir, exist_ok=True)
 
-                    if not new_path == original_path:
-                        shutil.copy(original_path, new_path)
+            for level_name, level_config in agg_shp_config.items():
+                src_shp = level_config["shapefile_path"]
+                src_suffix = Path(src_shp).suffix.lower()
+                src_stem = Path(src_shp).stem
+                src_dir = Path(src_shp).parent
 
-                    if reference_data_name == "primary":
-                        # Rename columns region columns to match vercye cleaned format
-                        # Required as internal matching for primary level on folder name
-                        df_ref = pd.read_csv(new_path)
-                        df_ref["original_region_name"] = df_ref["region"]
-                        df_ref["region"] = df_ref["region"].apply(clean_region_name)
-                        df_ref.to_csv(new_path)
+                if src_suffix in (".geojson", ".json"):
+                    # GeoJSON — just copy the single file
+                    shutil.copy(str(src_shp), os.path.join(agg_shp_dir, Path(src_shp).name))
+                else:
+                    # Shapefile — copy all sidecar files
+                    for ext in [
+                        ".shp",
+                        ".shx",
+                        ".dbf",
+                        ".prj",
+                        ".cpg",
+                        ".sbn",
+                        ".sbx",
+                        ".fbn",
+                        ".fbx",
+                        ".ain",
+                        ".aih",
+                        ".ixs",
+                        ".mxs",
+                        ".atx",
+                        ".xml",
+                    ]:
+                        src_file = src_dir / f"{src_stem}{ext}"
+                        if src_file.exists():
+                            shutil.copy(str(src_file), os.path.join(agg_shp_dir, f"{src_stem}{ext}"))
 
-                    known_agg_lvls.append(reference_data_name)
-
-        config.yaml_set_comment_before_after_key("REFERENCE_DATA_PATHS", before=None)
+                logger.info(f"Copied aggregation shapefile for level '{level_name}': {src_shp}")
 
         # Update config with the region metadata
         snakefile_config["regions"] = keep_regions
@@ -238,12 +257,18 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
             cropmasks_data[year] = "XXXX"
         snakefile_config["lai_params"]["crop_mask"] = cropmasks_data
 
-        # Update ref data keys based on provided years and agg levels
+        # Build aggregation_levels for run config from AGGREGATION_SHAPEFILES
         agg_lvls_data = {}
-        for agg_lvl in known_agg_lvls:
-            if agg_lvl != "primary":  # dont add primary, as this is default
-                agg_lvls_data[agg_lvl] = "XXXX"
+        for level_name, level_config in agg_shp_config.items():
+            src_shp_name = Path(level_config["shapefile_path"]).name
+            agg_lvls_data[level_name] = {
+                "shapefile": src_shp_name,
+                "name_column": level_config["name_column"],
+                "reference_yield_column": level_config.get("reference_yield_column"),
+                "year_column": level_config.get("year_column"),
+            }
         snakefile_config["eval_params"]["aggregation_levels"] = agg_lvls_data
+
         snakefile_config["study_id"] = Path(output_dir).name
 
         # Write updated and prepared run config

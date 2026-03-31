@@ -251,7 +251,7 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
         "--rerun-incomplete",
     ]
 
-    logger.info("Running snakemake cmd:", " ".join(cmd))
+    logger.info("Running snakemake cmd: %s", " ".join(cmd))
 
     # Auto-unlock only if locks are stale (no running snakemake for this directory)
     _safe_unlock_if_needed(cmd, snakemake_run_dir)
