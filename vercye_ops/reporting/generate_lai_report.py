@@ -1,3 +1,4 @@
+import calendar
 import os
 from collections import defaultdict
 
@@ -148,6 +149,37 @@ def _build_region_to_level_mapping(basedir, level_shapefile, name_column):
             mapping[row["region"]] = str(row[name_column])
 
     return mapping
+
+
+def _continuous_doy(dates):
+    """Convert dates to continuous DOY values, handling cross-year seasons.
+
+    For cross-year seasons (e.g. Sept→Mar), early-year DOY values get
+    shifted by +365 so the plot draws a continuous line instead of
+    wrapping back from 365 to 1.
+    """
+    months = [d.month for d in dates]
+    has_late = any(m >= 7 for m in months)
+    has_early = any(m <= 6 for m in months)
+    cross_year = has_late and has_early
+
+    doys = []
+    for d in dates:
+        doy = d.timetuple().tm_yday
+        if cross_year and d.month <= 6:
+            doy += 365
+        doys.append(doy)
+    return doys, cross_year
+
+
+def _month_ticks(cross_year):
+    """Return (month_number, doy) pairs for x-axis tick labels."""
+    if cross_year:
+        return [(7, 182), (8, 213), (9, 244), (10, 274), (11, 305), (12, 335),
+                (1, 366), (2, 397), (3, 425), (4, 456), (5, 486), (6, 517)]
+    else:
+        from datetime import datetime
+        return [(m, datetime(2000, m, 1).timetuple().tm_yday) for m in range(1, 13)]
 
 
 def create_agg_plots(basedir, out_path, level_shapefile, name_column, lai_column):

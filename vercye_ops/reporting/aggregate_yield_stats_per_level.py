@@ -94,6 +94,8 @@ def cli(
         coverage_mask_tif=coverage_mask_tif,
         shapefile_path=level_shapefile,
         name_column=name_column,
+        year_column=year_column,
+        year=year,
     )
 
     # If reference yield column is set, extract year-filtered reference data

@@ -148,7 +148,7 @@ rule fill_nasapower_cache:
         met_end_date = get_met_max_range(config)[1],
         script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
         head_dir = config['sim_study_head_dir'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+
         region_name = lambda wildcards: wildcards.region,
         met_agg_method = config['apsim_params']['met_agg_method'],
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
@@ -162,7 +162,7 @@ rule fill_nasapower_cache:
     retries: 2
     shell:
         """
-        {params.jq_load_statement}
+
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         python {params.script_fpath_nasapower} \
@@ -193,7 +193,7 @@ rule fill_era5_cache:
         met_end_date = get_met_max_range(config)[1],
         script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
         head_dir = config['sim_study_head_dir'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+
         region_name = lambda wildcards: wildcards.region,
         ee_project = config['apsim_params']['ee_project'],
         met_agg_method = config['apsim_params']['met_agg_method'],
@@ -208,7 +208,7 @@ rule fill_era5_cache:
     retries: 5 # ERA5 on GEE can be flaky
     shell:
         """
-        {params.jq_load_statement}
+
         read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         POLYGON_PATH=""
@@ -242,14 +242,13 @@ rule fetch_met_data:
         script_fpath_era5 = config['scripts']['fetch_met_data_era5'],
         script_fpath_nasapower = config['scripts']['fetch_met_data_nasapower'],
         head_dir = config['sim_study_head_dir'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+
         region_name = lambda wildcards: wildcards.region,
         ee_project = config['apsim_params']['ee_project'],
         met_agg_method = config['apsim_params']['met_agg_method'],
         era5_cache_dir = config['apsim_params']['era5_cache_dir'],
         np_cache_dir = config['apsim_params']['nasapower_cache_dir'],
         met_source = config['apsim_params']['met_source'].lower(),
-        platform = config['platform'],
     log:
         'logs_fetch_met_data/{year}_{timepoint}_{region}.log',
     output:
@@ -261,7 +260,7 @@ rule fetch_met_data:
     shell:
         """
         # Load geometry centroid
-        {params.jq_load_statement}
+
         read LON LAT <<< $(cat {input.geometry} | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
 
         # Set script and run based on met source
@@ -317,7 +316,7 @@ rule construct_plot_met_files:
         precipitation_source = 'CHIRPS' if 'chirps' in config['apsim_params']['precipitation_source'].lower() else config['apsim_params']['precipitation_source'],
         precipitation_agg_method = config['apsim_params']['precipitation_agg_method'],
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+
         chirps_arg = lambda wildcards, input: f"--chirps_file {input.chirps_file}" if input.get("chirps_file") else "",
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
@@ -326,7 +325,7 @@ rule construct_plot_met_files:
         plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
     shell:
         """
-        {params.jq_load_statement}
+
         read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
 
         python {params.met_gen_script_fpath} \
@@ -360,7 +359,7 @@ rule update_apsimx_template:
         script_fpath = config['scripts']['update_apsimx_template'],
         head_dir = config['sim_study_head_dir'],
         sowing_date_col = config['apsim_params']['sowing_date_col'],
-        jq_load_statement = 'module load jq' if config['platform'] == 'umd' else '',
+
     log:
         'logs_update_apsimx_template/{year}_{timepoint}_{region}.log',
     output:
@@ -368,7 +367,7 @@ rule update_apsimx_template:
     shell:
         r"""
         # If sowing date available load and ingest it into APSIM template
-        {params.jq_load_statement}
+
 
         SOWINGDATE_CMD=()
         if [[ -n "{params.sowing_date_col}" ]]; then
@@ -407,7 +406,7 @@ rule execute_simulations:
             config['apsim_execution']['docker']['platform'],
             config['apsim_execution']['local']['executable_fpath'],
             config['apsim_execution']['local']['n_jobs'],
-            config["apsim_execution"]["local"]["dotnet_root"],
+            config["apsim_execution"]["local"].get("dotnet_root", ""),
             input)
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
@@ -846,12 +845,12 @@ rule aggregate_yield_stats_per_level:
         executable_fpath = config['scripts']['aggregate_yield_stats_per_level'],
         name_column = lambda wildcards: config['eval_params']['aggregation_levels'][wildcards.agg_level_name]['name_column'],
         ref_yield_col_cmd = lambda wildcards: (
-            f"--reference-yield-column {config['eval_params']['aggregation_levels'][wildcards.agg_level_name]['reference_yield_column']}"
+            "--reference-yield-column '{}'".format(config['eval_params']['aggregation_levels'][wildcards.agg_level_name]['reference_yield_column'])
             if config['eval_params']['aggregation_levels'][wildcards.agg_level_name].get('reference_yield_column')
             else ""
         ),
         year_col_cmd = lambda wildcards: (
-            f"--year-column {config['eval_params']['aggregation_levels'][wildcards.agg_level_name]['year_column']} --year {wildcards.year}"
+            "--year-column '{}' --year {}".format(config['eval_params']['aggregation_levels'][wildcards.agg_level_name]['year_column'], wildcards.year)
             if config['eval_params']['aggregation_levels'][wildcards.agg_level_name].get('year_column')
             else ""
         ),
@@ -960,6 +959,7 @@ rule generate_final_report:
         fallback_precipitation = config['apsim_params']['fallback_precipitation'],
         primary_suffix = 'primary', # Simulation level
         suffix_admincols = {name: level.get('name_column') for name, level in config['eval_params']['aggregation_levels'].items()},
+        suffix_shapefiles = {name: resolve_agg_shapefile(config, name) for name in config['eval_params']['aggregation_levels'].keys()},
         description = config['description'],
         lai_source = config['lai_source'],
         original_simregions_shp = config['regions_shp_name'],

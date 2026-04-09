@@ -6,6 +6,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
+from vercye_ops.utils.convert_shapefile_to_geojson import clean_region_name
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
@@ -191,6 +192,9 @@ def aggregate_primary_yield_stats(
         shapefile_path=primary_shapefile,
         name_column=name_column,
     )
+
+    # Normalize region names to match directory/config convention (e.g. lowercase shapeIDs)
+    zonal_df["region"] = zonal_df["region"].apply(clean_region_name)
 
     # APSIM metadata from per-region CSVs
     apsim_df = collect_apsim_metadata(yield_dir)

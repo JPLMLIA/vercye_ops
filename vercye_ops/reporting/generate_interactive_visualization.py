@@ -154,7 +154,15 @@ class InteractiveMapGenerator:
 
         return aggregated_values, date_labels, interpolation_flags
 
+    def _is_shapefile_path(self, agg_col):
+        """Check if agg_col is a file path rather than a column name."""
+        return agg_col.endswith(('.geojson', '.shp', '.gpkg')) or os.path.sep in agg_col
+
     def load_agg_geometries(self, agg_col):
+        # If agg_col is a file path to an external shapefile, load it and use spatial join
+        if self._is_shapefile_path(agg_col):
+            return self._load_external_agg_geometries(agg_col)
+
         # Group polygon by aggregation column and union into single geom
         grouped = (
             self.gdf.groupby(agg_col)
@@ -170,6 +178,67 @@ class InteractiveMapGenerator:
         grouped["subregions"] = grouped["cleaned_region_name_vercye"]
 
         return grouped
+
+    def _load_external_agg_geometries(self, shapefile_path):
+        """Load an external aggregation shapefile and spatial-join with primary regions."""
+        ext_gdf = gpd.read_file(shapefile_path)
+        if ext_gdf.crs != self.gdf.crs:
+            ext_gdf = ext_gdf.to_crs(self.gdf.crs)
+
+        # Find the region name column from aggregated estimates
+        # Use the "region" column from the CSV data to match
+        # Deduplicate by geometry (external shapefiles may have year-specific rows)
+        name_col = None
+        for col in ext_gdf.columns:
+            if col == "geometry":
+                continue
+            unique_vals = set(ext_gdf[col].astype(str))
+            # Check if this column's values overlap with the aggregated estimate keys
+            # for any level that uses this shapefile
+            for lvl_idx, level in enumerate(self.aggregation_levels):
+                if level["column"] == shapefile_path and lvl_idx in self.aggregated_estimates:
+                    est_keys = set(self.aggregated_estimates[lvl_idx].keys())
+                    if unique_vals & est_keys:
+                        name_col = col
+                        break
+            if name_col:
+                break
+
+        if name_col is None:
+            # Fallback: use first non-geometry string column
+            for col in ext_gdf.columns:
+                if col != "geometry" and ext_gdf[col].dtype == object:
+                    name_col = col
+                    break
+
+        if name_col is None:
+            print(f"WARNING: Could not find a suitable name column in {shapefile_path}")
+            return gpd.GeoDataFrame(columns=[shapefile_path, "geometry", "subregions", "cleaned_region_name_vercye"])
+
+        # Deduplicate by name_col to get unique geometries
+        ext_gdf = ext_gdf.drop_duplicates(subset=[name_col]).reset_index(drop=True)
+
+        # Spatial join: find which primary regions fall within each aggregation region
+        primary_centroids = self.gdf.copy()
+        primary_centroids["geometry"] = primary_centroids.geometry.centroid
+        joined = gpd.sjoin(primary_centroids, ext_gdf[[name_col, "geometry"]], how="left", predicate="within")
+
+        # Group by the external name column
+        subregion_map = (
+            joined.groupby(name_col)["cleaned_region_name_vercye"]
+            .apply(list)
+            .reset_index()
+        )
+
+        # Build result using external shapefile geometries
+        result = ext_gdf[[name_col, "geometry"]].merge(subregion_map, on=name_col, how="left")
+        result["subregions"] = result["cleaned_region_name_vercye"].apply(
+            lambda x: x if isinstance(x, list) else []
+        )
+        # Store the shapefile path as the "column" key so create_geojson_level can access region names
+        result[shapefile_path] = result[name_col]
+
+        return result
 
     def create_geojson_level(self, level_idx: int) -> Dict[str, Any]:
         """
@@ -187,8 +256,12 @@ class InteractiveMapGenerator:
         agg_col = self.aggregation_levels[level_idx]["column"]
 
         if is_base_level:
-            geometries = self.gdf
-            geometries["subregions"] = geometries[agg_col].apply(lambda x: [x])
+            geometries = self.gdf.copy()
+            # For base level (primary), use the region name column from the GDF
+            base_col = agg_col if agg_col in geometries.columns else "cleaned_region_name_vercye"
+            geometries["subregions"] = geometries[base_col].apply(lambda x: [x])
+            if agg_col not in geometries.columns:
+                geometries[agg_col] = geometries[base_col]
         else:
             geometries = self.load_agg_geometries(agg_col)
 

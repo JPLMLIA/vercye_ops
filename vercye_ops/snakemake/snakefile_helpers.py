@@ -29,9 +29,11 @@ def build_apsim_execution_command(
         tmpdir = op.join(op.dirname(input_file), tmp_uuid)
         os.makedirs(tmpdir, exist_ok=True)
 
+        dotnet_export = f'export DOTNET_ROOT="{dotnet_root}" && ' if dotnet_root else ""
+
         return (
-            f'export DOTNET_ROOT="{dotnet_root}" '
-            f'&& export DOTNET_SYSTEM_IO_TMPDIR="{tmpdir}" '
+            f'{dotnet_export}'
+            f'export DOTNET_SYSTEM_IO_TMPDIR="{tmpdir}" '
             f'&& export TMPDIR="{tmpdir}" '
             f'&& export TMP="{tmpdir}" '
             f'&& export TEMP="{tmpdir}" '

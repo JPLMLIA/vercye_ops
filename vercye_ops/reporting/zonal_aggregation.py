@@ -14,6 +14,8 @@ def compute_zonal_yield_stats(
     coverage_mask_tif: str,
     shapefile_path: str,
     name_column: str,
+    year_column: str = None,
+    year: str = None,
 ) -> pd.DataFrame:
     """
     Compute zonal yield statistics for each polygon in the shapefile using exactextract.
@@ -32,6 +34,10 @@ def compute_zonal_yield_stats(
         Path to the shapefile defining regions for aggregation.
     name_column : str
         Column in the shapefile used for region names in output.
+    year_column : str, optional
+        Column containing year values, used to filter rows before deduplication.
+    year : str, optional
+        Year value to filter by. Required if year_column is set.
     Returns
     -------
     pd.DataFrame
@@ -39,7 +45,7 @@ def compute_zonal_yield_stats(
         - region: region name from name_column
         - mean_yield_kg_ha: mean yield of valid pixels
         - median_yield_kg_ha: median yield of valid pixels
-        - total_cropland_area_ha: area of valid (non-nodata) yield pixels
+        - total_area_ha: area of valid (non-nodata) yield pixels
         - total_production_kg: sum(yield_kg_ha * pixel_area_ha)
         - total_production_ton: total_production_kg / 1000
         - coverage_pct: percentage (0-100) of polygon area covered by primary regions
@@ -57,7 +63,23 @@ def compute_zonal_yield_stats(
             f"Available columns: {list(gdf.columns)}"
         )
 
-    # Deduplicate: shapefile may have multiple rows per region (one per year for reference data).
+    # Filter by year if year_column is provided (shapefile may have one row per region per year)
+    if year_column and year:
+        if year_column not in gdf.columns:
+            logger.warning(f"Year column '{year_column}' not found in shapefile — skipping year filter")
+        else:
+            def _normalize_year(val):
+                try:
+                    return str(int(float(val)))
+                except (ValueError, TypeError):
+                    return str(val)
+
+            normalized_col = gdf[year_column].apply(_normalize_year)
+            normalized_target = _normalize_year(year)
+            gdf = gdf[normalized_col == normalized_target].reset_index(drop=True)
+            logger.info(f"Filtered shapefile to year {year}: {len(gdf)} rows")
+
+    # Deduplicate: shapefile may have multiple rows per region.
     # For zonal stats we only need unique geometries.
     n_before = len(gdf)
     gdf = gdf.drop_duplicates(subset=[name_column]).reset_index(drop=True)
@@ -82,12 +104,18 @@ def compute_zonal_yield_stats(
     elif gdf.crs is None:
         logger.warning("Shapefile has no CRS set. Assuming it matches the mosaic CRS.")
 
+    # Strip GeoDataFrame to only the name column + geometry for exactextract.
+    # exactextract iterates over ALL fields in the GeoDataFrame, and will crash
+    # on unsupported types (e.g., mixed-type columns from multi-year shapefiles).
+    gdf_extract = gdf[[name_column, "geometry"]].copy()
+    gdf_extract[name_column] = gdf_extract[name_column].astype(str)
+
     # Run exactextract on the yield mosaic
     # We request: mean, median, count (valid pixels), sum (for total production)
     logger.info("Running exactextract on yield mosaic...")
     yield_stats = exact_extract(
         yield_mosaic_tif,
-        gdf,
+        gdf_extract,
         ops=["mean", "median", "count", "sum"],
         include_cols=[name_column],
         output="pandas",
@@ -98,29 +126,29 @@ def compute_zonal_yield_stats(
     logger.info("Running exactextract on coverage mask...")
     coverage_stats = exact_extract(
         coverage_mask_tif,
-        gdf,
+        gdf_extract,
         ops=["sum", "count"],
         include_cols=[name_column],
         output="pandas",
     )
 
     # Compute polygon areas in the equal-area CRS
-    polygon_areas_m2 = gdf.geometry.area
+    polygon_areas_m2 = gdf_extract.geometry.area
     polygon_areas_ha = polygon_areas_m2 / 10_000
 
     # Build result DataFrame
     results = pd.DataFrame()
     results["region"] = yield_stats[name_column].astype(str)
-    results["mean_yield_kg_ha"] = yield_stats["mean"].round(0).astype(int)
-    results["median_yield_kg_ha"] = yield_stats["median"].round(0).astype(int)
+    results["mean_yield_kg_ha"] = yield_stats["mean"].round(0).astype("Int64")
+    results["median_yield_kg_ha"] = yield_stats["median"].round(0).astype("Int64")
 
     # Total cropland area = count of valid yield pixels * pixel area
     valid_pixel_count = yield_stats["count"]
-    results["total_cropland_area_ha"] = (valid_pixel_count * pixel_area_ha).round(2)
+    results["total_area_ha"] = (valid_pixel_count * pixel_area_ha).round(2)
 
     # Total production = sum of (yield_kg_ha * pixel_area) for valid pixels
     # exactextract "sum" gives sum of pixel values; multiply by pixel_area_ha for production
-    results["total_production_kg"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype(int)
+    results["total_production_kg"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype("Int64")
     results["total_production_ton"] = (results["total_production_kg"] / 1000).round(3)
 
     # Coverage: sum of coverage mask (=number of covered pixels), total count of pixels in polygon
