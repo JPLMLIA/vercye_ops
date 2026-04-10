@@ -35,7 +35,7 @@ def _graceful_kill_pg(pid: int, grace_seconds: int = 5):
                 os.killpg(pid, 0)  # check if still alive
             except ProcessLookupError:
                 return  # exited cleanly
-        # Still alive after grace period — force kill
+        # Still alive after grace period - force kill
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
         pass  # already gone

@@ -69,6 +69,7 @@ export interface AggregationShapefileConfig {
   name_column: string;
   reference_yield_column: string | null;
   year_column: string | null;
+  columns?: ShapefileColumn[];
 }
 
 export interface ShapefileColumn {

@@ -192,6 +192,7 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ studyId, onSubmit, init
     year_column: string | null;
     columns: { name: string; dtype: string; is_numeric: boolean }[];
   }[]>([]);
+  const [aggShapefileLoading, setAggShapefileLoading] = useState(false);
 
 
   const [isInitialized, setIsInitialized] = useState(false)
@@ -221,12 +222,19 @@ const SetupStudyForm: React.FC<SetupStudyFormProps> = ({ studyId, onSubmit, init
     setApsimMapping(initialData.apsimMapping || {});
     setApsimFiles(initialData.apsimFiles.map((name) => new File([], name)));
 
-    // Load aggregation shapefile configs if available
+    // Load aggregation shapefile configs if available (columns come from backend when duplicating)
     if (initialData.aggregationShapefiles?.length) {
       setAggShapefileConfigs(initialData.aggregationShapefiles.map(s => ({
         ...s,
-        columns: [],  // columns not available from initial data; user will re-upload if editing
+        columns: s.columns || [],
       })));
+      // Create placeholder File objects so the file list shows the existing files
+      const placeholderNames = initialData.aggregationShapefileNames || [];
+      setAggShapefileFiles(
+        initialData.aggregationShapefiles.map((s, i) =>
+          new File([], placeholderNames[i] || s.level_name)
+        )
+      );
     }
 
     setYears(initialData.years);
@@ -1156,51 +1164,114 @@ useEffect(() => {
       >
         <div className="form-group">
           <label className="form-label">Aggregation Shapefiles (.zip or .geojson)</label>
-          <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
-            Upload one file per aggregation level. Each can be a zipped shapefile (.zip) or a GeoJSON (.geojson).
-          </p>
-          <input
-            type="file"
+          <FileUpload
+            id="aggShapefile"
             accept=".zip,.geojson,.json"
             multiple
-            onChange={async (e) => {
-              const files = Array.from(e.target.files || []);
+            label="Upload one file per aggregation level (.zip or .geojson)"
+            value={aggShapefileFiles}
+            onChange={async (files: File[]) => {
+              // Identify newly added files (not already in the current list)
+              const existingNames = new Set(aggShapefileFiles.map(f => f.name));
+              const newFiles = files.filter(f => !existingNames.has(f.name));
+              const removedNames = new Set(
+                aggShapefileFiles
+                  .filter(f => !files.some(nf => nf.name === f.name))
+                  .map(f => f.name)
+              );
+
               setAggShapefileFiles(files);
 
-              // For each file, read columns from the backend
-              const newConfigs = [];
-              for (const f of files) {
-                try {
-                  const formData = new FormData();
-                  formData.append('shapefile', f);
-                  const resp = await fetch(`/api/studies/${studyId}/shapefile-columns`, {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  if (!resp.ok) throw new Error(await resp.text());
-                  const data = await resp.json();
-                  newConfigs.push({
-                    level_name: f.name.replace(/\.(zip|geojson|json)$/i, ''),
-                    name_column: '',
-                    reference_yield_column: null as string | null,
-                    year_column: null as string | null,
-                    columns: data.columns,
-                  });
-                } catch (err) {
-                  show(`Failed to read columns from ${f.name}: ${(err as Error).message}`, 'error');
+              // Remove configs for removed files
+              let updatedConfigs = aggShapefileConfigs.filter(
+                c => !removedNames.has(c.level_name.replace(/\.(zip|geojson|json)$/i, ''))
+                  && !removedNames.has(c.level_name + '.zip')
+                  && !removedNames.has(c.level_name + '.geojson')
+                  && !removedNames.has(c.level_name + '.json')
+                  // Also keep configs whose source file is still present
+                  && !Array.from(removedNames).some(rn => rn.replace(/\.(zip|geojson|json)$/i, '') === c.level_name)
+              );
+
+              // Parse newly added files client-side
+              if (newFiles.length > 0) {
+                setAggShapefileLoading(true);
+                for (const f of newFiles) {
+                  try {
+                    const arrayBuffer = await f.arrayBuffer();
+                    const lower = f.name.toLowerCase();
+
+                    let geojson: any;
+                    if (lower.endsWith('.geojson') || lower.endsWith('.json')) {
+                      const text = new TextDecoder().decode(arrayBuffer);
+                      geojson = JSON.parse(text);
+                    } else {
+                      geojson = await shp(arrayBuffer);
+                    }
+
+                    // Extract columns with type info from feature properties
+                    const colMap = new Map<string, { is_numeric: boolean; dtype: string }>();
+                    const features = geojson?.features || [];
+                    for (const feature of features) {
+                      if (!feature.properties) continue;
+                      for (const [key, value] of Object.entries(feature.properties)) {
+                        if (!colMap.has(key)) {
+                          const isNum = typeof value === 'number';
+                          colMap.set(key, {
+                            is_numeric: isNum,
+                            dtype: isNum ? 'float64' : 'object',
+                          });
+                        }
+                      }
+                    }
+
+                    const columns = Array.from(colMap.entries())
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([name, info]) => ({ name, ...info }));
+
+                    updatedConfigs.push({
+                      level_name: f.name.replace(/\.(zip|geojson|json)$/i, ''),
+                      name_column: '',
+                      reference_yield_column: null as string | null,
+                      year_column: null as string | null,
+                      columns,
+                    });
+                  } catch (err) {
+                    show(`Failed to read columns from ${f.name}: ${(err as Error).message}`, 'error');
+                  }
                 }
+                setAggShapefileLoading(false);
               }
-              setAggShapefileConfigs(newConfigs);
+
+              setAggShapefileConfigs(updatedConfigs);
             }}
           />
         </div>
 
+        {aggShapefileLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem', color: '#555' }}>
+            <span className="spinner" style={{
+              display: 'inline-block',
+              width: '1rem',
+              height: '1rem',
+              border: '2px solid #ccc',
+              borderTopColor: '#333',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }} />
+            Reading shapefile columns...
+          </div>
+        )}
+
         {aggShapefileConfigs.map((cfg, idx) => (
           <div key={idx} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
-            <h4 style={{ margin: '0 0 0.5rem 0' }}>Level: {aggShapefileFiles[idx]?.name || `Level ${idx + 1}`}</h4>
-
             <div className="form-group">
-              <label className="form-label">Level Name</label>
+              <label className="form-label" style={{ fontWeight: 600, fontSize: '1rem' }}>
+                Aggregation Level Name
+              </label>
+              <p style={{ fontSize: '0.85rem', color: '#666', margin: '0 0 0.4rem 0' }}>
+                Give this level a descriptive name (e.g., "District", "Province", "National").
+                This name will appear in reports and visualizations.
+              </p>
               <input
                 type="text"
                 className="form-input"
@@ -1211,7 +1282,11 @@ useEffect(() => {
                   setAggShapefileConfigs(updated);
                 }}
                 placeholder="e.g., Oblast, District, National"
+                style={{ fontWeight: 500 }}
               />
+              <p style={{ fontSize: '0.8rem', color: '#999', margin: '0.25rem 0 0 0' }}>
+                Source file: {aggShapefileFiles[idx]?.name || 'unknown'}
+              </p>
             </div>
 
             <div className="form-group">

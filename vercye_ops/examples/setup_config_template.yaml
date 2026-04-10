@@ -107,7 +107,7 @@ APSIM_TEMPLATE_PATHS:
 #
 # When reference data is included, the shapefile should have one row per region per year
 # (i.e., duplicate geometries with different year/yield values). This is only used for
-# evaluation — the geometries for zonal aggregation are deduplicated internally.
+# evaluation - the geometries for zonal aggregation are deduplicated internally.
 #
 # Note: Primary-level (simulation region) evaluation is not supported via shapefile columns,
 # as the primary shapefile must have exactly one row per region for APSIM simulation setup.

@@ -99,7 +99,7 @@ def create_map(regions_summary, combined_geojson):
     merged = combined_geojson.merge(regions_summary, left_on="region", right_on="region")
 
     if merged.empty or merged["mean_yield_kg_ha"].dropna().empty:
-        logger.warning("No matching regions between geometry and summary data — returning empty map")
+        logger.warning("No matching regions between geometry and summary data - returning empty map")
         fig, ax = plt.subplots(figsize=(12, 8))
         ax.set_title("No data available for this aggregation level", fontsize=16)
         ax.axis("off")
@@ -176,7 +176,7 @@ def combine_geojsons(regions_geometry_paths):
 
 def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840, height=2160):
     with rasterio.open(geotiff_path) as src:
-        # Downsample large rasters on read to avoid OOM — target ~4000px on longest side
+        # Downsample large rasters on read to avoid OOM - target ~4000px on longest side
         max_dim = 4000
         scale = min(max_dim / src.height, max_dim / src.width, 1.0)
         out_height = max(1, int(src.height * scale))
@@ -263,7 +263,7 @@ def build_section_params(
 
     logger.info("Loading and combining region geometries...")
     if admin_shapefile_path is not None and admin_column_name is not None:
-        # Use the aggregation-level shapefile directly — it has the correct admin boundaries
+        # Use the aggregation-level shapefile directly - it has the correct admin boundaries
         combined_geojson = load_admin_shapefile(admin_shapefile_path, admin_column_name)
     else:
         # Primary level: combine individual simulation-region GeoJSONs

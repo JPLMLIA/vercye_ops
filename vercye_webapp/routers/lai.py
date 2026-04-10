@@ -307,7 +307,7 @@ def cancel_generation(lai_id: str, resolution: int, force: bool = False):
     try:
         os.killpg(pgid, 0)
     except ProcessLookupError:
-        # Already terminated — just update status
+        # Already terminated - just update status
         pass
     else:
         try:

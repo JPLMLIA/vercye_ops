@@ -56,11 +56,21 @@ class WindowConfig(BaseModel):
 MappingState = Dict[str, Union[str, List[str]]]
 
 
+class ShapefileColumnInfo(BaseModel):
+    name: str
+    dtype: str
+    is_numeric: bool
+
+
 class AggregationShapefileConfig(BaseModel):
     level_name: str
     name_column: str
     reference_yield_column: Optional[str] = None
     year_column: Optional[str] = None  # required if reference_yield_column is set
+
+
+class AggregationShapefileConfigWithColumns(AggregationShapefileConfig):
+    columns: List[ShapefileColumnInfo] = []
 
 
 class SetupSubmissionsRequest(BaseModel):
@@ -105,7 +115,7 @@ class SetupConfigTemplate(BaseModel):
     apsimColumn: str
     apsimMapping: Dict[str, List[str]]
     apsimFiles: List[str]
-    aggregationShapefiles: List[AggregationShapefileConfig] = []
+    aggregationShapefiles: List[AggregationShapefileConfigWithColumns] = []
     aggregationShapefileNames: List[str] = []  # filenames of uploaded shapefiles
     years: List[str]
     timepoints: List[str]

@@ -165,10 +165,10 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
                 src_dir = Path(src_shp).parent
 
                 if src_suffix in (".geojson", ".json"):
-                    # GeoJSON — just copy the single file
+                    # GeoJSON - just copy the single file
                     shutil.copy(str(src_shp), os.path.join(agg_shp_dir, Path(src_shp).name))
                 else:
-                    # Shapefile — copy all sidecar files
+                    # Shapefile - copy all sidecar files
                     for ext in [
                         ".shp",
                         ".shx",

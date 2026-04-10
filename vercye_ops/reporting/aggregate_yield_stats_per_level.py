@@ -88,7 +88,7 @@ def cli(
     logger.info(f"Computing yield stats for level shapefile: {level_shapefile}")
 
     # Zonal stats use unique geometries (deduplicated by name_column)
-    # — the shapefile may have duplicate geometries if it has year-specific reference data
+    # - the shapefile may have duplicate geometries if it has year-specific reference data
     result = compute_zonal_yield_stats(
         yield_mosaic_tif=yield_mosaic_tif,
         coverage_mask_tif=coverage_mask_tif,
@@ -123,7 +123,7 @@ def cli(
     elif reference_yield_column and not year_column:
         logger.warning(
             f"reference_yield_column '{reference_yield_column}' is set but year_column is not. "
-            "Cannot filter reference data by year — skipping evaluation data."
+            "Cannot filter reference data by year - skipping evaluation data."
         )
 
     result.to_csv(out_fpath, index=False)

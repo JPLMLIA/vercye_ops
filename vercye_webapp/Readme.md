@@ -14,7 +14,7 @@ Ensure you have followed the setup instructions for the core library and are in 
 
 `pip install -r requirements.txt`
 
-Take note of the conda environment's bin directory — you will need it for the `.env` file:
+Take note of the conda environment's bin directory - you will need it for the `.env` file:
 
 ```bash
 echo "$CONDA_PREFIX/bin"
@@ -33,7 +33,7 @@ export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 nvm install --lts
 ```
 
-Take note of your `NVM_DIR` (usually `$HOME/.nvm`) — you will need it for the `.env` file:
+Take note of your `NVM_DIR` (usually `$HOME/.nvm`) - you will need it for the `.env` file:
 
 ```bash
 echo "$NVM_DIR"
@@ -51,7 +51,7 @@ sudo apt update && sudo apt install redis-server -y
 # See https://redis.io/docs/getting-started/installation/install-redis-from-source/
 ```
 
-Take note of the path to the `redis-server` binary — you will need it for the `.env` file:
+Take note of the path to the `redis-server` binary - you will need it for the `.env` file:
 
 ```bash
 which redis-server

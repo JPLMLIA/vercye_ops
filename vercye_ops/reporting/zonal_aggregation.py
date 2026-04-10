@@ -66,7 +66,7 @@ def compute_zonal_yield_stats(
     # Filter by year if year_column is provided (shapefile may have one row per region per year)
     if year_column and year:
         if year_column not in gdf.columns:
-            logger.warning(f"Year column '{year_column}' not found in shapefile — skipping year filter")
+            logger.warning(f"Year column '{year_column}' not found in shapefile - skipping year filter")
         else:
             def _normalize_year(val):
                 try:

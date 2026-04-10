@@ -686,7 +686,7 @@ rule create_yield_mosaic:
         --verbose > {log}
         """
 
-# Per-region yield estimate (diagnostic only — canonical stats come from the mosaic).
+# Per-region yield estimate (diagnostic only - canonical stats come from the mosaic).
 # Kept because the per-region quicklook report below depends on it.
 # TODO: Remove once quicklook report computes stats directly from yield_map.tif
 rule estimate_total_yield_diagnostic:
@@ -900,7 +900,7 @@ rule extract_reference_data:
             )
             ref_df.to_csv(output.refdata_csv, index=False)
         else:
-            # No reference data — write empty CSV so Snakemake output is satisfied
+            # No reference data - write empty CSV so Snakemake output is satisfied
             pd.DataFrame(columns=["region", "reported_mean_yield_kg_ha"]).to_csv(output.refdata_csv, index=False)
 
 # Rule to evaluate predicted yield if referencedata is available

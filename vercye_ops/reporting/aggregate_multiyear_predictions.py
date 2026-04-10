@@ -40,7 +40,7 @@ def _extract_agg_level_name(filename, year, timepoint):
     # middle = "Kenya_Three_Counties_Counties_YearlyTotals_kenya-prelim"
     middle = base[len(prefix):-len(suffix)]
     # The last underscore-separated segment is the study_id (sanitized, so no underscores in it)
-    # e.g. "kenya-prelim" — split off the last segment
+    # e.g. "kenya-prelim" - split off the last segment
     parts = middle.rsplit("_", 1)
     if len(parts) == 2:
         return parts[0]  # level name
