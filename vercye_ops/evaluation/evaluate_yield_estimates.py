@@ -328,7 +328,9 @@ def cli(val_fpath, estimation_fpath, out_eval_fpath, out_errors_fpath, out_plot_
     # After the aggregation refactor, CSVs may not contain apsim_mean_yield_estimate_kg_ha;
     # in that case, skip the apsim-only evaluation gracefully.
     try:
-        preds_obs_apsimonly = get_preds_obs(estimation_fpath=estimation_fpath, val_fpath=val_fpath, pixel_converted=False)
+        preds_obs_apsimonly = get_preds_obs(
+            estimation_fpath=estimation_fpath, val_fpath=val_fpath, pixel_converted=False
+        )
     except ValueError:
         preds_obs_apsimonly = None
 

@@ -13,10 +13,7 @@ import time
 
 import pytest
 
-from vercye_ops.utils.file_sync import (
-    files_have_same_content,
-    sync_tree_content_aware,
-)
+from vercye_ops.utils.file_sync import files_have_same_content, sync_tree_content_aware
 
 
 def _write(path, content: bytes, mtime: float | None = None):

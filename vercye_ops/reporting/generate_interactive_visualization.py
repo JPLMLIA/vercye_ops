@@ -156,7 +156,7 @@ class InteractiveMapGenerator:
 
     def _is_shapefile_path(self, agg_col):
         """Check if agg_col is a file path rather than a column name."""
-        return agg_col.endswith(('.geojson', '.shp', '.gpkg')) or os.path.sep in agg_col
+        return agg_col.endswith((".geojson", ".shp", ".gpkg")) or os.path.sep in agg_col
 
     def load_agg_geometries(self, agg_col):
         # If agg_col is a file path to an external shapefile, load it and use spatial join
@@ -224,17 +224,11 @@ class InteractiveMapGenerator:
         joined = gpd.sjoin(primary_centroids, ext_gdf[[name_col, "geometry"]], how="left", predicate="within")
 
         # Group by the external name column
-        subregion_map = (
-            joined.groupby(name_col)["cleaned_region_name_vercye"]
-            .apply(list)
-            .reset_index()
-        )
+        subregion_map = joined.groupby(name_col)["cleaned_region_name_vercye"].apply(list).reset_index()
 
         # Build result using external shapefile geometries
         result = ext_gdf[[name_col, "geometry"]].merge(subregion_map, on=name_col, how="left")
-        result["subregions"] = result["cleaned_region_name_vercye"].apply(
-            lambda x: x if isinstance(x, list) else []
-        )
+        result["subregions"] = result["cleaned_region_name_vercye"].apply(lambda x: x if isinstance(x, list) else [])
         # Store the shapefile path as the "column" key so create_geojson_level can access region names
         result[shapefile_path] = result[name_col]
 

@@ -99,7 +99,7 @@ def add_dates(config: str = Form(...)):
                 detail=f"End date {dr.end_date} must be after start date {dr.start_date}",
             )
 
-    num_cores_download, num_cores_lai  = get_num_processing_cores(lai_config.resolution)
+    num_cores_download, num_cores_lai = get_num_processing_cores(lai_config.resolution)
 
     geojson_path = os.path.join(out_dir, "region.geojson")
 

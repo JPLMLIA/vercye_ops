@@ -299,7 +299,7 @@ def _extract_agg_level_name(filename, year, timepoint):
     suffix = f"_{year}_{timepoint}.csv"
     if not base.startswith(prefix) or not base.endswith(suffix):
         return None
-    middle = base[len(prefix):-len(suffix)]
+    middle = base[len(prefix) : -len(suffix)]
     parts = middle.rsplit("_", 1)
     if len(parts) == 2:
         return parts[0]

@@ -8,10 +8,7 @@ See test_missing_data_marker_bug for details.
 import pandas as pd
 import pytest
 
-from vercye_ops.reporting.aggregate_meteorological_stats import (
-    aggregate_data,
-    read_met_file,
-)
+from vercye_ops.reporting.aggregate_meteorological_stats import aggregate_data, read_met_file
 
 # ---------------------------------------------------------------------------
 # Helpers

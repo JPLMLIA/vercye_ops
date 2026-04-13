@@ -5,11 +5,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from vercye_ops.matching_sim_real.utils import (
-    build_default_query,
-    compute_pixel_area,
-    load_simulation_data,
-)
+from vercye_ops.matching_sim_real.utils import build_default_query, compute_pixel_area, load_simulation_data
 
 # ---------------------------------------------------------------------------
 # build_default_query

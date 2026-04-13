@@ -32,7 +32,7 @@ def build_apsim_execution_command(
         dotnet_export = f'export DOTNET_ROOT="{dotnet_root}" && ' if dotnet_root else ""
 
         return (
-            f'{dotnet_export}'
+            f"{dotnet_export}"
             f'export DOTNET_SYSTEM_IO_TMPDIR="{tmpdir}" '
             f'&& export TMPDIR="{tmpdir}" '
             f'&& export TMP="{tmpdir}" '
