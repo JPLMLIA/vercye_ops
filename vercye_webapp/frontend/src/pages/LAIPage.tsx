@@ -309,7 +309,7 @@ const LAIPage = () => {
           max: 1,
           ticks: {
             stepSize: 1,
-            callback: (value) => (value ? 'Yes' : ''),
+            callback: (value: number | string) => (value ? 'Yes' : ''),
           },
         },
         x: {
@@ -323,7 +323,7 @@ const LAIPage = () => {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) => (ctx.raw ? 'Available' : 'Missing'),
+            label: (ctx: { raw: unknown }) => (ctx.raw ? 'Available' : 'Missing'),
           },
         },
       },

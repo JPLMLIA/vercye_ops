@@ -10,7 +10,29 @@ The API imposes rather strict limitations on the number of parallel requests and
 The `ERA5` data is fetched through `Google Earth Engine`. Therefore, this requires you to authenticate with your `Earth Engine` project.
 During execution of the pipeline, the meteorological data is then fetched as the centroid or mean of a region from `Earth Engine`.
 
-If you plan on using this approach you will have to run `earthengine authenticate` and complete the steps in the terminal before starting the pipeline.
+You can authenticate in two ways:
+
+### Option 1: Service account (recommended for headless/server setups)
+
+Create a service account in your GCP project and download a JSON key. The service account needs to be:
+
+1. **Registered with Earth Engine** at https://signup.earthengine.google.com/#!/service_accounts
+2. Granted the following IAM roles on the GCP project:
+    - `roles/serviceusage.serviceUsageConsumer` — allows billing API calls to the project
+    - `roles/earthengine.viewer` — allows running EE computations and reading public datasets (use `roles/earthengine.writer` instead if you also need to run the GEE LAI export pipeline)
+
+Then set the path to the key file in your `.env`:
+
+```
+EE_SERVICE_ACCOUNT_KEY=/path/to/your/service-account-key.json
+EE_PROJECT_NAME=your-gcp-project-id
+```
+
+The pipeline will pick this up automatically — no interactive login required.
+
+### Option 2: Interactive user authentication
+
+If you are on a machine with a browser available, run `earthengine authenticate` and complete the browser flow before starting the pipeline. Leave `EE_SERVICE_ACCOUNT_KEY` unset in your `.env`.
 
 ## CHIRPS
 

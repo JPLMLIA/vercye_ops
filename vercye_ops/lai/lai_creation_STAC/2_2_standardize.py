@@ -137,7 +137,11 @@ def standardize_lai(args):
                     "width": dst_width,
                     "height": dst_height,
                     "dtype": "float32",
-                    "compress": "lzw",
+                    "compress": "deflate",
+                    "predictor": 3,
+                    "tiled": True,
+                    "blockxsize": 512,
+                    "blockysize": 512,
                 }
             )
 

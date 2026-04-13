@@ -1,9 +1,16 @@
+"""
+Aggregate supplementary maps (LAI, cropmask) and shapefiles from per-region outputs.
+
+Yield map merging is handled separately by mosaic_and_reproject.py.
+"""
+
 import logging
 import os
 import os.path as op
 
 import click
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import rasterio as rio
 from rasterio.merge import merge
@@ -14,41 +21,11 @@ logger = get_logger()
 
 
 def get_file_path(base_dir, region_name, file_suffix):
-    """
-    Generate a file path for a specific region and suffix.
-
-    Parameters
-    ----------
-    base_dir : str
-        Base directory containing region subdirectories.
-    region_name : str
-        Name of the region.
-    file_suffix : str
-        File suffix, e.g., '_LAI_MAX.tif'.
-
-    Returns
-    -------
-    str
-        Full path to the file.
-    """
     return op.join(base_dir, region_name, f"{region_name}{file_suffix}")
 
 
 def validate_consistency_across_products(file_groups):
-    """
-    Validate that CRS and resolution are consistent across different product groups.
-
-    Parameters
-    ----------
-    file_groups : dict
-        Dictionary where keys are product labels (e.g., 'yield', 'LAI', 'cropmask') and
-        values are lists of file paths for each product.
-
-    Raises
-    ------
-    ValueError
-        If CRS or resolution is inconsistent across products or files.
-    """
+    """Validate that CRS and resolution are consistent across product groups."""
     logger.info("Validating consistency across products...")
 
     reference_crs = None
@@ -83,29 +60,14 @@ def validate_consistency_across_products(file_groups):
 
 
 def merge_tifs(tif_files, label):
-    """
-    Merge multiple TIF files into a single array and profile.
-
-    Parameters
-    ----------
-    tif_files : list of str
-        List of file paths to TIF files.
-
-    Returns
-    -------
-    tuple
-        Merged array and updated profile.
-    """
+    """Merge multiple TIF files into a single array and profile."""
     logger.info(f"Merging {label} TIF files...")
     datasets = [rio.open(tif) for tif in tif_files]
 
     if len(datasets) == 0:
         raise ValueError(f"No datasets to merge for {label}")
 
-    # Determine nodata from the first dataset's profile, default to np.nan for float types
     src_nodata = datasets[0].nodata
-    import numpy as np
-
     if src_nodata is None and np.issubdtype(datasets[0].dtypes[0], np.floating):
         src_nodata = float("nan")
 
@@ -121,7 +83,7 @@ def merge_tifs(tif_files, label):
         height=merged_array.shape[1],
         width=merged_array.shape[2],
         transform=merged_transform,
-        count=0,  # Keep as 0 for now
+        count=0,
         compress="lzw",
         nodata=src_nodata,
     )
@@ -132,57 +94,29 @@ def merge_tifs(tif_files, label):
     return {"array": merged_array, "band_names": band_names, "profile": profile}
 
 
-def save_aggregated_map(output_path, map, band_names, profile):
-    """
-    Save the merged arrays as a multi-band GeoTIFF.
-
-    Parameters
-    ----------
-    output_path : str
-        Path to save the output file.
-    arrays : list of ndarray
-        List of arrays to save as bands.
-    profile : dict
-        Raster profile.
-    """
-    profile.update(count=map.shape[0])
+def save_aggregated_map(output_path, map_array, band_names, profile):
+    """Save merged arrays as a multi-band GeoTIFF."""
+    profile.update(count=map_array.shape[0])
 
     with rio.open(output_path, "w", **profile) as dst:
-        for i in range(map.shape[0]):
+        for i in range(map_array.shape[0]):
             band_idx = i + 1
-            dst.write(map[i, :, :], band_idx)  # Write each band individually
+            dst.write(map_array[i, :, :], band_idx)
             dst.set_band_description(band_idx, band_names[i])
 
     logger.info(f"Aggregated map saved to: {output_path}")
 
 
 def merge_shapefiles(shapefile_paths, region_names):
-    """
-    Merge multiple shapefiles into a single GeoDataFrame.
-
-    Parameters
-    ----------
-    shapefile_paths : list of str
-        List of file paths to shapefiles.
-
-    region_names: list of str
-        List of the names of the regions for each shapefile.
-
-    Returns
-    -------
-    GeoDataFrame
-        Merged GeoDataFrame.
-    """
+    """Merge multiple shapefiles into a single GeoDataFrame."""
     logger.info("Merging shapefiles...")
     gdfs = [gpd.read_file(shp) for shp in shapefile_paths]
 
-    # Temporary fix for backward compatibility
     if "cleaned_region_name_vercye" not in gdfs[0].columns:
         for gdf, region_name in zip(gdfs, region_names):
             gdf["cleaned_region_name_vercye"] = region_name
 
     merged_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
-
     return merged_gdf
 
 
@@ -190,7 +124,7 @@ def is_valid_region_dir(base_dir, region_name):
     if not op.isdir(op.join(base_dir, region_name)):
         return False
 
-    for suffix in ["_yield_map.tif", "_LAI_MAX.tif", "_cropmask_constrained.tif", ".geojson"]:
+    for suffix in ["_LAI_MAX.tif", "_cropmask_constrained.tif", ".geojson"]:
         if not op.exists(get_file_path(base_dir, region_name, suffix)):
             return False
 
@@ -221,13 +155,7 @@ def is_valid_region_dir(base_dir, region_name):
     "--output_lai_tif_fpath",
     required=False,
     type=click.Path(),
-    help="Path to save the aggregated lai GeoTIFF.",
-)
-@click.option(
-    "--output_yield_tif_fpath",
-    required=False,
-    type=click.Path(),
-    help="Path to save the aggregated simulated yield GeoTIFF.",
+    help="Path to save the aggregated LAI GeoTIFF.",
 )
 @click.option(
     "--output_cropmask_tif_fpath",
@@ -239,58 +167,41 @@ def is_valid_region_dir(base_dir, region_name):
     "--output_shapefile_fpath",
     required=False,
     type=click.Path(),
-    help="Path to save the aggregated GeoJsons.",
+    help="Path to save the aggregated GeoJSONs.",
 )
 def cli(
     roi_base_dir,
     yield_estimates_fpath,
     val_fpath,
     output_lai_tif_fpath=None,
-    output_yield_tif_fpath=None,
     output_cropmask_tif_fpath=None,
     output_shapefile_fpath=None,
 ):
-    """
-    Command-line interface to aggregate maps from regions.
-
-    Parameters
-    ----------
-    roi_base_dir : str
-        Directory containing subdirectories for each region.
-    output_fpath : str
-        Path to save the aggregated GeoTIFF.
-    """
+    """Aggregate supplementary maps (LAI, cropmask) and shapefiles from per-region outputs."""
     logger.setLevel(logging.INFO)
-    logger.info(f"Starting map aggregation for regions in {roi_base_dir}...")
+    logger.info(f"Starting supplementary map aggregation for regions in {roi_base_dir}...")
 
     output_fpaths = {
-        "yield": output_yield_tif_fpath or op.join(roi_base_dir, "aggregated_yield_map.tif"),
         "LAI": output_lai_tif_fpath or op.join(roi_base_dir, "aggregated_LAI_MAX.tif"),
         "cropmask": output_cropmask_tif_fpath or op.join(roi_base_dir, "aggregated_cropmask.tif"),
         "shapefile": output_shapefile_fpath or op.join(roi_base_dir, "aggregated_region_boundaries.geojson"),
     }
 
-    # Only considering directories that contain all required files.
     regions = [d for d in os.listdir(roi_base_dir) if is_valid_region_dir(roi_base_dir, d)]
 
-    yield_files = [get_file_path(roi_base_dir, region, "_yield_map.tif") for region in regions]
     lai_files = [get_file_path(roi_base_dir, region, "_LAI_MAX.tif") for region in regions]
     cropmask_files = [get_file_path(roi_base_dir, region, "_cropmask_constrained.tif") for region in regions]
 
-    file_groups = {"yield": yield_files, "LAI": lai_files, "cropmask": cropmask_files}
+    file_groups = {"LAI": lai_files, "cropmask": cropmask_files}
 
-    # Validate CRS and resolution consistency across products
-    # Currently checking that all products have same CRS and Res but can also loosen this constraint if required
     validate_consistency_across_products(file_groups)
 
-    # Merge TIF files and save aggregated map
-    logger.info("Merging TIF files...")
-
+    # Merge LAI and cropmask TIFs
     for label, file_group in file_groups.items():
         result = merge_tifs(file_group, label)
         save_aggregated_map(output_fpaths[label], result["array"], result["band_names"], result["profile"])
 
-    # Merge shapefiles and save
+    # Merge shapefiles and join yield estimates
     merged_gdf = merge_shapefiles([get_file_path(roi_base_dir, region, ".geojson") for region in regions], regions)
 
     yield_estimates = pd.read_csv(yield_estimates_fpath)
@@ -299,33 +210,37 @@ def cli(
     yield_estimates.rename(
         columns={
             "mean_yield_kg_ha": "estimated_mean_yield_kg_ha",
-            "total_yield_production_kg": "estimated_yield_kg",
+            "total_production_kg": "estimated_production_kg",
             "median_yield_kg_ha": "estimated_median_yield_kg_ha",
         },
         inplace=True,
     )
+
+    merge_cols = ["region"]
+    for col in [
+        "estimated_mean_yield_kg_ha",
+        "estimated_median_yield_kg_ha",
+        "estimated_production_kg",
+        "total_cropland_area_ha",
+    ]:
+        if col in yield_estimates.columns:
+            merge_cols.append(col)
+
     merged_gdf = merged_gdf.merge(
-        yield_estimates[
-            [
-                "estimated_mean_yield_kg_ha",
-                "estimated_median_yield_kg_ha",
-                "estimated_yield_kg",
-                "total_area_ha",
-                "region",
-            ]
-        ],
+        yield_estimates[merge_cols],
         left_on="cleaned_region_name_vercye",
         right_on="region",
+        how="left",
     )
 
     if val_fpath:
         val_data = pd.read_csv(val_fpath)
         val_data["region"] = val_data["region"].astype(str)
-        merged_gdf = merged_gdf.merge(val_data, left_on="cleaned_region_name_vercye", right_on="region")
+        merged_gdf = merged_gdf.merge(val_data, left_on="cleaned_region_name_vercye", right_on="region", how="left")
 
     merged_gdf.to_file(output_fpaths["shapefile"], driver="GeoJSON")
 
-    logger.info("Aggregation complete.")
+    logger.info("Supplementary map aggregation complete.")
 
 
 if __name__ == "__main__":

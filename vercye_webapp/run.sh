@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ============ ENV FIX (CRITICAL) ============
-# Ensure we use ONLY this conda env
-export PYTHONNOUSERSITE=1
-export PATH="/home/sawahnr/conda-env-vercye-local/bin:$PATH"
-
 # ============ Config & Preflight ============
 DATETIME_SUFFIX="$(date '+%Y%m%d_%H%M%S')"
 
-# Load .env if present
-if [[ -f .env ]]; then
+# Load .env from project root if present
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/../.env"
+if [[ -f "$ENV_FILE" ]]; then
   set -o allexport
-  source .env
+  source "$ENV_FILE"
   set +o allexport
 else
-  echo "[warn] .env not found; relying on environment variables."
+  echo "[warn] .env not found at project root; relying on environment variables."
 fi
 
-# Load NVM
-export NVM_DIR="$ENV_BASE/env/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+# Isolate Python environment if a custom conda/venv path is configured
+if [[ -n "${PYTHON_ENV_PATH:-}" ]]; then
+  export PYTHONNOUSERSITE=1
+  export PATH="$PYTHON_ENV_PATH:$PATH"
+fi
+
+# Redirect cache directory if configured (e.g. to avoid filling up home on shared filesystems)
+if [[ -n "${XDG_CACHE_HOME:-}" ]]; then
+  export XDG_CACHE_HOME
+fi
+
+# Load NVM if configured
+if [[ -n "${NVM_DIR:-}" ]]; then
+  export NVM_DIR
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+fi
 
 # Required env vars
 : "${REDIS_PATH:?Set REDIS_PATH in .env}"
@@ -31,12 +41,27 @@ export NVM_DIR="$ENV_BASE/env/.nvm"
 mkdir -p "$LOGS_PATH"
 mkdir -p static
 
-# Cleanup
+# Kill any stale celery workers from previous runs
+echo "[info] Cleaning up stale Celery workers..."
+pkill -f "celery.*worker.*vercye_processing" 2>/dev/null || true
+pkill -f "celery.*worker.*vercye_prep" 2>/dev/null || true
+sleep 1
+
+# Cleanup on exit: kill all children and celery worker trees
 cleanup() {
-  echo "[info] cleaning up background processes..."
-  pkill -P $$ || true
+  echo "[info] Shutting down all services..."
+  # Send SIGTERM to celery workers (graceful shutdown)
+  pkill -f "celery.*worker.*vercye_processing" 2>/dev/null || true
+  pkill -f "celery.*worker.*vercye_prep" 2>/dev/null || true
+  # Kill direct child processes (redis, uvicorn)
+  pkill -P $$ 2>/dev/null || true
+  # Wait briefly for graceful shutdown, then force-kill any remaining celery processes
+  sleep 2
+  pkill -9 -f "celery.*worker.*vercye_processing" 2>/dev/null || true
+  pkill -9 -f "celery.*worker.*vercye_prep" 2>/dev/null || true
+  echo "[info] Cleanup complete."
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # ============ Build Frontend ============
 echo "[info] Building frontend..."

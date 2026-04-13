@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 from celery import Celery, Task
 
+from vercye_ops.utils.file_sync import sync_tree_content_aware
 from vercye_ops.cli import init_study
 from vercye_ops.cli import prepare_study as prepare_vercye_study
 from vercye_ops.cli import run_study as run_vercye
@@ -92,13 +93,16 @@ def setup_vercye_task(study_id: str, studies_dir: str):
                 ):
                     template_config["lai_params"]["crop_mask"][key] = new_config["lai_params"]["crop_mask"][key]
 
-                for key in list(
-                    set(new_config["eval_params"]["aggregation_levels"].keys())
-                    - set(template_config["eval_params"]["aggregation_levels"].keys())
-                ):
-                    template_config["eval_params"]["aggregation_levels"][key] = new_config["eval_params"][
-                        "aggregation_levels"
-                    ][key]
+                # Merge aggregation levels: new levels override template, keep template values for existing
+                new_agg = new_config.get("eval_params", {}).get("aggregation_levels", {})
+                tmpl_agg = template_config.get("eval_params", {}).get("aggregation_levels", {})
+                for key in new_agg:
+                    if key not in tmpl_agg:
+                        tmpl_agg[key] = new_agg[key]
+                    elif isinstance(new_agg[key], dict) and isinstance(tmpl_agg[key], dict):
+                        # Update with new shapefile/column info but keep any user-customized values
+                        tmpl_agg[key].update(new_agg[key])
+                template_config["eval_params"]["aggregation_levels"] = tmpl_agg
 
                 new_config = template_config
 
@@ -109,10 +113,12 @@ def setup_vercye_task(study_id: str, studies_dir: str):
                 ruamel_yaml.dump(new_config, f)
 
             print(config_path)
-            # Copy to final destination, overwriting existing files but keeping others
-            # TODO this will lead to snakemake having to re-run everything if files were changed
+            # Copy to final destination. Only overwrite files whose contents
+            # actually changed so that unchanged files keep their mtimes and
+            # snakemake does not invalidate downstream rules unnecessarily
+            # (e.g. an APSIM-only update should not rerun LAI/met).
             os.makedirs(real_output_dir, exist_ok=True)
-            shutil.copytree(temp_output_dir, real_output_dir, dirs_exist_ok=True)
+            sync_tree_content_aware(temp_output_dir, real_output_dir)
             print(temp_output_dir)
             print(real_output_dir)
 
@@ -277,21 +283,20 @@ def duplicate_vercye_study_task(existing_study_id, new_study_id):
         dst = os.path.join(shapefile_dir, src.name)
         shutil.copy(src, dst)
 
-    existing_config["regions_shp_name"] = str(Path(shapefile_dir) / f"{shapefile_stem}.shp")
+    existing_config["regions_shp_name"] = str(Path(shapefile_dir) / orig_shp.name)
 
-    # Refdata paths copying
-    shutil.copytree(
-        os.path.join(get_study_path(studies_dir, existing_study_id), "reference_data"),
-        os.path.join(new_study_dir, "reference_data"),
-    )
+    # Copy aggregation shapefiles if they exist
+    src_agg_shp_dir = os.path.join(get_study_path(studies_dir, existing_study_id), "aggregation_shapefiles")
+    if os.path.exists(src_agg_shp_dir):
+        dst_agg_shp_dir = os.path.join(new_study_dir, "aggregation_shapefiles")
+        shutil.copytree(src_agg_shp_dir, dst_agg_shp_dir)
 
-    for year, year_fpaths in existing_config["REFERENCE_DATA_PATHS"].items():
-        for idx, item in enumerate(year_fpaths):
-            item_agg_lvl = next(iter(item.keys()))  # first key
-            year_fpath = item[item_agg_lvl]
-            new_year_fpath = os.path.join(new_study_dir, "reference_data", Path(year_fpath).name)
-            item[item_agg_lvl] = new_year_fpath
-            existing_config["REFERENCE_DATA_PATHS"][year][idx] = item
+        # Update shapefile paths in config
+        agg_shp_config = existing_config.get("AGGREGATION_SHAPEFILES", {})
+        for level_name, level_cfg in agg_shp_config.items():
+            old_path = level_cfg.get("shapefile_path", "")
+            if old_path:
+                level_cfg["shapefile_path"] = os.path.join(dst_agg_shp_dir, Path(old_path).name)
 
     # APSIM files copying
     os.makedirs(os.path.join(new_study_dir, "apsim"), exist_ok=True)

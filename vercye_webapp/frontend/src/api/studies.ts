@@ -37,9 +37,14 @@ export const StudiesAPI = {
 
     fd.append("shapefile", payload.shapefile);
     payload.apsimFiles?.forEach((f) => fd.append("apsim_files", f));
-    payload.referenceFiles?.forEach((f) => fd.append("reference_files", f));
+    payload.aggregationShapefileFiles?.forEach((f) => fd.append("aggregation_shapefiles", f));
 
-    const { shapefile: _drop1, apsimFiles: _drop2, referenceFiles: _drop3, ...meta } = payload;
+    const {
+      shapefile: _drop1,
+      apsimFiles: _drop2,
+      aggregationShapefileFiles: _drop3,
+      ...meta
+    } = payload;
 
     // Convert camelCase keys in meta to snake_case here before sending
     const metaSnakeCase = {
@@ -55,8 +60,7 @@ export const StudiesAPI = {
       },
       apsim_column: meta.apsimColumn,
       apsim_mapping: meta.apsimMapping,
-      reference_mapping: meta.referenceMapping,
-      reference_years_mapping: meta.referenceYearsMapping,
+      aggregation_shapefiles: meta.aggregationShapefiles,
       years: meta.years,
       timepoints: meta.timepoints,
       simulation_windows: meta.simulationWindows

@@ -95,17 +95,33 @@ APSIM_TEMPLATE_PATHS:
   # region3: "malawi_zone4.apsimx" # if uploaded from the webui.
 
 ###############################################################################
-########################### Adding Reference Data ################################
+########################### Aggregation Shapefiles #############################
 ###############################################################################
 
-# Paths to your reference data
-# For each year add entries for the available aggregation levels
-# For the simulation admin level use the key 'primary', as in the example above!
-# For all other levels you can choose the key freely, it should however be describtive of the admin level.
-REFERENCE_DATA_PATHS:
-  2019:
-    - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin3.csv" # Key: Path
-    - district: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2019-admin2.csv" # Paths must be .csv
-  2020:
-    - primary: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2020-admin3.csv"
-    - district: "/home/rohan/nasa-harvest/vercye/data/malawi/gt2020-admin2.csv"
+# Shapefiles for additional aggregation levels (e.g., district, state, national).
+# Each entry defines one aggregation level with:
+#   shapefile_path: path to the shapefile (.shp or .geojson)
+#   name_column: column for labeling regions in outputs
+#   reference_yield_column: (optional) column with observed yield in kg/ha for evaluation
+#   year_column: (required if reference_yield_column is set) column containing the year for each row
+#
+# When reference data is included, the shapefile should have one row per region per year
+# (i.e., duplicate geometries with different year/yield values). This is only used for
+# evaluation - the geometries for zonal aggregation are deduplicated internally.
+#
+# Note: Primary-level (simulation region) evaluation is not supported via shapefile columns,
+# as the primary shapefile must have exactly one row per region for APSIM simulation setup.
+#
+# Example:
+# AGGREGATION_SHAPEFILES:
+#   district:
+#     shapefile_path: "/path/to/districts_with_yields.geojson"
+#     name_column: "ADM2_EN"
+#     reference_yield_column: "ref_yield_kg_ha"
+#     year_column: "year"
+#   national:
+#     shapefile_path: "/path/to/national.shp"
+#     name_column: "ADM0_EN"
+#     reference_yield_column: null
+#     year_column: null
+AGGREGATION_SHAPEFILES: {}

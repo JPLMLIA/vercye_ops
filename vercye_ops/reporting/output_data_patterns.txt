@@ -1,0 +1,13 @@
+lai_report_*.pdf
+multiyear_summary*.zip
+config.yaml
+all_predictions_*.csv
+referencedata_*.csv
+agg_yield_estimates_*.csv
+aggregated_LAI_MAX_*.tif
+aggregated_cropmask_*.tif
+aggregated_met_stats_*.pdf
+aggregated_region_boundaries_*.geojson
+final_report_*.pdf
+interactive_map_*.zip
+yield_mosaic_projected_*.tif

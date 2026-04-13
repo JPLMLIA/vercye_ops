@@ -194,14 +194,20 @@ matching_params:
 # Evaluation Parameters
 eval_params:
 
-  # Specify additional level on which to aggregate the yield estimates for evaluation
-  # This is useful if you want to evaluate the yield estimates at a different level than the simulation level
-  # The key can be any name you want, but the value must be th column name of the admin levels to aggregate
-  # If you do not want additional aggregation level, set aggregation_levels: {}
-  # ATTENTION: The name or column must NOT contain colons!!
+  # Aggregation levels define additional geographic levels at which yield statistics are computed.
+  # Each level requires a shapefile and a name_column. Optional reference_yield_column for evaluation.
+  # Shapefile paths are relative to {sim_study_head_dir}/aggregation_shapefiles/ unless absolute.
   aggregation_levels:
-    National: 'NAME_0'
-    Oblast: 'NAME_1'
+    National:
+      shapefile: 'ukraine_national.shp'
+      name_column: 'NAME_0'
+      reference_yield_column: null
+      year_column: null
+    Oblast:
+      shapefile: 'ukraine_oblasts.shp'
+      name_column: 'NAME_1'
+      reference_yield_column: 'ref_yield_kg_ha'
+      year_column: 'year'
 
 
 ########################################
@@ -226,13 +232,13 @@ scripts:
   lai_quicklook: '../lai/4_quicklook.py'
   match_sim_real_quicklook: '../reporting/generate_matching_report.py'
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
-  estimate_total_yield: '../matching_sim_real/estimate_total_yield.py'
-  aggregate_yield_estimates: '../matching_sim_real/aggregate_yield_estimates.py'
-  aggregate_maps : '../reporting/aggregate_maps.py'
+  mosaic_and_reproject: '../reporting/mosaic_and_reproject.py'
+  aggregate_primary_yield_stats: '../matching_sim_real/aggregate_primary_yield_stats.py'
+  aggregate_supplementary_maps: '../reporting/aggregate_supplementary_maps.py'
   generate_aggregated_lai_curves_plot: '../reporting/generate_lai_plot.py'
   aggregate_met_stats: '../reporting/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../evaluation/evaluate_yield_estimates.py'
-  aggregate_yield_estimates_per_eval_lvl: '../reporting/aggregate_yield_estimates_per_eval_lvl.py'
+  aggregate_yield_stats_per_level: '../reporting/aggregate_yield_stats_per_level.py'
   construct_chirps_data: '../met_data/construct_chirps_precipitation_files.py'
   reproject_cropmask: '../lai/0_reproj_mask.py'
   generate_multiyear_comparison: '../reporting/generate_multiyear_comparison.py'
