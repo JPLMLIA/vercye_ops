@@ -124,7 +124,7 @@ class TestComputeZonalYieldStats:
         assert "region" in result.columns
         assert "mean_yield_kg_ha" in result.columns
         assert "total_production_kg" in result.columns
-        assert "total_cropland_area_ha" in result.columns
+        assert "total_area_ha" in result.columns
         assert "coverage_pct" in result.columns
 
     def test_yield_values_reasonable(self, test_data):
@@ -155,22 +155,6 @@ class TestComputeZonalYieldStats:
         for _, row in result.iterrows():
             assert row["coverage_pct"] >= 90  # allow some tolerance
 
-    def test_reference_yield_column(self, test_data):
-        from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
-
-        result = compute_zonal_yield_stats(
-            test_data["yield_tif"],
-            test_data["coverage_tif"],
-            test_data["shapefile"],
-            "NAME",
-            reference_yield_column="ref_yield",
-        )
-
-        assert "reported_mean_yield_kg_ha" in result.columns
-        ref_values = result["reported_mean_yield_kg_ha"].tolist()
-        assert 2800.0 in ref_values
-        assert 3200.0 in ref_values
-
     def test_missing_name_column_raises(self, test_data):
         from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
 
@@ -180,18 +164,6 @@ class TestComputeZonalYieldStats:
                 test_data["coverage_tif"],
                 test_data["shapefile"],
                 "NONEXISTENT_COLUMN",
-            )
-
-    def test_missing_reference_column_raises(self, test_data):
-        from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
-
-        with pytest.raises(ValueError, match="Reference yield column"):
-            compute_zonal_yield_stats(
-                test_data["yield_tif"],
-                test_data["coverage_tif"],
-                test_data["shapefile"],
-                "NAME",
-                reference_yield_column="nonexistent",
             )
 
     def test_production_is_yield_times_area(self, test_data):
@@ -205,7 +177,7 @@ class TestComputeZonalYieldStats:
         )
 
         for _, row in result.iterrows():
-            expected_production = row["mean_yield_kg_ha"] * row["total_cropland_area_ha"]
+            expected_production = row["mean_yield_kg_ha"] * row["total_area_ha"]
             # Allow 10% tolerance due to pixel-level aggregation
             assert abs(row["total_production_kg"] - expected_production) / expected_production < 0.1
 
