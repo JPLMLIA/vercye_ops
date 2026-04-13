@@ -324,15 +324,22 @@ def cli(val_fpath, estimation_fpath, out_eval_fpath, out_errors_fpath, out_plot_
 
     logger.info("Loading data...")
     preds_obs = get_preds_obs(estimation_fpath=estimation_fpath, val_fpath=val_fpath)
-    preds_obs_apsimonly = get_preds_obs(estimation_fpath=estimation_fpath, val_fpath=val_fpath, pixel_converted=False)
+    # Try loading the apsim-only (non-pixel-converted) predictions.
+    # After the aggregation refactor, CSVs may not contain apsim_mean_yield_estimate_kg_ha;
+    # in that case, skip the apsim-only evaluation gracefully.
+    try:
+        preds_obs_apsimonly = get_preds_obs(estimation_fpath=estimation_fpath, val_fpath=val_fpath, pixel_converted=False)
+    except ValueError:
+        preds_obs_apsimonly = None
 
     logger.info("Computing metrics...")
     metrics = compute_metrics(preds=preds_obs["preds"], obs=preds_obs["obs"])
-    metrics_apsimonly = compute_metrics(preds=preds_obs_apsimonly["preds"], obs=preds_obs_apsimonly["obs"])
     write_metrics(metrics, out_eval_fpath)
 
-    out_eval_fpath_apsim = str(out_eval_fpath).replace(".csv", "_no-pixel-conversion.csv")
-    write_metrics(metrics_apsimonly, out_eval_fpath_apsim)
+    if preds_obs_apsimonly is not None:
+        metrics_apsimonly = compute_metrics(preds=preds_obs_apsimonly["preds"], obs=preds_obs_apsimonly["obs"])
+        out_eval_fpath_apsim = str(out_eval_fpath).replace(".csv", "_no-pixel-conversion.csv")
+        write_metrics(metrics_apsimonly, out_eval_fpath_apsim)
 
     logger.info("Computing errors...")
     errors = compute_errors_per_region(preds_obs["preds"], obs=preds_obs["obs"], region_names=preds_obs["region"])
@@ -340,10 +347,12 @@ def cli(val_fpath, estimation_fpath, out_eval_fpath, out_errors_fpath, out_plot_
 
     logger.info("Creating scatter plot...")
     scatter_plot = create_scatter_plot(preds=preds_obs["preds"], obs=preds_obs["obs"])
-    scatter_plot_apsimonly = create_scatter_plot(preds=preds_obs_apsimonly["preds"], obs=preds_obs_apsimonly["obs"])
     save_scatter_plot(scatter_plot, out_plot_fpath)
-    out_plot_fpath_apsimonly = str(out_plot_fpath).replace(".png", "_no-pixel-conversion.png")
-    save_scatter_plot(scatter_plot_apsimonly, out_plot_fpath_apsimonly)
+
+    if preds_obs_apsimonly is not None:
+        scatter_plot_apsimonly = create_scatter_plot(preds=preds_obs_apsimonly["preds"], obs=preds_obs_apsimonly["obs"])
+        out_plot_fpath_apsimonly = str(out_plot_fpath).replace(".png", "_no-pixel-conversion.png")
+        save_scatter_plot(scatter_plot_apsimonly, out_plot_fpath_apsimonly)
 
     logger.info("Done! Metrics and scatter plot saved successfully.")
 

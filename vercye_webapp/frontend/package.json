@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@types/shpjs": "^3.4.7",
+    "chart.js": "^4.5.1",
     "leaflet": "^1.9.4",
     "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.1",
     "shpjs": "^6.1.0"

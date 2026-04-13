@@ -316,7 +316,7 @@ class TestWeightedAggregationEndToEnd:
         assert abs(wm - 1000) < abs(wm - 5000)
 
     def test_unweighted_mean_would_give_wrong_answer(self):
-        """Show that a simple (unweighted) mean gives a different—incorrect—answer."""
+        """Show that a simple (unweighted) mean gives a different-incorrect-answer."""
         df = _make_estimation_df(
             [
                 {

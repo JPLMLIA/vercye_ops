@@ -8,7 +8,7 @@ import tempfile
 import threading
 import time
 import zipfile
-from collections import defaultdict, deque
+from collections import deque
 from glob import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -21,6 +21,9 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from models import (
+    AggregationShapefileConfigWithColumns,
+    AggregationShapefileConfig,
+    ShapefileColumnInfo,
     DuplicateStudyRequest,
     LAIConfigRunParams,
     RegionExtractionResponse,
@@ -106,13 +109,17 @@ async def register_from_existing(existing_study_id: str, body: DuplicateStudyReq
     )
 
 
+# TODO: This endpoint has gotten a bit messey especially it is hard to follow
+# What related to duplication handling, to existing config modification and general setup.
+# This needs to be cleaned up to remove ambiguity
+# Also not super happy with the current empty file placeholder approach - should look into this again
 @router.post("/{study_id}/setup")
 async def setup_study(
     study_id: StudyID,
     setup_data: str = Form(...),
     shapefile: UploadFile = File(...),
     apsim_files: List[UploadFile] = File(...),
-    reference_files: Optional[List[UploadFile]] = File(None),
+    aggregation_shapefiles: Optional[List[UploadFile]] = File(None),
 ):
     try:
         setup_dict = json.loads(setup_data)
@@ -136,8 +143,7 @@ async def setup_study(
     study_root = Path(studies_dir) / str(study_id)
     shapefile_dir = study_root / "shapefile"
     apsim_dir = study_root / "apsim"
-    refdata_dir = study_root / "reference_data"
-    for d in (shapefile_dir, apsim_dir, refdata_dir):
+    for d in (shapefile_dir, apsim_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     if not shapefile:
@@ -152,21 +158,33 @@ async def setup_study(
         shutil.rmtree(shapefile_dir)
         os.makedirs(shapefile_dir)
 
-        if not shapefile.filename or not shapefile.filename.lower().endswith(".zip"):
-            raise HTTPException(status_code=400, detail="Shapefile must be a .zip")
-        # Check if the file is a valid ZIP
-        is_zip = await run_in_threadpool(zipfile.is_zipfile, io.BytesIO(data))
-        if not is_zip:
-            raise HTTPException(status_code=400, detail="Not a valid ZIP")
+        filename_lower = (shapefile.filename or "").lower()
 
-        # Extract the ZIP into the shapefile_dir
-        await run_in_threadpool(lambda: zipfile.ZipFile(io.BytesIO(data)).extractall(shapefile_dir))
+        if filename_lower.endswith(".geojson") or filename_lower.endswith(".json"):
+            # GeoJSON file - save directly
+            geojson_path = shapefile_dir / shapefile.filename
+            async with aiofiles.open(geojson_path, "wb") as out:
+                await out.write(data)
+            shapefile_path = str(geojson_path)
 
-        # find the .shp file. There must only be a single one
-        shp_files = list(shapefile_dir.glob("*.shp"))
-        if len(shp_files) != 1:
-            raise HTTPException(status_code=400, detail=f"Expected exactly one .shp file, found {len(shp_files)}")
-        shapefile_path = str(shp_files[0])
+        elif filename_lower.endswith(".zip"):
+            # Zipped shapefile - extract
+            is_zip = await run_in_threadpool(zipfile.is_zipfile, io.BytesIO(data))
+            if not is_zip:
+                raise HTTPException(status_code=400, detail="Not a valid ZIP")
+
+            await run_in_threadpool(lambda: zipfile.ZipFile(io.BytesIO(data)).extractall(shapefile_dir))
+
+            shp_files = list(shapefile_dir.glob("*.shp"))
+            if len(shp_files) != 1:
+                raise HTTPException(status_code=400, detail=f"Expected exactly one .shp file, found {len(shp_files)}")
+            shapefile_path = str(shp_files[0])
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Primary regions file must be a .zip (shapefile) or .geojson",
+            )
     else:
         # Check if empty file is a placeholder by looking up if true filename exists
         if not Path(current_setup_config["regions_shp_name"]).name == shapefile.filename:
@@ -198,30 +216,6 @@ async def setup_study(
                     await out.write(content)
 
     await save_apsim_files(apsim_files, apsim_dir)
-
-    refdata_paths_to_modify = {}
-
-    async def save_refdata_files(files, dest_dir):
-        all_available_files = {f: os.path.join(refdata_dir, f) for f in os.listdir(refdata_dir)}
-
-        if not files:
-            return
-        for uf in files:
-            if not uf.filename:
-                continue
-            content = await uf.read()
-
-            # Check if placeholder files were used
-            if not content:
-                if uf.filename not in all_available_files:
-                    raise HTTPException(status_code=400, detail="Empty ReferenceData File provided!")
-                refdata_paths_to_modify[uf.filename] = all_available_files[uf.filename]
-            else:
-                async with aiofiles.open(dest_dir / uf.filename, "wb") as out:
-                    await out.write(content)
-
-    if reference_files:
-        await save_refdata_files(reference_files, refdata_dir)
 
     setup_cfg["regions_shp_name"] = shapefile_path
     setup_cfg["regions_shp_col"] = setup_submission.region_extraction.admin_name_column
@@ -271,28 +265,107 @@ async def setup_study(
             apsim_paths[region] = apsim_path
     setup_cfg["APSIM_TEMPLATE_PATHS"] = apsim_paths
 
-    ref_data_paths = defaultdict(list)
-    for filename, admin_lvl in setup_submission.reference_mapping.items():
-        if filename not in setup_submission.reference_years_mapping:
-            raise HTTPException(
-                status_code=400,
-                detail="Reference data files must be mapped to year AND admin level.",
-            )
+    # Handle aggregation shapefiles
+    agg_shp_dir = study_root / "aggregation_shapefiles"
+    agg_shp_dir.mkdir(parents=True, exist_ok=True)
 
-        # Copy file to correct name
-        refdata_year = setup_submission.reference_years_mapping[filename]
-        if filename in refdata_paths_to_modify:
-            # File is just a placeholde rand exists lcally already
-            refdata_file_dst_name = refdata_paths_to_modify[filename]
+    agg_shp_config = {}
+
+    # Check for real uploaded files (placeholder files from duplication have size 0)
+    real_uploads = []
+    if aggregation_shapefiles:
+        for uf in aggregation_shapefiles:
+            content = await uf.read()
+            if content:
+                real_uploads.append((uf, content))
+
+    if real_uploads:
+        agg_shp_configs_by_filename = {cfg.level_name: cfg for cfg in setup_submission.aggregation_shapefiles}
+
+        for uf, content in real_uploads:
+            if not uf.filename:
+                continue
+
+            filename_lower = uf.filename.lower()
+            file_stem = Path(uf.filename).stem
+
+            if filename_lower.endswith(".geojson") or filename_lower.endswith(".json"):
+                # GeoJSON - save directly
+                geojson_dest = agg_shp_dir / uf.filename
+                async with aiofiles.open(geojson_dest, "wb") as out:
+                    await out.write(content)
+                resolved_path = str(geojson_dest)
+
+            elif filename_lower.endswith(".zip"):
+                # Zipped shapefile - extract
+                is_zip = await run_in_threadpool(zipfile.is_zipfile, io.BytesIO(content))
+                if not is_zip:
+                    raise HTTPException(status_code=400, detail=f"Aggregation file {uf.filename} is not a valid ZIP")
+
+                extract_dir = agg_shp_dir / file_stem
+                extract_dir.mkdir(parents=True, exist_ok=True)
+                await run_in_threadpool(lambda: zipfile.ZipFile(io.BytesIO(content)).extractall(extract_dir))
+
+                shp_files = list(extract_dir.glob("*.shp"))
+                if len(shp_files) != 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Expected exactly one .shp file in {uf.filename}, found {len(shp_files)}",
+                    )
+                resolved_path = str(shp_files[0])
+
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Aggregation file {uf.filename} must be a .zip or .geojson",
+                )
+
+            # Find matching config by matching filename to level configs
+            for level_name, cfg in agg_shp_configs_by_filename.items():
+                if (
+                    file_stem == level_name
+                    or uf.filename.replace(".zip", "").replace(".geojson", "").replace(".json", "") == level_name
+                ):
+                    agg_shp_config[level_name] = {
+                        "shapefile_path": resolved_path,
+                        "name_column": cfg.name_column,
+                        "reference_yield_column": cfg.reference_yield_column,
+                        "year_column": cfg.year_column,
+                    }
+                    break
+            else:
+                # If no matching config found, try to match by order
+                for level_name, cfg in agg_shp_configs_by_filename.items():
+                    if level_name not in agg_shp_config:
+                        agg_shp_config[level_name] = {
+                            "shapefile_path": resolved_path,
+                            "name_column": cfg.name_column,
+                            "reference_yield_column": cfg.reference_yield_column,
+                        }
+                        break
+
+    elif setup_submission.aggregation_shapefiles:
+        # No new files uploaded but configs exist (e.g. duplicated study) —
+        # preserve existing shapefile paths from the current study config
+        existing_config_path = get_setup_config_file_path(studies_dir, study_id)
+        if os.path.exists(existing_config_path):
+            existing_config = get_setup_config(studies_dir, study_id)
+            existing_agg = existing_config.get("AGGREGATION_SHAPEFILES", {})
         else:
-            refdata_file_dst_name = os.path.join(refdata_dir, f"referencedata_{admin_lvl}-{str(refdata_year)}.csv")
-            refdata_src_path = os.path.join(refdata_dir, filename)
-            if refdata_src_path != refdata_file_dst_name:
-                shutil.copyfile(refdata_src_path, refdata_file_dst_name)
+            existing_agg = {}
 
-        ref_data_paths[int(refdata_year)].append({admin_lvl: refdata_file_dst_name})
+        for cfg in setup_submission.aggregation_shapefiles:
+            existing_level = existing_agg.get(cfg.level_name, {})
+            existing_path = existing_level.get("shapefile_path", "")
+            if existing_path and os.path.exists(existing_path):
+                agg_shp_config[cfg.level_name] = {
+                    "shapefile_path": existing_path,
+                    "name_column": cfg.name_column,
+                    "reference_yield_column": cfg.reference_yield_column,
+                    "year_column": cfg.year_column,
+                }
 
-    setup_cfg["REFERENCE_DATA_PATHS"] = dict(ref_data_paths)
+    setup_cfg["AGGREGATION_SHAPEFILES"] = agg_shp_config
     setup_cfg["creation_request_params"] = setup_submission.dict()
 
     setup_cfg_path = study_root / "setup_config.yaml"
@@ -342,11 +415,6 @@ def fetch_setup_config(study_id: StudyID):
     apsim_files = list(apsim_mapping.keys())
     apsim_column = str(raw.get("apsim_column", ""))
 
-    # reference
-    ref_mapping = raw.get("reference_mapping", {})
-    ref_years_mapping = raw.get("reference_years_mapping", {})
-    ref_files = list(ref_mapping.keys())
-
     # shapefile
     try:
         gdf = gpd.read_file(config["regions_shp_name"])
@@ -358,20 +426,95 @@ def fetch_setup_config(study_id: StudyID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read shapefile: {e}")
 
+    # aggregation shapefiles — enrich with columns read from stored files
+    agg_shp_raw = raw.get("aggregation_shapefiles", [])
+    agg_shp_stored = config.get("AGGREGATION_SHAPEFILES", {})
+    agg_shp_configs: list[AggregationShapefileConfigWithColumns] = []
+    agg_shp_names: list[str] = []
+
+    for s in (agg_shp_raw or []):
+        base = AggregationShapefileConfig(**s)
+        columns: list[ShapefileColumnInfo] = []
+        stored = agg_shp_stored.get(base.level_name, {})
+        shp_path = stored.get("shapefile_path", "")
+        if shp_path:
+            agg_shp_names.append(Path(shp_path).name)
+            try:
+                gdf_agg = gpd.read_file(shp_path)
+                for col in gdf_agg.columns:
+                    if col == "geometry":
+                        continue
+                    columns.append(ShapefileColumnInfo(
+                        name=col,
+                        dtype=str(gdf_agg[col].dtype),
+                        is_numeric=gdf_agg[col].dtype.kind in ("i", "f"),
+                    ))
+            except Exception:
+                pass  # columns stay empty; user can re-upload
+        agg_shp_configs.append(AggregationShapefileConfigWithColumns(
+            **base.model_dump(), columns=columns,
+        ))
+
     return SetupConfigTemplate(
         regionExtraction=region_extraction,
         apsimColumn=apsim_column,
         apsimMapping=apsim_mapping,
         apsimFiles=apsim_files,
-        referenceMapping=ref_mapping,
-        referenceYearsMapping=ref_years_mapping,
-        referenceFiles=ref_files,
+        aggregationShapefiles=agg_shp_configs,
+        aggregationShapefileNames=agg_shp_names,
         years=years,
         timepoints=timepoints,
         simulationWindows=windows,
         shapefileData=ShapefileData(**shapefile_geojson),
         shapefileName=shapefile_name,
     )
+
+
+@router.post("/{study_id}/shapefile-columns")
+async def get_shapefile_columns(
+    study_id: StudyID,
+    shapefile: UploadFile = File(...),
+):
+    """Extract column names and dtypes from an uploaded shapefile (.zip) or GeoJSON for UI dropdowns."""
+    data = await shapefile.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file provided")
+
+    filename_lower = (shapefile.filename or "").lower()
+
+    if filename_lower.endswith(".geojson") or filename_lower.endswith(".json"):
+        # GeoJSON - read directly from bytes
+        with tempfile.NamedTemporaryFile(suffix=".geojson", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        try:
+            gdf = gpd.read_file(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+    elif filename_lower.endswith(".zip"):
+        is_zip = await run_in_threadpool(zipfile.is_zipfile, io.BytesIO(data))
+        if not is_zip:
+            raise HTTPException(status_code=400, detail="Not a valid ZIP")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            await run_in_threadpool(lambda: zipfile.ZipFile(io.BytesIO(data)).extractall(tmp_dir))
+            shp_files = list(Path(tmp_dir).glob("*.shp"))
+            if len(shp_files) != 1:
+                raise HTTPException(status_code=400, detail=f"Expected exactly one .shp file, found {len(shp_files)}")
+            gdf = gpd.read_file(str(shp_files[0]))
+    else:
+        raise HTTPException(status_code=400, detail="File must be a .zip (shapefile) or .geojson")
+
+    columns = []
+    for col in gdf.columns:
+        if col == "geometry":
+            continue
+        dtype = str(gdf[col].dtype)
+        is_numeric = gdf[col].dtype.kind in ("i", "f")
+        columns.append({"name": col, "dtype": dtype, "is_numeric": is_numeric})
+
+    return {"columns": columns}
 
 
 @router.post("/{study_id}/run-config")

@@ -22,9 +22,9 @@ logger.setLevel("INFO")
 
 def compute_global_summary(regions_summary):
     total_area_ha = regions_summary["total_area_ha"].sum()
-    total_yield_production_ton = regions_summary["total_yield_production_ton"].sum()
-    total_yield_production_kg = regions_summary["total_yield_production_kg"].sum()
-    mean_yield_kg = total_yield_production_kg / total_area_ha
+    total_production_ton = regions_summary["total_production_ton"].sum()
+    total_production_kg = regions_summary["total_production_kg"].sum()
+    mean_yield_kg = total_production_kg / total_area_ha
 
     num_total_region = len(regions_summary)
 
@@ -68,7 +68,7 @@ def compute_global_summary(regions_summary):
 
     return {
         "total_area_ha": total_area_ha,
-        "total_yield_production_ton": total_yield_production_ton,
+        "total_production_ton": total_production_ton,
         "mean_yield_kg": mean_yield_kg,
         "reported_total_production_ton": reported_total_production_ton,
         "mean_reported_yield_kg": mean_reported_yield_kg,
@@ -97,6 +97,13 @@ def create_map(regions_summary, combined_geojson):
     combined_geojson["region"] = combined_geojson["region"].astype(str)
     regions_summary["region"] = regions_summary["region"].astype(str)
     merged = combined_geojson.merge(regions_summary, left_on="region", right_on="region")
+
+    if merged.empty or merged["mean_yield_kg_ha"].dropna().empty:
+        logger.warning("No matching regions between geometry and summary data - returning empty map")
+        fig, ax = plt.subplots(figsize=(12, 8))
+        ax.set_title("No data available for this aggregation level", fontsize=16)
+        ax.axis("off")
+        return ax
 
     yield_values = merged["mean_yield_kg_ha"]
     vmin = np.nanpercentile(yield_values, 2)
@@ -138,11 +145,20 @@ def create_map(regions_summary, combined_geojson):
     return ax
 
 
-def combine_geojsons(regions_geometry_paths, admin_column_name):
+def load_admin_shapefile(shapefile_path, name_column):
+    """Load an aggregation-level shapefile and use its geometries directly for the report map."""
+    gdf = gpd.read_file(shapefile_path)
+    gdf[name_column] = gdf[name_column].astype(str)
+    gdf = gdf.drop_duplicates(subset=[name_column]).reset_index(drop=True)
+    gdf["region"] = gdf[name_column]
+    return gdf
+
+
+def combine_geojsons(regions_geometry_paths):
+    """Combine individual simulation-region GeoJSONs into a single GeoDataFrame."""
     geo_dfs = []
     crs = None
 
-    # Case 1: This is the simulation level geojsons - no aggregation admin column needed
     for region, path in regions_geometry_paths.items():
         if op.exists(path):
             gdf = gpd.read_file(path)
@@ -155,21 +171,22 @@ def combine_geojsons(regions_geometry_paths, admin_column_name):
             geo_dfs.append(gdf)
 
     combined_gdf = gpd.GeoDataFrame(pd.concat(geo_dfs, ignore_index=True), crs=geo_dfs[0].crs)
-
-    # case 2: This is the aggregated geojsons - we need to merge them based on the admin column
-    if admin_column_name is not None:
-        combined_gdf = combined_gdf.dissolve(by=admin_column_name).reset_index()
-        combined_gdf["region"] = combined_gdf[admin_column_name]
-
     return combined_gdf
 
 
 def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840, height=2160):
     with rasterio.open(geotiff_path) as src:
-        data = src.read(1)
+        # Downsample large rasters on read to avoid OOM - target ~4000px on longest side
+        max_dim = 4000
+        scale = min(max_dim / src.height, max_dim / src.width, 1.0)
+        out_height = max(1, int(src.height * scale))
+        out_width = max(1, int(src.width * scale))
+
+        data = src.read(1, out_shape=(out_height, out_width))
+        nodata = src.nodata
 
     # Replace no-data values with NaN for visualization
-    data = np.where(data == src.nodata, np.nan, data)
+    data = np.where(data == nodata, np.nan, data)
 
     # Normalize the data for color mapping
     # Using percentiles to avoid outliers affecting the color mapping. Outliers will have the same color.
@@ -182,7 +199,7 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     colored_data[np.isnan(data)] = [0.7, 0.7, 0.7, 1]
     rgb_image = (colored_data[:, :, :3] * 255).astype(np.uint8)
 
-    fig, ax = plt.subplots(figsize=(12, 8), dpi=800, constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=300, constrained_layout=True)
 
     ax.imshow(rgb_image, aspect="equal")
     ax.axis("off")
@@ -209,6 +226,7 @@ def build_section_params(
     evaluation_results_path,
     regions_dir,
     admin_column_name,
+    admin_shapefile_path=None,
 ):
     logger.info(f"Building section parameters for {section_name}...")
     regions_summary = pd.read_csv(aggregated_yield_estimates_path)
@@ -244,9 +262,14 @@ def build_section_params(
             reference_yield_agg = total_production_kg / total_area_ha if total_area_ha > 0 else None
 
     logger.info("Loading and combining region geometries...")
-    regions_geometry_paths = get_regions_geometry_paths(regions_dir)
-    combined_geojson = combine_geojsons(regions_geometry_paths, admin_column_name)
-    logger.info(f"Combined geojson shape: {combined_geojson.shape}. Num regions: {len(regions_geometry_paths)}")
+    if admin_shapefile_path is not None and admin_column_name is not None:
+        # Use the aggregation-level shapefile directly - it has the correct admin boundaries
+        combined_geojson = load_admin_shapefile(admin_shapefile_path, admin_column_name)
+    else:
+        # Primary level: combine individual simulation-region GeoJSONs
+        regions_geometry_paths = get_regions_geometry_paths(regions_dir)
+        combined_geojson = combine_geojsons(regions_geometry_paths)
+    logger.info(f"Combined geojson shape: {combined_geojson.shape}. Num regions: {len(combined_geojson)}")
 
     logger.info("Creating vector yield map...")
     yield_map = create_map(regions_summary, combined_geojson)
@@ -381,7 +404,7 @@ def fill_section_template(
                         <td>{safe_int(row['mean_yield_kg_ha'])}</td>
                         <td>{safe_int(row['median_yield_kg_ha'])}</td>
                         {f'<td>{safe_int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A"}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
-                        <td>{'{:,}'.format(row['total_yield_production_ton'])}</td>
+                        <td>{'{:,}'.format(row['total_production_ton'])}</td>
                         {f'<td>{"{:,.2f}".format((row["reported_production_kg"] / 1000)) if not pd.isna(row["reported_production_kg"]) else "N/A"}</td>' if 'reported_production_kg' in row else ''}
                         {f'<td>{safe_int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
                         <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
@@ -498,7 +521,7 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <strong>Regions Shapefile:</strong> {original_regions_shp}</br></br>
             <strong>Estimated Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>Reported Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
-            <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_yield_production_ton'])} t</br>
+            <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_production_ton'])} t</br>
             {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t (from {num_available_regions_production}/{num_regions} regions)</br>" if global_summary['reported_total_production_ton'] is not None else ''}
             <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
 
@@ -531,6 +554,7 @@ def create_final_report(input, output, params, log, wildcards):
     regions_dir = params["regions_dir"]
     pixel_level_yieldmap_path = input["pixel_level_yieldmap"]
     aggregationsuffix_admincol = params["suffix_admincols"]  # dict of aggregation level suffixes and admin column names
+    suffix_shapefiles = params.get("suffix_shapefiles", {})  # dict of aggregation level suffixes to shapefile paths
     primary_suffix = params["primary_suffix"]  # should be just primary - is the simulation level suffix
     year = wildcards["year"]
 
@@ -591,6 +615,7 @@ def create_final_report(input, output, params, log, wildcards):
             evaluation_results_path=evaluation_results_path,
             regions_dir=regions_dir,
             admin_column_name=admin_column_name,
+            admin_shapefile_path=suffix_shapefiles.get(suffix),
         )
 
         sections[suffix] = fill_section_template(

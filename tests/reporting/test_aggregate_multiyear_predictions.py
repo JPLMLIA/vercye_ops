@@ -18,8 +18,14 @@ from vercye_ops.reporting.aggregate_multiyear_predictions import (
 # ---------------------------------------------------------------------------
 
 
-def _create_dir_structure(base, years_timepoints, agg_levels=None):
+DEFAULT_STUDY_ID = "teststudy"
+
+
+def _create_dir_structure(base, years_timepoints, agg_levels=None, study_id=DEFAULT_STUDY_ID):
     """Create a realistic directory structure with prediction and GT files.
+
+    Prediction filename schema (matches the pipeline):
+        agg_yield_estimates_{level_name}_{study_id}_{year}_{timepoint}.csv
 
     years_timepoints: dict like {"2022": ["T-0", "T-1"], "2023": ["T-0"]}
     agg_levels: list like ["county", "state"], if None defaults to ["county"]
@@ -39,7 +45,10 @@ def _create_dir_structure(base, years_timepoints, agg_levels=None):
                     }
                 )
                 pred_df.to_csv(
-                    os.path.join(tp_dir, f"agg_yield_estimates_{agg}_{year}.csv"),
+                    os.path.join(
+                        tp_dir,
+                        f"agg_yield_estimates_{agg}_{study_id}_{year}_{tp}.csv",
+                    ),
                     index=False,
                 )
 
@@ -119,10 +128,12 @@ class TestCollectFiles:
 
     def test_raises_on_duplicate_pred_files(self, tmp_path):
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"]})
-        # Create a second matching file
+        # Create a second file that also matches the collect_files glob for
+        # county/2022/T-0 but with a different study_id.
         tp_dir = os.path.join(str(tmp_path), "2022", "T-0")
         pd.DataFrame({"region": ["A"]}).to_csv(
-            os.path.join(tp_dir, "agg_yield_estimates_county_extra.csv"), index=False
+            os.path.join(tp_dir, "agg_yield_estimates_county_otherstudy_2022_T-0.csv"),
+            index=False,
         )
         with pytest.raises(Exception, match="More than one"):
             collect_files(str(tmp_path), "county", "T-0")

@@ -1,13 +1,15 @@
 import glob
-import json
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
 
+import pandas as pd
 import yaml
+
+from vercye_ops.met_data.fetch_era5 import init_ee
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -66,6 +68,9 @@ def validate_run_config(config_file):
 
     # Validate evaluation parameters
     _validate_eval_params(config)
+
+    # Validate packaging / upload parameters (optional)
+    _validate_packaging_params(config)
 
     # Validate script paths
     _validate_script_paths(config)
@@ -422,79 +427,155 @@ def _validate_eval_params(config):
     eval_params = config.get("eval_params", {})
     aggregation_levels = eval_params.get("aggregation_levels", {})
 
-    # Check for colons in aggregation level names (not allowed)
-    for level_name, column_name in aggregation_levels.items():
+    # Check for colons/spaces in aggregation level names
+    for level_name in aggregation_levels:
         if ":" in level_name or " " in level_name:
             raise ValueError(f"Aggregation level name '{level_name}' contains colon or space, which is not allowed")
-        if ":" in column_name or " " in column_name:
-            raise ValueError(f"Aggregation level column '{column_name}' contains colon or space, which is not allowed")
 
-    # Validate aggregation levels exist in GeoJSON files
-    _validate_aggregation_levels_in_geojson(config)
-
-    _validate_aggregation_names(config)
+    # Validate aggregation shapefiles
+    _validate_aggregation_shapefiles(config)
 
     print("✓ Evaluation parameters validated")
 
 
-def _validate_aggregation_names(config):
-    """Validate that the aggregation names are matching with reference data"""
-    ref_files_agg_lvls = []
-    for year in config["years"]:
-        for timepoint in config["timepoints"]:
-            d = os.path.join(config["sim_study_head_dir"], str(year), timepoint)
-            pattern = "referencedata*.csv"
-            reference_data_files = glob.glob(os.path.join(d, pattern))
+def _validate_aggregation_shapefiles(config):
+    """Validate aggregation shapefiles exist and have required columns."""
+    import geopandas as gpd
 
-            for ref_file in reference_data_files:
-                agg_lvl = Path(ref_file).name.split("_")[1]
-                ref_files_agg_lvls.append(agg_lvl)
-
-    unused_agg_lvls = set(ref_files_agg_lvls) - set(config["eval_params"]["aggregation_levels"])
-
-    if len(unused_agg_lvls) != 0:
-        print(
-            f"⚠️  Found unused reference data at aggregation levels: {unused_agg_lvls}."
-            f"Ensure you have correctly set the eval_params.aggregation_levels keys to match these."
-        )
-
-
-def _validate_aggregation_levels_in_geojson(config):
-    """Validate that aggregation levels exist in GeoJSON files."""
-    regions = config.get("regions", [])
-    years = config.get("years", [])
-    timepoints = config.get("timepoints", [])
-    head_dir = config.get("sim_study_head_dir", "")
     aggregation_levels = config.get("eval_params", {}).get("aggregation_levels", {})
 
     if not aggregation_levels:
         return
 
-    # Check the first available GeoJSON file
-    for year in years:
-        for timepoint in timepoints:
-            for region in regions:
-                region_dir = os.path.join(head_dir, str(year), timepoint, region)
-                geojson_files = glob.glob(os.path.join(region_dir, "*.geojson"))
+    head_dir = config.get("sim_study_head_dir", "")
 
-                if geojson_files:
-                    try:
-                        with open(geojson_files[0], "r") as f:
-                            geojson_data = json.load(f)
+    for level_name, level_config in aggregation_levels.items():
+        if not isinstance(level_config, dict):
+            raise ValueError(
+                f"Aggregation level '{level_name}' must be a dict with 'shapefile', 'name_column', "
+                f"and optional 'reference_yield_column'. Got: {type(level_config)}"
+            )
 
-                        if "features" in geojson_data and geojson_data["features"]:
-                            properties = geojson_data["features"][0].get("properties", {})
+        shapefile_path = level_config.get("shapefile")
+        if not shapefile_path:
+            raise ValueError(f"Aggregation level '{level_name}' is missing 'shapefile' path.")
 
-                            for level_name, column_name in aggregation_levels.items():
-                                if column_name not in properties:
-                                    raise ValueError(
-                                        f"Aggregation level column '{column_name}' not found in GeoJSON properties"
-                                    )
+        # Resolve relative paths
+        if not os.path.isabs(shapefile_path):
+            shapefile_path = os.path.join(head_dir, "aggregation_shapefiles", shapefile_path)
 
-                        return  # Only need to check one file
+        if not os.path.exists(shapefile_path):
+            raise FileNotFoundError(f"Aggregation shapefile for level '{level_name}' not found at: {shapefile_path}")
 
-                    except (json.JSONDecodeError, KeyError) as e:
-                        raise ValueError(f"Invalid GeoJSON file {geojson_files[0]}: {e}")
+        # Read and validate
+        gdf = gpd.read_file(shapefile_path)
+
+        name_column = level_config.get("name_column")
+        if not name_column:
+            raise ValueError(f"Aggregation level '{level_name}' is missing 'name_column'.")
+        if name_column not in gdf.columns:
+            raise ValueError(
+                f"Column '{name_column}' not found in shapefile for level '{level_name}'. "
+                f"Available columns: {list(gdf.columns)}"
+            )
+
+        ref_yield_col = level_config.get("reference_yield_column")
+        if ref_yield_col:
+            if ref_yield_col not in gdf.columns:
+                raise ValueError(
+                    f"Reference yield column '{ref_yield_col}' not found in shapefile for level '{level_name}'. "
+                    f"Available columns: {list(gdf.columns)}"
+                )
+            if not pd.api.types.is_numeric_dtype(gdf[ref_yield_col]):
+                raise ValueError(f"Reference yield column '{ref_yield_col}' in level '{level_name}' must be numeric.")
+
+            # year_column is required when reference_yield_column is set
+            year_col = level_config.get("year_column")
+            if not year_col:
+                raise ValueError(
+                    f"Aggregation level '{level_name}' has reference_yield_column set but is missing 'year_column'. "
+                    "A year column is required to match reference data to simulation years."
+                )
+            if year_col not in gdf.columns:
+                raise ValueError(
+                    f"Year column '{year_col}' not found in shapefile for level '{level_name}'. "
+                    f"Available columns: {list(gdf.columns)}"
+                )
+
+        print(f"  ✓ Aggregation shapefile for '{level_name}' validated")
+
+
+def _validate_packaging_params(config):
+    """Validate packaging_params section. The section is optional; when set
+    it must reference a configured rclone remote and rclone must be installed
+    and able to reach the destination."""
+    from shutil import which
+
+    packaging_params = config.get("packaging_params") or {}
+    rclone_target = packaging_params.get("rclone_target", "") or ""
+    if not isinstance(rclone_target, str):
+        raise ValueError("packaging_params.rclone_target must be a string")
+    if not rclone_target.strip():
+        print("✓ Packaging params not set — upload step will be skipped")
+        return
+
+    rclone_folder_prefix = packaging_params.get("rclone_folder_prefix", "")
+    if rclone_folder_prefix and not isinstance(rclone_folder_prefix, str):
+        raise ValueError("packaging_params.rclone_folder_prefix must be a string if set")
+
+    if which("rclone") is None:
+        raise RuntimeError(
+            "rclone is required when packaging_params.rclone_target is set but was not found on PATH. "
+            "Install rclone (https://rclone.org/install/) and run `rclone config` to set up a remote."
+        )
+
+    # Target must be 'remote:' or 'remote:path'.
+    if ":" not in rclone_target:
+        raise ValueError(
+            f"packaging_params.rclone_target '{rclone_target}' must be a configured rclone remote "
+            "of the form 'remote:' or 'remote:path' (e.g. 'gdrive:vercye_kenya')."
+        )
+    remote_name = rclone_target.split(":", 1)[0]
+    if not re.match(r"^[A-Za-z0-9_-]+$", remote_name):
+        raise ValueError(
+            f"packaging_params.rclone_target '{rclone_target}' has an invalid remote name "
+            f"'{remote_name}'."
+        )
+
+    listr = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
+    if listr.returncode != 0:
+        raise RuntimeError(
+            f"`rclone listremotes` failed (exit {listr.returncode}): {listr.stderr.strip()}"
+        )
+    configured = {line.strip().rstrip(":") for line in listr.stdout.splitlines() if line.strip()}
+    if remote_name not in configured:
+        raise RuntimeError(
+            f"rclone remote '{remote_name}:' is not configured. "
+            f"Configured remotes: {sorted(configured) or 'none'}. "
+            "Run `rclone config` to add it."
+        )
+
+    probe_target = rclone_target.rstrip("/")
+    if rclone_folder_prefix:
+        probe_target = f"{probe_target}/{rclone_folder_prefix.strip('/')}"
+
+    try:
+        result = subprocess.run(
+            ["rclone", "lsf", "--dirs-only", probe_target],
+            capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"rclone probe of '{probe_target}' timed out after 60s.")
+    if result.returncode != 0:
+        stderr_lower = (result.stderr or "").lower()
+        # A missing leaf folder is fine — rclone creates it on upload.
+        if "directory not found" not in stderr_lower and "not found" not in stderr_lower:
+            raise RuntimeError(
+                f"Could not reach rclone target '{probe_target}' "
+                f"(exit {result.returncode}): {result.stderr.strip()}"
+            )
+
+    print(f"✓ Packaging params validated (rclone target: {rclone_target})")
 
 
 def _validate_script_paths(config):
@@ -545,10 +626,17 @@ def _validate_external_dependencies(config):
             import ee
 
             try:
+                init_ee(project=apsim_params.get("ee_project"))
+                print("✓ Earth Engine authentication verified")
+            except ImportError:
+                # Fallback if fetch_era5 can't be imported during validation
                 ee.Initialize(project=apsim_params.get("ee_project"))
                 print("✓ Earth Engine authentication verified")
             except Exception:
-                raise RuntimeError("Earth Engine authenticated not successfull. Please run 'earthengine authenticate'")
+                raise RuntimeError(
+                    "Earth Engine authentication not successful. "
+                    "Set EE_SERVICE_ACCOUNT_KEY to your service account key path, or run 'earthengine authenticate'."
+                )
         except ImportError:
             raise RuntimeError(
                 "Earth Engine Python API not installed. Please install with 'pip install earthengine-api'"
