@@ -8,6 +8,9 @@ from datetime import datetime
 import pandas as pd
 import yaml
 
+from vercye_ops.met_data.fetch_era5 import init_ee
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -65,6 +68,9 @@ def validate_run_config(config_file):
 
     # Validate evaluation parameters
     _validate_eval_params(config)
+
+    # Validate packaging / upload parameters (optional)
+    _validate_packaging_params(config)
 
     # Validate script paths
     _validate_script_paths(config)
@@ -499,6 +505,79 @@ def _validate_aggregation_shapefiles(config):
         print(f"  ✓ Aggregation shapefile for '{level_name}' validated")
 
 
+def _validate_packaging_params(config):
+    """Validate packaging_params section. The section is optional; when set
+    it must reference a configured rclone remote and rclone must be installed
+    and able to reach the destination."""
+    from shutil import which
+
+    packaging_params = config.get("packaging_params") or {}
+    rclone_target = packaging_params.get("rclone_target", "") or ""
+    if not isinstance(rclone_target, str):
+        raise ValueError("packaging_params.rclone_target must be a string")
+    if not rclone_target.strip():
+        print("✓ Packaging params not set — upload step will be skipped")
+        return
+
+    rclone_folder_prefix = packaging_params.get("rclone_folder_prefix", "")
+    if rclone_folder_prefix and not isinstance(rclone_folder_prefix, str):
+        raise ValueError("packaging_params.rclone_folder_prefix must be a string if set")
+
+    if which("rclone") is None:
+        raise RuntimeError(
+            "rclone is required when packaging_params.rclone_target is set but was not found on PATH. "
+            "Install rclone (https://rclone.org/install/) and run `rclone config` to set up a remote."
+        )
+
+    # Target must be 'remote:' or 'remote:path'.
+    if ":" not in rclone_target:
+        raise ValueError(
+            f"packaging_params.rclone_target '{rclone_target}' must be a configured rclone remote "
+            "of the form 'remote:' or 'remote:path' (e.g. 'gdrive:vercye_kenya')."
+        )
+    remote_name = rclone_target.split(":", 1)[0]
+    if not re.match(r"^[A-Za-z0-9_-]+$", remote_name):
+        raise ValueError(
+            f"packaging_params.rclone_target '{rclone_target}' has an invalid remote name "
+            f"'{remote_name}'."
+        )
+
+    listr = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
+    if listr.returncode != 0:
+        raise RuntimeError(
+            f"`rclone listremotes` failed (exit {listr.returncode}): {listr.stderr.strip()}"
+        )
+    configured = {line.strip().rstrip(":") for line in listr.stdout.splitlines() if line.strip()}
+    if remote_name not in configured:
+        raise RuntimeError(
+            f"rclone remote '{remote_name}:' is not configured. "
+            f"Configured remotes: {sorted(configured) or 'none'}. "
+            "Run `rclone config` to add it."
+        )
+
+    probe_target = rclone_target.rstrip("/")
+    if rclone_folder_prefix:
+        probe_target = f"{probe_target}/{rclone_folder_prefix.strip('/')}"
+
+    try:
+        result = subprocess.run(
+            ["rclone", "lsf", "--dirs-only", probe_target],
+            capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"rclone probe of '{probe_target}' timed out after 60s.")
+    if result.returncode != 0:
+        stderr_lower = (result.stderr or "").lower()
+        # A missing leaf folder is fine — rclone creates it on upload.
+        if "directory not found" not in stderr_lower and "not found" not in stderr_lower:
+            raise RuntimeError(
+                f"Could not reach rclone target '{probe_target}' "
+                f"(exit {result.returncode}): {result.stderr.strip()}"
+            )
+
+    print(f"✓ Packaging params validated (rclone target: {rclone_target})")
+
+
 def _validate_script_paths(config):
     """Validate that all script paths exist."""
     scripts = config.get("scripts", {})
@@ -547,10 +626,17 @@ def _validate_external_dependencies(config):
             import ee
 
             try:
+                init_ee(project=apsim_params.get("ee_project"))
+                print("✓ Earth Engine authentication verified")
+            except ImportError:
+                # Fallback if fetch_era5 can't be imported during validation
                 ee.Initialize(project=apsim_params.get("ee_project"))
                 print("✓ Earth Engine authentication verified")
             except Exception:
-                raise RuntimeError("Earth Engine authenticated not successfull. Please run 'earthengine authenticate'")
+                raise RuntimeError(
+                    "Earth Engine authentication not successful. "
+                    "Set EE_SERVICE_ACCOUNT_KEY to your service account key path, or run 'earthengine authenticate'."
+                )
         except ImportError:
             raise RuntimeError(
                 "Earth Engine Python API not installed. Please install with 'pip install earthengine-api'"

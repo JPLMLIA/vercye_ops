@@ -251,6 +251,12 @@ def prepare_study(config: Dict[str, any], output_dir: str, lai_config_path: Opti
             if "MATCHING_SCRIPT_PATH" in env_vars:
                 snakefile_config["scripts"]["match_sim_real"] = env_vars["MATCHING_SCRIPT_PATH"]
 
+            rclone_target = env_vars.get("RCLONE_TARGET", "")
+            if rclone_target:
+                snakefile_config.setdefault("packaging_params", {})
+                snakefile_config["packaging_params"]["rclone_target"] = rclone_target
+                snakefile_config["packaging_params"]["rclone_folder_prefix"] = env_vars.get("RCLONE_FOLDER_PREFIX", "")
+
         # Update cropmask keys based on required years
         cropmasks_data = {}
         for year in config["years"]:

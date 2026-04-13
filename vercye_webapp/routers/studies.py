@@ -109,6 +109,10 @@ async def register_from_existing(existing_study_id: str, body: DuplicateStudyReq
     )
 
 
+# TODO: This endpoint has gotten a bit messey especially it is hard to follow
+# What related to duplication handling, to existing config modification and general setup.
+# This needs to be cleaned up to remove ambiguity
+# Also not super happy with the current empty file placeholder approach - should look into this again
 @router.post("/{study_id}/setup")
 async def setup_study(
     study_id: StudyID,

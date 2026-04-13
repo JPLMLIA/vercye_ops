@@ -17,6 +17,7 @@ nav:
       - 'Troubleshooting': 'Vercye/troubleshooting.md'
       - 'Inputs': 'Vercye/inputs.md'
       - 'Outputs': 'Vercye/outputs.md'
+      - 'Results Upload (rsync)': 'Vercye/results_upload.md'
     - 'Meteorological Data': 'Vercye/metdata.md'
     - 'Vercye Library Architecture': 'Vercye/architecture.md'
     - 'APSIMX': 'Vercye/apsim.md'

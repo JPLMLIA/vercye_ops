@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 from celery import Celery, Task
 
+from vercye_ops.utils.file_sync import sync_tree_content_aware
 from vercye_ops.cli import init_study
 from vercye_ops.cli import prepare_study as prepare_vercye_study
 from vercye_ops.cli import run_study as run_vercye
@@ -112,10 +113,12 @@ def setup_vercye_task(study_id: str, studies_dir: str):
                 ruamel_yaml.dump(new_config, f)
 
             print(config_path)
-            # Copy to final destination, overwriting existing files but keeping others
-            # TODO this will lead to snakemake having to re-run everything if files were changed
+            # Copy to final destination. Only overwrite files whose contents
+            # actually changed so that unchanged files keep their mtimes and
+            # snakemake does not invalidate downstream rules unnecessarily
+            # (e.g. an APSIM-only update should not rerun LAI/met).
             os.makedirs(real_output_dir, exist_ok=True)
-            shutil.copytree(temp_output_dir, real_output_dir, dirs_exist_ok=True)
+            sync_tree_content_aware(temp_output_dir, real_output_dir)
             print(temp_output_dir)
             print(real_output_dir)
 

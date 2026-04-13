@@ -239,6 +239,26 @@ scripts:
   generate_multiyear_lai_report: '../reporting/generate_lai_report.py'
   agg_preds_multiyear: '../reporting/aggregate_multiyear_predictions.py'
   save_matched_sims: '../reporting/save_simulations.py'
+  package_and_upload: '../reporting/package_and_upload.py'
+  output_data_patterns: '../reporting/output_data_patterns.txt'
+
+########################################
+# Packaging / upload of final outputs (optional)
+########################################
+# When set, after the pipeline finishes a zip of the most relevant outputs
+# (matching ../reporting/output_data_patterns.txt — not every file) is
+# uploaded via rclone to
+#   <rclone_target>/<rclone_folder_prefix>/<study_id>_<YYYYMMDD>[_N]/
+#
+# rclone_target must be a configured rclone remote, e.g. 'gdrive:' or
+# 'gdrive:vercye_kenya'. Run `rclone config` once to set up a remote.
+# Remove/comment the section to skip the upload step.
+#
+# These are usually filled automatically from RCLONE_TARGET / RCLONE_FOLDER_PREFIX
+# in your .env file during `vercye prep`.
+packaging_params:
+  rclone_target: ''
+  rclone_folder_prefix: ''
 
 ########################################
 # Other (Typically dont change)

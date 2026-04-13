@@ -91,6 +91,11 @@ rule all:
             op.join(config['sim_study_head_dir'], "lai_report_{}_{}.pdf".format(sanitize_filename(config['study_id']), '{agg_lvl}')),
             agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
         ),
+        package_and_upload_marker = (
+            [op.join(config['sim_study_head_dir'], f".package_and_upload_{sanitize_filename(config['study_id'])}.done")]
+            if config.get('packaging_params', {}).get('rclone_target')
+            else []
+        ),
 
 # Workaround to expand outputs for individual valid regions with checkpointing as expand and wildcards don't work well together
 rule all_valid_outputs:
@@ -352,12 +357,12 @@ rule construct_plot_met_files:
 # Rule to sub in the .met files to a .apsimx simulation template
 rule update_apsimx_template:
     input:
+        apsimx_template_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_template.apsimx'),
         met_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather.met'),
         met_plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
         geometry = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.geojson'),
     params:
         script_fpath = config['scripts']['update_apsimx_template'],
-        head_dir = config['sim_study_head_dir'],
         sowing_date_col = config['apsim_params']['sowing_date_col'],
 
     log:
@@ -385,7 +390,7 @@ rule update_apsimx_template:
         fi
 
         python {params.script_fpath} \
-          --apsimx_template_fpath "{params.head_dir}/{wildcards.year}/{wildcards.timepoint}/{wildcards.region}/{wildcards.region}_template.apsimx" \
+          --apsimx_template_fpath {input.apsimx_template_fpath} \
           --apsimx_output_fpath {output.apsimx_fpath} \
           --new_met_fpath {input.met_fpath} \
           ${{SOWINGDATE_CMD[@]}} \
@@ -1107,4 +1112,37 @@ rule generate_multiyear_comparison:
         {params.adjusted_cmd} \
         --title "{params.title}" \
         --output-file {output}
+        """
+
+
+rule package_and_upload_outputs:
+    input:
+        # Proxy on the final aggregated artifacts so we run strictly last.
+        multiyear_report = op.join(config['sim_study_head_dir'], f"multiyear_summary_{sanitize_filename(config['study_id'])}.zip"),
+        final_reports = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints']
+        ),
+    params:
+        executable_fpath = config['scripts']['package_and_upload'],
+        patterns_file = config['scripts']['output_data_patterns'],
+        study_dir = config['sim_study_head_dir'],
+        study_id = sanitize_filename(config['study_id']),
+        rclone_target = config.get('packaging_params', {}).get('rclone_target', ''),
+        rclone_folder_prefix = config.get('packaging_params', {}).get('rclone_folder_prefix', ''),
+    log:
+        op.join('logs_package_and_upload', f"{config['study_id']}_package_and_upload.log")
+    output:
+        op.join(config['sim_study_head_dir'], f".package_and_upload_{sanitize_filename(config['study_id'])}.done")
+    shell:
+        """
+        python {params.executable_fpath} \
+        --study-dir {params.study_dir} \
+        --study-id {params.study_id} \
+        --patterns-file {params.patterns_file} \
+        --rclone-target "{params.rclone_target}" \
+        --rclone-folder-prefix "{params.rclone_folder_prefix}" \
+        --marker-file {output} \
+        2>&1 | tee {log}
         """
