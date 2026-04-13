@@ -10,7 +10,6 @@ import yaml
 
 from vercye_ops.met_data.fetch_era5 import init_ee
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -538,15 +537,12 @@ def _validate_packaging_params(config):
     remote_name = rclone_target.split(":", 1)[0]
     if not re.match(r"^[A-Za-z0-9_-]+$", remote_name):
         raise ValueError(
-            f"packaging_params.rclone_target '{rclone_target}' has an invalid remote name "
-            f"'{remote_name}'."
+            f"packaging_params.rclone_target '{rclone_target}' has an invalid remote name " f"'{remote_name}'."
         )
 
     listr = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
     if listr.returncode != 0:
-        raise RuntimeError(
-            f"`rclone listremotes` failed (exit {listr.returncode}): {listr.stderr.strip()}"
-        )
+        raise RuntimeError(f"`rclone listremotes` failed (exit {listr.returncode}): {listr.stderr.strip()}")
     configured = {line.strip().rstrip(":") for line in listr.stdout.splitlines() if line.strip()}
     if remote_name not in configured:
         raise RuntimeError(
@@ -562,7 +558,9 @@ def _validate_packaging_params(config):
     try:
         result = subprocess.run(
             ["rclone", "lsf", "--dirs-only", probe_target],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"rclone probe of '{probe_target}' timed out after 60s.")

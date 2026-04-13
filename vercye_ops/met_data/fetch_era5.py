@@ -36,6 +36,7 @@ def init_ee(project, service_account_key=None):
         ee.Initialize(project=project)
         logger.info("Earth Engine initialized with default credentials.")
 
+
 # Valid climate variables for the NASA POWER API
 VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 DEFAULT_CLIMATE_VARIABLES = [

@@ -65,7 +65,7 @@ Navigate to the frontend folder:
 
 and run
 
-`npm install`. 
+`npm install`.
 
 ## Setup
 

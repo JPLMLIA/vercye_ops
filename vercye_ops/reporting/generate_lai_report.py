@@ -1,4 +1,3 @@
-import calendar
 import os
 from collections import defaultdict
 
@@ -175,10 +174,23 @@ def _continuous_doy(dates):
 def _month_ticks(cross_year):
     """Return (month_number, doy) pairs for x-axis tick labels."""
     if cross_year:
-        return [(7, 182), (8, 213), (9, 244), (10, 274), (11, 305), (12, 335),
-                (1, 366), (2, 397), (3, 425), (4, 456), (5, 486), (6, 517)]
+        return [
+            (7, 182),
+            (8, 213),
+            (9, 244),
+            (10, 274),
+            (11, 305),
+            (12, 335),
+            (1, 366),
+            (2, 397),
+            (3, 425),
+            (4, 456),
+            (5, 486),
+            (6, 517),
+        ]
     else:
         from datetime import datetime
+
         return [(m, datetime(2000, m, 1).timetuple().tm_yday) for m in range(1, 13)]
 
 

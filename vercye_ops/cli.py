@@ -13,7 +13,6 @@ from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import run_pipeline a
 from vercye_ops.met_data.download_chirps_data import run_chirps_download
 from vercye_ops.prepare_yieldstudy import load_yaml_ruamel, prepare_study
 from vercye_ops.snakemake.config_validation import validate_run_config
-from vercye_ops.utils.file_sync import sync_tree_content_aware
 from vercye_ops.utils.env_utils import (
     get_lai_config_path,
     get_run_config,
@@ -30,6 +29,7 @@ from vercye_ops.utils.env_utils import (
     replace_in_file,
     update_study_status,
 )
+from vercye_ops.utils.file_sync import sync_tree_content_aware
 
 logger = logging.getLogger(__name__)
 

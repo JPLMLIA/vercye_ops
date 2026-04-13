@@ -17,7 +17,6 @@ logger = get_logger()
 logger.setLevel("INFO")
 
 
-
 @click.command()
 @click.option(
     "--satellite",

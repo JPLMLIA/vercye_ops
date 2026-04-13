@@ -38,7 +38,7 @@ def _extract_agg_level_name(filename, year, timepoint):
     if not base.startswith(prefix) or not base.endswith(suffix):
         return None
     # middle = "Kenya_Three_Counties_Counties_YearlyTotals_kenya-prelim"
-    middle = base[len(prefix):-len(suffix)]
+    middle = base[len(prefix) : -len(suffix)]
     # The last underscore-separated segment is the study_id (sanitized, so no underscores in it)
     # e.g. "kenya-prelim" - split off the last segment
     parts = middle.rsplit("_", 1)
@@ -61,10 +61,7 @@ def get_avaiable_agg_levels(base_dir):
 
             preds_pattern = os.path.join(base_dir, year, timepoint, "agg_yield_estimates_*_*.csv")
             agg_preds_files = glob(preds_pattern)
-            agg_levels = [
-                _extract_agg_level_name(f, year, timepoint)
-                for f in agg_preds_files
-            ]
+            agg_levels = [_extract_agg_level_name(f, year, timepoint) for f in agg_preds_files]
             all_agg_levels.extend([lvl for lvl in agg_levels if lvl is not None])
 
     return list(set(all_agg_levels))
@@ -76,7 +73,9 @@ def collect_files(base_dir, agg_lvl_name, timepoint):
 
     # Collect all aggregated predictions at this agg lvl & timepoint
     for year in os.listdir(base_dir):
-        preds_pattern = os.path.join(base_dir, year, timepoint, f"agg_yield_estimates_{agg_lvl_name}_*_{year}_{timepoint}.csv")
+        preds_pattern = os.path.join(
+            base_dir, year, timepoint, f"agg_yield_estimates_{agg_lvl_name}_*_{year}_{timepoint}.csv"
+        )
         agg_preds_files = glob(preds_pattern)
         if len(agg_preds_files) > 1:
             raise Exception(

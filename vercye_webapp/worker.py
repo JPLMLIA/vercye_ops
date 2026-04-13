@@ -9,7 +9,6 @@ from pathlib import Path
 import yaml
 from celery import Celery, Task
 
-from vercye_ops.utils.file_sync import sync_tree_content_aware
 from vercye_ops.cli import init_study
 from vercye_ops.cli import prepare_study as prepare_vercye_study
 from vercye_ops.cli import run_study as run_vercye
@@ -29,6 +28,7 @@ from vercye_ops.utils.env_utils import (
     update_study_status,
     write_yaml_ruamel,
 )
+from vercye_ops.utils.file_sync import sync_tree_content_aware
 
 celery_app = Celery(
     "vercye_tasks",

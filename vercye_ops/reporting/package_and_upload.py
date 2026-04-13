@@ -19,7 +19,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import zipfile
 from datetime import datetime
@@ -53,7 +52,8 @@ def rclone_list_dir(target_dir: str) -> list[str]:
     """Return top-level subfolder names under ``target_dir``, or [] if missing."""
     result = subprocess.run(
         ["rclone", "lsf", "--dirs-only", target_dir],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         stderr = (result.stderr or "").lower()
@@ -89,12 +89,21 @@ def main() -> None:
     ap.add_argument("--study-dir", type=Path, required=True, help="sim_study_head_dir of the run")
     ap.add_argument("--study-id", type=str, required=True)
     ap.add_argument("--patterns-file", type=Path, required=True)
-    ap.add_argument("--rclone-target", type=str, required=True,
-                    help="Configured rclone remote, e.g. 'gdrive:' or 'gdrive:vercye_kenya'")
-    ap.add_argument("--rclone-folder-prefix", type=str, default="",
-                    help="Optional subfolder under the rclone target to group uploads")
-    ap.add_argument("--marker-file", type=Path, required=True,
-                    help="File to touch on success so Snakemake tracks completion")
+    ap.add_argument(
+        "--rclone-target",
+        type=str,
+        required=True,
+        help="Configured rclone remote, e.g. 'gdrive:' or 'gdrive:vercye_kenya'",
+    )
+    ap.add_argument(
+        "--rclone-folder-prefix",
+        type=str,
+        default="",
+        help="Optional subfolder under the rclone target to group uploads",
+    )
+    ap.add_argument(
+        "--marker-file", type=Path, required=True, help="File to touch on success so Snakemake tracks completion"
+    )
     args = ap.parse_args()
 
     if shutil.which("rclone") is None:

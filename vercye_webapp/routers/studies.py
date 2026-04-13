@@ -21,15 +21,15 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from models import (
-    AggregationShapefileConfigWithColumns,
     AggregationShapefileConfig,
-    ShapefileColumnInfo,
+    AggregationShapefileConfigWithColumns,
     DuplicateStudyRequest,
     LAIConfigRunParams,
     RegionExtractionResponse,
     RunConfigFormParams,
     SetupConfigTemplate,
     SetupSubmissionsRequest,
+    ShapefileColumnInfo,
     ShapefileData,
     StudyCreateRequest,
     StudyID,
@@ -432,7 +432,7 @@ def fetch_setup_config(study_id: StudyID):
     agg_shp_configs: list[AggregationShapefileConfigWithColumns] = []
     agg_shp_names: list[str] = []
 
-    for s in (agg_shp_raw or []):
+    for s in agg_shp_raw or []:
         base = AggregationShapefileConfig(**s)
         columns: list[ShapefileColumnInfo] = []
         stored = agg_shp_stored.get(base.level_name, {})
@@ -444,16 +444,21 @@ def fetch_setup_config(study_id: StudyID):
                 for col in gdf_agg.columns:
                     if col == "geometry":
                         continue
-                    columns.append(ShapefileColumnInfo(
-                        name=col,
-                        dtype=str(gdf_agg[col].dtype),
-                        is_numeric=gdf_agg[col].dtype.kind in ("i", "f"),
-                    ))
+                    columns.append(
+                        ShapefileColumnInfo(
+                            name=col,
+                            dtype=str(gdf_agg[col].dtype),
+                            is_numeric=gdf_agg[col].dtype.kind in ("i", "f"),
+                        )
+                    )
             except Exception:
                 pass  # columns stay empty; user can re-upload
-        agg_shp_configs.append(AggregationShapefileConfigWithColumns(
-            **base.model_dump(), columns=columns,
-        ))
+        agg_shp_configs.append(
+            AggregationShapefileConfigWithColumns(
+                **base.model_dump(),
+                columns=columns,
+            )
+        )
 
     return SetupConfigTemplate(
         regionExtraction=region_extraction,
