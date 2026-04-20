@@ -447,6 +447,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../results_upload/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results Upload (rsync)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -770,11 +798,10 @@
 <h3 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Ensure you have installed the VeRCYe core library as described in the <a href="../../#vercye-library-setup">setup instruction</a>.</li>
-<li>The webapp requires you to set a number of default folders, for example for the storage of cached outputs, the path to the APSIM installation and others. For this set the environmental variables by copying  <code>vercye_ops/.env_examples</code> to <code>vercye_ops/.env</code> and setting the actual values.</li>
+<li>The webapp requires you to set a number of default folders, for example for the storage of cached outputs, the path to the APSIM installation and others. For this set the environmental variables by copying <code>vercye_ops/.env_example</code> to <code>vercye_ops/.env</code> and setting the actual values. This file also contains the webapp-specific settings (redis path, log directory, socket path, user permissions, etc.).</li>
 <li>Navigate to <code>vercye_ops/vercye_webapp/</code>: <code>cd vercye_ops/vercye_webapp</code>.</li>
 <li>Install the additional requirements for the webapp: Ensure you have loaded your environment from step 1 and run <code>pip install -r requirements.txt</code>.</li>
 <li>To queue incoming jobs and allow workers to fetch jobs independantly, <code>redis</code> is used. Install redis for your system by following the <a href="https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/">official instructions</a>.</li>
-<li>You will now have to specify a few more environmental variables for the webapp. For this copy <code>vercye_webapp/.env_example</code> to <code>vercye_webapp/.env</code> and set the values.</li>
 </ol>
 <h3 id="running">Running<a class="headerlink" href="#running" title="Permanent link">&para;</a></h3>
 <ol>

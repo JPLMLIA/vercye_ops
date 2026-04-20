@@ -462,6 +462,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Vercye/results_upload/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results Upload (rsync)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -811,8 +839,12 @@ conda activate vercye-dev
 - Local APSIM binary</p>
 <p>See the the <a href="Vercye/apsim/">APSIM Section</a> for details.</p>
 <h4 id="4-authenticate-google-earth-engine">4. Authenticate Google Earth Engine<a class="headerlink" href="#4-authenticate-google-earth-engine" title="Permanent link">&para;</a></h4>
-<p>The ERA5 meteorological data is currently still fetched through Google Earth Engine. Authenticate yourself with earth engine and follow the browser flow:</p>
-<pre><code class="language-bash">ee authenticate
+<p>The ERA5 meteorological data is currently still fetched through Google Earth Engine. You have two options:</p>
+<p><strong>Option A — Service account (recommended for headless/server setups):</strong></p>
+<p>Place your GCP service account JSON key on the machine and set <code>EE_SERVICE_ACCOUNT_KEY=/path/to/key.json</code> in your <code>.env</code>. The service account must be registered with Earth Engine and have the <code>roles/serviceusage.serviceUsageConsumer</code> and <code>roles/earthengine.viewer</code> roles on the project. See <a href="Vercye/metdata/#era5">Meteorological Data</a> for details.</p>
+<p><strong>Option B — Interactive login:</strong></p>
+<p>On a machine with a browser, run:</p>
+<pre><code class="language-bash">earthengine authenticate
 </code></pre>
 <h3 id="running-your-first-yield-study">Running your first yield study<a class="headerlink" href="#running-your-first-yield-study" title="Permanent link">&para;</a></h3>
 <p><strong>Quickstart</strong></p>

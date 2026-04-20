@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../results_upload/">
+        <link rel="prev" href="../outputs/">
       
       
-        <link rel="next" href="../architecture/">
+        <link rel="next" href="../metdata/">
       
       
         
@@ -23,7 +23,7 @@
     
     
       
-        <title>Meteorological Data - VeRCYE Documentation</title>
+        <title>Results Upload (rsync) - VeRCYE Documentation</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#meteorologcal-data-inputs" class="md-skip">
+        <a href="#uploading-results-rclone" class="md-skip">
           Skip to content
         </a>
       
@@ -100,7 +100,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Meteorological Data
+              Results Upload (rsync)
             
           </span>
         </div>
@@ -273,18 +273,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" checked>
         
           
           <label class="md-nav__link" for="__nav_2_1" id="__nav_2_1_label" tabindex="0">
@@ -305,7 +307,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2_1">
             <span class="md-nav__icon md-icon"></span>
             
@@ -460,42 +462,6 @@
                 
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../results_upload/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Results Upload (rsync)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
   
@@ -515,7 +481,7 @@
   <span class="md-ellipsis">
     
   
-    Meteorological Data
+    Results Upload (rsync)
   
 
     
@@ -533,7 +499,7 @@
   <span class="md-ellipsis">
     
   
-    Meteorological Data
+    Results Upload (rsync)
   
 
     
@@ -559,10 +525,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#nasa-power" class="md-nav__link">
+  <a href="#what-gets-uploaded" class="md-nav__link">
     <span class="md-ellipsis">
       
-        NASA Power
+        What gets uploaded
       
     </span>
   </a>
@@ -570,10 +536,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#era5" class="md-nav__link">
+  <a href="#remote-folder-layout" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ERA5
+        Remote folder layout
       
     </span>
   </a>
@@ -581,10 +547,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#chirps" class="md-nav__link">
+  <a href="#setting-up-rclone-for-google-drive" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CHIRPS
+        Setting up rclone for Google Drive
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other backends
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running
       
     </span>
   </a>
@@ -595,6 +583,42 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metdata/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meteorological Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -873,53 +897,103 @@
 
 
 
-<h1 id="meteorologcal-data-inputs">Meteorologcal Data Inputs<a class="headerlink" href="#meteorologcal-data-inputs" title="Permanent link">&para;</a></h1>
-<p>Meteorological data can be acquired from <code>NASA Power</code>, <code>ECMWF ERA5</code> and <code>CHIRPS</code>. Hereby the base meteorological data must be acquired from either <code>NASA Power</code> or <code>ERA5</code> and the precipitation data can be supplemented with <code>CHIRPS</code>.</p>
-<h2 id="nasa-power">NASA Power<a class="headerlink" href="#nasa-power" title="Permanent link">&para;</a></h2>
-<p>The <code>NASA Power</code> meteorological data is fetched through the <code>NASA Power daily point API</code> (https://power.larc.nasa.gov/api/temporal/daily/point).
-The API imposes rather strict limitations on the number of parallel requests and querying the same internal grid cell multiple times. In order to avoid being blacklisted, a caching mechanism is implemented. This represents a polygon by the Nasa Power grid cells centroid of the polygons centroid. So if <code>(x,y)</code> is the polygons centroid, we lookup into which <code>NASA Power</code> grid cell <code>(x,y)</code> would fall and query the grid cells centroid <code>(x', y')</code> as a representative of our polygon. The <code>NASA Power</code> grid cell is split into cells of <code>0.5 x 0.625</code> deg resolution for meteorological products and <code>1x1</code> degree resolution for solar parameters. <strong>However, currently we are only using the <code>0.5 x 0.625</code>, also for solar parameters, which might possibly lead to misalignment!</strong></p>
-<h2 id="era5">ERA5<a class="headerlink" href="#era5" title="Permanent link">&para;</a></h2>
-<p>The <code>ERA5</code> data is fetched through <code>Google Earth Engine</code>. Therefore, this requires you to authenticate with your <code>Earth Engine</code> project.
-During execution of the pipeline, the meteorological data is then fetched as the centroid or mean of a region from <code>Earth Engine</code>.</p>
-<p>You can authenticate in two ways:</p>
-<h3 id="option-1-service-account-recommended-for-headlessserver-setups">Option 1: Service account (recommended for headless/server setups)<a class="headerlink" href="#option-1-service-account-recommended-for-headlessserver-setups" title="Permanent link">&para;</a></h3>
-<p>Create a service account in your GCP project and download a JSON key. The service account needs to be:</p>
-<ol>
-<li><strong>Registered with Earth Engine</strong> at https://signup.earthengine.google.com/#!/service_accounts</li>
-<li>Granted the following IAM roles on the GCP project:<ul>
-<li><code>roles/serviceusage.serviceUsageConsumer</code> — allows billing API calls to the project</li>
-<li><code>roles/earthengine.viewer</code> — allows running EE computations and reading public datasets (use <code>roles/earthengine.writer</code> instead if you also need to run the GEE LAI export pipeline)</li>
+<h1 id="uploading-results-rclone">Uploading Results (rclone)<a class="headerlink" href="#uploading-results-rclone" title="Permanent link">&para;</a></h1>
+<p>At the end of a VeRCYe run the pipeline can optionally package the most
+relevant study outputs (a curated subset — not every file produced by the
+run) into a zip and upload it to a cloud drive via <code>rclone</code>. This is useful
+when the machine running VeRCYe is not where users want to fetch results
+from (e.g. a shared HPC node).</p>
+<p>The upload step is <strong>off by default</strong>. It only runs when
+<code>packaging_params.rclone_target</code> is set in the run config (or equivalently
+when <code>RCLONE_TARGET</code> is set in your <code>.env</code> before running <code>vercye prep</code>).</p>
+<h2 id="what-gets-uploaded">What gets uploaded<a class="headerlink" href="#what-gets-uploaded" title="Permanent link">&para;</a></h2>
+<p>Every file under the study directory whose basename matches a glob in
+<code>vercye_ops/reporting/output_data_patterns.txt</code> is bundled into a single
+zip. The default pattern set contains:</p>
+<ul>
+<li><code>final_report_*.pdf</code>, <code>lai_report_*.pdf</code>, <code>aggregated_met_stats_*.pdf</code></li>
+<li><code>multiyear_summary*.zip</code>, <code>interactive_map_*.zip</code></li>
+<li><code>agg_yield_estimates_*.csv</code>, <code>all_predictions_*.csv</code>, <code>referencedata_*.csv</code></li>
+<li><code>yield_mosaic_projected_*.tif</code>, <code>aggregated_LAI_MAX_*.tif</code>,
+  <code>aggregated_cropmask_*.tif</code></li>
+<li><code>aggregated_region_boundaries_*.geojson</code></li>
+<li><code>config.yaml</code></li>
 </ul>
-</li>
+<p>Edit that file to change which outputs are shipped.</p>
+<h2 id="remote-folder-layout">Remote folder layout<a class="headerlink" href="#remote-folder-layout" title="Permanent link">&para;</a></h2>
+<p>The zip is uploaded into:</p>
+<pre><code>&lt;rclone_target&gt;/&lt;rclone_folder_prefix&gt;/&lt;study_id&gt;_&lt;YYYYMMDD&gt;[_N]/
+</code></pre>
+<p><code>_N</code> is a numeric suffix appended only when a folder with the same base
+name already exists on the target, so re-runs on the same day never
+overwrite an existing upload.</p>
+<p><code>vercye run --validate</code> checks that <code>rclone</code> is on PATH, that
+<code>rclone_target</code> names a configured remote, and that the target is
+reachable. Auth / reachability issues surface at validation time rather
+than at the end of a long run.</p>
+<h2 id="setting-up-rclone-for-google-drive">Setting up rclone for Google Drive<a class="headerlink" href="#setting-up-rclone-for-google-drive" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Install rclone</strong></li>
 </ol>
-<p>Then set the path to the key file in your <code>.env</code>:</p>
-<pre><code>EE_SERVICE_ACCOUNT_KEY=/path/to/your/service-account-key.json
-EE_PROJECT_NAME=your-gcp-project-id
-</code></pre>
-<p>The pipeline will pick this up automatically — no interactive login required.</p>
-<h3 id="option-2-interactive-user-authentication">Option 2: Interactive user authentication<a class="headerlink" href="#option-2-interactive-user-authentication" title="Permanent link">&para;</a></h3>
-<p>If you are on a machine with a browser available, run <code>earthengine authenticate</code> and complete the browser flow before starting the pipeline. Leave <code>EE_SERVICE_ACCOUNT_KEY</code> unset in your <code>.env</code>.</p>
-<h2 id="chirps">CHIRPS<a class="headerlink" href="#chirps" title="Permanent link">&para;</a></h2>
-<p><strong>Downloading CHIRPS Precipitation Data</strong>
-If you plan on using CHIRPS precipitation data, you will have to download the complete historical and current CHRIPS archive before starting a yield study.
-For this, we provide a helper script in <code>met_data/download_chirps_data.py</code>. Here you will have to specify the time range (beginning, -end date) and the data will be downloaded with daily global coverage.</p>
-<pre><code>Usage: download_chirps_data.py [OPTIONS]
-
-Options:
-  --start-date [%Y-%m-%d]  Start date for CHIRPS data collection in YYYY-MM-DD
-                           format.  [required]
-  --end-date [%Y-%m-%d]    End date for CHIRPS data collection in YYYY-MM-DD
-                           format.  [required]
-  --output-dir TEXT        Output directory to store the CHIRPS data.
-                           [required]
-  --num-workers INTEGER    Number of parallel processes. Capped at 10 due to
-                           server limitations.  [default: 10]
-  --verbose                Enable verbose logging.
-  --help                   Show this message and exit.
-</code></pre>
-<p>!Attention: This can amount to 100+ GB of data when downloading many years of historical data. Therefore this is rather intended to be run on HPC environments.</p>
-<p>This will first try to download all final <a href="https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/cogs/p05/">CHIRPS v2.0 global daily products</a> at 0.05 degrees resolution. For days without data available, the downloader will fallback to the <a href="https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_daily/tifs/p05/">preliminary product</a>.</p>
-<p>The VeRCYe pipeline will then read local regions from these global files during runtime.</p>
+<p><code>bash
+   # Debian / Ubuntu
+   sudo apt-get install rclone
+   # macOS
+   brew install rclone
+   # Or the upstream one-liner:
+   curl https://rclone.org/install.sh | sudo bash</code></p>
+<ol>
+<li><strong>Create a Google Drive remote</strong></li>
+</ol>
+<p><code>bash
+   rclone config</code></p>
+<p>Follow the prompts:</p>
+<ul>
+<li><code>n</code> → new remote</li>
+<li>name: <code>gdrive</code></li>
+<li>storage: <code>drive</code></li>
+<li>leave <code>client_id</code> / <code>client_secret</code> empty unless you have your own</li>
+<li>scope: <code>1</code> (full access) or <code>2</code> (file scope)</li>
+<li>leave root_folder_id / service account blank for interactive auth</li>
+<li><code>y</code> → auto config; a browser window opens — sign in and grant access</li>
+<li><code>n</code> → not a team drive (unless it is)</li>
+<li>confirm with <code>y</code></li>
+</ul>
+<p>On a <strong>headless server</strong> pick <code>n</code> for auto config and follow the
+   printed instructions: run <code>rclone authorize "drive"</code> on a machine with
+   a browser and paste the resulting token back.</p>
+<ol>
+<li><strong>Verify</strong></li>
+</ol>
+<p><code>bash
+   rclone listremotes          # should list 'gdrive:'
+   rclone lsd gdrive:          # should list your Drive top-level folders</code></p>
+<ol>
+<li><strong>Point VeRCYe at it.</strong> Add to <code>.env</code> (preferred — <code>vercye prep</code> writes
+   it into the run config) …</li>
+</ol>
+<p><code>dotenv
+   RCLONE_TARGET="gdrive:"
+   RCLONE_FOLDER_PREFIX="vercye_kenya"</code></p>
+<p>… or set it directly in <code>config.yaml</code>:</p>
+<p><code>yaml
+   packaging_params:
+     rclone_target: "gdrive:"
+     rclone_folder_prefix: "vercye_kenya"</code></p>
+<p>Each run then uploads to
+   <code>gdrive:vercye_kenya/&lt;study_id&gt;_&lt;YYYYMMDD&gt;[_N]/&lt;zip&gt;</code>.</p>
+<h2 id="other-backends">Other backends<a class="headerlink" href="#other-backends" title="Permanent link">&para;</a></h2>
+<p><code>rclone_target</code> can be any <a href="https://rclone.org/overview/">rclone-supported backend</a>
+— Google Drive, S3, Azure Blob, Dropbox, SFTP, Backblaze B2, OneDrive, etc.
+The setup is always the same: <code>rclone config</code> to add the remote, then set
+<code>RCLONE_TARGET</code> to <code>&lt;remote_name&gt;:</code> (or <code>&lt;remote_name&gt;:&lt;path&gt;</code>).</p>
+<h2 id="running">Running<a class="headerlink" href="#running" title="Permanent link">&para;</a></h2>
+<p>No extra CLI flag is needed — the upload step runs automatically as the
+last rule of <code>vercye run</code> when <code>rclone_target</code> is set. Logs are written to
+<code>logs_package_and_upload/&lt;study_id&gt;_package_and_upload.log</code> under the
+snakemake run directory, and a marker file
+<code>.package_and_upload_&lt;study_id&gt;.done</code> is left in the study directory once
+the upload has completed successfully.</p>
 
 
 
