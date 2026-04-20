@@ -144,6 +144,38 @@ def _compose_azcopy_url(base_url, sas_token):
     return f"{base_url}{sep}{token}"
 
 
+def _redact_url_query(arg):
+    """Redact the query string from a URL-like argv element.
+
+    azcopy commands embed the SAS token in the destination URL as a query
+    string. We must NOT leak that into logs. Anything with a scheme that
+    contains a ``?`` gets its query replaced with ``?<redacted>``. Plain
+    filesystem paths pass through untouched.
+    """
+    if "://" in arg and "?" in arg:
+        prefix, _, _ = arg.partition("?")
+        return f"{prefix}?<redacted>"
+    return arg
+
+
+def _run_azcopy(cmd, step_desc, logger):
+    """Run an azcopy command, redacting SAS tokens from the logged cmdline.
+
+    Mirrors ``run_subprocess`` (same check=True + timing semantics) but the
+    log line shows ``?<redacted>`` instead of the real SAS. The full cmd
+    only ever lives in the child process argv, never in our log stream.
+    """
+    safe = [_redact_url_query(a) for a in cmd]
+    logger.info(f"Starting: {step_desc}\n  Command: {' '.join(safe)}")
+    t0 = time.time()
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error during {step_desc}: return code {e.returncode}")
+        raise RuntimeError(f"{step_desc} failed (exit code {e.returncode})")
+    logger.info(f"Completed: {step_desc} in {time.time() - t0:.2f} seconds")
+
+
 def upload_outputs_to_blob(config, out_dir, logger):
     """Push selected LAI outputs to Azure Blob via azcopy, driven by config.
 
@@ -172,6 +204,15 @@ def upload_outputs_to_blob(config, out_dir, logger):
 
     sas_token = cfg.get("sas_token", "")
     include = cfg.get("include") or ["standardized-lai", "merged-lai", "meta.json", "region.geojson"]
+    # include entries address things inside out_dir via relative paths;
+    # reject absolute paths and ``..`` segments so a malformed config
+    # cannot accidentally upload anything outside the LAI run directory.
+    for rel in include:
+        if os.path.isabs(rel) or ".." in rel.replace("\\", "/").split("/"):
+            raise ValueError(
+                f"blob_upload.include entry {rel!r} must be a relative path "
+                f"inside out_dir (no absolute paths, no '..' segments)."
+            )
     overwrite = cfg.get("overwrite", "ifSourceNewer")
     if overwrite not in ("ifSourceNewer", "true", "false", "prompt"):
         raise ValueError(
@@ -204,7 +245,9 @@ def upload_outputs_to_blob(config, out_dir, logger):
         if is_dir:
             cmd.append("--recursive")
 
-        run_subprocess(cmd, f"Upload {rel!r} to blob", logger=logger)
+        # Use _run_azcopy (not run_subprocess) so any SAS token embedded in
+        # dest_arg's query string is redacted from the log stream.
+        _run_azcopy(cmd, f"Upload {rel!r} to blob", logger=logger)
 
 
 def run_pipeline(config, logger):

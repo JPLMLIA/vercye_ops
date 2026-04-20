@@ -96,12 +96,19 @@ downstream Snakemake runs.
 On the head VM:
 
 ```bash
+# Prefer managed identity on the head VM: assign a user-assigned identity
+# with "Azure Batch Contributor" on the Batch account and "Storage Blob
+# Data Contributor" on the storage account, and leave the *_ACCOUNT_KEY
+# vars unset. Fall back to account keys (below) only when MSI is not
+# available — account keys grant full storage / Batch control and should
+# not end up in shell history or config files committed to git.
 export AZ_BATCH_ACCOUNT_URL=https://<acct>.<region>.batch.azure.com
-export AZ_BATCH_ACCOUNT_KEY=...
 export AZ_BLOB_ACCOUNT_URL=https://<stg>.blob.core.windows.net
-export AZ_BLOB_ACCOUNT_KEY=...
 export AZ_BATCH_POOL_ID=vercye-pool
 export AZ_BATCH_CONTAINER_IMAGE=<acr>.azurecr.io/vercye:<tag>
+# Only if MSI is not an option:
+# export AZ_BATCH_ACCOUNT_KEY=...
+# export AZ_BLOB_ACCOUNT_KEY=...
 
 snakemake \
     --snakefile vercye_ops/snakemake/Snakefile.azure \

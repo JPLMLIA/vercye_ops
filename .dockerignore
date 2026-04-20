@@ -1,0 +1,74 @@
+# Ensure the Azure Batch Dockerfile's ``COPY . /app`` never ships
+# developer secrets, local state, or bulky noise into the image.
+# Anything listed here is excluded from the build context.
+
+# Secrets / local credentials — also in .gitignore, duplicated here because
+# docker build does not consult .gitignore.
+.env
+.env.*
+*.env
+!.env_example
+**/credentials.json
+**/client_secret*.json
+**/service-account*.json
+**/.secrets
+**/*.pem
+**/*.key
+
+# Git metadata — not needed at runtime, contains full history.
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Python build / cache artefacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / webapp artefacts (vercye_webapp present in repo)
+**/node_modules/
+**/.next/
+**/build/
+**/dist/
+
+# Snakemake state — large and run-specific, should not be in the image.
+.snakemake/
+**/.snakemake/
+
+# Local data / test fixtures that shouldn't bloat the image
+data/
+tmp/
+*.tif
+*.vrt
+*.nc
+*.nc4
+*.db
+*.sqlite
+benchmarks/
+logs_*/
+*.log
+
+# Documentation build artefacts
+docs/site/
+docs/_build/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Docker itself
+Dockerfile*
+.dockerignore
