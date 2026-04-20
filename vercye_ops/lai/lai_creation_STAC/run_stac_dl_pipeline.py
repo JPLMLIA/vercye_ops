@@ -170,6 +170,8 @@ def run_pipeline(config, logger):
     except RuntimeError:
         raise RuntimeError("GDAL is not installed or not in the PATH.")
 
+    max_download_retries = config.get("max_download_retries", 2)
+
     all_starts = []
     all_ends = []
 
@@ -225,7 +227,21 @@ def run_pipeline(config, logger):
                         "--satellite",
                         cur_satellite,
                     ]
-                    run_subprocess(cmd, f"Download tiles {start} to {end} for {cur_satellite}", logger=logger)
+                    # Retry the download subprocess to handle transient failures
+                    # (e.g. expired SAS tokens). Already-downloaded items are
+                    # skipped automatically by stac_downloader's status tracking.
+                    for attempt in range(1, max_download_retries + 1):
+                        try:
+                            run_subprocess(cmd, f"Download tiles {start} to {end} for {cur_satellite}", logger=logger)
+                            break
+                        except RuntimeError:
+                            if attempt < max_download_retries:
+                                logger.warning(
+                                    f"Download attempt {attempt}/{max_download_retries} failed for "
+                                    f"{start} to {end}. Retrying (already-downloaded items will be skipped)..."
+                                )
+                            else:
+                                raise
                     meta = update_processed(metadata_index_file, (start, end), "dl")
 
                 if from_step <= 1 and not [start, end] in meta["lai_created_dateranges"]:

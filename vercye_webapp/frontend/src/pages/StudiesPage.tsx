@@ -265,7 +265,7 @@ const StudiesPage = () => {
 
   const openLogs = async (id: StudyId) => {
     setLogs('Loading logs...');
-    setDetailStudy(id); 
+    setDetailStudy(id);
     setLogsOpen(true);
     try {
       const l = await StudiesAPI.logs(id);
@@ -408,7 +408,7 @@ const StudiesPage = () => {
               return (
                 <tr key={id}>
                   <td><div style={{fontWeight: 500}}>{id}</div></td>
-                  <td><StatusBadge status={s as any} /></td>
+                  <td><StatusBadge status={s} /></td>
                   <td>
                     <div className="actions-cell">
                       <button className="btn btn-sm btn-primary" onClick={() => openDetail(id)} disabled={!canConfigure}>Configure</button>
@@ -554,7 +554,7 @@ const StudiesPage = () => {
       {/* Detail / Setup */}
       <Modal open={detailOpen} onClose={()=>setDetailOpen(false)} title={`${detailStudy ?? ''} - Configuration`} width={800}>
         <Stepper step={step} onStepChange={setStep}/>
-          {step === 2 &&  <SetupStudyForm onSubmit={handleSetupSubmission} initialData={initialSetupData}/>}
+          {step === 2 &&  <SetupStudyForm studyId={detailStudy ?? ''} onSubmit={handleSetupSubmission} initialData={initialSetupData}/>}
 
           {step === 3 && <RunParamsForm
               key={detailStudy ?? 'no-study'}

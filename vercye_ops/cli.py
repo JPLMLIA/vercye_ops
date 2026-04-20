@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import List
 
 import click
@@ -28,6 +29,7 @@ from vercye_ops.utils.env_utils import (
     replace_in_file,
     update_study_status,
 )
+from vercye_ops.utils.file_sync import sync_tree_content_aware
 
 logger = logging.getLogger(__name__)
 
@@ -251,7 +253,7 @@ def run_study(studies_dir: str, study_name: str, validate_only: bool, extra_snak
         "--rerun-incomplete",
     ]
 
-    logger.info("Running snakemake cmd:", " ".join(cmd))
+    logger.info("Running snakemake cmd: %s", " ".join(cmd))
 
     # Auto-unlock only if locks are stale (no running snakemake for this directory)
     _safe_unlock_if_needed(cmd, snakemake_run_dir)
@@ -384,11 +386,29 @@ def main(ctx, mode, name, dir, chirps_dir, chirps_start, chirps_end, chirps_core
         if mode == "init":
             init_study(study_name=name, studies_dir=dir)
         elif mode == "prep":
-            prepare_study(
-                config=load_yaml_ruamel(get_setup_config_file_path(dir, name)),
-                output_dir=get_study_path(dir, name),
-                lai_config_path=get_lai_config_path(dir, name),
-            )
+            # Run prepare_study into a temp dir, then content-aware sync
+            # into the real study dir. This way unchanged files keep their
+            # mtimes and snakemake will not invalidate downstream rules
+            # whose inputs did not actually change (e.g. an APSIM-only
+            # template edit should not rerun LAI/met/cropmask rules).
+            real_output_dir = get_study_path(dir, name)
+            os.makedirs(real_output_dir, exist_ok=True)
+            with tempfile.TemporaryDirectory() as tmp_output_dir:
+                setup_cfg, _ = load_yaml_ruamel(get_setup_config_file_path(dir, name))
+                tmp_config_path = prepare_study(
+                    config=setup_cfg,
+                    output_dir=tmp_output_dir,
+                    lai_config_path=get_lai_config_path(dir, name),
+                )
+                # prepare_study bakes the (temp) output_dir into the generated
+                # config as sim_study_head_dir / study_id. Rewrite both to the
+                # real study path before syncing into place.
+                tmp_run_cfg, ruamel_yaml = load_yaml_ruamel(tmp_config_path)
+                tmp_run_cfg["sim_study_head_dir"] = real_output_dir
+                tmp_run_cfg["study_id"] = os.path.basename(real_output_dir)
+                with open(tmp_config_path, "w") as f:
+                    ruamel_yaml.dump(tmp_run_cfg, f)
+                sync_tree_content_aware(tmp_output_dir, real_output_dir)
         elif mode == "lai":
             create_lai_data(study_name=name, studies_dir=dir)
         elif mode == "chirps":

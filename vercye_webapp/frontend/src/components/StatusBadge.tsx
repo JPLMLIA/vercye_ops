@@ -9,6 +9,7 @@ const StatusBadge = ({ status }: { status: StudyStatus }) => {
     completed: { className: 'status-completed', text: 'Completed' },
     failed: { className: 'status-failed', text: 'Failed' },
     cancelled: { className: 'status-cancelled', text: 'Cancelled' },
+    cancelling: { className: 'status-running', text: 'Cancelling' },
     validating: { className: 'status-running', text: 'Validating' },
     ready: { className: 'status-ready', text: 'Ready' },
   };

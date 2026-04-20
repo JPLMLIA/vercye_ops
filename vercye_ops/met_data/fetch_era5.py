@@ -14,6 +14,29 @@ from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 
+# Environment variable for the service account key path
+EE_SERVICE_ACCOUNT_KEY_ENV = "EE_SERVICE_ACCOUNT_KEY"
+
+
+def init_ee(project, service_account_key=None):
+    """Initialize Earth Engine, using a service account key if available.
+
+    Checks (in order):
+    1. Explicit ``service_account_key`` argument
+    2. ``EE_SERVICE_ACCOUNT_KEY`` environment variable
+    3. Falls back to default (user) credentials
+    """
+    key_path = service_account_key or os.environ.get(EE_SERVICE_ACCOUNT_KEY_ENV)
+
+    if key_path and os.path.isfile(key_path):
+        credentials = ee.ServiceAccountCredentials(None, key_path)
+        ee.Initialize(credentials, project=project)
+        logger.info("Earth Engine initialized with service account key: %s", key_path)
+    else:
+        ee.Initialize(project=project)
+        logger.info("Earth Engine initialized with default credentials.")
+
+
 # Valid climate variables for the NASA POWER API
 VALID_CLIMATE_VARIABLES = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]
 DEFAULT_CLIMATE_VARIABLES = [
@@ -130,7 +153,7 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
     """
     logger.info("Fetching meteorological data from ERA5 trough google earth engine.")
     logger.info("Initializing google earth engine.")
-    ee.Initialize(project=ee_project)
+    init_ee(project=ee_project)
 
     logger.info("Querying data.")
 

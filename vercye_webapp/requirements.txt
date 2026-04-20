@@ -1,6 +1,7 @@
 aiofiles
 celery[redis]
+exactextract
 fastapi[standard]
 pyproj
 pyyaml
-zipfile
+packaging<26

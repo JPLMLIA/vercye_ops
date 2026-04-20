@@ -73,6 +73,45 @@ def get_available_timepoints(reference_year_dir):
     return sorted(d for d in os.listdir(reference_year_dir) if os.path.isdir(os.path.join(reference_year_dir, d)))
 
 
+def _detect_cross_year(df):
+    """Detect if dates span a cross-year season (e.g. Sept→Mar)."""
+    months = df["Date"].dt.month
+    return (months >= 7).any() and (months <= 6).any()
+
+
+def _safe_replace_year(d, target_year):
+    """Replace year, handling leap-day dates by shifting to Feb 28."""
+    try:
+        return d.replace(year=target_year)
+    except ValueError:
+        # Feb 29 in a leap year Feb 28 in the target non-leap year
+        return d.replace(year=target_year, day=28)
+
+
+def _assign_plot_dates(df, cross_year):
+    """Map dates to a continuous reference period for plotting.
+
+    For cross-year seasons (e.g. Sept→Mar), late-year months stay in 2000
+    and early-year months shift to 2001 so the curve is continuous.
+    """
+    if cross_year:
+        df["PlotDate"] = df["Date"].apply(
+            lambda d: _safe_replace_year(d, 2001) if d.month <= 6 else _safe_replace_year(d, 2000)
+        )
+    else:
+        df["PlotDate"] = df["Date"].apply(lambda d: _safe_replace_year(d, 2000))
+    return df
+
+
+def _make_month_ticks(cross_year):
+    """Return tick values and labels spanning the actual plot date range."""
+    if cross_year:
+        month_starts = pd.date_range(start="2000-07-01", end="2001-06-30", freq="MS")
+    else:
+        month_starts = pd.date_range(start="2000-01-01", end="2000-12-31", freq="MS")
+    return month_starts, month_starts.strftime("%b")
+
+
 def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     combined = []
     true_years = []
@@ -80,8 +119,6 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         for fp in load_lai_files(os.path.join(input_dir, year, timepoint)):
             df, region, _ = parse_lai_file(fp, lai_agg_type, adjusted)
             df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y")
-            df["DayOfYear"] = df["Date"].dt.dayofyear
-            df["PlotDate"] = df["Date"].apply(lambda d: d.replace(year=2000))
             df["Year"] = df["Date"].dt.year
             df["Region"] = region
             true_years.extend(df["Date"].dt.year.unique())
@@ -91,6 +128,9 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         return None
 
     full_df = pd.concat(combined, ignore_index=True)
+    cross_year = _detect_cross_year(full_df)
+    full_df = _assign_plot_dates(full_df, cross_year)
+
     col = "LAI " + ("Mean" if lai_agg_type == "mean" else "Median")
     if adjusted:
         col += " Adjusted"
@@ -101,10 +141,8 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         df_y = full_df[full_df["Year"] == year]
         if df_y.empty:
             continue
-        m = df_y.groupby("DayOfYear")[col].mean().reset_index()
-        m["PlotDate"] = m["DayOfYear"].apply(
-            lambda doy: pd.Timestamp(year=2000, month=1, day=1) + pd.Timedelta(days=doy - 1)
-        )
+        m = df_y.groupby("PlotDate")[col].mean().reset_index()
+        m = m.sort_values("PlotDate")
         fig.add_trace(
             go.Scatter(
                 x=m["PlotDate"],
@@ -121,9 +159,7 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
         )
         added_years.append(year)
 
-    month_starts = pd.date_range(start="2000-01-01", end="2000-12-31", freq="MS")
-    tick_vals = month_starts
-    tick_text = month_starts.strftime("%b")
+    tick_vals, tick_text = _make_month_ticks(cross_year)
 
     fig.update_layout(
         title=dict(text=f"{col} by Day-of-Year - Aggregated by Year", x=0.5),
@@ -146,18 +182,21 @@ def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted
         for fp in load_lai_files(os.path.join(input_dir, str(year), timepoint)):
             df, region, _ = parse_lai_file(fp, lai_agg_type, adjusted)
             df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y")
-            df["PlotDate"] = df["Date"].apply(lambda d: d.replace(year=2000))
             df["Region"] = region
             combined.append(df)
         if not combined:
             continue
         dfy = pd.concat(combined, ignore_index=True)
+        cross_year = _detect_cross_year(dfy)
+        dfy = _assign_plot_dates(dfy, cross_year)
+
         col = "LAI " + ("Mean" if lai_agg_type == "mean" else "Median")
         if adjusted:
             col += " Adjusted"
 
         fig = go.Figure()
         for region, grp in dfy.groupby("Region"):
+            grp = grp.sort_values("PlotDate")
             fig.add_trace(
                 go.Scatter(
                     x=grp["PlotDate"],
@@ -171,9 +210,7 @@ def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted
                 )
             )
 
-        month_starts = pd.date_range(start="2000-01-01", end="2000-12-31", freq="MS")
-        tick_vals = month_starts
-        tick_text = month_starts.strftime("%b")
+        tick_vals, tick_text = _make_month_ticks(cross_year)
 
         fig.update_layout(
             title=dict(text=f"{col} - Regions in {year}", x=0.5),
@@ -213,7 +250,7 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
         all_preds, all_preds_years, preds_for_obs, all_obs, all_obs_years = [], [], [], [], []
         for year in years:
             base = os.path.join(input_dir, year, timepoint)
-            est = glob(os.path.join(base, f"agg_yield_estimates_{lvl}*.csv"))
+            est = glob(os.path.join(base, f"agg_yield_estimates_{lvl}_*.csv"))
             if not est:
                 continue
             if len(est) > 1:
@@ -221,7 +258,7 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
             preds_df = load_csv(est[0])
             all_preds.extend(preds_df["mean_yield_kg_ha"])
             all_preds_years.extend([year] * len(preds_df))
-            val = glob(os.path.join(input_dir, year, f"referencedata_{lvl}*.csv"))
+            val = glob(os.path.join(input_dir, year, f"referencedata_{lvl}-*.csv"))
             if val:
                 data = get_preds_obs(est[0], val[0])
                 all_obs.extend(data["obs"])
@@ -253,13 +290,34 @@ def create_predictions_plot(preds, years):
     return fig
 
 
+def _extract_agg_level_name(filename, year, timepoint):
+    """Extract aggregation level name from a filename like
+    agg_yield_estimates_{level_name}_{study_id}_{year}_{timepoint}.csv
+    """
+    base = os.path.basename(filename)
+    prefix = "agg_yield_estimates_"
+    suffix = f"_{year}_{timepoint}.csv"
+    if not base.startswith(prefix) or not base.endswith(suffix):
+        return None
+    middle = base[len(prefix) : -len(suffix)]
+    parts = middle.rsplit("_", 1)
+    if len(parts) == 2:
+        return parts[0]
+    return middle
+
+
 def identify_agg_levels(input_dir, years):
     lvls = set(["primary"])
     for y in years:
-        files = glob(os.path.join(input_dir, y, "*", "agg_yield_estimates_*.csv"))
-        for f in files:
-            lvl = os.path.basename(f).split("_")[3]
-            lvls.add(lvl)
+        for tp_dir in glob(os.path.join(input_dir, y, "*")):
+            if not os.path.isdir(tp_dir):
+                continue
+            timepoint = os.path.basename(tp_dir)
+            files = glob(os.path.join(tp_dir, "agg_yield_estimates_*.csv"))
+            for f in files:
+                lvl = _extract_agg_level_name(f, y, timepoint)
+                if lvl:
+                    lvls.add(lvl)
     return sorted(lvls)
 
 

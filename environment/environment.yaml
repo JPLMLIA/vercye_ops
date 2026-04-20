@@ -6,26 +6,23 @@ channels:
   - defaults
 
 dependencies:
-  - python=3.13
+  - python=3.12
   - gdal=3.11
   - click
+  - cairo
   - colorlog
-  - earthengine-api
   - geopandas
-  - google-auth
-  - google-auth-oauthlib
   - joblib
-  - kaleido=0.2.1
   - matplotlib
   - numpy
   - pandas
   - pathvalidate
   - pillow
   - planetary-computer
-  - plotly=6.0.1
-  # - pulp=2.7.0
-  - pystac_client
+  - plotly=6
+  - pystac-client
   - pyarrow
+  - pycairo
   - rasterio
   - requests
   - ruamel.yaml
@@ -40,4 +37,6 @@ dependencies:
   - jq
   - pip
   - pip:
+      - exactextract
+      - kaleido==0.2.1
       - STAC-Downloader @ git+https://github.com/rohansaw/STAC-Downloader
