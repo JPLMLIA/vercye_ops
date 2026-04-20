@@ -30,7 +30,7 @@ def files_have_same_content(src: str, dst: str) -> bool:
 def sync_tree_content_aware(src_root: str, dst_root: str) -> None:
     """Copy src_root into dst_root, but only overwrite destination files
     whose bytes differ from the source. Files that already match are left
-    untouched so their mtimes are preserved — this prevents snakemake from
+    untouched so their mtimes are preserved - this prevents snakemake from
     re-running rules whose inputs did not actually change.
 
     Files present in dst_root but absent from src_root are left in place

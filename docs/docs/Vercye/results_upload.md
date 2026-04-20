@@ -1,7 +1,7 @@
 # Uploading Results (rclone)
 
 At the end of a VeRCYe run the pipeline can optionally package the most
-relevant study outputs (a curated subset — not every file produced by the
+relevant study outputs (a curated subset - not every file produced by the
 run) into a zip and upload it to a cloud drive via `rclone`. This is useful
 when the machine running VeRCYe is not where users want to fetch results
 from (e.g. a shared HPC node).
@@ -70,7 +70,7 @@ than at the end of a long run.
    - leave `client_id` / `client_secret` empty unless you have your own
    - scope: `1` (full access) or `2` (file scope)
    - leave root_folder_id / service account blank for interactive auth
-   - `y` → auto config; a browser window opens — sign in and grant access
+   - `y` → auto config; a browser window opens - sign in and grant access
    - `n` → not a team drive (unless it is)
    - confirm with `y`
 
@@ -85,7 +85,7 @@ than at the end of a long run.
    rclone lsd gdrive:          # should list your Drive top-level folders
    ```
 
-4. **Point VeRCYe at it.** Add to `.env` (preferred — `vercye prep` writes
+4. **Point VeRCYe at it.** Add to `.env` (preferred - `vercye prep` writes
    it into the run config) …
 
    ```dotenv
@@ -107,13 +107,13 @@ than at the end of a long run.
 ## Other backends
 
 `rclone_target` can be any [rclone-supported backend](https://rclone.org/overview/)
-— Google Drive, S3, Azure Blob, Dropbox, SFTP, Backblaze B2, OneDrive, etc.
+- Google Drive, S3, Azure Blob, Dropbox, SFTP, Backblaze B2, OneDrive, etc.
 The setup is always the same: `rclone config` to add the remote, then set
 `RCLONE_TARGET` to `<remote_name>:` (or `<remote_name>:<path>`).
 
 ## Running
 
-No extra CLI flag is needed — the upload step runs automatically as the
+No extra CLI flag is needed - the upload step runs automatically as the
 last rule of `vercye run` when `rclone_target` is set. Logs are written to
 `logs_package_and_upload/<study_id>_package_and_upload.log` under the
 snakemake run directory, and a marker file

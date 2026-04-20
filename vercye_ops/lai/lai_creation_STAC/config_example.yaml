@@ -27,3 +27,42 @@ chunk_days: 30 # Number of days to process as one chunk. Will only keep this amo
 # When using satellite == "HLS": "MPC" for Microsoft Planetary Computer.
 imagery_src: "MPC"
 keep_imagery: false # Whether to keep the original remotely sensed imagery after generation of LAI. Typically keep false to free storage.
+
+# ---------------------------------------------------------------------------
+# Optional: push outputs to Azure Blob at the end of the pipeline.
+#
+# When enabled, the orchestrator runs `azcopy copy --recursive` for each
+# path in `include` AFTER step 4, mirroring the local layout under
+# `destination_url`. Blob accumulates across runs: destination-only files
+# from earlier runs (e.g. older months the LAI VM has since cleaned up
+# locally) are preserved. See the `overwrite` option below for how existing
+# blobs are handled when a file with the same name is uploaded again.
+#
+# Auth options (pick one):
+#   1. Append a SAS token via `sas_token:` below (it is appended as a query
+#      string to destination_url). Useful for short-lived runs.
+#   2. Leave `sas_token:` empty and run the pipeline on an Azure VM with a
+#      managed identity that has "Storage Blob Data Contributor" on the
+#      target container. Then export `AZCOPY_AUTO_LOGIN_TYPE=MSI` before
+#      launching the orchestrator and azcopy will pick it up automatically.
+#
+blob_upload:
+  enabled: false
+  destination_url: "https://<storage-account>.blob.core.windows.net/<container>/<run_id>"
+  sas_token: "" # optional; see auth options above
+  # Upload semantics: always `azcopy copy --recursive` (never `sync`), so
+  # destination-only files from earlier runs are preserved. Blob accumulates
+  # data across runs; re-running for a new month adds tiles instead of
+  # wiping the old ones.
+  #
+  # overwrite options (passed to azcopy --overwrite=):
+  #   ifSourceNewer (default) - replace a blob only if the local file is newer
+  #   true                    - always replace
+  #   false                   - never replace (skip existing blobs)
+  #   prompt                  - not useful in non-interactive runs
+  overwrite: "ifSourceNewer"
+  include:
+    - standardized-lai
+    - merged-lai
+    - meta.json
+    - region.geojson

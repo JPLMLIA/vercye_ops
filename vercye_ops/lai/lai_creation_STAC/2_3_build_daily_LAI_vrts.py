@@ -58,6 +58,14 @@ def check_crs_and_resolution(lai_file):
 def build_vrt(args):
     date, paths, out_dir, region_out_prefix, res_x, res_y, crs_str, minx, miny, maxx, maxy, resolution = args
     out_file = os.path.join(out_dir, f"{region_out_prefix}_{resolution}m_{date}_LAI.vrt")
+    # Record source tiles relative to the VRT's own directory so the tree is
+    # relocatable: uploading standardized-lai/ + merged-lai/ to Blob (or
+    # copying to any consumer) keeps the VRT valid regardless of the mount
+    # point, because gdalbuildvrt writes relativeToVRT="1" when given
+    # relative source paths and resolves them against the VRT's location
+    # at read time.
+    out_dir_abs = os.path.abspath(out_dir)
+    rel_paths = [os.path.relpath(os.path.abspath(p), out_dir_abs) for p in paths]
     logger.info(f"Processing for {out_file}")
     result = subprocess.run(
         [
@@ -75,7 +83,10 @@ def build_vrt(args):
             crs_str,
             out_file,
         ]
-        + paths
+        + rel_paths,
+        # cwd must match the VRT's directory so gdalbuildvrt finds the
+        # source files it's also storing as relative.
+        cwd=out_dir_abs,
     )
     if result.returncode != 0:
         logger.error(f"Error creating VRT for {date}: {result.stderr}")

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -126,6 +127,84 @@ def update_processed(meta_file, date_range, process_type):
         raise ValueError("Invalid process type provided.")
 
     return meta
+
+
+def _compose_azcopy_url(base_url, sas_token):
+    """Append ``sas_token`` to ``base_url`` as a query string if provided.
+
+    If ``sas_token`` is empty, returns ``base_url`` unchanged- azcopy will
+    then fall back to the auth mode selected via AZCOPY_AUTO_LOGIN_TYPE
+    (MSI / SPN / AZCLI), which is the recommended path when running on an
+    Azure VM with a managed identity.
+    """
+    if not sas_token:
+        return base_url
+    token = sas_token.lstrip("?")
+    sep = "&" if "?" in base_url else "?"
+    return f"{base_url}{sep}{token}"
+
+
+def upload_outputs_to_blob(config, out_dir, logger):
+    """Push selected LAI outputs to Azure Blob via azcopy, driven by config.
+
+    Uses ``azcopy copy --overwrite=ifSourceNewer --recursive`` so Blob
+    accumulates outputs across runs: new files are uploaded, changed files
+    are replaced, and files that exist only on Blob (e.g. last month's
+    data the LAI VM has since cleaned up locally) are left alone. Sync
+    semantics are deliberately NOT used — they would delete destination-only
+    tiles and break historical VRTs.
+
+    Mirrors the local layout under ``destination_url`` because the VRTs
+    produced by ``2_3_build_daily_LAI_vrts.py`` reference ``standardized-lai/``
+    tiles via ``relativeToVRT="1"`` paths, and flattening the tree would
+    break those references.
+    """
+    cfg = config.get("blob_upload") or {}
+    if not cfg.get("enabled"):
+        logger.info("blob_upload not enabled in config; skipping upload.")
+        return
+
+    destination_url = cfg.get("destination_url", "").rstrip("/")
+    if not destination_url:
+        raise ValueError(
+            "blob_upload.enabled is true but blob_upload.destination_url is missing."
+        )
+
+    sas_token = cfg.get("sas_token", "")
+    include = cfg.get("include") or ["standardized-lai", "merged-lai", "meta.json", "region.geojson"]
+    overwrite = cfg.get("overwrite", "ifSourceNewer")
+    if overwrite not in ("ifSourceNewer", "true", "false", "prompt"):
+        raise ValueError(
+            f"blob_upload.overwrite must be one of "
+            f"['ifSourceNewer', 'true', 'false', 'prompt']; got {overwrite!r}."
+        )
+
+    if shutil.which("azcopy") is None:
+        raise RuntimeError(
+            "azcopy not found on PATH. Install azcopy v10+ and ensure it is "
+            "reachable, or disable blob_upload in the LAI config."
+        )
+
+    for rel in include:
+        src = os.path.join(out_dir, rel)
+        if not os.path.exists(src):
+            logger.warning(f"Skipping upload of {rel!r}: {src} does not exist.")
+            continue
+
+        is_dir = os.path.isdir(src)
+        dest_path = f"{destination_url}/{rel}"
+        if is_dir:
+            src_arg = src.rstrip("/") + "/"
+            dest_arg = _compose_azcopy_url(dest_path + "/", sas_token)
+        else:
+            src_arg = src
+            dest_arg = _compose_azcopy_url(dest_path, sas_token)
+
+        cmd = ["azcopy", "copy", src_arg, dest_arg, f"--overwrite={overwrite}"]
+        if is_dir:
+            cmd.append("--recursive")
+
+        run_subprocess(cmd, f"Upload {rel!r} to blob", logger=logger)
 
 
 def run_pipeline(config, logger):
@@ -334,6 +413,12 @@ def run_pipeline(config, logger):
             json.dump(meta, f)
 
         meta = update_status(metadata_index_file, resolution, "completed")
+
+    # Optional post-processing: push the relevant output subtree to Azure Blob
+    if (config.get("blob_upload") or {}).get("enabled"):
+        meta = update_status(metadata_index_file, resolution, "uploading")
+        upload_outputs_to_blob(config, out_dir, logger=logger)
+        meta = update_status(metadata_index_file, resolution, "uploaded")
 
     logger.info("Pipeline completed successfully.")
 

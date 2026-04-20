@@ -1,0 +1,56 @@
+# Snakemake profile for operational runs on Azure Batch.
+# Pair with Snakefile.azure (NOT the default Snakefile, which keeps per-region
+# intermediates on disk for on-prem post-mortem inspection).
+#
+# Expects environment variables set by the launcher script on the head VM:
+#   AZ_BATCH_ACCOUNT_URL, AZ_BATCH_ACCOUNT_KEY
+#   AZ_BLOB_ACCOUNT_URL,  AZ_BLOB_ACCOUNT_KEY
+#   AZ_BATCH_POOL_ID
+#   AZ_BATCH_CONTAINER_IMAGE  (e.g. myacr.azurecr.io/vercye:<tag>)
+#
+# Kick off from the head VM with:
+#   snakemake \
+#     --snakefile Snakefile.azure \
+#     --profile profiles/azure-batch \
+#     --configfile /path/to/run_config.yaml
+
+snakefile: Snakefile.azure
+executor: azure-batch
+default-storage-provider: azure
+default-storage-prefix: "az://vercye-runs"
+remote-job-local-storage-prefix: "/tmp/snakemake-scratch"
+
+# Azure Batch executor plugin knobs. See
+# https://github.com/snakemake/snakemake-executor-plugin-azure-batch
+azure-batch-account-url: ${AZ_BATCH_ACCOUNT_URL}
+azure-batch-account-key: ${AZ_BATCH_ACCOUNT_KEY}
+azure-batch-pool-id: ${AZ_BATCH_POOL_ID}
+azure-batch-container-image: ${AZ_BATCH_CONTAINER_IMAGE}
+
+# Fleet-wide concurrency. One ``job`` == one group task on one Batch node.
+# Raise/lower based on pool autoscale headroom and spot availability.
+jobs: 500
+retries: 3
+
+# Bundle multiple logical per-region groups into each physical Batch task to
+# avoid task-startup overhead.
+# Heavy group (region_pipe) bundles fewer regions per task because each
+# region carries an APSIM run inside.
+group-components:
+  - region_validate=100
+  - region_pipe=25
+
+# Global API-rate caps stay in force; they protect the upstream services
+# regardless of pool size. No kaleido cap here - see Snakefile.azure header.
+resources:
+  - nasa_power_calls=50
+  - era5_calls=20
+
+# Keep a small on-prem-style failure margin: rerun incomplete, but don't
+# overwrite finished outputs from earlier runs.
+rerun-incomplete: true
+keep-going: true
+
+# Storage / filesystem - Blob via the storage plugin, no NFS involved.
+# Cold inputs (CHIRPS VRTs, LAI, cropmasks) should be referenced in
+# run_config.yaml via az:// or /vsiaz/ URLs so rasterio streams directly.

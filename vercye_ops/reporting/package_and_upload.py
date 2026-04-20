@@ -128,7 +128,7 @@ def main() -> None:
         n = zip_pattern_matches(root, patterns, zip_path)
         print(f"Packaged {n} files into {zip_path.name} ({zip_path.stat().st_size} bytes)")
         if n == 0:
-            raise SystemExit("No files matched the output patterns — refusing to upload empty archive")
+            raise SystemExit("No files matched the output patterns - refusing to upload empty archive")
         rclone_upload(zip_path, remote_dir)
 
     args.marker_file.parent.mkdir(parents=True, exist_ok=True)
