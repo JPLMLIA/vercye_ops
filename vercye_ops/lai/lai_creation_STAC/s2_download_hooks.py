@@ -6,6 +6,19 @@ from typing import Dict, List
 import numpy as np
 import rasterio as rio
 from pystac.item import Item as pyStacItem
+from scipy.ndimage import binary_dilation, generate_binary_structure
+
+# SCL classes identifying cloud pixels: medium-prob cloud, high-prob cloud, thin cirrus
+SCL_CLOUD_CLASSES = [8, 9, 10]
+
+
+def _dilate_binary(binary_mask: np.ndarray, iterations: int) -> np.ndarray:
+    """Dilate a boolean mask with 8-connectivity. Handles (H, W) or (1, H, W)."""
+    orig_shape = binary_mask.shape
+    squeezed = np.squeeze(binary_mask)
+    structure = generate_binary_structure(2, 2)
+    dilated = binary_dilation(squeezed, structure=structure, iterations=iterations)
+    return dilated.reshape(orig_shape)
 
 
 def get_s2_geometry_data(metadata_xml):
@@ -169,6 +182,7 @@ def build_s2_masking_hook(
     cloud_thresh=None,
     snowprob_thresh=None,
     scl_keep_classes=[4, 5],
+    cloud_buffer_px=2,
     scl_bandname="scl",
     cloudprob_bandname="cloud",
     snowprob_bandname="snow",
@@ -182,6 +196,7 @@ def build_s2_masking_hook(
         scl_keep_classes=scl_keep_classes,
         cloud_thresh=cloud_thresh,
         snowprob_thresh=snowprob_thresh,
+        cloud_buffer_px=cloud_buffer_px,
         scl_bandname=scl_bandname,
         cloudprob_bandname=cloudprob_bandname,
         snowprob_bandname=snowprob_bandname,
@@ -193,6 +208,7 @@ def s2_mask_processor(
     scl_keep_classes,
     cloud_thresh,
     snowprob_thresh,
+    cloud_buffer_px=2,
     scl_bandname="scl",
     cloudprob_bandname="cloud",
     snowprob_bandname="snow",
@@ -205,17 +221,25 @@ def s2_mask_processor(
     # Invalidate pixels based on SCL
     mask = np.where(np.isin(scl_band, scl_keep_classes), mask, 0)
 
+    # Track cloud pixels separately so we can apply a spatial buffer around them
+    is_cloud = np.isin(scl_band, SCL_CLOUD_CLASSES)
+
     # Invalidate pixels based on cloud probability
     # Currently we are fallingback on S2A-L2A non-collection-1, for 2022/23
     # This is temporary however it does not include the sen2corcloud band
     if "cloud" in maskbands:
         sen2cor_cloudprob_band_meta, sen2cor_cloudprob_band = maskbands[cloudprob_bandname]
         mask = np.where(sen2cor_cloudprob_band >= cloud_thresh, 0, mask)
+        is_cloud = is_cloud | (sen2cor_cloudprob_band >= cloud_thresh)
 
     # Invalidate pixels based on snow probability
     if "snow" in maskbands:
         sen2cor_snowprob_band_meta, sen2cor_snowprob_band = maskbands[snowprob_bandname]
         mask = np.where(sen2cor_snowprob_band >= snowprob_thresh, 0, mask)
+
+    if cloud_buffer_px and cloud_buffer_px > 0 and is_cloud.any():
+        buffered_clouds = _dilate_binary(is_cloud.astype(bool), cloud_buffer_px)
+        mask = np.where(buffered_clouds, 0, mask)
 
     new_metadata = {}
 

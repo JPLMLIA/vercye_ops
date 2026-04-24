@@ -6,9 +6,18 @@ from glob import glob
 from pathlib import Path
 
 import click
+import numpy as np
 import rasterio as rio
 from rasterio.transform import from_origin
 from rasterio.warp import Resampling, calculate_default_transform, reproject
+
+# Int16 storage parameters for LAI. scale=0.001 gives ±32.767 with 3-decimal
+# precision — well below S2 LAI retrieval uncertainty. Values < 0 are treated
+# as invalid (matches downstream `clip_negative_lai` semantics) and written as
+# the nodata sentinel, which the merged-lai VRT translates back to NaN.
+LAI_SCALE = 0.001
+LAI_NODATA = -32768
+LAI_MAX_STORABLE = 32.767  # 32767 * LAI_SCALE
 
 from vercye_ops.utils.init_logger import get_logger
 
@@ -110,6 +119,19 @@ def snap_bounds_to_grid(bounds, xres, yres):
     return left, bottom, right, top
 
 
+def quantize_to_int16(float_arr):
+    """Quantize a Float32 LAI array to Int16 with LAI_SCALE, marking NaN and
+    negative values with LAI_NODATA. Positive values above the storable range
+    are clamped to the max representable value."""
+    out = np.full(float_arr.shape, LAI_NODATA, dtype=np.int16)
+    valid = np.isfinite(float_arr) & (float_arr >= 0)
+    if valid.any():
+        scaled = np.round(float_arr[valid] / LAI_SCALE)
+        np.clip(scaled, 0, 32767, out=scaled)
+        out[valid] = scaled.astype(np.int16)
+    return out
+
+
 def standardize_lai(args):
     lai_file, output_dir, target_crs, target_resolution, remove_original = args
     xres, yres = target_resolution
@@ -128,7 +150,6 @@ def standardize_lai(args):
 
             dst_transform = from_origin(left, top, xres, yres)
 
-            # Create metadata for the new file
             meta = src.meta.copy()
             meta.update(
                 {
@@ -136,27 +157,40 @@ def standardize_lai(args):
                     "transform": dst_transform,
                     "width": dst_width,
                     "height": dst_height,
-                    "dtype": "float32",
-                    "compress": "deflate",
-                    "predictor": 3,
+                    "dtype": "int16",
+                    "nodata": LAI_NODATA,
+                    "compress": "zstd",
+                    "predictor": 2,
+                    "zstd_level": 19,
                     "tiled": True,
                     "blockxsize": 512,
                     "blockysize": 512,
                 }
             )
 
-            # Reproject and write to new file
+            # Reproject into a Float32 buffer first so we control the float-to-Int16
+            # quantization (clipping negatives to nodata) ourselves.
             with rio.open(output_file, "w", **meta) as dst:
                 for i in range(1, src.count + 1):
+                    float_buf = np.full((dst_height, dst_width), np.nan, dtype=np.float32)
                     reproject(
                         source=rio.band(src, i),
-                        destination=rio.band(dst, i),
+                        destination=float_buf,
                         src_transform=src.transform,
                         src_crs=src.crs,
                         dst_transform=dst_transform,
                         dst_crs=target_crs,
                         resampling=Resampling.bilinear,
+                        src_nodata=src.nodata,
+                        dst_nodata=float("nan"),
                     )
+                    int_buf = quantize_to_int16(float_buf)
+                    dst.write(int_buf, indexes=i)
+                    dst.update_tags(i, scale_factor=str(LAI_SCALE), add_offset="0")
+                # Rasterio exposes scales/offsets via the dataset-level metadata
+                dst.scales = (LAI_SCALE,) * src.count
+                dst.offsets = (0.0,) * src.count
+
         logger.info(f"Standardized LAI file saved: {output_file}")
 
         if remove_original:
