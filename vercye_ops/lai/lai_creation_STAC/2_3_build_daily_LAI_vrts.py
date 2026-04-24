@@ -11,6 +11,7 @@ import click
 import geopandas as gpd
 import rasterio as rio
 
+from vercye_ops.lai.lai_creation_STAC.vrt_patcher import patch_vrt_for_int16_sources
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
@@ -79,8 +80,12 @@ def build_vrt(args):
     )
     if result.returncode != 0:
         logger.error(f"Error creating VRT for {date}: {result.stderr}")
-    else:
-        logger.info(f"VRT created successfully for {date} at {out_file}")
+        return
+    # Standardized tiles are Int16 (scale=0.001, nodata=-32768). Patch the VRT
+    # so downstream readers see Float32 with NaN — gdalbuildvrt by itself does
+    # not apply the scale factor or convert the nodata sentinel.
+    patch_vrt_for_int16_sources(out_file)
+    logger.info(f"VRT created successfully for {date} at {out_file}")
 
 
 @click.command()

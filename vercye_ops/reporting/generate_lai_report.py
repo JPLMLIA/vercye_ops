@@ -91,61 +91,59 @@ def get_axis(axes, row, col, total_rows, n_cols):
 
 
 def _build_region_to_level_mapping(basedir, level_shapefile, name_column):
-    """Build a mapping from primary region names to level polygon names via spatial join."""
+    """Build a mapping from primary region names to level polygon names via spatial join.
+
+    Uses a two-pass strategy: first tries "region-centroid within level-polygon"
+    (level coarser than regions, e.g. oblasts); if that yields nothing, falls
+    back to "level-centroid within region-polygon" (level finer than regions,
+    e.g. field-scale polygons).
+    """
     level_gdf = gpd.read_file(level_shapefile)
 
-    # Collect all region GeoJSONs and get their centroids
-    region_rows = []
-    for year in os.listdir(basedir):
-        year_path = os.path.join(basedir, year)
-        if not os.path.isdir(year_path):
-            continue
-        for timepoint in os.listdir(year_path):
-            tp_path = os.path.join(year_path, timepoint)
-            if not os.path.isdir(tp_path):
-                continue
-            for region in os.listdir(tp_path):
-                geojson_file = os.path.join(tp_path, region, f"{region}.geojson")
-                if os.path.exists(geojson_file):
-                    gdf = gpd.read_file(geojson_file)
-                    if len(gdf) > 0:
-                        region_rows.append({"region": region, "geometry": gdf.geometry.iloc[0].centroid})
-                    break  # Only need one copy per region
-            if region_rows:
-                break
-        if region_rows:
-            break
-
-    # Re-scan to get ALL regions (the above just got from one year/timepoint)
-    region_rows = []
     first_year = sorted([y for y in os.listdir(basedir) if os.path.isdir(os.path.join(basedir, y))])[0]
     first_tp_dir = os.path.join(basedir, first_year)
     first_tp = sorted([t for t in os.listdir(first_tp_dir) if os.path.isdir(os.path.join(first_tp_dir, t))])[0]
     tp_path = os.path.join(basedir, first_year, first_tp)
 
+    region_rows = []
     for region in os.listdir(tp_path):
         geojson_file = os.path.join(tp_path, region, f"{region}.geojson")
         if os.path.exists(geojson_file):
             gdf = gpd.read_file(geojson_file)
             if len(gdf) > 0:
-                region_rows.append({"region": region, "geometry": gdf.geometry.iloc[0].centroid})
+                region_rows.append({"_primary_region_": region, "geometry": gdf.geometry.iloc[0]})
 
     if not region_rows:
         return {}
 
     regions_gdf = gpd.GeoDataFrame(region_rows, crs=gdf.crs)
-
-    # Reproject if needed
     if regions_gdf.crs != level_gdf.crs:
         regions_gdf = regions_gdf.to_crs(level_gdf.crs)
 
-    # Spatial join
-    joined = gpd.sjoin(regions_gdf, level_gdf[[name_column, "geometry"]], how="left", predicate="within")
+    # Use an internal right-side column name to avoid any collision with name_column.
+    level_sub = level_gdf[[name_column, "geometry"]].rename(columns={name_column: "_level_name_"})
+
+    # Forward: region centroid within level polygon (level coarser than region).
+    regions_centroid = regions_gdf.copy()
+    regions_centroid["geometry"] = regions_centroid.geometry.centroid
+    fwd = gpd.sjoin(regions_centroid, level_sub, how="left", predicate="within")
 
     mapping = {}
-    for _, row in joined.iterrows():
-        if pd.notna(row.get(name_column)):
-            mapping[row["region"]] = str(row[name_column])
+    for _, row in fwd.iterrows():
+        if pd.notna(row.get("_level_name_")):
+            mapping[row["_primary_region_"]] = str(row["_level_name_"])
+
+    if mapping:
+        return mapping
+
+    # Fallback: level-polygon centroid within region (level finer than region).
+    # Each region gets mapped to one of the level polygons it contains (if any).
+    level_centroid = level_sub.copy()
+    level_centroid["geometry"] = level_centroid.geometry.centroid
+    rev = gpd.sjoin(level_centroid, regions_gdf, how="left", predicate="within")
+    for _, row in rev.iterrows():
+        if pd.notna(row.get("_primary_region_")):
+            mapping.setdefault(row["_primary_region_"], str(row["_level_name_"]))
 
     return mapping
 
@@ -239,7 +237,26 @@ def create_agg_plots(basedir, out_path, level_shapefile, name_column, lai_column
     print(f"Found {len(all_admin_names)} admin units: {all_admin_names}")
 
     if len(all_timepoints) == 0 or len(all_admin_names) == 0:
-        print("No data found!")
+        # Write a placeholder PDF so downstream Snakemake rules are satisfied.
+        # This happens when the level shapefile covers no simulated region, e.g.
+        # a field-scale shapefile with no sim region covering any field.
+        print("No data found; writing placeholder PDF.")
+        fig, ax = plt.subplots(figsize=(8.5, 11))
+        ax.text(
+            0.5,
+            0.5,
+            "No LAI data available for this aggregation level.\n\n"
+            f"Shapefile: {os.path.basename(level_shapefile)}\n"
+            f"Name column: {name_column}\n\n"
+            "No simulated region intersects the level geometries,\n"
+            "or the simulated regions are not represented in the shapefile.",
+            ha="center",
+            va="center",
+            wrap=True,
+        )
+        ax.axis("off")
+        plt.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
         return
 
     # Calculate grid dimensions for admin units within each timepoint section
