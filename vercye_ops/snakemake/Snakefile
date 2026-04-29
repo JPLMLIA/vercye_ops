@@ -325,6 +325,7 @@ rule construct_plot_met_files:
         chirps_arg = lambda wildcards, input: f"--chirps_file {input.chirps_file}" if input.get("chirps_file") else "",
     log:
         'logs_construct_plot_met_files/{year}_{timepoint}_{region}.log',
+    group: "per_region_met_setup"
     output:
         met_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather.met'),
         plot_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_weather_report.html'),
@@ -367,6 +368,7 @@ rule update_apsimx_template:
 
     log:
         'logs_update_apsimx_template/{year}_{timepoint}_{region}.log',
+    group: "per_region_met_setup"
     output:
         apsimx_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.apsimx')
     shell:
@@ -423,8 +425,6 @@ rule execute_simulations:
             else temp(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'))
         )
     retries: 2 if not config['apsim_execution']['use_docker'] else 5  # Docker image has habit of failing sometimes
-    benchmark:
-        "benchmarks/execute_simulations_{year}_{timepoint}_{region}.txt"
     shell:
         """
         {params.execution_command} --verbose > {log}
@@ -467,6 +467,7 @@ rule constrain_lai_cropmask:
         executable_fpath = config['scripts']['constrain_lai_cropmask'],
     log:
         'logs_constrain_lai_cropmask/{year}_{timepoint}_{region}.log'
+    group: "per_region_cropmask_validate"
     output:
         constrained_cropmask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_cropmask_constrained.tif'),
     shell:
@@ -485,6 +486,7 @@ rule validate_region_has_cropland:
         valid_flag_path = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID')
     log:
         'logs_validate_constrained_cropmask/{year}_{timepoint}_{region}.log'
+    group: "per_region_cropmask_validate"
     params:
         executable_fpath = config['scripts']['check_region_has_cropland'],
         min_cropland_px = config['lai_params']['min_cropland_pixel_threshold']
@@ -524,8 +526,6 @@ rule lai_analysis:
         smoothed_flag = '--smoothed' if config['lai_params']['smoothed'] is True else '',
         cloudcov_threshold = config['lai_params']['cloudcov_threshold'],
         max_lai_output_band = 'adjustedLAImax' if config['lai_params']['use_crop_adjusted_lai'] else 'estimateLAImax'
-    benchmark:
-        "benchmarks/lai_analysis_{year}_{timepoint}_{region}.txt"
     log:
         'logs_lai_analysis/{year}_{timepoint}_{region}.log'
     output:
@@ -584,13 +584,9 @@ rule match_sim_real:
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
-    resources:
-        kaleido_resources = 1,  # Poltly-Kaleido uses 40+ threads internally for image generation. Used to avoid nproc limitations on shared cluster
     output:
         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
         conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
-    benchmark:
-        "benchmarks/math_sim_{year}_{timepoint}_{region}.txt"
     shell:
         """
         python {params.executable_fpath} \
@@ -613,6 +609,7 @@ rule save_matched_sims:
         executable_fpath = config['scripts']['save_matched_sims']
     log:
         'logs_save_matched_sims/{year}_{timepoint}_{region}.log',
+    group: "per_region"
     output:
         op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_matched_sims.csv')
     shell:
@@ -633,6 +630,7 @@ rule generate_converted_lai_map:
         executable_fpath = config['scripts']['generate_converted_lai_map'],
     log:
         'logs_generate_converted_lai_map/{year}_{timepoint}_{region}.log',
+    group: "per_region"
     output:
         converted_lai_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
     shell:
@@ -702,6 +700,7 @@ rule estimate_total_yield_diagnostic:
         target_crs = config['matching_params']['target_crs'],
     log:
         'logs_estimate_total_yield/{year}_{timepoint}_{region}.log',
+    group: "per_region"
     output:
         total_yield_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_converted_map_yield_estimate.csv'),
     shell:
@@ -729,6 +728,7 @@ rule match_sim_real_quicklook:
         html_param = lambda wildcards, output: "--html_fpath " + output.html_fpath if config['create_per_region_html_report'] is True else "",
     log:
         'logs_match_sim_real_quicklook/{year}_{timepoint}_{region}.log',
+    group: "per_region"
     output:
         html_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.html') if config['create_per_region_html_report'] is True else [],
         png_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_report.png'),

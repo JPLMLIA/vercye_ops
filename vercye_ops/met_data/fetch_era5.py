@@ -486,7 +486,7 @@ def cli(
 
     error_checking_function(df)
     if output_dir is not None:
-        region = Path(output_dir).stem
+        region = Path(output_dir).name
         output_fpath = Path(output_dir) / f"{region}_met.csv"
         write_met_data_to_csv(df, output_fpath)
         logger.info("Data successfully written to %s", output_fpath)
