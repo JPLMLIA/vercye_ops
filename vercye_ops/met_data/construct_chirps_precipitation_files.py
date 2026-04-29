@@ -24,10 +24,6 @@ from vercye_ops.utils.init_logger import get_logger
 logger = get_logger()
 
 
-def get_region_name(region_geometry_file: str):
-    return region_geometry_file.split("/")[-1].split(".")[0]
-
-
 def get_dates_range(start_date: Date, end_date: Date):
     """Generate a range of dates between the start and end dates."""
     return pd.date_range(start_date, end_date)
