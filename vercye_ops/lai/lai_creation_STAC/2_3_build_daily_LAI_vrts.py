@@ -82,7 +82,7 @@ def build_vrt(args):
         logger.error(f"Error creating VRT for {date}: {result.stderr}")
         return
     # Standardized tiles are Int16 (scale=0.001, nodata=-32768). Patch the VRT
-    # so downstream readers see Float32 with NaN — gdalbuildvrt by itself does
+    # so downstream readers see Float32 with NaN - gdalbuildvrt by itself does
     # not apply the scale factor or convert the nodata sentinel.
     patch_vrt_for_int16_sources(out_file)
     logger.info(f"VRT created successfully for {date} at {out_file}")

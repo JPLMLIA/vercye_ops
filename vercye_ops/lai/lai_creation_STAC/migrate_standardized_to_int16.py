@@ -4,7 +4,7 @@ merged-lai daily VRTs so downstream readers still see Float32 + NaN.
 
 Atomic per-file: writes <name>.int16.tmp, verifies it re-opens and decodes to
 the same Float32 values (within the 0.001 quantum), then deletes the original
-and renames. Safe to re-run after interruption — files already Int16 are
+and renames. Safe to re-run after interruption - files already Int16 are
 skipped.
 
 Usage (from anywhere with the vercye_ops package importable):

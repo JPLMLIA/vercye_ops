@@ -62,11 +62,11 @@ See the the [APSIM Section](Vercye/apsim.md) for details.
 #### 4. Authenticate Google Earth Engine
 The ERA5 meteorological data is currently still fetched through Google Earth Engine. You have two options:
 
-**Option A — Service account (recommended for headless/server setups):**
+**Option A - Service account (recommended for headless/server setups):**
 
 Place your GCP service account JSON key on the machine and set `EE_SERVICE_ACCOUNT_KEY=/path/to/key.json` in your `.env`. The service account must be registered with Earth Engine and have the `roles/serviceusage.serviceUsageConsumer` and `roles/earthengine.viewer` roles on the project. See [Meteorological Data](Vercye/metdata.md#era5) for details.
 
-**Option B — Interactive login:**
+**Option B - Interactive login:**
 
 On a machine with a browser, run:
 ```bash

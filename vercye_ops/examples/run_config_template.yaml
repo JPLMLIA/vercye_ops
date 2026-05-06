@@ -246,7 +246,7 @@ scripts:
 # Packaging / upload of final outputs (optional)
 ########################################
 # When set, after the pipeline finishes a zip of the most relevant outputs
-# (matching ../reporting/output_data_patterns.txt — not every file) is
+# (matching ../reporting/output_data_patterns.txt - not every file) is
 # uploaded via rclone to
 #   <rclone_target>/<rclone_folder_prefix>/<study_id>_<YYYYMMDD>[_N]/
 #
