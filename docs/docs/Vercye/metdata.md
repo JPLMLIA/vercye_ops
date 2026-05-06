@@ -18,8 +18,8 @@ Create a service account in your GCP project and download a JSON key. The servic
 
 1. **Registered with Earth Engine** at https://signup.earthengine.google.com/#!/service_accounts
 2. Granted the following IAM roles on the GCP project:
-    - `roles/serviceusage.serviceUsageConsumer` — allows billing API calls to the project
-    - `roles/earthengine.viewer` — allows running EE computations and reading public datasets (use `roles/earthengine.writer` instead if you also need to run the GEE LAI export pipeline)
+    - `roles/serviceusage.serviceUsageConsumer` - allows billing API calls to the project
+    - `roles/earthengine.viewer` - allows running EE computations and reading public datasets (use `roles/earthengine.writer` instead if you also need to run the GEE LAI export pipeline)
 
 Then set the path to the key file in your `.env`:
 
@@ -28,7 +28,7 @@ EE_SERVICE_ACCOUNT_KEY=/path/to/your/service-account-key.json
 EE_PROJECT_NAME=your-gcp-project-id
 ```
 
-The pipeline will pick this up automatically — no interactive login required.
+The pipeline will pick this up automatically - no interactive login required.
 
 ### Option 2: Interactive user authentication
 

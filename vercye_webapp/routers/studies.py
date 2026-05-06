@@ -345,7 +345,7 @@ async def setup_study(
                         break
 
     elif setup_submission.aggregation_shapefiles:
-        # No new files uploaded but configs exist (e.g. duplicated study) —
+        # No new files uploaded but configs exist (e.g. duplicated study) -
         # preserve existing shapefile paths from the current study config
         existing_config_path = get_setup_config_file_path(studies_dir, study_id)
         if os.path.exists(existing_config_path):
@@ -426,7 +426,7 @@ def fetch_setup_config(study_id: StudyID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read shapefile: {e}")
 
-    # aggregation shapefiles — enrich with columns read from stored files
+    # aggregation shapefiles - enrich with columns read from stored files
     agg_shp_raw = raw.get("aggregation_shapefiles", [])
     agg_shp_stored = config.get("AGGREGATION_SHAPEFILES", {})
     agg_shp_configs: list[AggregationShapefileConfigWithColumns] = []

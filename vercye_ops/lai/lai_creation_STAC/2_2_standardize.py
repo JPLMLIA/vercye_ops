@@ -12,7 +12,7 @@ from rasterio.transform import from_origin
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 
 # Int16 storage parameters for LAI. scale=0.001 gives ±32.767 with 3-decimal
-# precision — well below S2 LAI retrieval uncertainty. Values < 0 are treated
+# precision - well below S2 LAI retrieval uncertainty. Values < 0 are treated
 # as invalid (matches downstream `clip_negative_lai` semantics) and written as
 # the nodata sentinel, which the merged-lai VRT translates back to NaN.
 LAI_SCALE = 0.001

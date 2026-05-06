@@ -515,7 +515,7 @@ def _validate_packaging_params(config):
     if not isinstance(rclone_target, str):
         raise ValueError("packaging_params.rclone_target must be a string")
     if not rclone_target.strip():
-        print("✓ Packaging params not set — upload step will be skipped")
+        print("✓ Packaging params not set - upload step will be skipped")
         return
 
     rclone_folder_prefix = packaging_params.get("rclone_folder_prefix", "")
@@ -566,7 +566,7 @@ def _validate_packaging_params(config):
         raise RuntimeError(f"rclone probe of '{probe_target}' timed out after 60s.")
     if result.returncode != 0:
         stderr_lower = (result.stderr or "").lower()
-        # A missing leaf folder is fine — rclone creates it on upload.
+        # A missing leaf folder is fine - rclone creates it on upload.
         if "directory not found" not in stderr_lower and "not found" not in stderr_lower:
             raise RuntimeError(
                 f"Could not reach rclone target '{probe_target}' "
