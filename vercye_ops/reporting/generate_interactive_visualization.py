@@ -24,11 +24,17 @@ class InteractiveMapGenerator:
         output_dir: str,
         lai_columns: List[str],
         lai_column_names: List[str],
-        agg_levels: Dict[str, Tuple[str, str]],
+        agg_levels: Dict[str, Tuple[str, str, str, str]],
         simplify_tolerance: float = 0.0001,
         zip: bool = False,
     ):
-        """Initialize the map generator."""
+        """Initialize the map generator.
+
+        agg_levels values are 4-tuples: (shapefile_or_column, name_column,
+        agg_estimates_csv, per_level_lai_csv). `name_column` may be "none" /
+        empty for the base (primary) level. `per_level_lai_csv` may be "none"
+        / empty / a non-existing path to fall back to on-the-fly aggregation.
+        """
         self.shapefile_path = shapefile_path
         self.basedir_path = basedir_path
         self.output_dir = output_dir
@@ -37,6 +43,7 @@ class InteractiveMapGenerator:
         self.sim_data = None
         self.aggregation_levels = []
         self.aggregated_estimates = {}
+        self.level_lai_data = {}
         self.lai_columns = lai_columns
         self.lai_column_names = lai_column_names
         self.simplify_tolerance = simplify_tolerance
@@ -44,8 +51,8 @@ class InteractiveMapGenerator:
 
         os.makedirs(self.output_dir, exist_ok=True)
 
-        for agg_name, (agg_column, agg_estimates_fpath) in agg_levels.items():
-            self.add_aggregation_level(agg_name, agg_column, agg_estimates_fpath)
+        for agg_name, (agg_column, name_column, agg_estimates_fpath, lai_csv_fpath) in agg_levels.items():
+            self.add_aggregation_level(agg_name, agg_column, name_column, agg_estimates_fpath, lai_csv_fpath)
 
         self.load_data()
 
@@ -76,37 +83,49 @@ class InteractiveMapGenerator:
         self.aggregated_estimates = self.load_aggregated_estimates()
         print("Loaded aggregated estimates for all levels")
 
-        print("Loading LAI data...")
+        print("Loading per-region LAI data (used for base level / fallback)...")
         self.lai_data = self.load_lai_data()
-        print("Loaded LAI data")
+        print("Loaded per-region LAI data")
+
+        print("Loading per-level LAI timeseries CSVs (when configured)...")
+        self.level_lai_data = self.load_per_level_lai_data()
 
         print("Loading simulations data")
         self.sim_data = self.load_sim_data()
 
-    def add_aggregation_level(self, level_name: str, column_name: str, agg_estimate_fpath: str):
-        """
-        Add an aggregation level.
+    def add_aggregation_level(self, level_name: str, column_name: str, name_column: str,
+                              agg_estimate_fpath: str, lai_csv_fpath: str):
+        """Register one aggregation level.
 
         Args:
-            level_name: Display name for this level (e.g., "States", "Counties")
-            column_name: Column name to aggregate by
+            level_name: Display name for this level (e.g., "States", "Counties").
+            column_name: Either a column in the primary GDF, or a path to a level shapefile.
+            name_column: Column in the level shapefile holding the level region name.
+                         Pass "" or "none" for the base/primary level (uses cleaned_region_name_vercye).
+            agg_estimate_fpath: Path to the aggregated yield estimates CSV for this level.
+            lai_csv_fpath: Path to the per-level LAI timeseries CSV. "" / "none" / non-existing
+                           path => fall back to on-the-fly aggregation from per-region files.
         """
-
-        # Currently hardcoded - TODO make dynamic aswell
-        errors_fpath = str(
-            Path(agg_estimate_fpath).parent / f'errors_{Path(agg_estimate_fpath).name.split("_")[3]}.csv'
-        )
+        errors_fpath = str(Path(agg_estimate_fpath).parent / f"errors_{level_name}.csv")
+        nm = name_column.strip() if isinstance(name_column, str) else ""
+        if nm.lower() == "none":
+            nm = ""
+        lai_path = lai_csv_fpath.strip() if isinstance(lai_csv_fpath, str) else ""
+        if lai_path.lower() == "none":
+            lai_path = ""
 
         self.aggregation_levels.append(
             {
                 "name": level_name,
                 "column": column_name,
+                "name_column": nm,
                 "agg_estimates_file": agg_estimate_fpath,
                 "errors_file": errors_fpath,
+                "lai_csv_file": lai_path,
             }
         )
 
-        print(f"Added aggregation level: {level_name} (by {column_name})")
+        print(f"Added aggregation level: {level_name} (by {column_name}, name_column={nm or '<base>'})")
 
     def aggregate_lai_data(self, regions: List[str]) -> Tuple[List[float], List[str], List[bool]]:
         """
@@ -158,10 +177,10 @@ class InteractiveMapGenerator:
         """Check if agg_col is a file path rather than a column name."""
         return agg_col.endswith((".geojson", ".shp", ".gpkg")) or os.path.sep in agg_col
 
-    def load_agg_geometries(self, agg_col):
+    def load_agg_geometries(self, agg_col, name_column):
         # If agg_col is a file path to an external shapefile, load it and use spatial join
         if self._is_shapefile_path(agg_col):
-            return self._load_external_agg_geometries(agg_col)
+            return self._load_external_agg_geometries(agg_col, name_column)
 
         # Group polygon by aggregation column and union into single geom
         grouped = (
@@ -179,58 +198,46 @@ class InteractiveMapGenerator:
 
         return grouped
 
-    def _load_external_agg_geometries(self, shapefile_path):
-        """Load an external aggregation shapefile and spatial-join with primary regions."""
+    def _load_external_agg_geometries(self, shapefile_path, name_column):
+        """Load an external aggregation shapefile and spatial-join with primary regions.
+
+        `name_column` is the explicit column in the shapefile holding the level
+        region name (must match the `region` values in the corresponding
+        aggregated yield estimates CSV).
+        """
+        if not name_column:
+            raise ValueError(
+                f"name_column is required for shapefile-based aggregation level ({shapefile_path}); "
+                "pass it via the --agg-level CLI string."
+            )
+
         ext_gdf = gpd.read_file(shapefile_path)
         if ext_gdf.crs != self.gdf.crs:
             ext_gdf = ext_gdf.to_crs(self.gdf.crs)
 
-        # Find the region name column from aggregated estimates
-        # Use the "region" column from the CSV data to match
-        # Deduplicate by geometry (external shapefiles may have year-specific rows)
-        name_col = None
-        for col in ext_gdf.columns:
-            if col == "geometry":
-                continue
-            unique_vals = set(ext_gdf[col].astype(str))
-            # Check if this column's values overlap with the aggregated estimate keys
-            # for any level that uses this shapefile
-            for lvl_idx, level in enumerate(self.aggregation_levels):
-                if level["column"] == shapefile_path and lvl_idx in self.aggregated_estimates:
-                    est_keys = set(self.aggregated_estimates[lvl_idx].keys())
-                    if unique_vals & est_keys:
-                        name_col = col
-                        break
-            if name_col:
-                break
+        if name_column not in ext_gdf.columns:
+            raise ValueError(
+                f"name_column '{name_column}' not found in {shapefile_path}. "
+                f"Available columns: {list(ext_gdf.columns)}"
+            )
 
-        if name_col is None:
-            # Fallback: use first non-geometry string column
-            for col in ext_gdf.columns:
-                if col != "geometry" and ext_gdf[col].dtype == object:
-                    name_col = col
-                    break
-
-        if name_col is None:
-            print(f"WARNING: Could not find a suitable name column in {shapefile_path}")
-            return gpd.GeoDataFrame(columns=[shapefile_path, "geometry", "subregions", "cleaned_region_name_vercye"])
-
-        # Deduplicate by name_col to get unique geometries
-        ext_gdf = ext_gdf.drop_duplicates(subset=[name_col]).reset_index(drop=True)
+        # Deduplicate by name_column to get unique geometries
+        # (shapefile may have one row per region per year for reference data)
+        ext_gdf = ext_gdf.drop_duplicates(subset=[name_column]).reset_index(drop=True)
 
         # Spatial join: find which primary regions fall within each aggregation region
         primary_centroids = self.gdf.copy()
         primary_centroids["geometry"] = primary_centroids.geometry.centroid
-        joined = gpd.sjoin(primary_centroids, ext_gdf[[name_col, "geometry"]], how="left", predicate="within")
+        joined = gpd.sjoin(primary_centroids, ext_gdf[[name_column, "geometry"]], how="left", predicate="within")
 
         # Group by the external name column
-        subregion_map = joined.groupby(name_col)["cleaned_region_name_vercye"].apply(list).reset_index()
+        subregion_map = joined.groupby(name_column)["cleaned_region_name_vercye"].apply(list).reset_index()
 
         # Build result using external shapefile geometries
-        result = ext_gdf[[name_col, "geometry"]].merge(subregion_map, on=name_col, how="left")
+        result = ext_gdf[[name_column, "geometry"]].merge(subregion_map, on=name_column, how="left")
         result["subregions"] = result["cleaned_region_name_vercye"].apply(lambda x: x if isinstance(x, list) else [])
         # Store the shapefile path as the "column" key so create_geojson_level can access region names
-        result[shapefile_path] = result[name_col]
+        result[shapefile_path] = result[name_column]
 
         return result
 
@@ -247,7 +254,9 @@ class InteractiveMapGenerator:
 
         # Load geometries
         is_base_level = level_idx == len(self.aggregation_levels) - 1
-        agg_col = self.aggregation_levels[level_idx]["column"]
+        level = self.aggregation_levels[level_idx]
+        agg_col = level["column"]
+        name_col_attr = level.get("name_column", "")
 
         if is_base_level:
             geometries = self.gdf.copy()
@@ -257,7 +266,9 @@ class InteractiveMapGenerator:
             if agg_col not in geometries.columns:
                 geometries[agg_col] = geometries[base_col]
         else:
-            geometries = self.load_agg_geometries(agg_col)
+            geometries = self.load_agg_geometries(agg_col, name_col_attr)
+
+        per_level_lai = self.level_lai_data.get(level_idx)
 
         # Create feature for every entry
         features = []
@@ -265,11 +276,29 @@ class InteractiveMapGenerator:
             geometry = row["geometry"]
             geometry = geometry.simplify(tolerance=self.simplify_tolerance, preserve_topology=True)
 
-            # Get LAI data for all regions in this group
-            lai_values, date_labels, interpolation_flags = self.aggregate_lai_data(row["subregions"])
-
             # Extract data to display
             region_name = str(row[agg_col])
+
+            # LAI series: prefer the per-level CSV when configured, otherwise compute on-the-fly.
+            if per_level_lai and region_name in per_level_lai:
+                entry = per_level_lai[region_name]
+                lai_values = entry["timeSeries"]
+                date_labels = entry["dateLabels"]
+                interpolation_flags = entry["interpolationFlags"]
+            else:
+                lai_values, date_labels, interpolation_flags = self.aggregate_lai_data(row["subregions"])
+
+            # Max LAI for the heatmap dropdown — use the first configured display column
+            # so the heatmap reflects the same series shown by default in the chart.
+            max_lai = None
+            if lai_values and self.lai_column_names:
+                primary = self.lai_column_names[0]
+                series = lai_values.get(primary)
+                if series:
+                    finite = [v for v in series if v is not None and isinstance(v, (int, float)) and np.isfinite(v)]
+                    if finite:
+                        max_lai = float(max(finite))
+
             if region_name in self.aggregated_estimates[level_idx]:
                 mean_estimated_yield_kg_ha = self.aggregated_estimates[level_idx][region_name][
                     "estimated_mean_yield_kg_ha"
@@ -297,8 +326,12 @@ class InteractiveMapGenerator:
                     "interpolationFlags": interpolation_flags,
                     "subregions": row["subregions"] if not is_base_level else [],
                     "isAggregated": False if is_base_level else True,
-                    "error": np.nan,
-                    "relative_error": np.nan,
+                    # Missing values are encoded as JSON null (not NaN) so the JS
+                    # display fallback (`?.toFixed(1) || 'N/A'`) renders 'N/A'.
+                    "error": None,
+                    "relative_error": None,
+                    "reported_mean_yield_kg_ha": None,
+                    "max_lai": max_lai,
                 },
                 "geometry": geometry.__geo_interface__,
             }
@@ -307,23 +340,18 @@ class InteractiveMapGenerator:
             if is_base_level and region_name in self.sim_data:
                 feature["properties"]["simulationsImgPath"] = self.sim_data[region_name]
 
-            # Add reference data if available
-            if (
-                region_name in self.aggregated_estimates[level_idx]
-                and "reported_mean_yield_kg_ha" in self.aggregated_estimates[level_idx][region_name]
-            ):
-                feature["properties"]["reported_mean_yield_kg_ha"] = float(
-                    self.aggregated_estimates[level_idx][region_name]["reported_mean_yield_kg_ha"]
-                )
+            est = self.aggregated_estimates[level_idx].get(region_name, {})
+            reported = est.get("reported_mean_yield_kg_ha")
+            if reported is not None and np.isfinite(reported):
+                feature["properties"]["reported_mean_yield_kg_ha"] = float(reported)
 
-            if (
-                region_name in self.aggregated_estimates[level_idx]
-                and "error" in self.aggregated_estimates[level_idx][region_name]
-            ):
-                feature["properties"]["error"] = float(self.aggregated_estimates[level_idx][region_name]["error"])
-                feature["properties"]["relative_error"] = float(
-                    self.aggregated_estimates[level_idx][region_name]["relative_error"]
-                )
+            err = est.get("error")
+            if err is not None and np.isfinite(err):
+                feature["properties"]["error"] = float(err)
+
+            rel_err = est.get("relative_error")
+            if rel_err is not None and np.isfinite(rel_err):
+                feature["properties"]["relative_error"] = float(rel_err)
 
             features.append(feature)
 
@@ -378,19 +406,22 @@ class InteractiveMapGenerator:
         for valueType in [
             "estimated_mean_yield_kg_ha",
             "estimated_median_yield_kg_ha",
+            "reported_mean_yield_kg_ha",
+            "max_lai",
             "error",
             "relative_error",
         ]:
             all_values = []
             for level_key, level_data in levels["level_data"].items():
                 for feature in level_data["features"]:
-                    all_values.append(feature["properties"][valueType])
+                    all_values.append(feature["properties"].get(valueType))
 
             for mapping_data in levels["level_mappings"].values():
                 for feature in mapping_data["features"]:
-                    all_values.append(feature["properties"][valueType])
+                    all_values.append(feature["properties"].get(valueType))
 
-            all_values = [v for v in all_values if not np.isnan(v)]
+            # Filter both Python None (missing) and float NaN
+            all_values = [v for v in all_values if v is not None and not (isinstance(v, float) and np.isnan(v))]
 
             if len(all_values) == 0:
                 min_val = 0
@@ -1085,13 +1116,15 @@ class InteractiveMapGenerator:
                         <div class="control-panel">
                             <div class="level-indicator title" id="levelIndicator">Loading...</div>
                             <div class="stats-summary" id="statsSummary"></div>
-                            <button class="back-button" id="nextLevelBtn" style="margin-top: 8px;">Next Level →</button>
+                            <div class="level-nav" style="display:flex; gap:8px; margin-top:8px;">
+                                <button class="back-button" id="backButton" style="flex:1; display:none;">← Previous Level</button>
+                                <button class="back-button" id="nextLevelBtn" style="flex:1;">Next Level →</button>
+                            </div>
                             <div class="search-box" title="Jump to a field/region by its ID">
                                 <input id="featureSearchInput" type="text" placeholder="Go to id…" />
                                 <button id="featureSearchBtn">Go</button>
                             </div>
                             <div id="searchFeedback" class="search-feedback"></div>
-                            <button class="back-button" id="backButton" style="display: none;">← Back</button>
                         </div>
                     </div>
 
@@ -1144,6 +1177,8 @@ class InteractiveMapGenerator:
                                     <select id="heatmapSelector">
                                         <option value="estimated_mean_yield_kg_ha">Estimated Mean Yield (kg/ha)</option>
                                         <option value="estimated_median_yield_kg_ha">Estimated Median Yield (kg/ha)</option>
+                                        <option value="reported_mean_yield_kg_ha">Reported Mean Yield (kg/ha)</option>
+                                        <option value="max_lai">Maximum LAI</option>
                                         <option value="error">Error (kg/ha)</option>
                                         <option value="relative_error">Relative Error (%)</option>
                                     </select>
@@ -1314,7 +1349,9 @@ class InteractiveMapGenerator:
                     const capitalize = str => str.charAt(0).toUpperCase() + str.slice(1);
 
                     function getHeatmapUnits() {{
-                        return heatmapType == 'relative_error' ? '%' : 'kg/ha';
+                        if (heatmapType == 'relative_error') return '%';
+                        if (heatmapType == 'max_lai') return '';
+                        return 'kg/ha';
                     }}
 
                     // Style each feature using getColor(...)
@@ -1624,9 +1661,21 @@ class InteractiveMapGenerator:
                                     dateLabels = properties.dateLabels || data.map((_, i) => `T${{i+1}}`);
                                 }}
 
+                                // Build trace label with yield numbers so the plot legend
+                                // is self-explanatory without scrolling to the stats list.
+                                const estStr = properties.estimated_mean_yield_kg_ha != null
+                                    ? properties.estimated_mean_yield_kg_ha.toFixed(0) + ' kg/ha'
+                                    : '–';
+                                const repStr = properties.reported_mean_yield_kg_ha != null
+                                    ? ' / ref ' + properties.reported_mean_yield_kg_ha.toFixed(0)
+                                    : '';
+                                const traceLabel = regionData.name +
+                                    (properties.isAggregated ? ' ★' : '') +
+                                    `  (est ${{estStr}}${{repStr}})`;
+
                                 // Main line dataset
                                 datasets.push({{
-                                    label: regionData.name + (properties.isAggregated ? ' ★' : ''),
+                                    label: traceLabel,
                                     data: data,
                                     borderColor: color,
                                     backgroundColor: color.replace(/([0-9a-f]{{6}})$/, '20'),
@@ -1981,16 +2030,9 @@ class InteractiveMapGenerator:
                     }}
 
                     function updateStats(levelData) {{
-                        const values = levelData.features.map(f => f.properties.estimated_mean_yield_kg_ha);
-                        const avgYield = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
-                        const minYield = Math.min(...values).toFixed(1);
-                        const maxYield = Math.max(...values).toFixed(1);
-
                         const statsDiv = document.getElementById('statsSummary');
                         statsDiv.innerHTML = `
-                            <div><b>Regions:</b> ${{values.length}}</div>
-
-                            <div><b>Range:</b> ${{minYield}} - ${{maxYield}} kg/ha</div>
+                            <div><b>Regions:</b> ${{levelData.features.length}}</div>
                         `;
                     }}
 
@@ -2512,14 +2554,68 @@ class InteractiveMapGenerator:
                 }
 
                 if "error_kg_ha" in row and "rel_error_percent" in row:
-                    agg_data[region_name]["error"] = row["error_kg_ha"]
-                    agg_data[region_name]["relative_error"] = row["rel_error_percent"]
+                    err_val = row["error_kg_ha"]
+                    rel_val = row["rel_error_percent"]
+                    if pd.notna(err_val) and np.isfinite(err_val):
+                        agg_data[region_name]["error"] = float(err_val)
+                    if pd.notna(rel_val) and np.isfinite(rel_val):
+                        agg_data[region_name]["relative_error"] = float(rel_val)
 
                 if "reported_mean_yield_kg_ha" in row:
-                    agg_data[region_name]["reported_mean_yield_kg_ha"] = row["reported_mean_yield_kg_ha"]
+                    rep_val = row["reported_mean_yield_kg_ha"]
+                    if pd.notna(rep_val) and np.isfinite(rep_val):
+                        agg_data[region_name]["reported_mean_yield_kg_ha"] = float(rep_val)
 
             agg_estimates[idx] = agg_data
         return agg_estimates
+
+    def load_per_level_lai_data(self) -> Dict[int, Dict[str, Dict[str, Any]]]:
+        """Load per-level aggregated LAI CSVs (when configured) into memory.
+
+        Returns a nested dict: ``{level_idx: {region_name: {timeSeries, dateLabels,
+        interpolationFlags}}}``. Only level indices whose ``lai_csv_file`` exists
+        on disk appear in the returned dict; everything else falls back to the
+        on-the-fly per-region aggregation in ``aggregate_lai_data``.
+
+        ``timeSeries`` is shaped exactly like the on-the-fly version:
+        ``{display_name: [values_per_date]}`` so the JS chart code is unchanged.
+        """
+        per_level = {}
+        for idx, level in enumerate(self.aggregation_levels):
+            csv_path = level.get("lai_csv_file")
+            if not csv_path or not os.path.exists(csv_path):
+                continue
+
+            df = pd.read_csv(csv_path)
+            if df.empty or "Date" not in df.columns or "region" not in df.columns:
+                continue
+            df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+            df = df.dropna(subset=["Date"]).sort_values(["region", "Date"])
+
+            level_dict = {}
+            for region_name, group in df.groupby("region"):
+                date_labels = [d.strftime("%m/%d") for d in group["Date"]]
+                series_obj = {}
+                for display_name, source_col in zip(self.lai_column_names, self.lai_columns):
+                    if source_col in group.columns:
+                        series_obj[display_name] = [
+                            float(v) if pd.notna(v) else None for v in group[source_col].values
+                        ]
+                if "interpolated" in group.columns:
+                    interpolation_flags = [int(v) if pd.notna(v) else 0 for v in group["interpolated"].values]
+                else:
+                    interpolation_flags = [0] * len(date_labels)
+
+                level_dict[str(region_name)] = {
+                    "timeSeries": series_obj,
+                    "dateLabels": date_labels,
+                    "interpolationFlags": interpolation_flags,
+                }
+
+            per_level[idx] = level_dict
+            print(f"  Loaded per-level LAI for level '{level['name']}' ({len(level_dict)} regions) from {csv_path}")
+
+        return per_level
 
     def load_lai_data(self) -> pd.DataFrame:
         """
@@ -2572,18 +2668,31 @@ class InteractiveMapGenerator:
 
 
 def parse_agg_level(ctx, param, value):
-    # Parses CLI parameters for aggregation level in passed order
-    # Format: level_name:shapefile_path_or_none:csv_path
+    """Parse --agg-level CLI values.
+
+    Format (5 colon-separated fields):
+        level_name:shapefile_or_column:name_column:agg_csv:lai_csv
+
+    For the base/primary level, pass ``none`` for shapefile_or_column,
+    name_column, and (optionally) lai_csv. For non-existing per-level LAI
+    CSVs, pass ``none`` to fall back to on-the-fly aggregation.
+    """
     agg_dict = {}
     for item in value:
-        try:
-            level_name, shapefile_or_column, csv_path = item.split(":", 2)
-            csv_path = Path(csv_path)
-            if not csv_path.exists():
-                raise click.BadParameter(f"CSV path does not exist: {csv_path}")
-            agg_dict[level_name] = (shapefile_or_column, str(csv_path))
-        except ValueError:
-            raise click.BadParameter("Each --agg-level must be in format level:shapefile_or_column:path")
+        parts = item.split(":", 4)
+        if len(parts) != 5:
+            raise click.BadParameter(
+                "Each --agg-level must be in format "
+                "level:shapefile_or_column:name_column:agg_csv:lai_csv"
+            )
+        level_name, shapefile_or_column, name_column, csv_path, lai_csv_path = parts
+
+        agg_csv = Path(csv_path)
+        if not agg_csv.exists():
+            raise click.BadParameter(f"agg_csv path does not exist: {csv_path}")
+
+        # lai_csv may be 'none' / missing on disk -> fall back to on-the-fly
+        agg_dict[level_name] = (shapefile_or_column, name_column, str(agg_csv), lai_csv_path)
     return agg_dict
 
 
@@ -2620,7 +2729,12 @@ def parse_lai_column(ctx, param, value):
     "--agg-level",
     multiple=True,
     callback=parse_agg_level,
-    help="Aggregation level in format level:column:path. Can be used multiple times.",
+    help=("Aggregation level. Format (5 colon-separated fields): "
+          "level:shapefile_or_column:name_column:agg_csv:lai_csv. "
+          "Pass 'none' for any field that does not apply (e.g. base/primary "
+          "level uses 'none:none' for shapefile/name_column; missing per-level "
+          "LAI CSV uses 'none' to fall back to on-the-fly aggregation). "
+          "Can be used multiple times."),
 )
 @click.option(
     "--lai-column",

@@ -239,6 +239,7 @@ scripts:
   aggregate_met_stats: '../reporting/aggregate_meteorological_stats.py'
   evaluate_yield_estimates: '../evaluation/evaluate_yield_estimates.py'
   aggregate_yield_stats_per_level: '../reporting/aggregate_yield_stats_per_level.py'
+  aggregate_lai_timeseries_per_level: '../reporting/aggregate_lai_timeseries_per_level.py'
   construct_chirps_data: '../met_data/construct_chirps_precipitation_files.py'
   reproject_cropmask: '../lai/0_reproj_mask.py'
   generate_multiyear_comparison: '../reporting/generate_multiyear_comparison.py'
