@@ -9,7 +9,7 @@ import glob
 from types import SimpleNamespace
 
 
-from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range, collect_multiyear_lai_stats
+from snakefile_helpers import build_apsim_execution_command, get_evaluation_results_path_func, get_multiyear_evaluation_results_path_func, get_required_yield_report_suffix, get_met_max_range, get_lai_date_range
 from vercye_ops.reporting.generate_aggregated_final_report import create_final_report
 
 ##################################################################
@@ -91,6 +91,14 @@ rule all:
             op.join(config['sim_study_head_dir'], "lai_report_{}_{}.pdf".format(sanitize_filename(config['study_id']), '{agg_lvl}')),
             agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
         ),
+        agg_lai_timeseries = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                    'agg_lai_timeseries_{}_{}_{}_{}.csv'.format(
+                        '{agg_lvl}', sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints'],
+            agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
+        ),
         package_and_upload_marker = (
             [op.join(config['sim_study_head_dir'], f".package_and_upload_{sanitize_filename(config['study_id'])}.done")]
             if config.get('packaging_params', {}).get('rclone_target')
@@ -168,7 +176,7 @@ rule fill_nasapower_cache:
     shell:
         """
 
-        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
 
         python {params.script_fpath_nasapower} \
         --met_agg_method {params.met_agg_method} \
@@ -214,7 +222,7 @@ rule fill_era5_cache:
     shell:
         """
 
-        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+        read LON LAT <<< $(cat {input}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
 
         POLYGON_PATH=""
         if [ "{params.met_agg_method}" = "mean" ]; then
@@ -332,7 +340,7 @@ rule construct_plot_met_files:
     shell:
         """
 
-        read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \(/, ""); gsub(/\)/, ""); print $1, $2}}')
+        read LON LAT <<< $(cat {input.geojson}  | jq -r '.features[].properties.centroid' | awk '{{gsub(/POINT \\(/, ""); gsub(/\\)/, ""); print $1, $2}}')
 
         python {params.met_gen_script_fpath} \
         --weather_data_fpath {input.csv} \
@@ -877,6 +885,39 @@ rule aggregate_yield_stats_per_level:
         """
 
 # Rule to extract reference data from aggregation shapefiles (per year, per level)
+# Rule to aggregate per-region LAI timeseries to one row per (level region, date) per timepoint.
+# Same source feeds the multiyear LAI PDF and the interactive map's per-level chart.
+rule aggregate_lai_timeseries_per_level:
+    wildcard_constraints:
+        agg_level_name = "|".join([re.escape(k) for k in config['eval_params']['aggregation_levels'].keys()]) if config['eval_params']['aggregation_levels'] else "(?!primary).*"
+    input:
+        validation_complete = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '.all_regions_validated'),
+        level_shapefile = lambda wildcards: resolve_agg_shapefile(config, wildcards.agg_level_name),
+    params:
+        executable_fpath = config['scripts']['aggregate_lai_timeseries_per_level'],
+        basedir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        name_column = lambda wildcards: config['eval_params']['aggregation_levels'][wildcards.agg_level_name]['name_column'],
+        adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
+        smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',
+    log:
+        'logs_aggregate_lai_timeseries_per_level/{year}_{timepoint}_{agg_level_name}.log'
+    output:
+        op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                'agg_lai_timeseries_{}_{}_{}_{}.csv'.format(
+                    sanitize_filename('{agg_level_name}'),
+                    sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --basedir-path "{params.basedir}" \
+        --level-shapefile {input.level_shapefile} \
+        --name-column "{params.name_column}" \
+        {params.adjusted_cmd} \
+        {params.smoothed_cmd} \
+        --out-fpath {output} \
+        --verbose > {log}
+        """
+
 # This is separate from the zonal stats rule because reference data is per-year (not per-timepoint)
 rule extract_reference_data:
     wildcard_constraints:
@@ -985,6 +1026,17 @@ rule generate_interactive_viz:
     input:
         shapefile = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_region_boundaries_{}_{}_{}.geojson'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
 
+        # Per-level LAI timeseries CSVs feed both the chart in the map and the
+        # downloadable artefact, so the two cannot disagree.
+        agg_lai_csvs = lambda wildcards: expand(
+            op.join(config['sim_study_head_dir'], wildcards.year, wildcards.timepoint,
+                    'agg_lai_timeseries_{}_{}_{}_{}.csv'.format(
+                        sanitize_filename('{agg_lvl}'),
+                        sanitize_filename(config['study_id']),
+                        wildcards.year, wildcards.timepoint)),
+            agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
+        ),
+
         # quick-n-dirty: using final report as a proxy for all other inputs
         # TODO clean this up with true dependancies
         final_report = op.join(config['sim_study_head_dir'],
@@ -997,10 +1049,31 @@ rule generate_interactive_viz:
         title = config['title'],
         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '--no-adjusted',
         smoothed_cmd = '--smoothed' if config['lai_params']['smoothed'] else '--no-smoothed',
+        # Wrap each --agg-level value in single quotes so name_columns with
+        # spaces (e.g. "Admin 1") survive shell word-splitting.
         agg_levels = ' '.join([
-            f"--agg-level {level_name}:{resolve_agg_shapefile(config, level_name)}:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_{}_{}_{}_{}.csv'.format(level_name, sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}"
+            "--agg-level '{lvl}:{shp}:{namecol}:{agg_csv}:{lai_csv}'".format(
+                lvl=level_name,
+                shp=resolve_agg_shapefile(config, level_name),
+                namecol=config['eval_params']['aggregation_levels'][level_name]['name_column'],
+                agg_csv=op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                                'agg_yield_estimates_{}_{}_{}_{}.csv'.format(
+                                    sanitize_filename(level_name),
+                                    sanitize_filename(config['study_id']),
+                                    '{year}', '{timepoint}')),
+                lai_csv=op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                                'agg_lai_timeseries_{}_{}_{}_{}.csv'.format(
+                                    sanitize_filename(level_name),
+                                    sanitize_filename(config['study_id']),
+                                    '{year}', '{timepoint}')),
+            )
             for level_name in config['eval_params']['aggregation_levels']
-        ]) + f" --agg-level primary:none:{op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}'))}",
+        ]) + " --agg-level 'primary:none:none:{agg_csv}:none'".format(
+            agg_csv=op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                            'agg_yield_estimates_primary_{}_{}_{}.csv'.format(
+                                sanitize_filename(config['study_id']),
+                                '{year}', '{timepoint}'))
+        ),
         output_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_map_{}_{}_{}'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
     log:
         op.join('logs_generate_interactive_viz', '{year}_{timepoint}.log')
@@ -1045,24 +1118,27 @@ rule agg_preds_multiyear:
         python {params.executable_fpath} --base-dir "{params.base_dir}" --output-suffix "{params.output_suffix}" > {log}
         """
 
-# Rule to collect LAI from multiple years per region in a single file
+# Rule to collect LAI from multiple years per region in a single PDF report.
+# Reads the per-(year,timepoint,level) aggregated LAI CSVs so the PDF, the
+# downloadable CSVs, and the interactive map all share one aggregation source.
 rule generate_multiyear_lai_report:
     input:
-        # Require checkpoint to complete first
-        validation_complete = expand(
-            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '.all_regions_validated'),
+        agg_lai_csvs = lambda wildcards: expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                    'agg_lai_timeseries_{}_{}_{}_{}.csv'.format(
+                        sanitize_filename(wildcards.level_name),
+                        sanitize_filename(config['study_id']),
+                        '{year}', '{timepoint}')),
             year=config['years'],
-            timepoint=config['timepoints']
+            timepoint=config['timepoints'],
         ),
-
-        # Collect all the lai stats files from valid regions in each year/timepoint
-        lai_stats = collect_multiyear_lai_stats(config)
     params:
         executable_fpath = config['scripts']['generate_multiyear_lai_report'],
         base_dir = config['sim_study_head_dir'],
-        level_shapefile_cmd = lambda wildcards: f'--level-shapefile {resolve_agg_shapefile(config, wildcards.level_name)}',
-        name_column_cmd = lambda wildcards: '--name-column "{}"'.format(config["eval_params"]["aggregation_levels"][wildcards.level_name]["name_column"]),
-        adjusted = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else ''
+        level_name = lambda wildcards: wildcards.level_name,
+        adjusted = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '',
+        lai_agg_type = config['lai_params']['lai_aggregation'].capitalize(),
+        include_unsmoothed = '--include-unsmoothed' if config['lai_params']['smoothed'] else '--no-include-unsmoothed',
     log:
         op.join('logs_generate_multiyear_lai_report', "{}_{}multiyearlai.log".format(sanitize_filename(config["study_id"]), '{level_name}'))
     output:
@@ -1071,10 +1147,11 @@ rule generate_multiyear_lai_report:
         '''
         python {params.executable_fpath} \
         --base-dir "{params.base_dir}" \
-        {params.level_shapefile_cmd} \
-        {params.name_column_cmd} \
+        --level-name "{params.level_name}" \
+        --lai-agg-type {params.lai_agg_type} \
         --out-path {output} \
-        {params.adjusted} > {log}
+        {params.adjusted} \
+        {params.include_unsmoothed} > {log}
         '''
 
 # Rule to have a report over multiple years
