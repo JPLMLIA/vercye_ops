@@ -1,6 +1,8 @@
 """CLI tools for fetching/formatting meteorological data"""
 
 import os
+import random
+import time
 from pathlib import Path
 
 import click
@@ -16,6 +18,31 @@ logger = get_logger()
 
 # Environment variable for the service account key path
 EE_SERVICE_ACCOUNT_KEY_ENV = "EE_SERVICE_ACCOUNT_KEY"
+
+# Retry config for Earth Engine rate-limit (HTTP 429) errors
+EE_MAX_RETRIES = 8
+EE_BASE_BACKOFF_SECONDS = 5.0
+
+
+def _is_rate_limit_error(exc):
+    msg = str(exc).lower()
+    return "too many requests" in msg or "rate" in msg and "limit" in msg or "429" in msg
+
+
+def _getinfo_with_retry(ee_obj, label):
+    """Call .getInfo() with exponential backoff on EE 429/rate-limit errors."""
+    for attempt in range(EE_MAX_RETRIES):
+        try:
+            return ee_obj.getInfo()
+        except ee.ee_exception.EEException as e:
+            if not _is_rate_limit_error(e) or attempt == EE_MAX_RETRIES - 1:
+                raise
+            sleep_s = EE_BASE_BACKOFF_SECONDS * (2 ** attempt) + random.uniform(0, 1.0)
+            logger.warning(
+                f"EE rate-limited on {label} (attempt {attempt + 1}/{EE_MAX_RETRIES}); "
+                f"sleeping {sleep_s:.1f}s before retry. Error: {e}"
+            )
+            time.sleep(sleep_s)
 
 
 def init_ee(project, service_account_key=None):
@@ -212,7 +239,9 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
             features = era5.map(extract)
             feature_collection = ee.FeatureCollection(features)
-            result = feature_collection.getInfo()
+            result = _getinfo_with_retry(
+                feature_collection, label=f"ERA5 {chunk_start}..{chunk_end}"
+            )
             records = [f["properties"] for f in result["features"]]
             all_records.extend(records)
 

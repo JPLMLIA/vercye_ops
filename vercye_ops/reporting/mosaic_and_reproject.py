@@ -319,6 +319,13 @@ def _merge_via_vrt(tif_paths: List[str], nodata_value: float):
     required=True,
     help="Target equal-area CRS string (e.g., EPSG:9854).",
 )
+@click.option(
+    "--region-tif-suffix",
+    required=False,
+    default="_yield_map.tif",
+    show_default=True,
+    help="Filename suffix appended to each region name for per-region raster discovery.",
+)
 @click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 def cli(
     yield_tif_dir,
@@ -326,26 +333,27 @@ def cli(
     output_mosaic_projected,
     output_coverage_mask,
     target_crs,
+    region_tif_suffix,
     verbose,
 ):
     """Create yield mosaic from per-region TIFs, reproject, and build coverage mask."""
     logging_level = logging.INFO if verbose else logging.WARNING
     logger.setLevel(logging_level)
 
-    # Discover yield_map.tif files in subdirectories
+    # Discover per-region TIFs in subdirectories using the configured suffix
     tif_paths = []
     for region_dir in sorted(os.listdir(yield_tif_dir)):
         region_path = os.path.join(yield_tif_dir, region_dir)
         if not os.path.isdir(region_path):
             continue
-        yield_tif = os.path.join(region_path, f"{region_dir}_yield_map.tif")
+        yield_tif = os.path.join(region_path, f"{region_dir}{region_tif_suffix}")
         if os.path.exists(yield_tif):
             tif_paths.append(yield_tif)
 
     if not tif_paths:
-        raise click.ClickException(f"No yield_map.tif files found in {yield_tif_dir}")
+        raise click.ClickException(f"No '*{region_tif_suffix}' files found in {yield_tif_dir}")
 
-    logger.info(f"Found {len(tif_paths)} yield map TIFs")
+    logger.info(f"Found {len(tif_paths)} TIFs (suffix '{region_tif_suffix}')")
 
     create_yield_mosaic(
         region_yield_tif_paths=tif_paths,

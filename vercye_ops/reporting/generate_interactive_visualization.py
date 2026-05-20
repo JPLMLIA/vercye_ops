@@ -107,6 +107,7 @@ class InteractiveMapGenerator:
                            path => fall back to on-the-fly aggregation from per-region files.
         """
         errors_fpath = str(Path(agg_estimate_fpath).parent / f"errors_{level_name}.csv")
+        errors_apsim_fpath = str(Path(agg_estimate_fpath).parent / f"errors_{level_name}_no-pixel-conversion.csv")
         nm = name_column.strip() if isinstance(name_column, str) else ""
         if nm.lower() == "none":
             nm = ""
@@ -121,6 +122,7 @@ class InteractiveMapGenerator:
                 "name_column": nm,
                 "agg_estimates_file": agg_estimate_fpath,
                 "errors_file": errors_fpath,
+                "errors_file_apsim": errors_apsim_fpath,
                 "lai_csv_file": lai_path,
             }
         )
@@ -307,10 +309,14 @@ class InteractiveMapGenerator:
                     "estimated_median_yield_kg_ha"
                 ]
                 sum_area = self.aggregated_estimates[level_idx][region_name]["total_area_ha"]
+                estimated_mean_yield_apsim = self.aggregated_estimates[level_idx][region_name].get(
+                    "estimated_mean_yield_kg_ha_apsim"
+                )
             else:
                 mean_estimated_yield_kg_ha = np.nan
                 median_estimated_yield_kg_ha = np.nan
                 sum_area = np.nan
+                estimated_mean_yield_apsim = None
 
             # Create polygon feature vector to display
             feature = {
@@ -320,6 +326,11 @@ class InteractiveMapGenerator:
                     "name": region_name,
                     "estimated_mean_yield_kg_ha": float(mean_estimated_yield_kg_ha),
                     "estimated_median_yield_kg_ha": float(median_estimated_yield_kg_ha),
+                    "estimated_mean_yield_kg_ha_apsim": (
+                        float(estimated_mean_yield_apsim)
+                        if estimated_mean_yield_apsim is not None and np.isfinite(estimated_mean_yield_apsim)
+                        else None
+                    ),
                     "total_area": sum_area,
                     "timeSeries": lai_values,
                     "dateLabels": date_labels,
@@ -330,6 +341,8 @@ class InteractiveMapGenerator:
                     # display fallback (`?.toFixed(1) || 'N/A'`) renders 'N/A'.
                     "error": None,
                     "relative_error": None,
+                    "error_apsim": None,
+                    "relative_error_apsim": None,
                     "reported_mean_yield_kg_ha": None,
                     "max_lai": max_lai,
                 },
@@ -352,6 +365,14 @@ class InteractiveMapGenerator:
             rel_err = est.get("relative_error")
             if rel_err is not None and np.isfinite(rel_err):
                 feature["properties"]["relative_error"] = float(rel_err)
+
+            err_apsim = est.get("error_apsim")
+            if err_apsim is not None and np.isfinite(err_apsim):
+                feature["properties"]["error_apsim"] = float(err_apsim)
+
+            rel_err_apsim = est.get("relative_error_apsim")
+            if rel_err_apsim is not None and np.isfinite(rel_err_apsim):
+                feature["properties"]["relative_error_apsim"] = float(rel_err_apsim)
 
             features.append(feature)
 
@@ -406,10 +427,13 @@ class InteractiveMapGenerator:
         for valueType in [
             "estimated_mean_yield_kg_ha",
             "estimated_median_yield_kg_ha",
+            "estimated_mean_yield_kg_ha_apsim",
             "reported_mean_yield_kg_ha",
             "max_lai",
             "error",
             "relative_error",
+            "error_apsim",
+            "relative_error_apsim",
         ]:
             all_values = []
             for level_key, level_data in levels["level_data"].items():
@@ -1177,10 +1201,13 @@ class InteractiveMapGenerator:
                                     <select id="heatmapSelector">
                                         <option value="estimated_mean_yield_kg_ha">Estimated Mean Yield (kg/ha)</option>
                                         <option value="estimated_median_yield_kg_ha">Estimated Median Yield (kg/ha)</option>
+                                        <option value="estimated_mean_yield_kg_ha_apsim">APSIM Mean Yield (kg/ha)</option>
                                         <option value="reported_mean_yield_kg_ha">Reported Mean Yield (kg/ha)</option>
                                         <option value="max_lai">Maximum LAI</option>
                                         <option value="error">Error (kg/ha)</option>
                                         <option value="relative_error">Relative Error (%)</option>
+                                        <option value="error_apsim">APSIM Error (kg/ha)</option>
+                                        <option value="relative_error_apsim">APSIM Relative Error (%)</option>
                                     </select>
                                 </div>
                             </div>
@@ -1188,6 +1215,15 @@ class InteractiveMapGenerator:
                             <div class="legend" id="scatterCard" style="display:none;">
                                 <div class="legend-title title">Predicted vs Reported</div>
                                 <p style="margin:0 0 10px;color:#4a5568;">Mean yield (kg/ha)</p>
+                                <div style="margin-bottom:8px; padding:6px 8px; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; font-size:12px;">
+                                    <strong>Eval source:</strong>
+                                    <label style="margin-left:8px; font-weight:normal;">
+                                        <input type="radio" name="yieldSource" value="std" checked> LAI-converted
+                                    </label>
+                                    <label style="margin-left:8px; font-weight:normal;">
+                                        <input type="radio" name="yieldSource" value="apsim"> APSIM-only
+                                    </label>
+                                </div>
                                 <div class="scatter-container">
                                     <canvas id="scatterChart"></canvas>
                                 </div>
@@ -1302,6 +1338,19 @@ class InteractiveMapGenerator:
                     let hoverChart = null;
                     let breadcrumbPath = [];
                     let heatmapType = 'estimated_mean_yield_kg_ha';
+                    let yieldMode = 'std';  // 'std' = LAI-converted, 'apsim' = APSIM-only
+
+                    function estYield(p) {{
+                        return yieldMode === 'apsim'
+                            ? p.estimated_mean_yield_kg_ha_apsim
+                            : p.estimated_mean_yield_kg_ha;
+                    }}
+                    function errVal(p) {{
+                        return yieldMode === 'apsim' ? p.error_apsim : p.error;
+                    }}
+                    function relErrVal(p) {{
+                        return yieldMode === 'apsim' ? p.relative_error_apsim : p.relative_error;
+                    }}
 
                     // Selection state for comparison
                     let selectedRegions = new Map(); // regionId -> name, properties, layer
@@ -1406,12 +1455,15 @@ class InteractiveMapGenerator:
 
                     function showOverlay(props) {{
                         document.getElementById('overlayTitle').textContent = props.name;
-                        document.getElementById('overlayValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
+                        const _estY = estYield(props);
+                        const _err = errVal(props);
+                        const _relErr = relErrVal(props);
+                        document.getElementById('overlayValue1').textContent = (typeof _estY === 'number') ? _estY.toFixed(1) : 'N/A';
                         document.getElementById('overlayValue2').textContent = (props.estimated_median_yield_kg_ha || 0).toFixed(1);
                         document.getElementById('overlayValue3').textContent = (props.total_area || 0).toFixed(1);
                         document.getElementById('overlayValue4').textContent = (props.reported_mean_yield_kg_ha?.toFixed(1) || 'N/A');
-                        document.getElementById('overlayValue5').textContent = (props.error?.toFixed(1) || 'N/A');
-                        document.getElementById('overlayValue6').textContent = (props.relative_error?.toFixed(1) || 'N/A');
+                        document.getElementById('overlayValue5').textContent = (typeof _err === 'number') ? _err.toFixed(1) : 'N/A';
+                        document.getElementById('overlayValue6').textContent = (typeof _relErr === 'number') ? _relErr.toFixed(1) : 'N/A';
 
                         updateOverlayChart(props.timeSeries, props.dateLabels, props.interpolationFlags, props.isAggregated);
 
@@ -1663,8 +1715,9 @@ class InteractiveMapGenerator:
 
                                 // Build trace label with yield numbers so the plot legend
                                 // is self-explanatory without scrolling to the stats list.
-                                const estStr = properties.estimated_mean_yield_kg_ha != null
-                                    ? properties.estimated_mean_yield_kg_ha.toFixed(0) + ' kg/ha'
+                                const _estTrace = estYield(properties);
+                                const estStr = (typeof _estTrace === 'number')
+                                    ? _estTrace.toFixed(0) + ' kg/ha'
                                     : '–';
                                 const repStr = properties.reported_mean_yield_kg_ha != null
                                     ? ' / ref ' + properties.reported_mean_yield_kg_ha.toFixed(0)
@@ -1715,7 +1768,7 @@ class InteractiveMapGenerator:
                                 const color = SERIES_COLORS[index % SERIES_COLORS.length];
                                 const name = regionData.name + (props.isAggregated ? ' ★' : '');
 
-                                const mean = props.estimated_mean_yield_kg_ha?.toFixed(1) || '-';
+                                const mean = estYield(props)?.toFixed(1) || '-';
                                 const median = props.estimated_median_yield_kg_ha?.toFixed(1) || '-';
                                 const reported_mean = props.reported_mean_yield_kg_ha?.toFixed(1) || '-';
 
@@ -2096,7 +2149,8 @@ class InteractiveMapGenerator:
                     function showHoverInfo(props) {{
                         document.getElementById('hoverInfo').style.display = 'block';
                         document.getElementById('hoverTitle').textContent = capitalize(props.name);
-                        document.getElementById('hoverValue1').textContent = props.estimated_mean_yield_kg_ha.toFixed(1);
+                        const _hovEstY = estYield(props);
+                        document.getElementById('hoverValue1').textContent = (typeof _hovEstY === 'number') ? _hovEstY.toFixed(1) : '-';
                         document.getElementById('hoverValue2').textContent = (props.reported_mean_yield_kg_ha?.toFixed(1) || '-');
 
                         updateHoverChart(props.timeSeries, props.name, props.dateLabels, props.interpolationFlags, props.isAggregated);
@@ -2262,7 +2316,7 @@ class InteractiveMapGenerator:
                                 id: f.properties.id,
                                 name: f.properties.name,
                                 x: f.properties.reported_mean_yield_kg_ha,   // reported on X
-                                y: f.properties.estimated_mean_yield_kg_ha   // predicted on Y
+                                y: estYield(f.properties)                    // predicted on Y (yieldMode-aware)
                             }}))
                             .filter(p => typeof p.x === 'number' && !isNaN(p.x) &&
                                         typeof p.y === 'number' && !isNaN(p.y));
@@ -2445,6 +2499,18 @@ class InteractiveMapGenerator:
                         selectHeatmapType(this.value);
                     }});
 
+                    // Yield-source toggle: switches scatter chart Y data + overlay/hover
+                    // displays between LAI-converted ("std") and APSIM-only ("apsim").
+                    document.querySelectorAll('input[name="yieldSource"]').forEach(function (el) {{
+                        el.addEventListener("change", function () {{
+                            yieldMode = this.value;
+                            const ld = currentParent
+                                ? mapData.level_mappings[currentParent]
+                                : mapData.level_data[`level_${{currentLevel}}`];
+                            if (ld) updateScatter(ld);
+                        }});
+                    }});
+
                     document.addEventListener('keydown', function(event) {{
                         if (event.key === 'Escape') {{
                             hideOverlay();
@@ -2543,6 +2609,14 @@ class InteractiveMapGenerator:
                 errors_df["region"] = errors_df["region"].astype(str)
                 agg_estimates_df = agg_estimates_df.merge(errors_df, on="region", how="left")
 
+            if os.path.exists(level.get("errors_file_apsim", "")):
+                errors_apsim_df = pd.read_csv(level["errors_file_apsim"])
+                errors_apsim_df["region"] = errors_apsim_df["region"].astype(str)
+                errors_apsim_df = errors_apsim_df.rename(
+                    columns={"error_kg_ha": "error_kg_ha_apsim", "rel_error_percent": "rel_error_percent_apsim"}
+                )
+                agg_estimates_df = agg_estimates_df.merge(errors_apsim_df, on="region", how="left")
+
             # create dict with region names as keys and aggregated data as values
             agg_data = {}
             for _, row in agg_estimates_df.iterrows():
@@ -2553,6 +2627,11 @@ class InteractiveMapGenerator:
                     "total_area_ha": row["total_area_ha"],
                 }
 
+                if "mean_yield_kg_ha_apsim" in row:
+                    apsim_val = row["mean_yield_kg_ha_apsim"]
+                    if pd.notna(apsim_val) and np.isfinite(apsim_val):
+                        agg_data[region_name]["estimated_mean_yield_kg_ha_apsim"] = float(apsim_val)
+
                 if "error_kg_ha" in row and "rel_error_percent" in row:
                     err_val = row["error_kg_ha"]
                     rel_val = row["rel_error_percent"]
@@ -2560,6 +2639,14 @@ class InteractiveMapGenerator:
                         agg_data[region_name]["error"] = float(err_val)
                     if pd.notna(rel_val) and np.isfinite(rel_val):
                         agg_data[region_name]["relative_error"] = float(rel_val)
+
+                if "error_kg_ha_apsim" in row and "rel_error_percent_apsim" in row:
+                    err_val_a = row["error_kg_ha_apsim"]
+                    rel_val_a = row["rel_error_percent_apsim"]
+                    if pd.notna(err_val_a) and np.isfinite(err_val_a):
+                        agg_data[region_name]["error_apsim"] = float(err_val_a)
+                    if pd.notna(rel_val_a) and np.isfinite(rel_val_a):
+                        agg_data[region_name]["relative_error_apsim"] = float(rel_val_a)
 
                 if "reported_mean_yield_kg_ha" in row:
                     rep_val = row["reported_mean_yield_kg_ha"]

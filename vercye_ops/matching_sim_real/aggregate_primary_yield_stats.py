@@ -157,6 +157,7 @@ def aggregate_primary_yield_stats(
     name_column: str,
     yield_dir: str,
     chirps_path: str = None,
+    apsim_yield_mosaic_tif: str = None,
 ) -> pd.DataFrame:
     """
     Aggregate yield statistics at the primary (simulation region) level.
@@ -179,6 +180,9 @@ def aggregate_primary_yield_stats(
         Path to directory with per-region subdirectories (for APSIM metadata).
     chirps_path : str, optional
         Path to CHIRPS parquet for precipitation source identification.
+    apsim_yield_mosaic_tif : str, optional
+        Path to the APSIM (pure simulation) yield mosaic. When provided, yield/production
+        columns from this mosaic are appended with the '_apsim' suffix.
 
     Returns
     -------
@@ -195,6 +199,19 @@ def aggregate_primary_yield_stats(
 
     # Normalize region names to match directory/config convention (e.g. lowercase shapeIDs)
     zonal_df["region"] = zonal_df["region"].apply(clean_region_name)
+
+    if apsim_yield_mosaic_tif:
+        logger.info(f"Computing APSIM zonal yield stats from {apsim_yield_mosaic_tif}")
+        apsim_zonal_df = compute_zonal_yield_stats(
+            yield_mosaic_tif=apsim_yield_mosaic_tif,
+            coverage_mask_tif=coverage_mask_tif,
+            shapefile_path=primary_shapefile,
+            name_column=name_column,
+            column_suffix="_apsim",
+        )
+        apsim_zonal_df["region"] = apsim_zonal_df["region"].apply(clean_region_name)
+        apsim_only_cols = ["region"] + [c for c in apsim_zonal_df.columns if c.endswith("_apsim")]
+        zonal_df = zonal_df.merge(apsim_zonal_df[apsim_only_cols], on="region", how="left")
 
     # APSIM metadata from per-region CSVs
     apsim_df = collect_apsim_metadata(yield_dir)
@@ -262,6 +279,14 @@ def aggregate_primary_yield_stats(
     default=None,
     help="Path to CHIRPS parquet file for precipitation source identification.",
 )
+@click.option(
+    "--apsim-yield-mosaic-tif",
+    required=False,
+    type=click.Path(exists=True),
+    default=None,
+    help="Optional path to the APSIM yield mosaic. When provided, yield/production "
+    "columns from this mosaic are appended with the '_apsim' suffix.",
+)
 @click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 def cli(
     yield_mosaic_tif,
@@ -271,6 +296,7 @@ def cli(
     yield_dir,
     output_csv,
     chirps_file,
+    apsim_yield_mosaic_tif,
     verbose,
 ):
     """Aggregate primary-level yield statistics from the reprojected mosaic."""
@@ -284,6 +310,7 @@ def cli(
         name_column=name_column,
         yield_dir=yield_dir,
         chirps_path=chirps_file,
+        apsim_yield_mosaic_tif=apsim_yield_mosaic_tif,
     )
 
     if not result.empty:

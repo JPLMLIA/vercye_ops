@@ -30,21 +30,39 @@ def aggregate(estimation_data, col_name):
 
         return sorted_values.loc[median_idx]
 
+    cols = estimation_data.columns
+
     result = []
     for name, group in estimation_data.groupby(col_name):
-        result.append(
-            {
-                col_name: name,
-                "mean_yield_kg_ha": weighted_mean(group["mean_yield_kg_ha"], group["total_area_ha"]),
-                "median_yield_kg_ha": weighted_median(group["mean_yield_kg_ha"], group["total_area_ha"]),
-                "total_yield_production_kg": group["total_yield_production_kg"].astype(int).sum(),
-                "total_yield_production_ton": round(group["total_yield_production_ton"].sum(), 3),
-                "total_area_ha": group["total_area_ha"].sum(),
-                "apsim_mean_yield_estimate_kg_ha": weighted_mean(
-                    group["apsim_mean_yield_estimate_kg_ha"], group["total_area_ha"]
-                ),
-            }
-        )
+        row = {
+            col_name: name,
+            "mean_yield_kg_ha": weighted_mean(group["mean_yield_kg_ha"], group["total_area_ha"]),
+            "median_yield_kg_ha": weighted_median(group["mean_yield_kg_ha"], group["total_area_ha"]),
+            "total_yield_production_kg": group["total_yield_production_kg"].astype(int).sum(),
+            "total_yield_production_ton": round(group["total_yield_production_ton"].sum(), 3),
+            "total_area_ha": group["total_area_ha"].sum(),
+            "apsim_mean_yield_estimate_kg_ha": weighted_mean(
+                group["apsim_mean_yield_estimate_kg_ha"], group["total_area_ha"]
+            ),
+        }
+
+        # Propagate APSIM-mosaic-derived columns (area-weighted means / summed production)
+        # when they're present on the input CSV.
+        if "mean_yield_kg_ha_apsim" in cols:
+            row["mean_yield_kg_ha_apsim"] = weighted_mean(
+                group["mean_yield_kg_ha_apsim"], group["total_area_ha"]
+            )
+        if "median_yield_kg_ha_apsim" in cols:
+            row["median_yield_kg_ha_apsim"] = weighted_median(
+                group["mean_yield_kg_ha_apsim"] if "mean_yield_kg_ha_apsim" in cols else group["median_yield_kg_ha_apsim"],
+                group["total_area_ha"],
+            )
+        if "total_production_kg_apsim" in cols:
+            row["total_production_kg_apsim"] = int(group["total_production_kg_apsim"].astype("Int64").sum())
+        if "total_production_ton_apsim" in cols:
+            row["total_production_ton_apsim"] = round(group["total_production_ton_apsim"].sum(), 3)
+
+        result.append(row)
 
     df = pd.DataFrame(result)
     df.rename(columns={col_name: "region"}, inplace=True)
