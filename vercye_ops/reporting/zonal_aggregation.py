@@ -16,6 +16,7 @@ def compute_zonal_yield_stats(
     name_column: str,
     year_column: str = None,
     year: str = None,
+    column_suffix: str = "",
 ) -> pd.DataFrame:
     """
     Compute zonal yield statistics for each polygon in the shapefile using exactextract.
@@ -38,16 +39,20 @@ def compute_zonal_yield_stats(
         Column containing year values, used to filter rows before deduplication.
     year : str, optional
         Year value to filter by. Required if year_column is set.
+    column_suffix : str, optional
+        Suffix appended to yield/production column names (e.g. "_apsim"). Coverage
+        and area columns (which are identical between yield sources for a given mosaic
+        grid) are NOT suffixed, so two suffixed runs can be merged on `region`.
     Returns
     -------
     pd.DataFrame
         DataFrame with columns:
         - region: region name from name_column
-        - mean_yield_kg_ha: mean yield of valid pixels
-        - median_yield_kg_ha: median yield of valid pixels
+        - mean_yield_kg_ha{column_suffix}: mean yield of valid pixels
+        - median_yield_kg_ha{column_suffix}: median yield of valid pixels
         - total_area_ha: area of valid (non-nodata) yield pixels
-        - total_production_kg: sum(yield_kg_ha * pixel_area_ha)
-        - total_production_ton: total_production_kg / 1000
+        - total_production_kg{column_suffix}: sum(yield_kg_ha * pixel_area_ha)
+        - total_production_ton{column_suffix}: total_production_kg / 1000
         - coverage_pct: percentage (0-100) of polygon area covered by primary regions
         - covered_area_ha: area with primary region coverage
         - total_polygon_area_ha: full polygon area in equal-area CRS
@@ -140,8 +145,8 @@ def compute_zonal_yield_stats(
     # Build result DataFrame
     results = pd.DataFrame()
     results["region"] = yield_stats[name_column].astype(str)
-    results["mean_yield_kg_ha"] = yield_stats["mean"].round(0).astype("Int64")
-    results["median_yield_kg_ha"] = yield_stats["median"].round(0).astype("Int64")
+    results[f"mean_yield_kg_ha{column_suffix}"] = yield_stats["mean"].round(0).astype("Int64")
+    results[f"median_yield_kg_ha{column_suffix}"] = yield_stats["median"].round(0).astype("Int64")
 
     # Total cropland area = count of valid yield pixels * pixel area
     valid_pixel_count = yield_stats["count"]
@@ -149,8 +154,10 @@ def compute_zonal_yield_stats(
 
     # Total production = sum of (yield_kg_ha * pixel_area) for valid pixels
     # exactextract "sum" gives sum of pixel values; multiply by pixel_area_ha for production
-    results["total_production_kg"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype("Int64")
-    results["total_production_ton"] = (results["total_production_kg"] / 1000).round(3)
+    results[f"total_production_kg{column_suffix}"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype("Int64")
+    results[f"total_production_ton{column_suffix}"] = (
+        results[f"total_production_kg{column_suffix}"] / 1000
+    ).round(3)
 
     # Coverage: sum of coverage mask (=number of covered pixels), total count of pixels in polygon
     covered_pixels = coverage_stats["sum"]

@@ -244,10 +244,30 @@ def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted
     return f"<div class='row'>{''.join(cards)}</div>", produced
 
 
+def _apsim_pred_column(df):
+    """Return the column name to use for APSIM-only predictions, or None if neither is available."""
+    if "mean_yield_kg_ha_apsim" in df.columns:
+        return "mean_yield_kg_ha_apsim"
+    if "apsim_mean_yield_estimate_kg_ha" in df.columns:
+        return "apsim_mean_yield_estimate_kg_ha"
+    return None
+
+
 def load_obs_preds(input_dir, timepoint, years, agg_levels):
+    """Load predictions + reference data per level, for both LAI-converted and APSIM-only views.
+
+    Returns ``{level: {"std": {...}, "apsim": {...} | None}}`` where each inner dict has the
+    same shape as before (``only_preds`` + ``obs_preds`` tuples).
+    """
     results = {}
     for lvl in agg_levels:
-        all_preds, all_preds_years, preds_for_obs, all_obs, all_obs_years = [], [], [], [], []
+        std_preds, std_preds_years = [], []
+        std_preds_for_obs, std_obs, std_obs_years = [], [], []
+
+        apsim_preds, apsim_preds_years = [], []
+        apsim_preds_for_obs, apsim_obs, apsim_obs_years = [], [], []
+        apsim_available = False
+
         for year in years:
             base = os.path.join(input_dir, year, timepoint)
             est = glob(os.path.join(base, f"agg_yield_estimates_{lvl}_*.csv"))
@@ -255,18 +275,46 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
                 continue
             if len(est) > 1:
                 raise ValueError(f"Multiple yield estimate files found for {year} at level {lvl}: {est}")
+
             preds_df = load_csv(est[0])
-            all_preds.extend(preds_df["mean_yield_kg_ha"])
-            all_preds_years.extend([year] * len(preds_df))
+            std_preds.extend(preds_df["mean_yield_kg_ha"])
+            std_preds_years.extend([year] * len(preds_df))
+
+            apsim_col = _apsim_pred_column(preds_df)
+            if apsim_col:
+                apsim_available = True
+                apsim_preds.extend(preds_df[apsim_col])
+                apsim_preds_years.extend([year] * len(preds_df))
+
             val = glob(os.path.join(input_dir, year, f"referencedata_{lvl}-*.csv"))
             if val:
-                data = get_preds_obs(est[0], val[0])
-                all_obs.extend(data["obs"])
-                preds_for_obs.extend(data["preds"])
-                all_obs_years.extend([year] * len(data["obs"]))
+                data_std = get_preds_obs(est[0], val[0], pixel_converted=True)
+                std_obs.extend(data_std["obs"])
+                std_preds_for_obs.extend(data_std["preds"])
+                std_obs_years.extend([year] * len(data_std["obs"]))
+                try:
+                    data_apsim = get_preds_obs(est[0], val[0], pixel_converted=False)
+                    apsim_obs.extend(data_apsim["obs"])
+                    apsim_preds_for_obs.extend(data_apsim["preds"])
+                    apsim_obs_years.extend([year] * len(data_apsim["obs"]))
+                    apsim_available = True
+                except ValueError:
+                    # No APSIM-only column on this level - leave apsim_obs_preds empty for this year
+                    pass
+
         results[lvl] = {
-            "only_preds": (all_preds, all_preds_years),
-            "obs_preds": (all_obs, preds_for_obs, all_obs_years),
+            "std": {
+                "only_preds": (std_preds, std_preds_years),
+                "obs_preds": (std_obs, std_preds_for_obs, std_obs_years),
+            },
+            "apsim": (
+                {
+                    "only_preds": (apsim_preds, apsim_preds_years),
+                    "obs_preds": (apsim_obs, apsim_preds_for_obs, apsim_obs_years),
+                }
+                if apsim_available
+                else None
+            ),
         }
     return results
 
@@ -447,20 +495,20 @@ def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) ->
             name_map[npc_plot] = suggested_npc
             plot_npc_src = npc_plot
 
-        # Two stacked versions
+        # Two stacked versions - share the yield-source class scheme with the rest of the section
         img_std_html = (
-            f'<img src="{plot_std_src}" alt="Evaluation {lvl} {year}" class="img-fit rounded ver-{group_id}-std" style="display:;">'
+            f'<img src="{plot_std_src}" alt="Evaluation {lvl} {year}" class="img-fit rounded ys-{group_id}-std" style="display:;">'
             if plot_std_src
             else ""
         )
         img_npc_html = (
-            f'<img src="{plot_npc_src}" alt="Evaluation {lvl} {year} (no-pixel)" class="img-fit rounded ver-{group_id}-npc" style="display:none;">'
+            f'<img src="{plot_npc_src}" alt="Evaluation {lvl} {year} (APSIM-only)" class="img-fit rounded ys-{group_id}-apsim" style="display:none;">'
             if plot_npc_src
             else ""
         )
 
-        tbl_std_html = f"<div class='ver-{group_id}-std' style='display:;'>{table_std}</div>"
-        tbl_npc_html = f"<div class='ver-{group_id}-npc' style='display:none;'>{table_npc}</div>" if has_alt else ""
+        tbl_std_html = f"<div class='ys-{group_id}-std' style='display:;'>{table_std}</div>"
+        tbl_npc_html = f"<div class='ys-{group_id}-apsim' style='display:none;'>{table_npc}</div>" if has_alt else ""
 
         card = f"""
         <div class="col-lg-6 mb-4">
@@ -482,21 +530,13 @@ def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) ->
         """
         cards.append(card)
 
-    toggle_btn = f"""
-        <button class='btn btn-sm btn-outline-dark ml-3' type='button'
-        onclick="
-            document.querySelectorAll('.ver-{group_id}-std').forEach(function(e){chr(123)}e.style.display = (e.style.display==='none'?'':'none');{chr(125)});
-            document.querySelectorAll('.ver-{group_id}-npc').forEach(function(e){chr(123)}e.style.display = (e.style.display==='none'?'':'none');{chr(125)});
-        ">
-        Toggle no-pixel conversion
-        </button>
-    """
-
+    # No local toggle here - the section-wide yield-source toggle (rendered in the
+    # main loop) drives `.ys-{group_id}-std` / `.ys-{group_id}-apsim` visibility for
+    # both yearly cards and the multiyear stats/eval block.
     return (
         f"""
     <div class="d-flex align-items-center mb-2">
       <strong>Yearly evaluation ({lvl})</strong>
-       {toggle_btn if has_alt_any else ""}
     </div>
     <div class="row">{''.join(cards)}</div>
     """,
@@ -582,13 +622,32 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
         yearly_eval_data = load_yearly_eval_data(input_dir, tp, agg_levels, years)
 
         for lvl, data in obs_preds.items():
-            all_preds, preds_years = data["only_preds"]
-            if len(all_preds) == 0:
+            std_data = data["std"]
+            apsim_data = data["apsim"]
+
+            std_preds, std_preds_years = std_data["only_preds"]
+            if len(std_preds) == 0:
                 continue
 
-            pred_fig = create_predictions_plot(all_preds, preds_years)
-            pred_html = pio.to_html(pred_fig, include_plotlyjs="cdn", full_html=False)
-            multiyear_metrics_html = "<p><em>No ground-truth available for multiyear metrics.</em></p>"
+            tp_tag = sanitize(tp)
+            lvl_tag = sanitize(lvl)
+            # Shared yield-source group id across yearly cards, violin, and multiyear scatter
+            group_id = f"{tp_tag}_{lvl_tag}"
+            has_apsim_multi = apsim_data is not None and len(apsim_data["only_preds"][0]) > 0
+
+            # Yearly prediction distribution (violin) - render both yield sources when available
+            std_pred_fig = create_predictions_plot(std_preds, std_preds_years)
+            std_pred_html = pio.to_html(std_pred_fig, include_plotlyjs="cdn", full_html=False)
+            apsim_pred_html = ""
+            if has_apsim_multi:
+                apsim_preds_, apsim_preds_years_ = apsim_data["only_preds"]
+                apsim_pred_fig = create_predictions_plot(apsim_preds_, apsim_preds_years_)
+                apsim_pred_html_inner = pio.to_html(apsim_pred_fig, include_plotlyjs="cdn", full_html=False)
+                apsim_pred_html = f"<div class='ys-{group_id}-apsim' style='display:none;'>{apsim_pred_html_inner}</div>"
+            std_pred_html = f"<div class='ys-{group_id}-std'>{std_pred_html}</div>"
+
+            multiyear_metrics_html_std = "<p><em>No ground-truth available for multiyear metrics.</em></p>"
+            multiyear_metrics_html_apsim = ""
 
             yearly_html_for_lvl, imgs_used, name_map_lvl, _has_alt = render_yearly_eval_html(yearly_eval_data, lvl, tp)
             referenced_images.extend(imgs_used)
@@ -597,7 +656,7 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
             # Wrap yearly evaluation in a collapsed section if it exists
             eval_section = ""
             if "No yearly evaluation available" not in yearly_html_for_lvl:
-                eval_collapse_id = f"collapse_eval_{sanitize(tp)}_{sanitize(lvl)}"
+                eval_collapse_id = f"collapse_eval_{tp_tag}_{lvl_tag}"
                 eval_section = f"""
                 <button class="btn btn-outline-secondary mb-3" type="button"
                         data-toggle="collapse" data-target="#{eval_collapse_id}"
@@ -613,15 +672,15 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
             else:
                 eval_section = yearly_html_for_lvl
 
-            obs, preds, yrs = data["obs_preds"]
-            if obs:
-                scatter = create_scatter_plot(preds, obs, yrs)
+            obs_std, preds_std_for_obs, yrs_std = std_data["obs_preds"]
+            if obs_std:
+                scatter = create_scatter_plot(preds_std_for_obs, obs_std, yrs_std)
                 scatter_html = pio.to_html(scatter, include_plotlyjs="cdn", full_html=False)
-                metrics = compute_metrics(np.array(preds), np.array(obs))
+                metrics = compute_metrics(np.array(preds_std_for_obs), np.array(obs_std))
                 metrics_rows = "".join(f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>" for k, v in metrics.items())
-                multiyear_metrics_html = f"""
+                multiyear_metrics_html_std = f"""
                 <div class='metrics-table mb-3'>
-                    <strong>Metrics ({lvl}):</strong>
+                    <strong>Metrics ({lvl} - LAI-converted):</strong>
                     <div class="table-wrap">
                       <table class='table table-sm table-bordered mt-2'>
                         <thead class='thead-light'><tr><th>Metric</th><th>Value</th></tr></thead>
@@ -632,14 +691,69 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file):
                 {scatter_html}
                 """
 
+            if apsim_data is not None:
+                obs_a, preds_a, yrs_a = apsim_data["obs_preds"]
+                if obs_a:
+                    scatter_a = create_scatter_plot(preds_a, obs_a, yrs_a)
+                    scatter_a_html = pio.to_html(scatter_a, include_plotlyjs="cdn", full_html=False)
+                    metrics_a = compute_metrics(np.array(preds_a), np.array(obs_a))
+                    metrics_a_rows = "".join(
+                        f"<tr><th scope='row'>{k}</th><td>{v:.3f}</td></tr>" for k, v in metrics_a.items()
+                    )
+                    multiyear_metrics_html_apsim = f"""
+                    <div class='metrics-table mb-3'>
+                        <strong>Metrics ({lvl} - APSIM-only):</strong>
+                        <div class="table-wrap">
+                          <table class='table table-sm table-bordered mt-2'>
+                            <thead class='thead-light'><tr><th>Metric</th><th>Value</th></tr></thead>
+                            <tbody>{metrics_a_rows}</tbody>
+                          </table>
+                        </div>
+                    </div>
+                    {scatter_a_html}
+                    """
+
+            multiyear_metrics_html_std = f"<div class='ys-{group_id}-std'>{multiyear_metrics_html_std}</div>"
+            if multiyear_metrics_html_apsim:
+                multiyear_metrics_html_apsim = (
+                    f"<div class='ys-{group_id}-apsim' style='display:none;'>{multiyear_metrics_html_apsim}</div>"
+                )
+
+            # Single yield-source toggle for this whole section. Flips visibility of every
+            # `.ys-{group_id}-std` / `.ys-{group_id}-apsim` element: violin, multiyear
+            # metrics+scatter, and the yearly per-year cards/metrics.
+            has_yearly_apsim = _has_alt
+            show_apsim_toggle = has_apsim_multi or has_yearly_apsim or bool(multiyear_metrics_html_apsim)
+            yield_toggle_btn = ""
+            if show_apsim_toggle:
+                yield_toggle_btn = f"""
+                <div class='alert alert-light border d-inline-block py-2 px-3 mb-3' style='font-size:0.95em;'>
+                  <strong>Yield source:</strong>
+                  <span class='badge badge-info ys-{group_id}-label-std' style='display:;'>LAI-converted (pixel-level)</span>
+                  <span class='badge badge-warning ys-{group_id}-label-apsim' style='display:none;'>APSIM-only (no LAI pixel conversion)</span>
+                  <button class='btn btn-sm btn-outline-dark ml-3' type='button'
+                  onclick="
+                      ['std','apsim'].forEach(function(k){chr(123)}
+                          document.querySelectorAll('.ys-{group_id}-'+k).forEach(function(e){chr(123)}e.style.display = (e.style.display==='none'?'':'none');{chr(125)});
+                          document.querySelectorAll('.ys-{group_id}-label-'+k).forEach(function(e){chr(123)}e.style.display = (e.style.display==='none'?'':'none');{chr(125)});
+                      {chr(125)});
+                  ">
+                  Switch
+                  </button>
+                </div>
+                """
+
             content.append(
                 f"""
                 <div class='card mb-4'>
                   <div class='card-header'><h3>{tp} - Predictions {lvl}</h3></div>
                   <div class='card-body plot-container'>
-                    {pred_html}
+                    {yield_toggle_btn}
+                    {std_pred_html}
+                    {apsim_pred_html}
                     {eval_section}
-                    {multiyear_metrics_html}
+                    {multiyear_metrics_html_std}
+                    {multiyear_metrics_html_apsim}
                   </div>
                 </div>
             """

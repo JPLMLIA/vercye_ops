@@ -26,6 +26,16 @@ def compute_global_summary(regions_summary):
     total_production_kg = regions_summary["total_production_kg"].sum()
     mean_yield_kg = total_production_kg / total_area_ha
 
+    # APSIM (pure simulation) totals when the APSIM-mosaic columns are present
+    apsim_total_production_ton = None
+    apsim_total_production_kg = None
+    apsim_mean_yield_kg = None
+    if "total_production_kg_apsim" in regions_summary.columns and "total_production_ton_apsim" in regions_summary.columns:
+        apsim_total_production_kg = regions_summary["total_production_kg_apsim"].sum()
+        apsim_total_production_ton = regions_summary["total_production_ton_apsim"].sum()
+        if total_area_ha > 0:
+            apsim_mean_yield_kg = apsim_total_production_kg / total_area_ha
+
     num_total_region = len(regions_summary)
 
     # Add total reported production and mean reported yield if all regions have reported data
@@ -75,6 +85,8 @@ def compute_global_summary(regions_summary):
         "num_total_region": num_total_region,
         "num_regions_with_yield_referencedata": num_regions_with_yield_referencedata,
         "num_regions_with_production_referencedata": num_regions_with_production_referencedata,
+        "apsim_total_production_ton": apsim_total_production_ton,
+        "apsim_mean_yield_kg": apsim_mean_yield_kg,
     }
 
 
@@ -284,12 +296,25 @@ def build_section_params(
         evaluation_results = None
         scatter_plot_path = None
 
+    # APSIM-only eval (no LAI-pixel-conversion) is written alongside as ..._no-pixel-conversion.csv/.png
+    apsim_evaluation_results = None
+    apsim_scatter_plot_path = None
+    if evaluation_results_path is not None:
+        apsim_eval_csv = evaluation_results_path.replace(".csv", "_no-pixel-conversion.csv")
+        apsim_eval_png = evaluation_results_path.replace(".csv", "_no-pixel-conversion.png")
+        if os.path.exists(apsim_eval_csv):
+            apsim_evaluation_results = pd.read_csv(apsim_eval_csv)
+        if os.path.exists(apsim_eval_png):
+            apsim_scatter_plot_path = apsim_eval_png
+
     section_params = {
         "section_name": section_name,
         "regions_summary": regions_summary,
         "vector_yield_map_path": yield_map_path,
         "scatter_plot_path": scatter_plot_path,
         "evaluation_results": evaluation_results,
+        "apsim_evaluation_results": apsim_evaluation_results,
+        "apsim_scatter_plot_path": apsim_scatter_plot_path,
         "reference_yield_agg": reference_yield_agg,
     }
 
@@ -325,6 +350,8 @@ def fill_section_template(
     crop_name,
     primary_suffix,
     reference_yield_agg,
+    apsim_evaluation_results=None,
+    apsim_scatter_plot_path=None,
 ):
     crop_name = crop_name.lower().capitalize()
     section_name = section_name if section_name != primary_suffix else "Simulation"
@@ -374,7 +401,40 @@ def fill_section_template(
 
     html_content += "</div>" if evaluation_results is not None else ""
 
+    if apsim_evaluation_results is not None:
+        html_content += f"""
+            <h3 style='-pdf-keep-with-next: true; margin-top: 18px;'>APSIM-only Evaluation</h3>
+            <p style='font-size: 0.85em; color: #555;'>
+              Reference vs APSIM-matched yield (no LAI-based pixel conversion). The same reference data is
+              compared against the area-weighted APSIM yield per region.
+            </p>
+            <table width="100%" border="0" cellspacing="0" cellpadding="5">
+                <tr>
+                    <td width="40%" style="vertical-align: top; font-size: 0.9em; padding-top: 40px">
+                        <p>
+                            <strong>Number of Regions Evaluated:</strong> {apsim_evaluation_results['n_regions'].iloc[0]}<br>
+                            <strong>Mape: </strong> {apsim_evaluation_results['mape'].iloc[0] if 'mape' in apsim_evaluation_results else '-'} <br>
+                            <strong>Mean Error:</strong> {safe_int(apsim_evaluation_results['mean_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Median Error:</strong> {safe_int(apsim_evaluation_results['median_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Mean Absolute Error:</strong> {safe_int(apsim_evaluation_results['mean_abs_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Median Absolute Error:</strong> {safe_int(apsim_evaluation_results['median_abs_err_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>RMSE:</strong> {safe_int(apsim_evaluation_results['rmse_kg_ha'].iloc[0])} kg/ha<br>
+                            <strong>Relative RMSE:</strong> {apsim_evaluation_results['rrmse'].iloc[0]:.2f} %<br>
+                            <strong>R2 (Coefficient of Determination):</strong> {apsim_evaluation_results['r2_scikit'].iloc[0]:.3f}<br>
+                            <strong>R2 (Pearson Correlation Coefficient):</strong> {apsim_evaluation_results['r2_rsq_excel'].iloc[0]:.3f}<br>
+                            <strong>R2 Best Fit (Coefficient of Determination):</strong> {apsim_evaluation_results['r2_scikit_bestfit'].iloc[0]:.3f}
+                        </p>
+                    </td>
+                    <td width="60%" style="vertical-align: top; text-align: center;">
+                        {f'<img src="{apsim_scatter_plot_path}" alt="APSIM-only Scatter Plot" style="max-width: 100%; height: auto;">' if apsim_scatter_plot_path else ''}
+                    </td>
+                </tr>
+            </table>
+        """
+
     html_content += f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield Map">'
+
+    has_apsim_cols = "mean_yield_kg_ha_apsim" in regions_summary.columns
 
     html_content += f"""
         <table class="table table-striped table-bordered">
@@ -383,8 +443,10 @@ def fill_section_template(
                     <th>Region</th>
                     <th>Estimated Mean Yield (kg/ha)</th>
                     <th>Estimated Median Yield (kg/ha)</th>
+                    {'<th>APSIM Mean Yield (kg/ha)</th>' if has_apsim_cols else ''}
                     {'<th>Reported Mean Yield (kg/ha)</th>' if 'reported_mean_yield_kg_ha' in regions_summary.columns else ''}
                     <th>Estimated Total Production (t)</th>
+                    {'<th>APSIM Total Production (t)</th>' if 'total_production_ton_apsim' in regions_summary.columns else ''}
                     {'<th>Reported Total Production (t)</th>' if 'reported_production_kg' in regions_summary.columns else ''}
                     {'<th>Estimation Error (kg/ha)</th>' if 'mean_err_kg_ha' in regions_summary.columns else ''}
                     <th>{crop_name} Area (ha)</th>
@@ -403,8 +465,10 @@ def fill_section_template(
                         <td>{insert_word_breaks(row['region'])}</td>
                         <td>{safe_int(row['mean_yield_kg_ha'])}</td>
                         <td>{safe_int(row['median_yield_kg_ha'])}</td>
+                        {f'<td>{safe_int(row["mean_yield_kg_ha_apsim"])}</td>' if has_apsim_cols else ''}
                         {f'<td>{safe_int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A"}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
                         <td>{'{:,}'.format(row['total_production_ton'])}</td>
+                        {f'<td>{"{:,.3f}".format(row["total_production_ton_apsim"]) if not pd.isna(row["total_production_ton_apsim"]) else "N/A"}</td>' if 'total_production_ton_apsim' in row else ''}
                         {f'<td>{"{:,.2f}".format((row["reported_production_kg"] / 1000)) if not pd.isna(row["reported_production_kg"]) else "N/A"}</td>' if 'reported_production_kg' in row else ''}
                         {f'<td>{safe_int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
                         <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
@@ -520,8 +584,10 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <strong>LAI Source:</strong> {lai_source}</br>
             <strong>Regions Shapefile:</strong> {original_regions_shp}</br></br>
             <strong>Estimated Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_yield_kg'])} kg/ha</br>
+            {f"<strong>APSIM Yield (Weighted Mean):</strong> {safe_int(global_summary['apsim_mean_yield_kg'])} kg/ha</br>" if global_summary.get('apsim_mean_yield_kg') is not None else ''}
             {f"<strong>Reported Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
             <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_production_ton'])} t</br>
+            {f"<strong>APSIM Total Production:</strong> {'{:,.3f}'.format(global_summary['apsim_total_production_ton'])} t</br>" if global_summary.get('apsim_total_production_ton') is not None else ''}
             {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t (from {num_available_regions_production}/{num_regions} regions)</br>" if global_summary['reported_total_production_ton'] is not None else ''}
             <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
 

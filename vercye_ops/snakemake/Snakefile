@@ -650,6 +650,28 @@ rule generate_converted_lai_map:
         --verbose > {log}
         """
 
+# Rule to generate the per-region pure APSIM yield raster: every cropland pixel of the
+# converted-LAI yield map is set to the APSIM scalar from the conversion-factor CSV.
+rule generate_apsim_yield_map:
+    input:
+        yield_map_tif = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_yield_map.tif'),
+        conversion_factor_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
+    params:
+        executable_fpath = config['scripts']['generate_apsim_yield_map'],
+    log:
+        'logs_generate_apsim_yield_map/{year}_{timepoint}_{region}.log',
+    group: "per_region"
+    output:
+        apsim_yield_map = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_apsim_yield_map.tif'),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --reference_tif_fpath {input.yield_map_tif} \
+        --csv_fpath {input.conversion_factor_fpath} \
+        --output_tif_fpath {output.apsim_yield_map} \
+        --verbose > {log}
+        """
+
 # Reporting rule: Collect all LAI curves and plot
 rule generate_aggregated_lai_curves_plot:
     input:
@@ -693,6 +715,34 @@ rule create_yield_mosaic:
         --output-mosaic-4326 {output.mosaic_4326} \
         --output-mosaic-projected {output.mosaic_projected} \
         --output-coverage-mask {output.coverage_mask} \
+        --target-crs {params.target_crs} \
+        --verbose > {log}
+        """
+
+# Parallel mosaic for the pure-APSIM yield raster. Coverage mask is identical to the
+# LAI-converted mosaic's mask (same per-region cropland pixels) — emitted into a
+# parallel file for rule isolation; downstream rules reuse the existing coverage mask.
+rule create_apsim_yield_mosaic:
+    input:
+        apsim_yield_maps = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_apsim_yield_map.tif'), region=get_valid_regions(wildcards)),
+    params:
+        executable_fpath = config['scripts']['mosaic_and_reproject'],
+        yield_tif_dir = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}'),
+        target_crs = config['matching_params']['target_crs'],
+    log:
+        'logs_create_apsim_yield_mosaic/{year}_{timepoint}.log',
+    output:
+        apsim_mosaic_4326 = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_yield_mosaic_4326_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        apsim_mosaic_projected = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        apsim_coverage_mask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_coverage_mask_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    shell:
+        """
+        python {params.executable_fpath} \
+        --yield-tif-dir "{params.yield_tif_dir}" \
+        --region-tif-suffix _apsim_yield_map.tif \
+        --output-mosaic-4326 {output.apsim_mosaic_4326} \
+        --output-mosaic-projected {output.apsim_mosaic_projected} \
+        --output-coverage-mask {output.apsim_coverage_mask} \
         --target-crs {params.target_crs} \
         --verbose > {log}
         """
@@ -764,6 +814,7 @@ rule aggregate_primary_yield_stats:
     input:
         yield_mosaic = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         coverage_mask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'coverage_mask_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        apsim_yield_mosaic = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         conversion_factors = lambda wildcards: expand(op.join(config['sim_study_head_dir'], '{{year}}', '{{timepoint}}', '{region}', '{region}_conversion_factor.csv'), region=get_valid_regions(wildcards)),
         chirps_file = lambda wildcards: op.join(config['sim_study_head_dir'], 'temporary_chirps', '{year}_{timepoint}.parquet') if 'chirps' in config['apsim_params']['precipitation_source'].lower() else [],
     params:
@@ -781,6 +832,7 @@ rule aggregate_primary_yield_stats:
         python {params.executable_fpath} \
         --yield-mosaic-tif {input.yield_mosaic} \
         --coverage-mask-tif {input.coverage_mask} \
+        --apsim-yield-mosaic-tif {input.apsim_yield_mosaic} \
         --primary-shapefile "{params.primary_shapefile}" \
         --name-column "{params.name_column}" \
         --yield-dir "{params.yield_dir}" \
@@ -853,6 +905,7 @@ rule aggregate_yield_stats_per_level:
     input:
         yield_mosaic = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         coverage_mask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'coverage_mask_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+        apsim_yield_mosaic = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         level_shapefile = lambda wildcards: resolve_agg_shapefile(config, wildcards.agg_level_name),
     params:
         executable_fpath = config['scripts']['aggregate_yield_stats_per_level'],
@@ -876,6 +929,7 @@ rule aggregate_yield_stats_per_level:
         python {params.executable_fpath} \
         --yield-mosaic-tif {input.yield_mosaic} \
         --coverage-mask-tif {input.coverage_mask} \
+        --apsim-yield-mosaic-tif {input.apsim_yield_mosaic} \
         --level-shapefile {input.level_shapefile} \
         --name-column "{params.name_column}" \
         {params.ref_yield_col_cmd} \

@@ -225,6 +225,7 @@ scripts:
   lai_quicklook: '../lai/4_quicklook.py'
   match_sim_real_quicklook: '../reporting/generate_matching_report.py'
   generate_converted_lai_map: '../matching_sim_real/generate_converted_lai_map.py'
+  generate_apsim_yield_map: '../matching_sim_real/generate_apsim_yield_map.py'
   mosaic_and_reproject: '../reporting/mosaic_and_reproject.py'
   aggregate_primary_yield_stats: '../matching_sim_real/aggregate_primary_yield_stats.py'
   aggregate_supplementary_maps: '../reporting/aggregate_supplementary_maps.py'
