@@ -73,63 +73,52 @@ def get_available_timepoints(reference_year_dir):
     return sorted(d for d in os.listdir(reference_year_dir) if os.path.isdir(os.path.join(reference_year_dir, d)))
 
 
-def _detect_cross_year(df):
-    """Detect if dates span a cross-year season (e.g. Sept→Mar)."""
-    months = df["Date"].dt.month
-    return (months >= 7).any() and (months <= 6).any()
+def _assign_plot_dates(df, season_year):
+    """Anchor every date relative to its season's Jan 1 and project onto year 2000.
 
-
-def _safe_replace_year(d, target_year):
-    """Replace year, handling leap-day dates by shifting to Feb 28."""
-    try:
-        return d.replace(year=target_year)
-    except ValueError:
-        # Feb 29 in a leap year Feb 28 in the target non-leap year
-        return d.replace(year=target_year, day=28)
-
-
-def _assign_plot_dates(df, cross_year):
-    """Map dates to a continuous reference period for plotting.
-
-    For cross-year seasons (e.g. Sept→Mar), late-year months stay in 2000
-    and early-year months shift to 2001 so the curve is continuous.
+    The ``season_year`` is the agronomic season label, which on disk corresponds
+    to the per-year subdirectory the LAI file came from. A season window
+    entirely inside one calendar year (e.g. Feb-Aug 2022 under ``2022/``) maps
+    cleanly into year 2000. A cross-calendar season (e.g. Sept 2023 - Mar 2024
+    under ``2023/``) maps continuously from Sept 2000 to Mar 2001, so the
+    PlotDate axis always increases monotonically across the season.
     """
-    if cross_year:
-        df["PlotDate"] = df["Date"].apply(
-            lambda d: _safe_replace_year(d, 2001) if d.month <= 6 else _safe_replace_year(d, 2000)
-        )
-    else:
-        df["PlotDate"] = df["Date"].apply(lambda d: _safe_replace_year(d, 2000))
+    base = pd.Timestamp(year=2000, month=1, day=1)
+    season_anchor = pd.Timestamp(year=int(season_year), month=1, day=1)
+    df = df.copy()
+    df["PlotDate"] = base + (df["Date"] - season_anchor)
     return df
 
 
-def _make_month_ticks(cross_year):
-    """Return tick values and labels spanning the actual plot date range."""
-    if cross_year:
-        month_starts = pd.date_range(start="2000-07-01", end="2001-06-30", freq="MS")
-    else:
-        month_starts = pd.date_range(start="2000-01-01", end="2000-12-31", freq="MS")
-    return month_starts, month_starts.strftime("%b")
+def _make_month_ticks(plot_dates):
+    """Monthly tick values + labels spanning the supplied PlotDate series."""
+    s = pd.Series(plot_dates).dropna()
+    if s.empty:
+        return [], []
+    start = s.min().to_period("M").to_timestamp()
+    end = s.max().to_period("M").to_timestamp() + pd.offsets.MonthBegin(1)
+    month_starts = pd.date_range(start=start, end=end, freq="MS")
+    return month_starts, [d.strftime("%b") for d in month_starts]
 
 
 def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
     combined = []
-    true_years = []
+    season_years = []
     for year in years:
+        season_year = int(year)
         for fp in load_lai_files(os.path.join(input_dir, year, timepoint)):
             df, region, _ = parse_lai_file(fp, lai_agg_type, adjusted)
             df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y")
-            df["Year"] = df["Date"].dt.year
+            df = _assign_plot_dates(df, season_year)
+            df["SeasonYear"] = season_year
             df["Region"] = region
-            true_years.extend(df["Date"].dt.year.unique())
             combined.append(df)
+            season_years.append(season_year)
 
     if not combined:
         return None
 
     full_df = pd.concat(combined, ignore_index=True)
-    cross_year = _detect_cross_year(full_df)
-    full_df = _assign_plot_dates(full_df, cross_year)
 
     col = "LAI " + ("Mean" if lai_agg_type == "mean" else "Median")
     if adjusted:
@@ -137,8 +126,8 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
 
     fig = go.Figure()
     added_years = []
-    for year in sorted(set(map(int, true_years))):
-        df_y = full_df[full_df["Year"] == year]
+    for season_year in sorted(set(season_years)):
+        df_y = full_df[full_df["SeasonYear"] == season_year]
         if df_y.empty:
             continue
         m = df_y.groupby("PlotDate")[col].mean().reset_index()
@@ -148,8 +137,8 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
                 x=m["PlotDate"],
                 y=m[col],
                 mode="lines",
-                name=str(year),
-                legendgroup=f"y{year}",
+                name=str(season_year),
+                legendgroup=f"y{season_year}",
                 line=dict(width=4, color=mean_palette[len(added_years) % len(mean_palette)]),
                 opacity=1,
                 visible=True,
@@ -157,9 +146,9 @@ def plot_lai_means_figure(input_dir, timepoint, years, lai_agg_type, adjusted):
                 hovertemplate="Date: %{x|%d/%m}<br>Mean LAI: %{y:.2f}<extra></extra>",
             )
         )
-        added_years.append(year)
+        added_years.append(season_year)
 
-    tick_vals, tick_text = _make_month_ticks(cross_year)
+    tick_vals, tick_text = _make_month_ticks(full_df["PlotDate"])
 
     fig.update_layout(
         title=dict(text=f"{col} by Day-of-Year - Aggregated by Year", x=0.5),
@@ -187,8 +176,7 @@ def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted
         if not combined:
             continue
         dfy = pd.concat(combined, ignore_index=True)
-        cross_year = _detect_cross_year(dfy)
-        dfy = _assign_plot_dates(dfy, cross_year)
+        dfy = _assign_plot_dates(dfy, year)
 
         col = "LAI " + ("Mean" if lai_agg_type == "mean" else "Median")
         if adjusted:
@@ -210,7 +198,7 @@ def generate_lai_year_images(input_dir, timepoint, years, lai_agg_type, adjusted
                 )
             )
 
-        tick_vals, tick_text = _make_month_ticks(cross_year)
+        tick_vals, tick_text = _make_month_ticks(dfy["PlotDate"])
 
         fig.update_layout(
             title=dict(text=f"{col} - Regions in {year}", x=0.5),
