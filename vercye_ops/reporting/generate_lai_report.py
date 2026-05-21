@@ -32,48 +32,36 @@ def get_axis(axes, row, col, total_rows, n_cols):
         return axes[row, col]
 
 
-def _continuous_doy(dates):
-    """Convert dates to continuous DOY values, handling cross-year seasons.
+def _season_day_offsets(dates, season_year):
+    """Days from ``season_year``'s Jan 1 for each date.
 
-    For cross-year seasons (e.g. Sept→Mar), early-year DOY values get
-    shifted by +365 so the plot draws a continuous line instead of
-    wrapping back from 365 to 1.
+    The directory year is the agronomic season label. For a single-calendar
+    season (e.g. Feb-Aug 2022 under ``2022/``) offsets land between 31 and
+    ~212. For a cross-calendar season (e.g. Sept 2023 - Mar 2024 under
+    ``2023/``) offsets stay monotonic across the year wrap and reach >365,
+    so matplotlib draws a continuous line instead of jumping from DOY 365
+    back to DOY 1.
     """
-    months = [d.month for d in dates]
-    has_late = any(m >= 7 for m in months)
-    has_early = any(m <= 6 for m in months)
-    cross_year = has_late and has_early
-
-    doys = []
-    for d in dates:
-        doy = d.timetuple().tm_yday
-        if cross_year and d.month <= 6:
-            doy += 365
-        doys.append(doy)
-    return doys, cross_year
+    anchor = pd.Timestamp(year=int(season_year), month=1, day=1)
+    return [(pd.Timestamp(d) - anchor).days for d in dates]
 
 
-def _month_ticks(cross_year):
-    """Return (month_number, doy) pairs for x-axis tick labels."""
-    if cross_year:
-        return [
-            (7, 182),
-            (8, 213),
-            (9, 244),
-            (10, 274),
-            (11, 305),
-            (12, 335),
-            (1, 366),
-            (2, 397),
-            (3, 425),
-            (4, 456),
-            (5, 486),
-            (6, 517),
-        ]
-    else:
-        from datetime import datetime
-
-        return [(m, datetime(2000, m, 1).timetuple().tm_yday) for m in range(1, 13)]
+def _season_month_ticks(offsets):
+    """Return (offset, label) pairs at every calendar month boundary covered
+    by ``offsets``, mapping back to month-name labels."""
+    if not len(offsets):
+        return [], []
+    base = pd.Timestamp(year=2000, month=1, day=1)
+    min_d = base + pd.Timedelta(days=int(min(offsets)))
+    max_d = base + pd.Timedelta(days=int(max(offsets)))
+    starts = pd.date_range(
+        start=min_d.to_period("M").to_timestamp(),
+        end=max_d.to_period("M").to_timestamp() + pd.offsets.MonthBegin(1),
+        freq="MS",
+    )
+    positions = [(d - base).days for d in starts]
+    labels = [d.strftime("%b") for d in starts]
+    return positions, labels
 
 
 def _discover_level_csvs(basedir, level_name):
@@ -198,6 +186,7 @@ def create_agg_plots(basedir, out_path, level_name, lai_variants):
                 ax = get_axis(axes, global_row, col, total_rows, n_cols)
 
                 plotted_any = False
+                all_offsets = []
                 for year in all_years:
                     df = loaded.get((timepoint, year))
                     if df is None or variant_col not in df.columns:
@@ -208,17 +197,25 @@ def create_agg_plots(basedir, out_path, level_name, lai_variants):
                     dates = list(sub["Date_parsed"])
                     values = sub[variant_col].to_numpy()
                     n_regions = int(sub["n_regions"].iloc[0]) if "n_regions" in sub.columns else None
-                    day_of_year = [d.timetuple().tm_yday for d in dates]
+                    # Anchor each season's dates relative to its own directory year
+                    # so cross-year seasons (e.g. Sept->Mar) draw as a continuous
+                    # line instead of wrapping from DOY 365 back to 1.
+                    x_values = _season_day_offsets(dates, year)
+                    all_offsets.extend(x_values)
                     label = f"{year} (n={n_regions})" if n_regions is not None else str(year)
-                    ax.plot(day_of_year, values, label=label, color=year_color_map[year], linewidth=2, alpha=0.8)
+                    ax.plot(x_values, values, label=label, color=year_color_map[year], linewidth=2, alpha=0.8)
                     plotted_any = True
 
                 ax.set_title(f"{admin_unit} — {variant_label}", fontsize=11, fontweight="bold")
-                ax.set_xlabel("Day of Year")
+                ax.set_xlabel("Month")
                 ax.set_ylabel(variant_col)
                 ax.grid(True, alpha=0.3)
 
                 if plotted_any:
+                    tick_positions, tick_labels = _season_month_ticks(all_offsets)
+                    if tick_positions:
+                        ax.set_xticks(tick_positions)
+                        ax.set_xticklabels(tick_labels)
                     ax.legend(fontsize=8)
                 else:
                     ax.text(0.5, 0.5, "No data available", ha="center", va="center",
