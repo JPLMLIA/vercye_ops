@@ -333,3 +333,56 @@ p { font-size: 14px; }
   cursor: pointer;
 }
 .dropdown-item:hover { background: var(--gray-50); }
+
+/* Expandable studies table */
+.studies-table tbody tr.study-row.open td { background: var(--gray-50); }
+.studies-table tbody tr.study-row-expanded:hover { background: transparent; }
+.studies-table tbody tr.study-row-expanded td {
+  background: #fafbfc;
+  padding: 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+.row-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--gray-700);
+}
+.row-toggle:hover { background: var(--gray-200); }
+.row-toggle .chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  font-size: 12px;
+}
+.row-toggle .chevron.open { transform: rotate(90deg); }
+
+.runs-panel { padding: 12px 18px 18px; }
+.runs-panel-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--light-grey);
+  font-size: 14px;
+}
+.runs-table { width: 100%; border-collapse: collapse; }
+.runs-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-700);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--gray-200);
+  background: transparent;
+}
+.runs-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+  vertical-align: middle;
+  background: transparent;
+}
+.runs-table tbody tr:last-child td { border-bottom: none; }
+.runs-table tbody tr:hover { background: rgba(66,153,225,0.05); }

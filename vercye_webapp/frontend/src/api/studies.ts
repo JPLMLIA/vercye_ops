@@ -1,6 +1,14 @@
 import { SetupSubmissionsPayload } from '@/components/Forms/SetupStudyForm';
 import { http } from './client';
-import type { StudyId, StudyStatusResponse, RunConfigStatusResponse, SetupConfigTemplate, RunConfigFormParams } from '@/types';
+import type {
+  StudyId,
+  StudyStatusResponse,
+  RunConfigStatusResponse,
+  SetupConfigTemplate,
+  RunConfigFormParams,
+  StudyRun,
+  RunID,
+} from '@/types';
 import { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 
 export type PagedStudies = { items: StudyId[]; total: number; page: number; page_size: number };
@@ -143,4 +151,25 @@ export const StudiesAPI = {
 
     delete: (id: StudyId) =>
       http.del<void>(`/studies/${id}`),
+
+    listRuns: (id: StudyId) =>
+      http.get<{ items: StudyRun[] }>(`/studies/${id}/runs`),
+
+    runReport: (id: StudyId, runId: RunID, year: string, timepoint: string) =>
+      http.download(`/studies/${id}/runs/${runId}/report/${year}/${timepoint}`),
+
+    runMapUrl: (id: StudyId, runId: RunID, year: string, timepoint: string) =>
+      `/api/studies/${id}/runs/${runId}/map-result/${year}/${timepoint}`,
+
+    runMultiyearUrl: (id: StudyId, runId: RunID) =>
+      `/api/studies/${id}/runs/${runId}/multiyear-report`,
+
+    runConfigDownload: (id: StudyId, runId: RunID) =>
+      http.download(`/studies/${id}/runs/${runId}/config`),
+
+    runArchiveDownload: (id: StudyId, runId: RunID) =>
+      http.download(`/studies/${id}/runs/${runId}/download`),
+
+    deleteRun: (id: StudyId, runId: RunID) =>
+      http.del<void>(`/studies/${id}/runs/${runId}`),
 };

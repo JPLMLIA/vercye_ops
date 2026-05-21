@@ -5,6 +5,17 @@ from shapely.geometry import mapping
 from shapely.geometry.base import BaseGeometry
 
 StudyID = Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9_\-]+$")]
+RunID = Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9_\-]+$")]
+
+
+class RunSummary(BaseModel):
+    run_id: str
+    created_at: Optional[str] = None
+    file_count: Optional[int] = None
+    uploaded_to: Optional[str] = None
+    has_multiyear_report: bool = False
+    timepoints: Dict[str, List[str]] = {}  # year -> [timepoint]
+    size_bytes: Optional[int] = None
 
 
 class StudyCreateRequest(BaseModel):
