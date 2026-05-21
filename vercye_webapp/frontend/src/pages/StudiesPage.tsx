@@ -1,55 +1,42 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Header from '@/components/Header';
 import Modal from '@/components/Modal';
 import StatusBadge from '@/components/StatusBadge';
 import Stepper from '@/components/Stepper';
 import useToast from '@/components/Toast';
 import { StudiesAPI } from '@/api/studies';
-import type { SetupConfigTemplate, StudyId, StudyStatus, RunConfigFormParams } from '@/types';
+import type { SetupConfigTemplate, StudyId, StudyStatus, RunConfigFormParams, StudyRun, RunID } from '@/types';
 import SetupStudyForm, { SetupSubmissionsPayload } from '@/components/Forms/SetupStudyForm';
 import RunParamsForm, { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 import { ApiError } from '@/api/client';
 import { ansiToHtml } from '@/utils/utils';
 
-function toArray(input: unknown): string[] {
-  if (Array.isArray(input)) return input as string[];
-  if (input && typeof input === 'object') {
-    const anyInput = input as any;
-    if (Array.isArray(anyInput.studies)) return anyInput.studies as string[];
-    if (Array.isArray(anyInput.study_ids)) return anyInput.study_ids as string[];
-    const keys = Object.keys(anyInput);
-    if (keys.length && keys.every(k => typeof k === 'string')) return keys;
-  }
-  return [];
-}
-
 enum Result {
-  Map = "map",
-  Report = "Report"
+  Map = 'map',
+  Report = 'Report',
 }
 
 const SplitButton: React.FC<{
   label: string;
   onPrimary: () => void;
   disabled?: boolean;
-  variant?: 'primary'|'success'|'secondary'|'danger';
+  variant?: 'primary' | 'success' | 'secondary' | 'danger';
   menu: { label: string; onClick: () => void; tooltip?: string }[];
-}> = ({ label, onPrimary, disabled, variant='primary', menu }) => {
+}> = ({ label, onPrimary, disabled, variant = 'primary', menu }) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="btn-split" onMouseLeave={() => setOpen(false)}>
-      <button className={`btn btn-sm btn-${variant} btn-part1 ${open? 'open' : ''}`} onClick={onPrimary} disabled={disabled}>{label}</button>
+      <button className={`btn btn-sm btn-${variant} btn-part1 ${open ? 'open' : ''}`} onClick={onPrimary} disabled={disabled}>{label}</button>
       <button
-        className={`btn btn-sm btn-${variant} btn-part2 btn-caret ${open? 'open' : ''}`}
+        className={`btn btn-sm btn-${variant} btn-part2 btn-caret ${open ? 'open' : ''}`}
         aria-haspopup="menu" aria-expanded={open} aria-label="More options"
-        onClick={() => setOpen(o=>!o)} disabled={disabled}
+        onClick={() => setOpen(o => !o)} disabled={disabled}
       > ▾</button>
       {open && (
         <div role="menu" className="dropdown-menu">
           {menu.map((m, i) => (
-            <button key={i} className="dropdown-item" onClick={() => { setOpen(false); m.onClick(); }}
-              title={m.tooltip || ''}>
-              {m.label}{m.tooltip ? <span aria-hidden style={{marginLeft:6, fontWeight:600}}> ?</span> : null}
+            <button key={i} className="dropdown-item" onClick={() => { setOpen(false); m.onClick(); }} title={m.tooltip || ''}>
+              {m.label}{m.tooltip ? <span aria-hidden style={{ marginLeft: 6, fontWeight: 600 }}> ?</span> : null}
             </button>
           ))}
         </div>
@@ -58,35 +45,60 @@ const SplitButton: React.FC<{
   );
 };
 
+const formatDate = (iso: string | null | undefined) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+};
+
+const formatSize = (bytes: number | null | undefined) => {
+  if (!bytes || bytes <= 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  let v = bytes;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+};
+
 const StudiesPage = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStudy, setDetailStudy] = useState<StudyId | null>(null);
-  const [step, setStep] = useState<1|2|3|4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [runConfigMessage, setRunConfigMessage] = useState('');
   const [logsOpen, setLogsOpen] = useState(false);
   const [logs, setLogs] = useState<string>('Loading logs...');
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [initialSetupData, setInitialSetupData] = useState<SetupConfigTemplate | null>(null)
-  const [initialRunConfigData, setInitialRunConfigData] = useState<RunConfigFormParams | null>(null)
+  const [initialSetupData, setInitialSetupData] = useState<SetupConfigTemplate | null>(null);
+  const [initialRunConfigData, setInitialRunConfigData] = useState<RunConfigFormParams | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // pagination state
+  // Studies / pagination state
   const [studies, setStudies] = useState<StudyId[] | null>(null);
   const [statuses, setStatuses] = useState<Record<string, StudyStatus>>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
 
-  // Results selector modal state
-  const [resultYears, setResultYears] = useState<Record<string, string[]>>({});
-  const [yearOptions, setYearOptions] = useState<string[]>([]);
-  const [timepointOptions, setTimepointOptions] = useState<string[]>([]);
+  // Expansion / per-study runs state
+  const [expanded, setExpanded] = useState<Record<StudyId, boolean>>({});
+  const [runsByStudy, setRunsByStudy] = useState<Record<StudyId, StudyRun[] | 'loading' | 'error'>>({});
+
+  // Result selector modal state (year/timepoint picker, scoped to a specific run)
   const [resultsSelectorOpen, setResultsSelectorOpen] = useState(false);
+  const [selectorContext, setSelectorContext] = useState<{
+    studyId: StudyId;
+    runId: RunID;
+    timepoints: Record<string, string[]>;
+    type: Result;
+  } | null>(null);
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedTimepoint, setSelectedTimepoint] = useState('');
-  const [selectedResultType, setSelectedResultType] = useState<Result | null>(null)
+
+  // Delete-run confirmation state
+  const [deleteRunCtx, setDeleteRunCtx] = useState<{ studyId: StudyId; runId: RunID } | null>(null);
 
   const { show, Toast } = useToast();
 
@@ -118,12 +130,22 @@ const StudiesPage = () => {
     return () => clearInterval(iv);
   }, [studies?.join(',')]);
 
+  // When a study transitions to "completed" while expanded, refresh its runs so
+  // the newly archived snapshot appears without requiring a manual reload.
+  useEffect(() => {
+    Object.entries(statuses).forEach(([id, s]) => {
+      if (s === 'completed' && expanded[id]) {
+        loadRuns(id);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statuses]);
+
   const load = async () => {
     try {
-      const { items, total, page: p, page_size } = await StudiesAPI.listPaged(page, pageSize);
+      const { items, total } = await StudiesAPI.listPaged(page, pageSize);
       setStudies(items);
       setTotal(total);
-      // initial bulk status for visible IDs
       if (items.length) {
         try {
           const map = await StudiesAPI.statusMany(items);
@@ -136,32 +158,43 @@ const StudiesPage = () => {
     }
   };
 
+  const loadRuns = async (id: StudyId) => {
+    setRunsByStudy(prev => ({ ...prev, [id]: prev[id] && prev[id] !== 'error' ? prev[id] : 'loading' }));
+    try {
+      const { items } = await StudiesAPI.listRuns(id);
+      setRunsByStudy(prev => ({ ...prev, [id]: items }));
+    } catch {
+      setRunsByStudy(prev => ({ ...prev, [id]: 'error' }));
+    }
+  };
+
+  const toggleExpand = (id: StudyId) => {
+    const willExpand = !expanded[id];
+    setExpanded(prev => ({ ...prev, [id]: willExpand }));
+    if (willExpand && !Array.isArray(runsByStudy[id])) {
+      loadRuns(id);
+    }
+  };
+
   const fetchSetInitialSetupData = async (studyID: StudyId) => {
     try {
-      const setupConfigData = await StudiesAPI.getSetupConfig(studyID)
-      setInitialSetupData(setupConfigData)
+      const setupConfigData = await StudiesAPI.getSetupConfig(studyID);
+      setInitialSetupData(setupConfigData);
     } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error');
-      } else {
-        show('Failed to load setup config template!', 'error');
-      }
+      if (err instanceof ApiError) show(err.message, 'error');
+      else show('Failed to load setup config template!', 'error');
     }
-  }
+  };
 
   const fetchSetInitialRunConfigData = async (studyID: StudyId) => {
     try {
-      const runConfigData = await StudiesAPI.runConfigFormParams(studyID)
-      setInitialRunConfigData(runConfigData)
+      const runConfigData = await StudiesAPI.runConfigFormParams(studyID);
+      setInitialRunConfigData(runConfigData);
     } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error');
-
-      } else {
-        show('Failed to load initial runconfig data!', 'error');
-      }
+      if (err instanceof ApiError) show(err.message, 'error');
+      else show('Failed to load initial runconfig data!', 'error');
     }
-  }
+  };
 
   const openDetail = (id: StudyId) => {
     setDetailStudy(id);
@@ -169,7 +202,7 @@ const StudiesPage = () => {
       try {
         await fetchSetInitialSetupData(id);
         await fetchSetInitialRunConfigData(id);
-        let currentStep: 1|2|3|4 = 2;
+        let currentStep: 1 | 2 | 3 | 4 = 2;
         try {
           await StudiesAPI.runConfig(id);
           const st = await StudiesAPI.runConfigStatus(id);
@@ -185,7 +218,7 @@ const StudiesPage = () => {
         setDetailOpen(true);
       }
     }), 'Loading configuration…');
-  }
+  };
 
   const createStudy = async () => {
     if (!createName.trim()) return;
@@ -198,14 +231,11 @@ const StudiesPage = () => {
         await load();
         setTimeout(() => openDetail(createName.trim()), 400);
       } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to create study', 'error');
-        }
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to create study', 'error');
       }
     }, 'Creating study…');
-  }
+  };
 
   const runStudy = async (id: StudyId, forceRerun: boolean) => {
     await withLoading(async () => {
@@ -215,14 +245,11 @@ const StudiesPage = () => {
         setStatuses((s) => ({ ...s, [id]: 'running' } as any));
         setDetailOpen(false);
       } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to start run', 'error');
-        }
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to start run', 'error');
       }
     }, 'Starting run…');
-  }
+  };
 
   const cancelRun = async (id: StudyId, force: boolean = false) => {
     await withLoading(async () => {
@@ -236,17 +263,13 @@ const StudiesPage = () => {
         }
         setStatuses((s) => ({ ...s, [id]: force ? 'cancelled' : 'cancelling' } as any));
       } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to cancel run', 'error');
-        }
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to cancel run', 'error');
       }
     }, force ? 'Force killing…' : 'Cancelling…');
-  }
+  };
 
-  // delete handler with confirm
-  const requestDelete = (id: StudyId) => { setDetailStudy(id); setDeleteOpen(true); }
+  const requestDelete = (id: StudyId) => { setDetailStudy(id); setDeleteOpen(true); };
   const confirmDelete = async () => {
     if (!detailStudy) return;
     await withLoading(async () => {
@@ -273,7 +296,7 @@ const StudiesPage = () => {
     } catch {
       setLogs('Failed to load logs');
     }
-  }
+  };
 
   const downloadFullLog = async (id: StudyId) => {
     try {
@@ -284,71 +307,95 @@ const StudiesPage = () => {
     } catch {
       setLogs('Failed to download full log');
     }
-  }
+  };
 
-  const openMapResultsSelector = async (id: StudyId) => {
-    setSelectedResultType(Result.Map)
-    await openResultsSelector(id)
-  }
-
-  const openReportResultsSelector =  async (id: StudyId) => {
-    setSelectedResultType(Result.Report)
-    await openResultsSelector(id)
-  }
-
-  const openResultsSelector = async (id: StudyId) => {
-    setDetailStudy(id);
-    try {
-      const data = await StudiesAPI.resultTimepoints(id); // expects { timepoints: { [year]: string[] } }
-      const yearsObj: Record<string, string[]> = data?.timepoints || {};
-      const years = Object.keys(yearsObj).sort();
-      setResultYears(yearsObj);
-      setYearOptions(years);
-      if (years.length > 0) {
-        const y = years[0];
-        const tps = yearsObj[y] || [];
-        setSelectedYear(y);
-        setTimepointOptions(tps);
-        setSelectedTimepoint(tps[0] || '');
-      } else {
-        setSelectedYear('');
-        setTimepointOptions([]);
-        setSelectedTimepoint('');
-      }
-      setResultsSelectorOpen(true);
-    } catch {
-      show('Failed to load result timepoints', 'error');
+  const openRunResultSelector = (studyId: StudyId, run: StudyRun, type: Result) => {
+    const years = Object.keys(run.timepoints || {}).sort();
+    if (!years.length) {
+      show('This run has no timepoints to open.', 'error');
+      return;
     }
-  }
+    const firstYear = years[0];
+    const tps = run.timepoints[firstYear] || [];
+    setSelectorContext({ studyId, runId: run.run_id, timepoints: run.timepoints, type });
+    setSelectedYear(firstYear);
+    setSelectedTimepoint(tps[0] || '');
+    setResultsSelectorOpen(true);
+  };
 
   const onYearChange = (nextYear: string) => {
     setSelectedYear(nextYear);
-    const tps = resultYears[nextYear] || [];
-    setTimepointOptions(tps);
+    const tps = selectorContext?.timepoints[nextYear] || [];
     setSelectedTimepoint(tps[0] || '');
-  }
+  };
 
   const openSelectedResult = async () => {
-    if (!detailStudy || !selectedYear || !selectedTimepoint) return;
-    if(selectedResultType == Result.Map) {
-      const url = StudiesAPI.mapResultUrl(detailStudy, selectedYear, selectedTimepoint)
+    if (!selectorContext || !selectedYear || !selectedTimepoint) return;
+    const { studyId, runId, type } = selectorContext;
+    if (type === Result.Map) {
+      const url = StudiesAPI.runMapUrl(studyId, runId, selectedYear, selectedTimepoint);
       window.open(url, '_blank', 'noopener,noreferrer');
-    } else if(selectedResultType == Result.Report) {
+    } else if (type === Result.Report) {
       try {
-          const blob = await StudiesAPI.downloadReport(detailStudy, selectedYear, selectedTimepoint);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = `final_report_${detailStudy}_${selectedYear}_${selectedTimepoint}.pdf`; a.click(); URL.revokeObjectURL(url);
+        const blob = await StudiesAPI.runReport(studyId, runId, selectedYear, selectedTimepoint);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `final_report_${studyId}_${runId}_${selectedYear}_${selectedTimepoint}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
       } catch { show('Download failed', 'error'); }
     }
     setResultsSelectorOpen(false);
-  }
+  };
 
-
-  const showMultiyearResultsReport = (id: StudyId) => {
-    const url = StudiesAPI.multiyearSummaryReportUrl(id)
+  const openRunMultiyear = (studyId: StudyId, runId: RunID) => {
+    const url = StudiesAPI.runMultiyearUrl(studyId, runId);
     window.open(url, '_blank', 'noopener,noreferrer');
-  }
+  };
+
+  const downloadRunArchive = async (studyId: StudyId, runId: RunID) => {
+    await withLoading(async () => {
+      try {
+        const blob = await StudiesAPI.runArchiveDownload(studyId, runId);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${studyId}_${runId}.zip`; a.click(); URL.revokeObjectURL(url);
+      } catch (err) {
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Download failed', 'error');
+      }
+    }, 'Preparing archive…');
+  };
+
+  const downloadRunConfig = async (studyId: StudyId, runId: RunID) => {
+    try {
+      const blob = await StudiesAPI.runConfigDownload(studyId, runId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${studyId}_${runId}_config.yaml`; a.click(); URL.revokeObjectURL(url);
+    } catch (err) {
+      if (err instanceof ApiError) show(err.message, 'error');
+      else show('Download failed', 'error');
+    }
+  };
+
+  const confirmDeleteRun = async () => {
+    if (!deleteRunCtx) return;
+    const { studyId, runId } = deleteRunCtx;
+    await withLoading(async () => {
+      try {
+        await StudiesAPI.deleteRun(studyId, runId);
+        show(`Deleted run "${runId}"`, 'success');
+        await loadRuns(studyId);
+      } catch (err) {
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to delete run', 'error');
+      } finally {
+        setDeleteRunCtx(null);
+      }
+    }, 'Deleting run…');
+  };
 
   const handleCopyLogs = async () => {
     try {
@@ -367,111 +414,227 @@ const StudiesPage = () => {
         show('Study duplicated successfully', 'success');
         setCreateName('');
       } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to duplicate study!', 'error');
-        }
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to duplicate study!', 'error');
       }
-      await load()
+      await load();
     }, 'Duplicating study…');
+  };
+
+  const renderRunsPanel = (id: StudyId) => {
+    const entry = runsByStudy[id];
+    if (entry === 'loading' || !entry) {
+      return (
+        <div className="runs-panel-empty">
+          <div className="loading" />
+          <span style={{ marginLeft: 10 }}>Loading runs…</span>
+        </div>
+      );
+    }
+    if (entry === 'error') {
+      return (
+        <div className="runs-panel-empty">
+          <span>Could not load runs.</span>
+          <button className="btn btn-sm btn-secondary" style={{ marginLeft: 10 }} onClick={() => loadRuns(id)}>Retry</button>
+        </div>
+      );
+    }
+    if (!entry.length) {
+      return (
+        <div className="runs-panel-empty">
+          <strong>No archived runs yet.</strong>
+          <span style={{ marginLeft: 8 }}>
+            A snapshot is created at the end of every successful pipeline run. Run the study to create one.
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="runs-panel">
+        <table className="runs-table">
+          <thead>
+            <tr>
+              <th style={{ width: '22%' }}>Created</th>
+              <th>Run ID</th>
+              <th style={{ width: '14%' }}>Files</th>
+              <th style={{ width: '14%' }}>Uploaded</th>
+              <th style={{ width: '38%' }}>Results</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entry.map(run => (
+              <tr key={run.run_id}>
+                <td>{formatDate(run.created_at)}</td>
+                <td><code style={{ fontSize: 12 }}>{run.run_id}</code></td>
+                <td>
+                  {run.file_count ?? '—'}
+                  <span style={{ color: '#718096', marginLeft: 6 }}>({formatSize(run.size_bytes)})</span>
+                </td>
+                <td>
+                  {run.uploaded_to
+                    ? <span title={run.uploaded_to} className="status-badge status-completed" style={{ padding: '4px 8px', fontSize: 10 }}>UPLOADED</span>
+                    : <span style={{ color: '#a0aec0', fontSize: 12 }}>local only</span>}
+                </td>
+                <td>
+                  <div className="actions-cell" style={{ flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => openRunResultSelector(id, run, Result.Map)}
+                      disabled={!Object.keys(run.timepoints || {}).length}
+                    >🗺 Map</button>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => openRunResultSelector(id, run, Result.Report)}
+                      disabled={!Object.keys(run.timepoints || {}).length}
+                    >📄 Yearly Report</button>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => openRunMultiyear(id, run.run_id)}
+                      disabled={!run.has_multiyear_report}
+                    >📊 Multiyear</button>
+                    <SplitButton
+                      label="⬇️ Archive"
+                      variant="secondary"
+                      onPrimary={() => downloadRunArchive(id, run.run_id)}
+                      menu={[
+                        { label: 'Download Full Run (.zip)', onClick: () => downloadRunArchive(id, run.run_id) },
+                        { label: 'Download config.yaml', onClick: () => downloadRunConfig(id, run.run_id) },
+                      ]}
+                    />
+                    <button
+                      className="btn btn-sm btn-secondary btn-delete"
+                      title="Delete this archived run"
+                      onClick={() => setDeleteRunCtx({ studyId: id, runId: run.run_id })}
+                    >🗑</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   const table = useMemo(() => {
     if (!studies) return (
       <div className="empty-state">
         <div className="loading"></div>
-        <p style={{marginTop: '1rem'}}>Loading studies...</p>
+        <p style={{ marginTop: '1rem' }}>Loading studies...</p>
       </div>
     );
     if (studies.length === 0) return (
       <div className="empty-state">
         <h3>No Studies Found</h3>
         <p>Create your first study to get started</p>
-        <button className="btn btn-primary" style={{marginTop: 15}} onClick={() => setCreateOpen(true)}>✚ Create Your First Study</button>
+        <button className="btn btn-primary" style={{ marginTop: 15 }} onClick={() => setCreateOpen(true)}>✚ Create Your First Study</button>
       </div>
     );
     return (
       <>
-      <div className="table-container">
-        <table className="table">
-          <thead>
-            <tr><th>Study Name</th><th>Status</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {studies.map((id) => {
-              const s = statuses[id] ?? 'pending';
-              const canResults = s === 'completed';
-              const canCancel = s === 'running' || s === 'validating' || s === 'cancelling';
-              const canRun = s === 'ready' ||  s === 'failed' || s === 'completed' || s === 'cancelled';
-              const canConfigure = s !== 'running'
-              return (
-                <tr key={id}>
-                  <td><div style={{fontWeight: 500}}>{id}</div></td>
-                  <td><StatusBadge status={s} /></td>
-                  <td>
-                    <div className="actions-cell">
-                      <button className="btn btn-sm btn-primary" onClick={() => openDetail(id)} disabled={!canConfigure}>Configure</button>
-                      <SplitButton
-                        label="Run"
-                        variant="success"
-                        onPrimary={() => runStudy(id, false)}
-                        disabled={!canRun}
-                        menu={[
-                          { label: 'Force Rerun', onClick: () => runStudy(id, true), tooltip: 'Rerun every step of the pipeline from scratch, ignoring already completed results.' }
-                        ]}
-                      />
-                      {canCancel && (
-                        <SplitButton
-                          label="Cancel"
-                          variant="danger"
-                          onPrimary={() => cancelRun(id)}
-                          menu={[
-                            { label: 'Force Kill', onClick: () => cancelRun(id, true), tooltip: 'Immediately kills all processes without cleanup. May leave incomplete output files.' }
-                          ]}
-                        />
-                      )}
-                      {canResults && (
-                        <SplitButton
-                          label="Results"
-                          variant="secondary"
-                          onPrimary={() => openMapResultsSelector(id)}
-                          menu={[
-                            { label: 'Result Analytics Map', onClick: () => openMapResultsSelector(id) },
-                            { label: 'Multiyear Summary', onClick: () => showMultiyearResultsReport(id) },
-                            { label: 'Yearly Reports', onClick: () => openReportResultsSelector(id)},
-                          ]}
-                        />
-                      )}
-                      <button className="btn btn-sm btn-secondary" onClick={() => openLogs(id)}>Logs</button>
-                      <button className="btn btn-sm btn-secondary" onClick={() => {setDetailStudy(id); setDuplicateOpen(true)}}>Use as template</button>
-                      <button className="btn btn-sm btn-secondary btn-delete" onClick={() => requestDelete(id)}>🗑</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+        <div className="table-container">
+          <table className="table studies-table">
+            <thead>
+              <tr>
+                <th style={{ width: 36 }}></th>
+                <th>Study Name</th>
+                <th style={{ width: 160 }}>Status</th>
+                <th style={{ width: 200 }}>Latest Run</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {studies.map((id) => {
+                const s = statuses[id] ?? 'pending';
+                const canCancel = s === 'running' || s === 'validating' || s === 'cancelling';
+                const canRun = s === 'ready' || s === 'failed' || s === 'completed' || s === 'cancelled';
+                const canConfigure = s !== 'running';
+                const isOpen = !!expanded[id];
+                const runs = Array.isArray(runsByStudy[id]) ? (runsByStudy[id] as StudyRun[]) : null;
+                const latest = runs?.[0];
 
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12}}>
-        <div style={{fontSize:13, color:'#4a5568'}}>
-          Showing <strong>{studies.length ? (page-1)*pageSize+1 : 0}</strong>–
-          <strong>{Math.min(page*pageSize, total)}</strong> of <strong>{total}</strong>
+                return (
+                  <Fragment key={id}>
+                    <tr className={isOpen ? 'study-row open' : 'study-row'}>
+                      <td>
+                        <button
+                          className="row-toggle"
+                          aria-label={isOpen ? 'Collapse' : 'Expand'}
+                          aria-expanded={isOpen}
+                          onClick={() => toggleExpand(id)}
+                        >
+                          <span className={`chevron ${isOpen ? 'open' : ''}`}>▶</span>
+                        </button>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{id}</div>
+                        {runs && runs.length > 0 && (
+                          <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+                            {runs.length} archived run{runs.length === 1 ? '' : 's'}
+                          </div>
+                        )}
+                      </td>
+                      <td><StatusBadge status={s} /></td>
+                      <td style={{ fontSize: 13, color: '#4a5568' }}>
+                        {latest ? formatDate(latest.created_at) : (isOpen ? '—' : <span style={{ color: '#a0aec0' }}>expand to load</span>)}
+                      </td>
+                      <td>
+                        <div className="actions-cell" style={{ flexWrap: 'wrap' }}>
+                          <button className="btn btn-sm btn-primary" onClick={() => openDetail(id)} disabled={!canConfigure}>Configure</button>
+                          <SplitButton
+                            label="Run"
+                            variant="success"
+                            onPrimary={() => runStudy(id, false)}
+                            disabled={!canRun}
+                            menu={[
+                              { label: 'Force Rerun', onClick: () => runStudy(id, true), tooltip: 'Rerun every step of the pipeline from scratch, ignoring already completed results.' }
+                            ]}
+                          />
+                          {canCancel && (
+                            <SplitButton
+                              label="Cancel"
+                              variant="danger"
+                              onPrimary={() => cancelRun(id)}
+                              menu={[
+                                { label: 'Force Kill', onClick: () => cancelRun(id, true), tooltip: 'Immediately kills all processes without cleanup. May leave incomplete output files.' }
+                              ]}
+                            />
+                          )}
+                          <button className="btn btn-sm btn-secondary" onClick={() => openLogs(id)}>Logs</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => { setDetailStudy(id); setDuplicateOpen(true); }}>Use as template</button>
+                          <button className="btn btn-sm btn-secondary btn-delete" onClick={() => requestDelete(id)}>🗑</button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="study-row-expanded">
+                        <td colSpan={5}>{renderRunsPanel(id)}</td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-        <div style={{display:'flex', gap:8, alignItems:'center'}}>
-          <label className="form-label" style={{margin:0}}>Per page</label>
-          <select className="form-input" value={pageSize} onChange={e=>{ setPage(1); setPageSize(Number(e.target.value)); }} style={{width:90, padding:'6px 8px', height:34}}>
-            {[10,20,50,100].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-          <button className="btn btn-secondary btn-sm" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>← Prev</button>
-          <button className="btn btn-secondary btn-sm" onClick={()=>setPage(p=> (p*pageSize < total ? p+1 : p))} disabled={page*pageSize>=total}>Next →</button>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+          <div style={{ fontSize: 13, color: '#4a5568' }}>
+            Showing <strong>{studies.length ? (page - 1) * pageSize + 1 : 0}</strong>–
+            <strong>{Math.min(page * pageSize, total)}</strong> of <strong>{total}</strong>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label className="form-label" style={{ margin: 0 }}>Per page</label>
+            <select className="form-input" value={pageSize} onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }} style={{ width: 90, padding: '6px 8px', height: 34 }}>
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button className="btn btn-secondary btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Prev</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setPage(p => (p * pageSize < total ? p + 1 : p))} disabled={page * pageSize >= total}>Next →</button>
+          </div>
         </div>
-      </div>
       </>
     );
-  }, [studies, statuses]);
+  }, [studies, statuses, expanded, runsByStudy]);
 
   const handleSetupSubmission = async (payload: SetupSubmissionsPayload) => {
     if (!detailStudy) return;
@@ -483,11 +646,8 @@ const StudiesPage = () => {
         await fetchSetInitialRunConfigData(detailStudy);
         setStep(3);
       } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to upload setup', 'error');
-        }
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to upload setup', 'error');
       }
     }, 'Uploading setup…');
   };
@@ -501,11 +661,8 @@ const StudiesPage = () => {
         await fetchSetInitialRunConfigData(detailStudy);
         setStep(4);
       } catch (err) {
-        if (err instanceof ApiError) {
-          show(err.message, 'error');
-        } else {
-          show('Failed to upload run config', 'error');
-        }
+        if (err instanceof ApiError) show(err.message, 'error');
+        else show('Failed to upload run config', 'error');
         throw new Error('failed to upload run config');
       }
     }, 'Uploading run config…');
@@ -522,13 +679,13 @@ const StudiesPage = () => {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      if (err instanceof ApiError) {
-        show(err.message, 'error');
-      } else {
-        show('Download failed', 'error');
-      }
+      if (err instanceof ApiError) show(err.message, 'error');
+      else show('Download failed', 'error');
     }
   };
+
+  const yearOptions = selectorContext ? Object.keys(selectorContext.timepoints).sort() : [];
+  const timepointOptions = selectorContext ? (selectorContext.timepoints[selectedYear] || []) : [];
 
   return (
     <div className="container">
@@ -543,54 +700,59 @@ const StudiesPage = () => {
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create New Study">
         <div className="form-group">
           <label htmlFor="studyName" className="form-label">Study Name</label>
-          <input id="studyName" className="form-input" placeholder="Enter study name" value={createName} onChange={e=>setCreateName(e.target.value)}/>
+          <input id="studyName" className="form-input" placeholder="Enter study name" value={createName} onChange={e => setCreateName(e.target.value)} />
         </div>
-        <div style={{ display:'flex', gap: '0.75rem', justifyContent:'flex-end' }}>
-          <button className="btn btn-secondary" onClick={()=>setCreateOpen(false)}>Cancel</button>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={createStudy}>Create Study</button>
         </div>
       </Modal>
 
       {/* Detail / Setup */}
-      <Modal open={detailOpen} onClose={()=>setDetailOpen(false)} title={`${detailStudy ?? ''} - Configuration`} width={800}>
-        <Stepper step={step} onStepChange={setStep}/>
-          {step === 2 &&  <SetupStudyForm studyId={detailStudy ?? ''} onSubmit={handleSetupSubmission} initialData={initialSetupData}/>}
+      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title={`${detailStudy ?? ''} - Configuration`} width={800}>
+        <Stepper step={step} onStepChange={setStep} />
+        {step === 2 && <SetupStudyForm studyId={detailStudy ?? ''} onSubmit={handleSetupSubmission} initialData={initialSetupData} />}
 
-          {step === 3 && <RunParamsForm
-              key={detailStudy ?? 'no-study'}
-              onSubmit={handleRunParamsSubmission}
-              onDownloadTemplate={handleDownloadTemplate}
-              runConfigMessage={runConfigMessage}
-              currentStudyId={detailStudy}
-              initialData={initialRunConfigData}
-            />}
+        {step === 3 && <RunParamsForm
+          key={detailStudy ?? 'no-study'}
+          onSubmit={handleRunParamsSubmission}
+          onDownloadTemplate={handleDownloadTemplate}
+          runConfigMessage={runConfigMessage}
+          currentStudyId={detailStudy}
+          initialData={initialRunConfigData}
+        />}
 
-          {step === 4 && (
-            <div>
-              <div className="alert alert-success">
-                <strong>Setup Complete!</strong> Your study is ready to run.
-              </div>
-              <div style={{display:'flex', gap:'0.75rem', justifyContent:'space-between'}}>
-                <button className="btn btn-secondary" onClick={async () => {
-                  if (!detailStudy) return;
-                  try {
-                    const blob = await StudiesAPI.downloadRunConfigTemplate(detailStudy);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = 'config.yaml'; a.click(); URL.revokeObjectURL(url);
-                  } catch { show('Download failed', 'error'); }
-                }}>⬇️ Download Config</button>
-                <div style={{display:'flex', gap:'0.75rem'}}>
-                  <button className="btn btn-secondary" onClick={() => setStep(3)}>📝 Update Config</button>
-                  <button className="btn btn-success" onClick={() => detailStudy && runStudy(detailStudy, false)}>▶️ Run Study</button>
-                </div>
+        {step === 4 && (
+          <div>
+            <div className="alert alert-success">
+              <strong>Setup Complete!</strong> Your study is ready to run.
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'space-between' }}>
+              <button className="btn btn-secondary" onClick={async () => {
+                if (!detailStudy) return;
+                try {
+                  const blob = await StudiesAPI.downloadRunConfigTemplate(detailStudy);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = 'config.yaml'; a.click(); URL.revokeObjectURL(url);
+                } catch { show('Download failed', 'error'); }
+              }}>⬇️ Download Config</button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="btn btn-secondary" onClick={() => setStep(3)}>📝 Update Config</button>
+                <button className="btn btn-success" onClick={() => detailStudy && runStudy(detailStudy, false)}>▶️ Run Study</button>
               </div>
             </div>
-          )}
+          </div>
+        )}
       </Modal>
 
-      {/* Results year/timepoint selector */}
+      {/* Results year/timepoint selector (per-run) */}
       <Modal open={resultsSelectorOpen} onClose={() => setResultsSelectorOpen(false)} title="Select Result Timepoint">
+        {selectorContext && (
+          <div style={{ fontSize: 13, color: '#4a5568', marginBottom: 12 }}>
+            Run <code>{selectorContext.runId}</code> · study <strong>{selectorContext.studyId}</strong>
+          </div>
+        )}
         <div className="form-group">
           <label className="form-label">Year</label>
           <select value={selectedYear} className="form-input" onChange={(e) => onYearChange(e.target.value)}>
@@ -603,7 +765,7 @@ const StudiesPage = () => {
             {timepointOptions.map(tp => <option key={tp} value={tp}>{tp}</option>)}
           </select>
         </div>
-        <div style={{display:'flex', gap:'0.75rem', justifyContent:'flex-end'}}>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
           <button className="btn btn-secondary" onClick={() => setResultsSelectorOpen(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={openSelectedResult} disabled={!selectedYear || !selectedTimepoint}>Open</button>
         </div>
@@ -611,19 +773,12 @@ const StudiesPage = () => {
 
       {/* Logs */}
       <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Study Logs" width={1300}>
+        <button onClick={handleCopyLogs} className="btn btn-sm btn-secondary">📋 Copy logs</button>
         <button
-          onClick={handleCopyLogs}
+          onClick={() => { if (detailStudy) downloadFullLog(detailStudy); }}
           className="btn btn-sm btn-secondary"
-        >
-          📋 Copy logs
-        </button>
-        <button
-          onClick={() => {if(detailStudy) downloadFullLog(detailStudy)}}
-          className="btn btn-sm btn-secondary"
-          style={{marginLeft: "10px"}}
-        >
-          ⬇️ Download Full Log File
-        </button>
+          style={{ marginLeft: '10px' }}
+        >⬇️ Download Full Log File</button>
         <div className="logs-container" style={{ marginTop: '2rem' }}>
           <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(logs || 'No logs available') }} />
         </div>
@@ -636,22 +791,33 @@ const StudiesPage = () => {
         </p>
         <div className="form-group">
           <label htmlFor="studyName" className="form-label">Study Name</label>
-          <input id="studyName" className="form-input" placeholder="Enter study name" value={createName} onChange={e=>setCreateName(e.target.value)}/>
+          <input id="studyName" className="form-input" placeholder="Enter study name" value={createName} onChange={e => setCreateName(e.target.value)} />
         </div>
-        <div style={{ display:'flex', gap: '0.75rem', justifyContent:'flex-end' }}>
-          <button className="btn btn-secondary" onClick={()=>setDuplicateOpen(false)}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => {duplicateStudy(); setDuplicateOpen(false)}}>Create Study</button>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-secondary" onClick={() => setDuplicateOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => { duplicateStudy(); setDuplicateOpen(false); }}>Create Study</button>
         </div>
       </Modal>
 
       {/* Delete Study */}
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Study">
         <p className="subtitle" style={{ marginTop: 4 }}>
-          This will permanently remove the study folder and its results. This cannot be undone.
+          This will permanently remove the study folder and all of its archived runs. This cannot be undone.
         </p>
-        <div style={{ display:'flex', gap: '0.75rem', justifyContent:'flex-end', marginTop:12 }}>
-          <button className="btn btn-secondary" onClick={()=>setDeleteOpen(false)}>Cancel</button>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: 12 }}>
+          <button className="btn btn-secondary" onClick={() => setDeleteOpen(false)}>Cancel</button>
           <button className="btn btn-danger" onClick={confirmDelete}>Confirm Delete</button>
+        </div>
+      </Modal>
+
+      {/* Delete Run */}
+      <Modal open={!!deleteRunCtx} onClose={() => setDeleteRunCtx(null)} title="Delete Archived Run">
+        <p className="subtitle" style={{ marginTop: 4 }}>
+          {deleteRunCtx && <>This will permanently remove the run <code>{deleteRunCtx.runId}</code> and all of its archived results.</>}
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: 12 }}>
+          <button className="btn btn-secondary" onClick={() => setDeleteRunCtx(null)}>Cancel</button>
+          <button className="btn btn-danger" onClick={confirmDeleteRun}>Confirm Delete</button>
         </div>
       </Modal>
 
@@ -660,41 +826,10 @@ const StudiesPage = () => {
         <div
           role="alert"
           aria-live="polite"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.35)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16
-          }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: 16,
-              padding: '18px 22px',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              minWidth: 220,
-              justifyContent: 'center'
-            }}
-          >
-            <div
-              aria-hidden
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                border: '3px solid #E5E7EB',
-                borderTopColor: '#3B82F6',
-                animation: 'spin 1s linear infinite'
-              }}
-            />
+          <div style={{ background: '#fff', borderRadius: 16, padding: '18px 22px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 220, justifyContent: 'center' }}>
+            <div aria-hidden style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#3B82F6', animation: 'spin 1s linear infinite' }} />
             <span style={{ fontSize: 14, color: '#374151' }}>{loadingText || 'Working…'}</span>
           </div>
         </div>
@@ -702,6 +837,6 @@ const StudiesPage = () => {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
-}
+};
 
-export default StudiesPage
+export default StudiesPage;

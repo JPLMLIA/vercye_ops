@@ -99,10 +99,9 @@ rule all:
             timepoint=config['timepoints'],
             agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
         ),
-        package_and_upload_marker = (
-            [op.join(config['sim_study_head_dir'], f".package_and_upload_{sanitize_filename(config['study_id'])}.done")]
-            if config.get('packaging_params', {}).get('rclone_target')
-            else []
+        package_and_upload_marker = op.join(
+            config['sim_study_head_dir'],
+            f".package_and_upload_{sanitize_filename(config['study_id'])}.done",
         ),
 
 # Workaround to expand outputs for individual valid regions with checkpointing as expand and wildcards don't work well together
@@ -1246,7 +1245,7 @@ rule generate_multiyear_comparison:
         """
 
 
-rule package_and_upload_outputs:
+rule snapshot_and_upload_outputs:
     input:
         # Proxy on the final aggregated artifacts so we run strictly last.
         multiyear_report = op.join(config['sim_study_head_dir'], f"multiyear_summary_{sanitize_filename(config['study_id'])}.zip"),

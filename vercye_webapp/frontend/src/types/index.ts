@@ -97,3 +97,15 @@ export interface RunConfigFormParams {
   laiResolution: number
   cropmasks: Record<string, string>
 }
+
+export type RunID = string;
+
+export interface StudyRun {
+  run_id: RunID;
+  created_at: string | null;
+  file_count: number | null;
+  uploaded_to: string | null;
+  has_multiyear_report: boolean;
+  timepoints: Record<string, string[]>;
+  size_bytes: number | null;
+}

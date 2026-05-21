@@ -27,6 +27,8 @@ from models import (
     LAIConfigRunParams,
     RegionExtractionResponse,
     RunConfigFormParams,
+    RunID,
+    RunSummary,
     SetupConfigTemplate,
     SetupSubmissionsRequest,
     ShapefileColumnInfo,
@@ -1023,3 +1025,257 @@ def delete_study(study_id: StudyID):
     # also invalidate cache
     status_cache.pop(study_id, None)
     return {"status": "deleted", "study_id": study_id}
+
+
+# Run snapshots related
+
+def _run_results_root(study_id: str) -> Path:
+    return Path(studies_dir) / study_id / study_id / "run_results"
+
+
+def _run_dir(study_id: str, run_id: str) -> Path:
+    return _run_results_root(study_id) / run_id
+
+
+def _ensure_run_dir(study_id: str, run_id: str) -> Path:
+    run_dir = _run_dir(study_id, run_id)
+    if not run_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Run not found.")
+    # Defensive path containment check.
+    try:
+        run_dir.resolve(strict=True).relative_to(_run_results_root(study_id).resolve())
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid run path.")
+    return run_dir
+
+
+def _scan_run_timepoints(run_dir: Path) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {}
+    for year_entry in sorted(run_dir.iterdir()):
+        if not year_entry.is_dir() or not year_entry.name.isdigit():
+            continue
+        timepoints = sorted(tp.name for tp in year_entry.iterdir() if tp.is_dir())
+        out[year_entry.name] = timepoints
+    return out
+
+
+def _build_run_summary(study_id: str, run_dir: Path) -> RunSummary:
+    meta_path = run_dir / "_run_meta.json"
+    meta: dict = {}
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text())
+        except Exception:
+            meta = {}
+
+    timepoints = _scan_run_timepoints(run_dir)
+    multiyear_zip = next(run_dir.glob("multiyear_summary_*.zip"), None)
+
+    size_bytes = 0
+    for dirpath, _dirnames, filenames in os.walk(run_dir):
+        for name in filenames:
+            try:
+                size_bytes += os.path.getsize(os.path.join(dirpath, name))
+            except OSError:
+                pass
+
+    created_at = meta.get("created_at")
+    if not created_at:
+        try:
+            from datetime import datetime as _dt
+
+            created_at = _dt.fromtimestamp(run_dir.stat().st_mtime).astimezone().isoformat(timespec="seconds")
+        except Exception:
+            created_at = None
+
+    return RunSummary(
+        run_id=run_dir.name,
+        created_at=created_at,
+        file_count=meta.get("file_count"),
+        uploaded_to=meta.get("uploaded_to"),
+        has_multiyear_report=multiyear_zip is not None,
+        timepoints=timepoints,
+        size_bytes=size_bytes or None,
+    )
+
+
+@router.get("/{study_id}/runs")
+def list_runs(study_id: StudyID):
+    """List snapshotted runs for a study, newest first."""
+    root = _run_results_root(study_id)
+    if not root.is_dir():
+        return {"items": []}
+
+    entries = [p for p in root.iterdir() if p.is_dir()]
+    entries.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return {"items": [_build_run_summary(study_id, p) for p in entries]}
+
+
+@router.get("/{study_id}/runs/{run_id}/result-timepoints")
+def get_run_result_timepoints(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    return {"timepoints": _scan_run_timepoints(run_dir)}
+
+
+@router.get("/{study_id}/runs/{run_id}/report/{year}/{timepoint}")
+def get_run_report(study_id: StudyID, run_id: RunID, year: int, timepoint: str):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    report_candidates = list((run_dir / str(year) / timepoint).glob("final_report_*.pdf"))
+    if len(report_candidates) != 1:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Expected to find one final report, found {len(report_candidates)}",
+        )
+    return FileResponse(report_candidates[0], filename=report_candidates[0].name)
+
+
+@router.get("/{study_id}/runs/{run_id}/map-result/{year}/{timepoint}/{resource}")
+def get_run_map_resource(study_id: StudyID, run_id: RunID, year: int, timepoint: str, resource: str):
+    base_path = (
+        Path(studies_dir)
+        / study_id
+        / "snakemake"
+        / "run_maps"
+        / run_id
+        / str(year)
+        / str(timepoint)
+        / "interactive_map"
+    )
+    file_path = base_path / resource
+    try:
+        resolved_path = file_path.resolve(strict=False)
+        if not resolved_path.is_file() or not str(resolved_path).startswith(str(base_path.resolve())):
+            raise HTTPException(status_code=403, detail="Invalid resource path.")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid resource path.")
+    return FileResponse(resolved_path)
+
+
+@router.get("/{study_id}/runs/{run_id}/map-result/{year}/{timepoint}")
+def get_run_map_result(study_id: StudyID, run_id: RunID, year: int, timepoint: str):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    map_zip_candidates = list((run_dir / str(year) / str(timepoint)).glob("interactive_map_*.zip"))
+    if len(map_zip_candidates) != 1:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Expected to find a single interactive_map_*.zip, found {len(map_zip_candidates)}",
+        )
+
+    target_dir = (
+        Path(studies_dir)
+        / study_id
+        / "snakemake"
+        / "run_maps"
+        / run_id
+        / str(year)
+        / str(timepoint)
+        / "interactive_map"
+    )
+    target_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(map_zip_candidates[0]) as z:
+        z.extractall(target_dir)
+
+    map_path = target_dir / "vercye_results_map.html"
+    if not map_path.exists():
+        raise HTTPException(status_code=404, detail="No result map available.")
+
+    with open(map_path, "r") as f:
+        content = f.read()
+        new_path_base = f"/api/studies/{study_id}/runs/{run_id}/map-result/{year}/{timepoint}"
+        content = content.replace(
+            "img.src = props.simulationsImgPath;",
+            f"img.src = `{new_path_base}/${{props.simulationsImgPath}}`",
+        )
+        return HTMLResponse(content=content)
+
+
+@router.get("/{study_id}/runs/{run_id}/multiyear-report/assets/{asset_path:path}")
+def get_run_multiyear_report_asset(study_id: StudyID, run_id: RunID, asset_path: str):
+    base_path = (
+        Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id / "assets"
+    )
+    file_path = (base_path / asset_path).resolve(strict=False)
+    try:
+        if not file_path.is_file() or not str(file_path).startswith(str(base_path.resolve())):
+            raise HTTPException(status_code=403, detail="Invalid asset path.")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid asset path.")
+    return FileResponse(file_path)
+
+
+@router.get("/{study_id}/runs/{run_id}/multiyear-report")
+def get_run_multiyear_report(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    report_candidates = list(run_dir.glob("multiyear_summary_*.zip"))
+    if len(report_candidates) != 1:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Found {len(report_candidates)} entries with multiyear_summary_ in the run folder.",
+        )
+
+    target_dir = Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(report_candidates[0]) as z:
+        z.extractall(target_dir)
+
+    report_path = target_dir / "report.html"
+    if not report_path.exists():
+        raise HTTPException(status_code=404, detail="No multiyear report available.")
+
+    content = report_path.read_text(encoding="utf-8")
+    assets_base = f"/api/studies/{study_id}/runs/{run_id}/multiyear-report/assets"
+    content = content.replace('src="assets/', f'src="{assets_base}/')
+    content = content.replace("src='assets/", f"src='{assets_base}/")
+    return HTMLResponse(content=content)
+
+
+@router.get("/{study_id}/runs/{run_id}/config")
+def get_run_config_snapshot(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    cfg_path = run_dir / "config.yaml"
+    if not cfg_path.is_file():
+        raise HTTPException(status_code=404, detail="Run config snapshot not available.")
+    return FileResponse(cfg_path, filename=f"{study_id}_{run_id}_config.yaml")
+
+
+@router.get("/{study_id}/runs/{run_id}/download")
+def download_run_archive(study_id: StudyID, run_id: RunID):
+    """Stream a zip of the entire run snapshot."""
+    run_dir = _ensure_run_dir(study_id, run_id)
+    tmp = tempfile.NamedTemporaryFile(prefix=f"{study_id}_{run_id}_", suffix=".zip", delete=False)
+    tmp.close()
+    try:
+        with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+            for dirpath, _dirnames, filenames in os.walk(run_dir):
+                for name in filenames:
+                    if name == "_run_meta.json":
+                        continue
+                    full = Path(dirpath) / name
+                    zf.write(full, full.relative_to(run_dir))
+    except Exception:
+        os.unlink(tmp.name)
+        raise
+    return FileResponse(
+        tmp.name,
+        filename=f"{study_id}_{run_id}.zip",
+        media_type="application/zip",
+        background=None,
+    )
+
+
+@router.delete("/{study_id}/runs/{run_id}")
+def delete_run(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    shutil.rmtree(run_dir, ignore_errors=False)
+
+    # Clean up any extracted caches for this run.
+    for extracted in [
+        Path(studies_dir) / study_id / "snakemake" / "run_maps" / run_id,
+        Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id,
+    ]:
+        if extracted.exists():
+            shutil.rmtree(extracted, ignore_errors=True)
+
+    return {"status": "deleted", "run_id": run_id}
