@@ -167,6 +167,24 @@ export const StudiesAPI = {
     runConfigDownload: (id: StudyId, runId: RunID) =>
       http.download(`/studies/${id}/runs/${runId}/config`),
 
+    runConfigText: async (id: StudyId, runId: RunID): Promise<string> => {
+      const blob = await http.download(`/studies/${id}/runs/${runId}/config`);
+      return await blob.text();
+    },
+
+    runApsim: (id: StudyId, runId: RunID) =>
+      http.get<{
+        manifest: {
+          filter_column: string | null;
+          region_to_template: Record<string, string>;
+          files: { name: string; size: number | null; regions: string[] }[];
+        };
+        files: { name: string; size: number }[];
+      }>(`/studies/${id}/runs/${runId}/apsim`),
+
+    runApsimFileUrl: (id: StudyId, runId: RunID, filename: string) =>
+      `/api/studies/${id}/runs/${runId}/apsim/${encodeURIComponent(filename)}`,
+
     runArchiveDownload: (id: StudyId, runId: RunID) =>
       http.download(`/studies/${id}/runs/${runId}/download`),
 

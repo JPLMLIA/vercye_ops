@@ -39,6 +39,8 @@ from pathlib import Path
 # Directory (relative to the study root) where per-run snapshots live.
 RUN_RESULTS_DIRNAME = "run_results"
 RUN_META_FILENAME = "_run_meta.json"
+APSIM_MAPPING_FILENAME = "_apsim_mapping.json"
+APSIM_SUBDIR = "apsim"
 
 
 def load_patterns(patterns_file: Path) -> list[str]:
@@ -76,6 +78,66 @@ def copy_matches_to_snapshot(root: Path, patterns: list[str], dest_root: Path) -
         shutil.copy2(src, dst)
         count += 1
     return count
+
+
+def snapshot_apsim_sources(study_root: Path, snapshot_root: Path) -> dict:
+    """Persist the APSIM source templates + a region->template mapping.
+
+    The per-region customized ``<region>.apsimx`` files are far too large
+    to snapshot (650KB each across thousands of region/year/timepoint
+    combinations) — but the *source* templates kept under
+    ``<study>/apsim/`` and referenced by ``APSIM_TEMPLATE_PATHS`` in
+    ``setup_config.yaml`` are tiny and capture which APSIM file was used
+    for which admin region. We copy those plus the mapping so a future
+    user can reproduce the run.
+    """
+    # study_root is sim_study_head_dir (<studies_dir>/<study_id>/<study_id>);
+    # setup_config and the apsim/ source dir live one level above.
+    setup_cfg_path = study_root.parent / "setup_config.yaml"
+    if not setup_cfg_path.exists():
+        return {"region_to_template": {}, "files": [], "filter_column": None}
+
+    try:
+        import yaml as _yaml
+
+        cfg = _yaml.safe_load(setup_cfg_path.read_text()) or {}
+    except Exception:
+        cfg = {}
+
+    template_paths = cfg.get("APSIM_TEMPLATE_PATHS") or {}
+    filter_col = cfg.get("APSIM_TEMPLATE_PATHS_FILTER_COL_NAME")
+
+    apsim_dest = snapshot_root / APSIM_SUBDIR
+    apsim_dest.mkdir(parents=True, exist_ok=True)
+
+    files: dict[str, list[str]] = {}
+    region_map: dict[str, str] = {}
+    for region, src_path in template_paths.items():
+        if not src_path:
+            continue
+        src = Path(src_path)
+        if not src.is_file():
+            continue
+        dst = apsim_dest / src.name
+        if not dst.exists():
+            shutil.copy2(src, dst)
+        region_map[region] = src.name
+        files.setdefault(src.name, []).append(region)
+
+    manifest = {
+        "filter_column": filter_col,
+        "region_to_template": region_map,
+        "files": [
+            {
+                "name": name,
+                "size": (apsim_dest / name).stat().st_size if (apsim_dest / name).exists() else None,
+                "regions": sorted(regions),
+            }
+            for name, regions in sorted(files.items())
+        ],
+    }
+    (snapshot_root / APSIM_MAPPING_FILENAME).write_text(json.dumps(manifest, indent=2))
+    return manifest
 
 
 def zip_snapshot(snapshot_dir: Path, out_zip: Path) -> int:
@@ -173,6 +235,12 @@ def main() -> None:
         # Leave nothing behind on an empty snapshot.
         shutil.rmtree(snapshot_root, ignore_errors=True)
         raise SystemExit("No files matched the output patterns - refusing to create an empty snapshot")
+
+    apsim_manifest = snapshot_apsim_sources(root, snapshot_root)
+    print(
+        f"Persisted {len(apsim_manifest.get('files', []))} APSIM source template(s) "
+        f"covering {len(apsim_manifest.get('region_to_template', {}))} region(s)"
+    )
 
     remote_dir = None
     rclone_target = (args.rclone_target or "").strip()

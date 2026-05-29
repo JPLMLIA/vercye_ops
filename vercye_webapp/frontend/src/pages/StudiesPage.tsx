@@ -8,6 +8,7 @@ import { StudiesAPI } from '@/api/studies';
 import type { SetupConfigTemplate, StudyId, StudyStatus, RunConfigFormParams, StudyRun, RunID } from '@/types';
 import SetupStudyForm, { SetupSubmissionsPayload } from '@/components/Forms/SetupStudyForm';
 import RunParamsForm, { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
+import YamlTree from '@/components/YamlTree';
 import { ApiError } from '@/api/client';
 import { ansiToHtml } from '@/utils/utils';
 
@@ -21,14 +22,16 @@ const SplitButton: React.FC<{
   onPrimary: () => void;
   disabled?: boolean;
   variant?: 'primary' | 'success' | 'secondary' | 'danger';
+  size?: 'sm' | 'xs';
   menu: { label: string; onClick: () => void; tooltip?: string }[];
-}> = ({ label, onPrimary, disabled, variant = 'primary', menu }) => {
+}> = ({ label, onPrimary, disabled, variant = 'primary', size = 'sm', menu }) => {
   const [open, setOpen] = useState(false);
+  const sizeClass = `btn-${size}`;
   return (
     <div className="btn-split" onMouseLeave={() => setOpen(false)}>
-      <button className={`btn btn-sm btn-${variant} btn-part1 ${open ? 'open' : ''}`} onClick={onPrimary} disabled={disabled}>{label}</button>
+      <button className={`btn ${sizeClass} btn-${variant} btn-part1 ${open ? 'open' : ''}`} onClick={onPrimary} disabled={disabled}>{label}</button>
       <button
-        className={`btn btn-sm btn-${variant} btn-part2 btn-caret ${open ? 'open' : ''}`}
+        className={`btn ${sizeClass} btn-${variant} btn-part2 btn-caret ${open ? 'open' : ''}`}
         aria-haspopup="menu" aria-expanded={open} aria-label="More options"
         onClick={() => setOpen(o => !o)} disabled={disabled}
       > ▾</button>
@@ -85,6 +88,20 @@ const StudiesPage = () => {
   // Expansion / per-study runs state
   const [expanded, setExpanded] = useState<Record<StudyId, boolean>>({});
   const [runsByStudy, setRunsByStudy] = useState<Record<StudyId, StudyRun[] | 'loading' | 'error'>>({});
+
+  // Per-run config viewer state (key: `${studyId}|${runId}`)
+  const [configOpen, setConfigOpen] = useState<Record<string, boolean>>({});
+  const [configByRun, setConfigByRun] = useState<Record<string, string | 'loading' | 'error'>>({});
+
+  type ApsimManifest = {
+    manifest: {
+      filter_column: string | null;
+      region_to_template: Record<string, string>;
+      files: { name: string; size: number | null; regions: string[] }[];
+    };
+    files: { name: string; size: number }[];
+  };
+  const [apsimByRun, setApsimByRun] = useState<Record<string, ApsimManifest | 'loading' | 'error'>>({});
 
   // Result selector modal state (year/timepoint picker, scoped to a specific run)
   const [resultsSelectorOpen, setResultsSelectorOpen] = useState(false);
@@ -380,6 +397,41 @@ const StudiesPage = () => {
     }
   };
 
+  const runKey = (studyId: StudyId, runId: RunID) => `${studyId}|${runId}`;
+
+  const toggleRunConfig = async (studyId: StudyId, runId: RunID) => {
+    const key = runKey(studyId, runId);
+    const willOpen = !configOpen[key];
+    setConfigOpen(prev => ({ ...prev, [key]: willOpen }));
+    if (!willOpen) return;
+    // Fire config + apsim fetches in parallel on first open.
+    if (typeof configByRun[key] !== 'string') {
+      setConfigByRun(prev => ({ ...prev, [key]: 'loading' }));
+      StudiesAPI.runConfigText(studyId, runId)
+        .then(text => setConfigByRun(prev => ({ ...prev, [key]: text })))
+        .catch(() => setConfigByRun(prev => ({ ...prev, [key]: 'error' })));
+    }
+    if (!apsimByRun[key] || apsimByRun[key] === 'error') {
+      setApsimByRun(prev => ({ ...prev, [key]: 'loading' }));
+      StudiesAPI.runApsim(studyId, runId)
+        .then(data => setApsimByRun(prev => ({ ...prev, [key]: data })))
+        .catch(() => setApsimByRun(prev => ({ ...prev, [key]: 'error' })));
+    }
+  };
+
+  // Top-level config keys to auto-collapse in the YAML viewer because they
+  // contain hundreds of entries that drown out the more interesting params.
+  const collapsedConfigKeys = [
+    'region',
+    'regions',
+    'scripts',
+    'packaging_params',
+    'eval_params',
+    'apsim_execution',
+    'years',
+    'timepoints',
+  ];
+
   const confirmDeleteRun = async () => {
     if (!deleteRunCtx) return;
     const { studyId, runId } = deleteRunCtx;
@@ -451,67 +503,156 @@ const StudiesPage = () => {
     }
     return (
       <div className="runs-panel">
-        <table className="runs-table">
-          <thead>
-            <tr>
-              <th style={{ width: '22%' }}>Created</th>
-              <th>Run ID</th>
-              <th style={{ width: '14%' }}>Files</th>
-              <th style={{ width: '14%' }}>Uploaded</th>
-              <th style={{ width: '38%' }}>Results</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entry.map(run => (
-              <tr key={run.run_id}>
-                <td>{formatDate(run.created_at)}</td>
-                <td><code style={{ fontSize: 12 }}>{run.run_id}</code></td>
-                <td>
-                  {run.file_count ?? '—'}
-                  <span style={{ color: '#718096', marginLeft: 6 }}>({formatSize(run.size_bytes)})</span>
-                </td>
-                <td>
-                  {run.uploaded_to
-                    ? <span title={run.uploaded_to} className="status-badge status-completed" style={{ padding: '4px 8px', fontSize: 10 }}>UPLOADED</span>
-                    : <span style={{ color: '#a0aec0', fontSize: 12 }}>local only</span>}
-                </td>
-                <td>
-                  <div className="actions-cell" style={{ flexWrap: 'wrap' }}>
+        <h4 className="runs-panel-title">Archived Runs</h4>
+        <div className="runs-grid">
+          <div className="runs-grid-head">
+            <div></div>
+            <div>Created</div>
+            <div>Run ID</div>
+            <div>Files</div>
+            <div>Results</div>
+          </div>
+          {entry.map(run => {
+            const key = runKey(id, run.run_id);
+            const cfgOpen = !!configOpen[key];
+            const cfg = configByRun[key];
+            // Once the config viewer has ever been opened we keep its block
+            // mounted and only flip visibility via CSS so toggling is instant
+            // (no remount of the YAML tree's hundreds of nested nodes).
+            const cfgMounted = cfgOpen || cfg !== undefined;
+            return (
+              <Fragment key={run.run_id}>
+                <div className="runs-grid-row">
+                  <div>
                     <button
-                      className="btn btn-sm btn-primary"
+                      className="row-toggle"
+                      aria-label={cfgOpen ? 'Hide config' : 'Show config'}
+                      aria-expanded={cfgOpen}
+                      onClick={() => toggleRunConfig(id, run.run_id)}
+                    >
+                      <span className={`chevron ${cfgOpen ? 'open' : ''}`}>▶</span>
+                    </button>
+                  </div>
+                  <div>{formatDate(run.created_at)}</div>
+                  <div><code style={{ fontSize: 12 }}>{run.run_id}</code></div>
+                  <div>
+                    {run.file_count ?? '—'}
+                    <span style={{ color: '#718096', marginLeft: 6 }}>({formatSize(run.size_bytes)})</span>
+                  </div>
+                  <div className="runs-grid-actions">
+                    <button
+                      className="btn btn-xs btn-primary"
                       onClick={() => openRunResultSelector(id, run, Result.Map)}
                       disabled={!Object.keys(run.timepoints || {}).length}
-                    >🗺 Map</button>
+                    >Map</button>
                     <button
-                      className="btn btn-sm btn-secondary"
+                      className="btn btn-xs btn-secondary"
                       onClick={() => openRunResultSelector(id, run, Result.Report)}
                       disabled={!Object.keys(run.timepoints || {}).length}
-                    >📄 Yearly Report</button>
+                    >Report</button>
                     <button
-                      className="btn btn-sm btn-secondary"
+                      className="btn btn-xs btn-secondary"
                       onClick={() => openRunMultiyear(id, run.run_id)}
                       disabled={!run.has_multiyear_report}
-                    >📊 Multiyear</button>
+                    >Multiyear</button>
                     <SplitButton
-                      label="⬇️ Archive"
+                      label="Download"
                       variant="secondary"
+                      size="xs"
                       onPrimary={() => downloadRunArchive(id, run.run_id)}
                       menu={[
-                        { label: 'Download Full Run (.zip)', onClick: () => downloadRunArchive(id, run.run_id) },
-                        { label: 'Download config.yaml', onClick: () => downloadRunConfig(id, run.run_id) },
+                        { label: 'Run archive (.zip)', onClick: () => downloadRunArchive(id, run.run_id) },
+                        { label: 'config.yaml', onClick: () => downloadRunConfig(id, run.run_id) },
                       ]}
                     />
                     <button
-                      className="btn btn-sm btn-secondary btn-delete"
+                      className="btn btn-xs btn-secondary btn-delete"
                       title="Delete this archived run"
                       onClick={() => setDeleteRunCtx({ studyId: id, runId: run.run_id })}
                     >🗑</button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+                {cfgMounted && (
+                  <div className="runs-grid-config" style={cfgOpen ? undefined : { display: 'none' }}>
+                    <div className="run-config-viewer">
+                      <div className="run-config-header">
+                        <strong>config.yaml</strong>
+                        <button
+                          className="btn btn-xs btn-secondary"
+                          onClick={() => downloadRunConfig(id, run.run_id)}
+                        >Download</button>
+                      </div>
+                      {cfg === 'loading' || cfg === undefined ? (
+                        <div className="run-config-empty">
+                          <div className="loading" />
+                          <span style={{ marginLeft: 10 }}>Loading config…</span>
+                        </div>
+                      ) : cfg === 'error' ? (
+                        <div className="run-config-empty">
+                          Could not load config.
+                          <button className="btn btn-xs btn-secondary" style={{ marginLeft: 10 }} onClick={() => toggleRunConfig(id, run.run_id)}>Retry</button>
+                        </div>
+                      ) : (
+                        <div className="run-config-tree">
+                          <YamlTree text={cfg} collapsedKeys={collapsedConfigKeys} />
+                        </div>
+                      )}
+
+                      <div className="run-config-header" style={{ marginTop: 16 }}>
+                        <strong>APSIM templates used</strong>
+                        {apsimByRun[key] && apsimByRun[key] !== 'loading' && apsimByRun[key] !== 'error' && (apsimByRun[key] as ApsimManifest).manifest.filter_column && (
+                          <span style={{ color: '#718096', fontSize: 11 }}>
+                            mapped via column <code>{(apsimByRun[key] as ApsimManifest).manifest.filter_column}</code>
+                          </span>
+                        )}
+                      </div>
+                      {apsimByRun[key] === 'loading' || apsimByRun[key] === undefined ? (
+                        <div className="run-config-empty">
+                          <div className="loading" />
+                          <span style={{ marginLeft: 10 }}>Loading APSIM mapping…</span>
+                        </div>
+                      ) : apsimByRun[key] === 'error' ? (
+                        <div className="run-config-empty">Could not load APSIM mapping.</div>
+                      ) : (apsimByRun[key] as ApsimManifest).files.length === 0 ? (
+                        <div className="run-config-empty" style={{ minHeight: 60 }}>
+                          No APSIM templates were captured for this run.
+                        </div>
+                      ) : (
+                        <div className="apsim-files">
+                          {(apsimByRun[key] as ApsimManifest).files.map(f => {
+                            const fileManifest = (apsimByRun[key] as ApsimManifest).manifest.files.find(x => x.name === f.name);
+                            const regions = fileManifest?.regions ?? [];
+                            return (
+                              <div className="apsim-file" key={f.name}>
+                                <div className="apsim-file-info">
+                                  <code className="apsim-file-name">{f.name}</code>
+                                  <span className="apsim-file-meta">
+                                    {formatSize(f.size)} · {regions.length} region{regions.length === 1 ? '' : 's'}
+                                  </span>
+                                </div>
+                                <details className="apsim-file-regions">
+                                  <summary>Show regions</summary>
+                                  <div className="apsim-region-list">
+                                    {regions.length === 0 ? <em>— no regions in mapping —</em> : regions.join(', ')}
+                                  </div>
+                                </details>
+                                <a
+                                  className="btn btn-xs btn-secondary"
+                                  href={StudiesAPI.runApsimFileUrl(id, run.run_id, f.name)}
+                                  download={f.name}
+                                >Download</a>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </Fragment>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -527,7 +668,7 @@ const StudiesPage = () => {
       <div className="empty-state">
         <h3>No Studies Found</h3>
         <p>Create your first study to get started</p>
-        <button className="btn btn-primary" style={{ marginTop: 15 }} onClick={() => setCreateOpen(true)}>✚ Create Your First Study</button>
+        <button className="btn btn-primary" style={{ marginTop: 15 }} onClick={() => setCreateOpen(true)}>Create Your First Study</button>
       </div>
     );
     return (
@@ -602,7 +743,7 @@ const StudiesPage = () => {
                           )}
                           <button className="btn btn-sm btn-secondary" onClick={() => openLogs(id)}>Logs</button>
                           <button className="btn btn-sm btn-secondary" onClick={() => { setDetailStudy(id); setDuplicateOpen(true); }}>Use as template</button>
-                          <button className="btn btn-sm btn-secondary btn-delete" onClick={() => requestDelete(id)}>🗑</button>
+                          <button className="btn btn-sm btn-secondary btn-delete" title="Delete study" onClick={() => requestDelete(id)}>🗑</button>
                         </div>
                       </td>
                     </tr>
@@ -634,7 +775,7 @@ const StudiesPage = () => {
         </div>
       </>
     );
-  }, [studies, statuses, expanded, runsByStudy]);
+  }, [studies, statuses, expanded, runsByStudy, configOpen, configByRun]);
 
   const handleSetupSubmission = async (payload: SetupSubmissionsPayload) => {
     if (!detailStudy) return;
@@ -691,8 +832,8 @@ const StudiesPage = () => {
     <div className="container">
       <Header />
       <div className="actions">
-        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>✚ Create New Study</button>
-        <button className="btn btn-secondary" onClick={() => load()}>↻ Refresh</button>
+        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>Create New Study</button>
+        <button className="btn btn-secondary" onClick={() => load()}>Refresh</button>
       </div>
       <div id="studiesContainer">{table}</div>
 
@@ -736,10 +877,10 @@ const StudiesPage = () => {
                   const a = document.createElement('a');
                   a.href = url; a.download = 'config.yaml'; a.click(); URL.revokeObjectURL(url);
                 } catch { show('Download failed', 'error'); }
-              }}>⬇️ Download Config</button>
+              }}>Download Config</button>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button className="btn btn-secondary" onClick={() => setStep(3)}>📝 Update Config</button>
-                <button className="btn btn-success" onClick={() => detailStudy && runStudy(detailStudy, false)}>▶️ Run Study</button>
+                <button className="btn btn-secondary" onClick={() => setStep(3)}>Update Config</button>
+                <button className="btn btn-success" onClick={() => detailStudy && runStudy(detailStudy, false)}>Run Study</button>
               </div>
             </div>
           </div>
@@ -773,12 +914,12 @@ const StudiesPage = () => {
 
       {/* Logs */}
       <Modal open={logsOpen} onClose={() => setLogsOpen(false)} title="Study Logs" width={1300}>
-        <button onClick={handleCopyLogs} className="btn btn-sm btn-secondary">📋 Copy logs</button>
+        <button onClick={handleCopyLogs} className="btn btn-sm btn-secondary">Copy logs</button>
         <button
           onClick={() => { if (detailStudy) downloadFullLog(detailStudy); }}
           className="btn btn-sm btn-secondary"
           style={{ marginLeft: '10px' }}
-        >⬇️ Download Full Log File</button>
+        >Download Full Log File</button>
         <div className="logs-container" style={{ marginTop: '2rem' }}>
           <pre dangerouslySetInnerHTML={{ __html: ansiToHtml(logs || 'No logs available') }} />
         </div>

@@ -95,7 +95,20 @@ p { font-size: 14px; }
 .btn-danger:hover:not(:disabled) { background: var(--danger-hover); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(229,62,62,0.4); }
 .btn-secondary { background: transparent; color: var(--dark-primary); border: 1px solid var(--dark-primary); }
 .btn-secondary:hover:not(:disabled) { background: var(--dark-primary); color: white; }
-.btn-sm { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+.btn-sm { padding: 8px 12px; font-size: 12px; border-radius: 8px; line-height: 1.2; }
+.btn-xs {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  /* Lock the height so emoji glyphs (e.g. the 🗑 delete) cannot push the
+   * button taller than its peers. */
+  line-height: 1;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
 
 .table-container { background: var(--white); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid var(--gray-200); }
 .table { width: 100%; border-collapse: collapse; }
@@ -335,11 +348,15 @@ p { font-size: 14px; }
 .dropdown-item:hover { background: var(--gray-50); }
 
 /* Expandable studies table */
-.studies-table tbody tr.study-row.open td { background: var(--gray-50); }
+.studies-table tbody tr.study-row.open td {
+  background: var(--gray-50);
+  border-bottom-color: transparent;
+}
 .studies-table tbody tr.study-row-expanded:hover { background: transparent; }
 .studies-table tbody tr.study-row-expanded td {
-  background: #fafbfc;
-  padding: 0;
+  /* Wrapper cell: subtle gray gutter so the inner card looks inset. */
+  background: var(--gray-50);
+  padding: 0 24px 18px;
   border-bottom: 1px solid var(--gray-200);
 }
 .row-toggle {
@@ -358,31 +375,227 @@ p { font-size: 14px; }
 }
 .row-toggle .chevron.open { transform: rotate(90deg); }
 
-.runs-panel { padding: 12px 18px 18px; }
+.runs-panel {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  padding: 18px 22px 22px;
+}
+.runs-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-700);
+  margin: 0 0 10px;
+}
 .runs-panel-empty {
   padding: 24px;
   text-align: center;
   color: var(--light-grey);
   font-size: 14px;
 }
-.runs-table { width: 100%; border-collapse: collapse; }
-.runs-table th {
-  text-align: left;
+/* Archived-runs grid (replaces the old runs-table).
+ * Each row is a CSS grid so align-items: center reliably centers every
+ * cell — no table-cell / vertical-align quirks. */
+.runs-grid { width: 100%; font-size: 13px; }
+.runs-grid-head,
+.runs-grid-row {
+  display: grid;
+  grid-template-columns: 36px minmax(160px, 1.4fr) minmax(160px, 1fr) minmax(110px, 0.7fr) minmax(320px, 2.4fr);
+  column-gap: 14px;
+  align-items: center;
+}
+.runs-grid-head {
+  padding: 10px 16px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--gray-700);
-  padding: 8px 12px;
   border-bottom: 1px solid var(--gray-200);
-  background: transparent;
 }
-.runs-table td {
-  padding: 10px 12px;
+.runs-grid-row {
+  padding: 18px 16px;
   border-bottom: 1px solid var(--gray-100);
-  font-size: 13px;
-  vertical-align: middle;
-  background: transparent;
+  min-height: 64px;
 }
-.runs-table tbody tr:last-child td { border-bottom: none; }
-.runs-table tbody tr:hover { background: rgba(66,153,225,0.05); }
+.runs-grid-row:hover { background: rgba(66,153,225,0.05); }
+.runs-grid-row > * {
+  /* Ensure each grid item is itself a flex line so its inner content
+   * (text, button, code) is centered both within the item and within
+   * the auto-grown grid row. */
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.runs-grid-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  row-gap: 6px;
+}
+.runs-grid-config {
+  background: #fafbfc;
+  border-bottom: 1px solid var(--gray-100);
+  padding: 0;
+}
+.runs-grid .btn-xs.btn-caret { width: 22px; padding: 4px; }
+
+.run-config-viewer {
+  padding: 14px 18px 18px;
+  /* Constrain so a long YAML value cannot blow the table out horizontally. */
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.run-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: var(--gray-700);
+  font-size: 12px;
+}
+.run-config-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--light-grey);
+  font-size: 13px;
+  /* Give the loading state a real footprint so it reads as a placeholder
+   * rather than a thin spinner the user might miss. */
+  min-height: 180px;
+  background: #f7fafc;
+  border: 1px dashed var(--gray-200);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.run-config-tree {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-height: 480px;
+  overflow: auto;
+  /* Without this, a wide nested key cell can push the column wider than its parent. */
+  max-width: 100%;
+}
+
+/* APSIM template panel inside the run config dropdown */
+.apsim-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.apsim-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+}
+.apsim-file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  flex: 1 1 220px;
+}
+.apsim-file-name {
+  font-size: 13px;
+  color: var(--gray-900);
+  word-break: break-all;
+}
+.apsim-file-meta {
+  color: var(--light-grey);
+  font-size: 11.5px;
+}
+.apsim-file-regions {
+  flex: 1 1 240px;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--gray-700);
+}
+.apsim-file-regions summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--primary);
+}
+.apsim-region-list {
+  margin-top: 6px;
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--gray-50);
+  border-radius: 6px;
+  font-family: 'Monaco','Menlo','Ubuntu Mono',monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* YAML tree component */
+.yaml-tree {
+  font-family: 'Monaco','Menlo','Ubuntu Mono',monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--gray-900);
+}
+.yt-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+  min-width: 0;
+}
+.yt-row-toggle {
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+}
+.yt-row-toggle:hover { background: rgba(66,153,225,0.08); }
+.yt-chevron {
+  display: inline-block;
+  width: 12px;
+  font-size: 9px;
+  color: var(--gray-700);
+  transition: transform 0.12s ease;
+  flex: none;
+}
+.yt-chevron.open { transform: rotate(90deg); }
+.yt-key {
+  color: #2b6cb0;
+  font-weight: 600;
+  flex: none;
+}
+.yt-preview {
+  color: var(--light-grey);
+  font-style: italic;
+  font-size: 11.5px;
+}
+.yt-value {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.yt-string { color: #2f855a; }
+.yt-number { color: #b7791f; }
+.yt-bool { color: #6b46c1; }
+.yt-null { color: var(--light-grey); font-style: italic; }
+.yt-fallback { color: var(--gray-700); font-size: 12px; }
+.yt-error { color: var(--red); margin-bottom: 6px; }
+.yt-raw {
+  margin: 0;
+  background: var(--dark-primary);
+  color: var(--white);
+  padding: 10px;
+  border-radius: 6px;
+  font-family: 'Monaco','Menlo','Ubuntu Mono',monospace;
+  font-size: 12px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
