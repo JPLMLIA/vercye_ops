@@ -1265,6 +1265,46 @@ def download_run_archive(study_id: StudyID, run_id: RunID):
     )
 
 
+@router.get("/{study_id}/runs/{run_id}/apsim")
+def get_run_apsim(study_id: StudyID, run_id: RunID):
+    """Return the APSIM mapping + list of source-template files snapshotted with the run."""
+    run_dir = _ensure_run_dir(study_id, run_id)
+    manifest_path = run_dir / "_apsim_mapping.json"
+    apsim_dir = run_dir / "apsim"
+
+    manifest = {"filter_column": None, "region_to_template": {}, "files": []}
+    if manifest_path.exists():
+        try:
+            data = json.loads(manifest_path.read_text())
+            if isinstance(data, dict):
+                manifest.update(data)
+        except Exception:
+            pass
+
+    files: List[dict] = []
+    if apsim_dir.is_dir():
+        for p in sorted(apsim_dir.iterdir()):
+            if not p.is_file():
+                continue
+            files.append({"name": p.name, "size": p.stat().st_size})
+
+    return {"manifest": manifest, "files": files}
+
+
+@router.get("/{study_id}/runs/{run_id}/apsim/{filename}")
+def download_run_apsim_file(study_id: StudyID, run_id: RunID, filename: str):
+    """Download one APSIM source template from the snapshot."""
+    run_dir = _ensure_run_dir(study_id, run_id)
+    apsim_dir = (run_dir / "apsim").resolve()
+    if not apsim_dir.is_dir():
+        raise HTTPException(status_code=404, detail="No APSIM files snapshotted for this run.")
+
+    file_path = (apsim_dir / filename).resolve()
+    if not str(file_path).startswith(str(apsim_dir) + os.sep) or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="APSIM file not found.")
+    return FileResponse(file_path, filename=filename, media_type="application/octet-stream")
+
+
 @router.delete("/{study_id}/runs/{run_id}")
 def delete_run(study_id: StudyID, run_id: RunID):
     run_dir = _ensure_run_dir(study_id, run_id)
