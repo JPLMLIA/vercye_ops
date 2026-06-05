@@ -112,7 +112,7 @@ class WindowNoId(BaseModel):
 
 
 class Feature(BaseModel):
-    geometry: Dict[str, Any]
+    geometry: Optional[Dict[str, Any]] = None
     properties: Dict[str, Any]
 
 

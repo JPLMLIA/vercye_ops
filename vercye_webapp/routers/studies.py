@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 import aiofiles
 import geopandas as gpd
+import pandas as pd
 import yaml
 from celery.result import AsyncResult
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
@@ -64,6 +65,18 @@ cropmasks_dir = read_cropmasks_dir_from_env()
 
 # Cache for storing study status to deal with fast responses in status updates
 status_cache: Dict[str, Tuple[float, str]] = {}
+
+
+def _column_is_numeric(series) -> bool:
+    """Numeric iff every non-null value parses as a number (robust to object dtype from
+    null/string-typed columns, unlike a plain dtype.kind check)."""
+    if series.dtype.kind in ("i", "f"):
+        return True
+    coerced = pd.to_numeric(series, errors="coerce")
+    non_null = series.notna()
+    has_bad = bool((coerced.isna() & non_null).any())
+    return (not has_bad) and bool(coerced.notna().any())
+
 
 router = APIRouter(
     prefix="/studies",
@@ -343,6 +356,7 @@ async def setup_study(
                             "shapefile_path": resolved_path,
                             "name_column": cfg.name_column,
                             "reference_yield_column": cfg.reference_yield_column,
+                            "year_column": cfg.year_column,
                         }
                         break
 
@@ -417,13 +431,19 @@ def fetch_setup_config(study_id: StudyID):
     apsim_files = list(apsim_mapping.keys())
     apsim_column = str(raw.get("apsim_column", ""))
 
-    # shapefile
+    # Region attribute table only. The frontend uses feature.properties to populate the
+    # column/value dropdowns and never renders the geometry, so we skip reading geometry
+    # entirely - this keeps the payload to a few hundred KB instead of several MB.
     try:
-        gdf = gpd.read_file(config["regions_shp_name"])
-        for col in gdf.select_dtypes(include=["datetime64[ns]"]).columns:
-            gdf[col] = gdf[col].astype(str)
+        regions_df = gpd.read_file(config["regions_shp_name"], ignore_geometry=True)
+        for col in regions_df.select_dtypes(include=["datetime64[ns]"]).columns:
+            regions_df[col] = regions_df[col].astype(str)
 
-        shapefile_geojson = json.loads(gdf.to_json())
+        records = regions_df.astype(object).where(pd.notna(regions_df), None).to_dict(orient="records")
+        shapefile_geojson = {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "geometry": None, "properties": rec} for rec in records],
+        }
         shapefile_name = Path(config["regions_shp_name"]).name
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read shapefile: {e}")
@@ -442,7 +462,9 @@ def fetch_setup_config(study_id: StudyID):
         if shp_path:
             agg_shp_names.append(Path(shp_path).name)
             try:
-                gdf_agg = gpd.read_file(shp_path)
+                # Only the attribute schema (column names/dtypes) is needed for the UI
+                # dropdowns, so skip reading geometry.
+                gdf_agg = gpd.read_file(shp_path, ignore_geometry=True)
                 for col in gdf_agg.columns:
                     if col == "geometry":
                         continue
@@ -450,7 +472,7 @@ def fetch_setup_config(study_id: StudyID):
                         ShapefileColumnInfo(
                             name=col,
                             dtype=str(gdf_agg[col].dtype),
-                            is_numeric=gdf_agg[col].dtype.kind in ("i", "f"),
+                            is_numeric=_column_is_numeric(gdf_agg[col]),
                         )
                     )
             except Exception:
@@ -518,7 +540,7 @@ async def get_shapefile_columns(
         if col == "geometry":
             continue
         dtype = str(gdf[col].dtype)
-        is_numeric = gdf[col].dtype.kind in ("i", "f")
+        is_numeric = _column_is_numeric(gdf[col])
         columns.append({"name": col, "dtype": dtype, "is_numeric": is_numeric})
 
     return {"columns": columns}

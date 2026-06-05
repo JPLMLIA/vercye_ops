@@ -326,23 +326,23 @@ def create_predictions_plot(preds, years):
     return fig
 
 
-def _extract_agg_level_name(filename, year, timepoint):
-    """Extract aggregation level name from a filename like
-    agg_yield_estimates_{level_name}_{study_id}_{year}_{timepoint}.csv
+def _extract_agg_level_name(filename, study_id, year, timepoint):
+    """Extract the aggregation level name from a filename like
+    agg_yield_estimates_{level_name}_{study_id}_{year}_{timepoint}.csv.
+
+    Both level_name and study_id may contain underscores, so strip the known
+    prefix and the exact _{study_id}_{year}_{timepoint}.csv suffix instead of
+    guessing token boundaries.
     """
     base = os.path.basename(filename)
     prefix = "agg_yield_estimates_"
-    suffix = f"_{year}_{timepoint}.csv"
+    suffix = f"_{study_id}_{year}_{timepoint}.csv"
     if not base.startswith(prefix) or not base.endswith(suffix):
         return None
-    middle = base[len(prefix) : -len(suffix)]
-    parts = middle.rsplit("_", 1)
-    if len(parts) == 2:
-        return parts[0]
-    return middle
+    return base[len(prefix) : -len(suffix)]
 
 
-def identify_agg_levels(input_dir, years):
+def identify_agg_levels(input_dir, study_id, years):
     lvls = set(["primary"])
     for y in years:
         for tp_dir in glob(os.path.join(input_dir, y, "*")):
@@ -351,7 +351,7 @@ def identify_agg_levels(input_dir, years):
             timepoint = os.path.basename(tp_dir)
             files = glob(os.path.join(tp_dir, "agg_yield_estimates_*.csv"))
             for f in files:
-                lvl = _extract_agg_level_name(f, y, timepoint)
+                lvl = _extract_agg_level_name(f, study_id, y, timepoint)
                 if lvl:
                     lvls.add(lvl)
     return sorted(lvls)
@@ -550,11 +550,17 @@ def render_yearly_eval_html(yearly_eval_data: dict, lvl: str, timepoint: str) ->
     required=True,
     help="Path for the resulting ZIP. If not ending with .zip, it will be appended.",
 )
-def main(input_dir, lai_agg_type, adjusted, title, output_file):
+@click.option(
+    "--study-id",
+    type=str,
+    required=True,
+    help="Sanitized study id, used to parse aggregation level names from output filenames.",
+)
+def main(input_dir, lai_agg_type, adjusted, title, output_file, study_id):
     years = get_available_years(input_dir)
     reference = os.path.join(input_dir, years[0])
     timepoints = get_available_timepoints(reference)
-    agg_levels = identify_agg_levels(input_dir, years)
+    agg_levels = identify_agg_levels(input_dir, study_id, years)
 
     temp_root = tempfile.mkdtemp(prefix="report_bundle_")
     assets_dir = os.path.join(temp_root, "assets")

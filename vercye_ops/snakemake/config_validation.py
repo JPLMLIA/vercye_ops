@@ -477,6 +477,12 @@ def _validate_aggregation_shapefiles(config):
                 f"Column '{name_column}' not found in shapefile for level '{level_name}'. "
                 f"Available columns: {list(gdf.columns)}"
             )
+        if gdf[name_column].isna().any():
+            n_null = int(gdf[name_column].isna().sum())
+            raise ValueError(
+                f"Name column '{name_column}' in level '{level_name}' has {n_null} null value(s); "
+                "region identifiers must be non-null."
+            )
 
         ref_yield_col = level_config.get("reference_yield_column")
         if ref_yield_col:
@@ -485,8 +491,21 @@ def _validate_aggregation_shapefiles(config):
                     f"Reference yield column '{ref_yield_col}' not found in shapefile for level '{level_name}'. "
                     f"Available columns: {list(gdf.columns)}"
                 )
-            if not pd.api.types.is_numeric_dtype(gdf[ref_yield_col]):
-                raise ValueError(f"Reference yield column '{ref_yield_col}' in level '{level_name}' must be numeric.")
+            # Coerce values rather than trusting the inferred dtype: a numeric column whose
+            # first value is null reads as object and would fail is_numeric_dtype().
+            ref_values = gdf[ref_yield_col]
+            coerced = pd.to_numeric(ref_values, errors="coerce")
+            non_numeric = coerced.isna() & ref_values.notna()
+            if non_numeric.any():
+                bad_examples = list(ref_values[non_numeric].unique()[:5])
+                raise ValueError(
+                    f"Reference yield column '{ref_yield_col}' in level '{level_name}' must be numeric, "
+                    f"but contains non-numeric values e.g. {bad_examples}."
+                )
+            if coerced.notna().sum() == 0:
+                raise ValueError(
+                    f"Reference yield column '{ref_yield_col}' in level '{level_name}' has no numeric values."
+                )
 
             # year_column is required when reference_yield_column is set
             year_col = level_config.get("year_column")

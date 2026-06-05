@@ -1230,6 +1230,7 @@ rule generate_multiyear_comparison:
         lai_agg_type = config['lai_params']['lai_aggregation'],
         adjusted_cmd = '--adjusted' if config['lai_params']['use_crop_adjusted_lai'] else '',
         title = f"Multiyear Summary {config['title']}",
+        study_id = sanitize_filename(config['study_id']),
     log:
         op.join('logs_generate_multiyear_summary', f"{config['study_id']}_multiyear_summary.log")
     output:
@@ -1241,18 +1242,45 @@ rule generate_multiyear_comparison:
         --lai-agg-type {params.lai_agg_type} \
         {params.adjusted_cmd} \
         --title "{params.title}" \
+        --study-id "{params.study_id}" \
         --output-file {output}
         """
 
 
 rule snapshot_and_upload_outputs:
     input:
-        # Proxy on the final aggregated artifacts so we run strictly last.
+        # Depend on the full set of run artifacts (mirroring `rule all`, minus this
+        # rule's own marker) so the snapshot runs strictly after every output exists.
+        # Depending only on a subset (e.g. final_report) let independently-produced
+        # outputs such as interactive_map_*.zip race the snapshot walk and be missed.
+        valid_cropmasks = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_VALID'), year=config['years'], region=config['regions'], timepoint=config['timepoints']),
+        sim_match_report_workaround = expand(op.join('logs_all_valid_expanded', '{year}_{timepoint}.log'), year=config['years'], timepoint=config['timepoints']),
+        aggregated_yield_estimates = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_yield_estimates_primary_{}_{}_{}.csv'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        yield_mosaic_4326 = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'yield_mosaic_4326_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        aggregated_laicurves = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'agg_laicurves_{}_{}_{}.html'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
+        met_stats = expand(op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'aggregated_met_stats_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')), year=config['years'], timepoint=config['timepoints']),
         multiyear_report = op.join(config['sim_study_head_dir'], f"multiyear_summary_{sanitize_filename(config['study_id'])}.zip"),
         final_reports = expand(
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'final_report_{}_{}_{}.pdf'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
             year=config['years'],
             timepoint=config['timepoints']
+        ),
+        interactive_vizs = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'interactive_map_{}_{}_{}.zip'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints']
+        ),
+        multiyear_lai_report = expand(
+            op.join(config['sim_study_head_dir'], "lai_report_{}_{}.pdf".format(sanitize_filename(config['study_id']), '{agg_lvl}')),
+            agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
+        ),
+        agg_lai_timeseries = expand(
+            op.join(config['sim_study_head_dir'], '{year}', '{timepoint}',
+                    'agg_lai_timeseries_{}_{}_{}_{}.csv'.format(
+                        '{agg_lvl}', sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+            year=config['years'],
+            timepoint=config['timepoints'],
+            agg_lvl=list(config['eval_params']['aggregation_levels'].keys()),
         ),
     params:
         executable_fpath = config['scripts']['package_and_upload'],
