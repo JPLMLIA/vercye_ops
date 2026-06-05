@@ -216,24 +216,22 @@ const StudiesPage = () => {
   const openDetail = (id: StudyId) => {
     setDetailStudy(id);
     withLoading((async () => {
-      try {
-        await fetchSetInitialSetupData(id);
-        await fetchSetInitialRunConfigData(id);
-        let currentStep: 1 | 2 | 3 | 4 = 2;
-        try {
-          await StudiesAPI.runConfig(id);
-          const st = await StudiesAPI.runConfigStatus(id);
-          currentStep = st.status === 'valid' ? 4 : 3;
-          setRunConfigMessage(st.details || '');
-        } catch {
-          currentStep = 2;
-        }
-        setStep(currentStep);
-        setDetailOpen(true);
-      } catch {
-        setStep(2);
-        setDetailOpen(true);
+      // These requests are independent, so fire them concurrently instead of waterfalling.
+      // fetchSetInitial* swallow their own errors (and surface toasts), so they never reject.
+      const [, , runConfigRes, statusRes] = await Promise.allSettled([
+        fetchSetInitialSetupData(id),
+        fetchSetInitialRunConfigData(id),
+        StudiesAPI.runConfig(id),
+        StudiesAPI.runConfigStatus(id),
+      ]);
+
+      let currentStep: 1 | 2 | 3 | 4 = 2;
+      if (runConfigRes.status === 'fulfilled' && statusRes.status === 'fulfilled') {
+        currentStep = statusRes.value.status === 'valid' ? 4 : 3;
+        setRunConfigMessage(statusRes.value.details || '');
       }
+      setStep(currentStep);
+      setDetailOpen(true);
     }), 'Loading configuration…');
   };
 

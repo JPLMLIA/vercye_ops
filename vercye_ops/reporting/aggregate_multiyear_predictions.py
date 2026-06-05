@@ -5,12 +5,17 @@ import click
 import pandas as pd
 
 
+def _year_dirs(base_dir):
+    """Year subdirectories of base_dir. Only 4-digit names are treated as years so
+    sibling dirs like run_results/ are not mistaken for years (and their run-id
+    subdirs for timepoints)."""
+    return [y for y in os.listdir(base_dir) if y.isdigit() and os.path.isdir(os.path.join(base_dir, y))]
+
+
 def get_available_timepoints(base_dir):
     timepoints = []
-    for year in os.listdir(base_dir):
+    for year in _year_dirs(base_dir):
         year_path = os.path.join(base_dir, year)
-        if not os.path.isdir(year_path):
-            continue
 
         for timepoint in os.listdir(year_path):
             tp_path = os.path.join(year_path, timepoint)
@@ -22,37 +27,26 @@ def get_available_timepoints(base_dir):
     return list(set(timepoints))
 
 
-def _extract_agg_level_name(filename, year, timepoint):
-    """Extract aggregation level name from a filename like
-    agg_yield_estimates_{level_name}_{study_id}_{year}_{timepoint}.csv
+def _extract_agg_level_name(filename, study_id, year, timepoint):
+    """Extract the aggregation level name from a filename like
+    agg_yield_estimates_{level_name}_{study_id}_{year}_{timepoint}.csv.
 
-    Since both level_name and study_id can contain underscores, we strip the
-    known prefix and the known suffix (_{year}_{timepoint}.csv) and then take
-    everything up to the last underscore-separated token as the level name
-    (the last token before _{year}_{timepoint} is the study_id).
+    Both level_name and study_id may contain underscores, so strip the known
+    prefix and the exact _{study_id}_{year}_{timepoint}.csv suffix - the study_id
+    is known here, so no guessing about token boundaries is needed.
     """
-    # e.g. "agg_yield_estimates_Kenya_Three_Counties_Counties_YearlyTotals_kenya-prelim_2021_T-0.csv"
     base = os.path.basename(filename)
     prefix = "agg_yield_estimates_"
-    suffix = f"_{year}_{timepoint}.csv"
+    suffix = f"_{study_id}_{year}_{timepoint}.csv"
     if not base.startswith(prefix) or not base.endswith(suffix):
         return None
-    # middle = "Kenya_Three_Counties_Counties_YearlyTotals_kenya-prelim"
-    middle = base[len(prefix) : -len(suffix)]
-    # The last underscore-separated segment is the study_id (sanitized, so no underscores in it)
-    # e.g. "kenya-prelim" - split off the last segment
-    parts = middle.rsplit("_", 1)
-    if len(parts) == 2:
-        return parts[0]  # level name
-    return middle
+    return base[len(prefix) : -len(suffix)]
 
 
-def get_avaiable_agg_levels(base_dir):
+def get_avaiable_agg_levels(base_dir, study_id):
     all_agg_levels = []
-    for year in os.listdir(base_dir):
+    for year in _year_dirs(base_dir):
         year_path = os.path.join(base_dir, year)
-        if not os.path.isdir(year_path):
-            continue
 
         for timepoint in os.listdir(year_path):
             tp_path = os.path.join(year_path, timepoint)
@@ -61,7 +55,7 @@ def get_avaiable_agg_levels(base_dir):
 
             preds_pattern = os.path.join(base_dir, year, timepoint, "agg_yield_estimates_*_*.csv")
             agg_preds_files = glob(preds_pattern)
-            agg_levels = [_extract_agg_level_name(f, year, timepoint) for f in agg_preds_files]
+            agg_levels = [_extract_agg_level_name(f, study_id, year, timepoint) for f in agg_preds_files]
             all_agg_levels.extend([lvl for lvl in agg_levels if lvl is not None])
 
     return list(set(all_agg_levels))
@@ -72,7 +66,7 @@ def collect_files(base_dir, agg_lvl_name, timepoint):
     gt_paths = {}
 
     # Collect all aggregated predictions at this agg lvl & timepoint
-    for year in os.listdir(base_dir):
+    for year in _year_dirs(base_dir):
         preds_pattern = os.path.join(
             base_dir, year, timepoint, f"agg_yield_estimates_{agg_lvl_name}_*_{year}_{timepoint}.csv"
         )
@@ -139,7 +133,7 @@ def aggregate_years(base_dir, agg_lvl_name, timepoint):
 )
 @click.option("--output-suffix", type=str, help="A unique suffix for the output.")
 def main(base_dir: str, output_suffix: str):
-    agg_lvls = get_avaiable_agg_levels(base_dir)
+    agg_lvls = get_avaiable_agg_levels(base_dir, output_suffix)
     timepoints = get_available_timepoints(base_dir)
 
     for agg_lvl_name in agg_lvls:

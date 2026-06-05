@@ -110,41 +110,46 @@ def compute_zonal_yield_stats(
     elif gdf.crs is None:
         logger.warning("Shapefile has no CRS set. Assuming it matches the mosaic CRS.")
 
-    # Strip GeoDataFrame to only the name column + geometry for exactextract.
-    # exactextract iterates over ALL fields in the GeoDataFrame, and will crash
-    # on unsupported types (e.g., mixed-type columns from multi-year shapefiles).
-    gdf_extract = gdf[[name_column, "geometry"]].copy()
-    gdf_extract[name_column] = gdf_extract[name_column].astype(str)
+    # Region identifiers must be non-null; a null id is a data error, so fail loudly.
+    if gdf[name_column].isna().any():
+        n_null = int(gdf[name_column].isna().sum())
+        raise ValueError(
+            f"Name column '{name_column}' contains {n_null} null value(s); region identifiers "
+            "must be non-null. Fix or remove these features in the shapefile."
+        )
 
-    # Run exactextract on the yield mosaic
-    # We request: mean, median, count (valid pixels), sum (for total production)
+    # Carry region names through exactextract via an explicit key so each output row is
+    # labeled with its own region. Renamed off the user's column because exactextract
+    # overrides a field named "id" with the feature index.
+    region_key = "_vercye_region_key"
+    gdf_extract = gdf[[name_column, "geometry"]].copy()
+    gdf_extract[region_key] = gdf_extract[name_column].astype(str)
+    gdf_extract = gdf_extract[[region_key, "geometry"]]
+
     logger.info("Running exactextract on yield mosaic...")
     yield_stats = exact_extract(
         yield_mosaic_tif,
         gdf_extract,
         ops=["mean", "median", "count", "sum"],
-        include_cols=[name_column],
+        include_cols=[region_key],
         output="pandas",
     )
 
-    # Run exactextract on the coverage mask
-    # count where value == 1 (covered), and total count of all pixels in polygon
     logger.info("Running exactextract on coverage mask...")
     coverage_stats = exact_extract(
         coverage_mask_tif,
         gdf_extract,
         ops=["sum", "count"],
-        include_cols=[name_column],
+        include_cols=[region_key],
         output="pandas",
     )
 
     # Compute polygon areas in the equal-area CRS
-    polygon_areas_m2 = gdf_extract.geometry.area
-    polygon_areas_ha = polygon_areas_m2 / 10_000
+    polygon_areas_ha = gdf_extract.geometry.area / 10_000
 
     # Build result DataFrame
     results = pd.DataFrame()
-    results["region"] = yield_stats[name_column].astype(str)
+    results["region"] = yield_stats[region_key].astype(str)
     results[f"mean_yield_kg_ha{column_suffix}"] = yield_stats["mean"].round(0).astype("Int64")
     results[f"median_yield_kg_ha{column_suffix}"] = yield_stats["median"].round(0).astype("Int64")
 
@@ -250,10 +255,11 @@ def extract_reference_from_shapefile(
             logger.warning(f"No rows found for year {year} in column '{year_column}'")
             return pd.DataFrame(columns=["region", "reported_mean_yield_kg_ha"])
 
+    # Coerce to numeric (object dtype from null/string-typed columns -> floats); NaNs dropped below.
     ref_df = pd.DataFrame(
         {
             "region": gdf[name_column].astype(str),
-            "reported_mean_yield_kg_ha": gdf[reference_yield_column],
+            "reported_mean_yield_kg_ha": pd.to_numeric(gdf[reference_yield_column], errors="coerce"),
         }
     )
 
