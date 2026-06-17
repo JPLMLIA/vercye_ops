@@ -25,10 +25,10 @@ lai_dir = read_lai_dir_from_env()
 
 def get_num_processing_cores(resolution):
     if resolution <= 10:
-        num_cores_download = 120
+        num_cores_download = 80
         num_cores_lai = 35
     else:
-        num_cores_download = 120
+        num_cores_download = 80
         num_cores_lai = 85
 
     return num_cores_download, num_cores_lai

@@ -324,8 +324,12 @@ def apply_savgol_smoothing(statistics):
         window_length = min(window_length_default, len(valid_values))
         if window_length % 2 == 0:
             window_length -= 1
+        # Savitzky-Golay requires polyorder < window_length <= len(x). If there
+        # are too few valid points to satisfy this, leave the values unsmoothed
+        # (originals are already kept in main + " Unsmoothed" columns) so the
+        # output format stays consistent for downstream steps.
         if window_length < polyorder + 2:
-            window_length = polyorder + 2
+            continue
 
         smooth_vals = savgol_filter(valid_values, window_length, polyorder)
         smooth_vals = np.clip(smooth_vals, 0, None)
