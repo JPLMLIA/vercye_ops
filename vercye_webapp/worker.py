@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import signal
@@ -208,6 +209,33 @@ def run_vercye_task(study_id: str, force_rerun: bool):
     run_vercye(studies_dir=studies_dir, study_name=study_id, validate_only=False, extra_snakemake_args=extra_args)
 
 
+def _failure_reason_from_log(config_path, exc):
+    """Best-effort concise failure reason for the UI.
+
+    Prefers the last ERROR/Exception/Traceback line from the run log; falls back
+    to the task exception. Used only as a safety net when the pipeline itself
+    could not record a reason (e.g. the worker was killed mid-run).
+    """
+    try:
+        log_path = Path(config_path).parent / "log.txt"
+        if log_path.exists():
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                lines = [ln.strip() for ln in f if ln.strip()]
+            reason = ""
+            for ln in reversed(lines):
+                if any(tok in ln for tok in ("Error", "Exception", "Traceback", "failed", "Failed")):
+                    reason = ln
+                    break
+            if not reason:
+                reason = lines[-1] if lines else ""
+            reason = " ".join(reason.split())
+            if reason:
+                return reason[:499] + "…" if len(reason) > 500 else reason
+    except Exception:
+        pass
+    return f"LAI generation failed: {exc}"[:500]
+
+
 class LAITask(Task):
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         config_path = kwargs.get("config_path") or args[0]
@@ -217,7 +245,19 @@ class LAITask(Task):
 
             resolution = config["resolution"]
             metadata_index_file = os.path.join(config["out_dir"], "meta.json")
-            update_status(metadata_index_file, resolution, "failed")
+
+            # Only supply a fallback reason if the pipeline did not already record
+            # one (update_status keeps an existing reason when details is None).
+            details = None
+            try:
+                with open(metadata_index_file, "r", encoding="utf-8") as mf:
+                    existing = json.load(mf).get("status_details", {}) or {}
+                if not existing.get(str(resolution)):
+                    details = _failure_reason_from_log(config_path, exc)
+            except Exception:
+                details = _failure_reason_from_log(config_path, exc)
+
+            update_status(metadata_index_file, resolution, "failed", details=details)
         except Exception as e:
             print(f"[ERROR] Could not write failure status from LAI generation: {e}")
 

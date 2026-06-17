@@ -28,6 +28,7 @@ export interface LAIEntry {
   lng: number;
   dates: [string];
   status: string;
+  status_details?: string | null;
   resolution: number;
   geometry: Geometry
 }

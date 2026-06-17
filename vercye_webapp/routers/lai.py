@@ -29,7 +29,7 @@ def get_num_processing_cores(resolution):
         num_cores_lai = 35
     else:
         num_cores_download = 80
-        num_cores_lai = 85
+        num_cores_lai = 70
 
     return num_cores_download, num_cores_lai
 
@@ -56,6 +56,7 @@ def get_all_lai_entries() -> List[LAIEntry]:
         merged_geometry = metadata["merged_geometry"]
         lat = metadata["centroid"][0]
         lon = metadata["centroid"][1]
+        status_details = metadata.get("status_details", {}) or {}
         for resolution in metadata["resolutions"]:
             resolution = str(resolution)
             status = metadata["status"][resolution]
@@ -67,6 +68,7 @@ def get_all_lai_entries() -> List[LAIEntry]:
                     lng=lon,
                     dates=dates,
                     status=status,
+                    status_details=status_details.get(resolution),
                     resolution=resolution,
                     geometry=merged_geometry,
                 )
