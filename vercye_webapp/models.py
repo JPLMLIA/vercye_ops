@@ -32,6 +32,7 @@ class LAIEntry(BaseModel):
     lng: float
     dates: List[str]  # Format like 2020-12-31
     status: str
+    status_details: Optional[str] = None  # Human-readable failure reason when status == "failed"
     resolution: int  # in meters
     geometry: dict
 

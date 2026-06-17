@@ -1,3 +1,4 @@
+import glob
 import json
 import logging
 import os
@@ -77,6 +78,9 @@ def init_meta(meta_file, resolution, geojson_path, imagery_source):
         meta["status"] = {}
 
     meta["status"][str(resolution)] = "generating"
+    # Clear any stale failure reason from a previous run of this resolution.
+    if isinstance(meta.get("status_details"), dict):
+        meta["status_details"].pop(str(resolution), None)
     meta["imagery_source"] = imagery_source
 
     if "dates" not in meta:
@@ -97,14 +101,123 @@ def init_meta(meta_file, resolution, geojson_path, imagery_source):
     return meta
 
 
-def update_status(meta_file, resolution, status):
-    with open(meta_file, "r", encoding="utf-8") as file:
-        meta = json.load(file)
+def purge_corrupt_tiles(tiles_dir, resolution, meta_file, logger=None):
+    """Self-heal: drop zero-byte/corrupt downloaded tiles so they re-download.
 
-    meta["status"][str(resolution)] = status
+    A worker killed mid-write can leave a 0-byte tile while its completion
+    marker already exists; that item would then be skipped forever and crash the
+    LAI compute step (which cannot read the empty raster). For each corrupt tile
+    we remove the whole item (its tiles, VRT and completion marker) and re-open
+    any download chunk covering its sensing date, so the data is regenerated
+    cleanly on this run. Items with intact markers are still skipped, so only the
+    corrupt items are actually re-downloaded.
+    """
+    if not os.path.isdir(tiles_dir):
+        return None
+
+    corrupt = [p for p in glob.glob(os.path.join(tiles_dir, "*.tif")) if os.path.getsize(p) == 0]
+    if not corrupt:
+        return None
+
+    res_str = f"{float(resolution):.3f}".rstrip("0").rstrip(".")
+    completed_dir = os.path.join(tiles_dir, "completed_jobs")
+
+    # Tile names are "{item.id}_{band}_{res}m.tif"; the S2 item id is the first
+    # six underscore-separated tokens (S2x_MSIL2A_<dt>_R<orbit>_T<tile>_<procdt>).
+    item_ids = set()
+    for p in corrupt:
+        parts = os.path.basename(p).split("_")
+        if len(parts) >= 6:
+            item_ids.add("_".join(parts[:6]))
+    if not item_ids:
+        return None
+
+    corrupt_dates = set()
+    for iid in item_ids:
+        try:
+            corrupt_dates.add(datetime.strptime(iid.split("_")[2][:8], "%Y%m%d").date())
+        except (ValueError, IndexError):
+            pass
+
+    removed_files = 0
+    for iid in item_ids:
+        for f in glob.glob(os.path.join(tiles_dir, f"{iid}_*")):
+            try:
+                os.remove(f)
+                removed_files += 1
+            except OSError:
+                pass
+        marker = os.path.join(completed_dir, f"{iid}_{res_str}.completed")
+        try:
+            os.remove(marker)
+        except OSError:
+            pass
+
+    with open(meta_file, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    def covers(rng):
+        try:
+            s = datetime.strptime(rng[0], "%Y-%m-%d").date()
+            e = datetime.strptime(rng[1], "%Y-%m-%d").date()
+        except (ValueError, IndexError, TypeError):
+            return False
+        return any(s <= d <= e for d in corrupt_dates)
+
+    for key in ("downloaded_dateranges", "lai_created_dateranges", "chunk_completed_dateranges"):
+        if isinstance(meta.get(key), list):
+            meta[key] = [r for r in meta[key] if not covers(r)]
 
     with open(meta_file, "w", encoding="utf-8") as f:
         json.dump(meta, f)
+
+    if logger:
+        logger.warning(
+            f"Purged {len(item_ids)} corrupt item(s) ({removed_files} files) and re-opened their "
+            f"download chunks for regeneration: {sorted(item_ids)}"
+        )
+    return meta
+
+
+def summarize_failure(exc):
+    """Build a short, human-readable reason from an exception for the UI."""
+    reason = f"{type(exc).__name__}: {exc}".strip()
+    reason = " ".join(reason.split())  # collapse whitespace/newlines
+    max_len = 500
+    if len(reason) > max_len:
+        reason = reason[: max_len - 1] + "…"
+    return reason
+
+
+def update_status(meta_file, resolution, status, details=None):
+    """Update the per-resolution status and (optionally) a failure reason.
+
+    ``details`` is only meaningful for the ``failed`` status; it is surfaced in
+    the webapp so users see *why* a run failed without opening the logs. Passing
+    ``details=None`` on a failure leaves any existing reason intact (so a later
+    safety-net call cannot wipe a reason already recorded by the pipeline). Any
+    non-failure status clears the stored reason for that resolution.
+    """
+    with open(meta_file, "r", encoding="utf-8") as file:
+        meta = json.load(file)
+
+    res = str(resolution)
+    meta["status"][res] = status
+
+    status_details = meta.get("status_details")
+    if not isinstance(status_details, dict):
+        status_details = {}
+    if status == "failed":
+        if details is not None:
+            status_details[res] = details
+    else:
+        status_details.pop(res, None)
+    meta["status_details"] = status_details
+
+    with open(meta_file, "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+
+    return meta
 
     return meta
 
@@ -190,6 +303,13 @@ def run_pipeline(config, logger):
         gdf.to_file(shapefile_copy_path)
 
     meta = init_meta(metadata_index_file, resolution, geojson_path, source)
+
+    # Self-heal any corrupt/0-byte tiles left by a previously interrupted run so
+    # their items regenerate instead of permanently breaking the LAI step.
+    purged_meta = purge_corrupt_tiles(tiles_out_dir, resolution, metadata_index_file, logger=logger)
+    if purged_meta is not None:
+        meta = purged_meta
+
     # Process all date ranges for step 0 and 1
     for i, dr in enumerate(date_ranges):
         try:
@@ -357,6 +477,13 @@ def main(config_path):
         run_pipeline(config, logger=logger)
     except Exception as e:
         logger.error(f"Pipeline terminated with error: {e}")
+        # Record a concise failure reason into meta.json so the webapp can show
+        # *why* it failed (not just "failed") without users parsing the logs.
+        try:
+            meta_file = os.path.join(config["out_dir"], "meta.json")
+            update_status(meta_file, config["resolution"], "failed", details=summarize_failure(e))
+        except Exception as inner:
+            logger.error(f"Could not record failure reason into meta.json: {inner}")
         raise e
 
 

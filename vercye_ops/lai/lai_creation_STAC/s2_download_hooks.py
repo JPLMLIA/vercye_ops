@@ -95,26 +95,37 @@ def create_geometry_bands(item, cos_angles, metadata, output_folder, blocksize=2
         # Create empty array with same dimensions as other bands
         band_data = np.full((metadata["height"], metadata["width"]), angle_value, dtype=geo_dtype)
 
-        # Save the geometry band
+        # Save the geometry band.
+        # Write to a temp file and atomically rename so a process killed
+        # mid-write never leaves a truncated/0-byte tile at the final path
+        # (such a file would later be skipped as "complete" and crash the
+        # downstream LAI step).
         output_path = os.path.join(output_folder, f"{item.id}_{angle_name}_{metadata['resolution']}m.tif")
+        tmp_path = f"{output_path}.tmp-{os.getpid()}"
 
-        with rio.open(
-            output_path,
-            "w",
-            driver="GTiff",
-            height=metadata["height"],
-            width=metadata["width"],
-            count=1,
-            crs=metadata["crs"],
-            transform=metadata["transform"],
-            nodata=metadata["nodata"],
-            compress="LZW",
-            dtype=geo_dtype,
-            tiled=True,
-            blockxsize=blocksize,
-            blockysize=blocksize,
-        ) as dst:
-            dst.write(band_data, 1)
+        try:
+            with rio.open(
+                tmp_path,
+                "w",
+                driver="GTiff",
+                height=metadata["height"],
+                width=metadata["width"],
+                count=1,
+                crs=metadata["crs"],
+                transform=metadata["transform"],
+                nodata=metadata["nodata"],
+                compress="LZW",
+                dtype=geo_dtype,
+                tiled=True,
+                blockxsize=blocksize,
+                blockysize=blocksize,
+            ) as dst:
+                dst.write(band_data, 1)
+            os.replace(tmp_path, output_path)
+        except BaseException:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
 
         geometry_band_paths[angle_name] = output_path
 
