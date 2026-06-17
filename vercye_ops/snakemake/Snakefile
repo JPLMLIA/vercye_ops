@@ -433,8 +433,15 @@ rule execute_simulations:
         )
     retries: 2 if not config['apsim_execution']['use_docker'] else 5  # Docker image has habit of failing sometimes
     shell:
+        # APSIM's `Models` exits 0 even when every simulation errors out (it only logs the
+        # error into the db's `_Messages` table), producing a db without a populated `Report`
+        # table. Without this guard such a db is treated as success and the failure only
+        # surfaces (fatally) downstream in match_sim_real. Validate the Report table so a
+        # transient run failure raises a non-zero exit and the `retries` above kick in.
         """
         {params.execution_command} --verbose > {log}
+        python -c "import sqlite3, sys; c = sqlite3.connect('{output.db_file}'); n = c.execute(\\"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='Report'\\").fetchone()[0] and c.execute('SELECT count(*) FROM Report').fetchone()[0]; sys.exit(0 if n else 1)" \
+            || {{ echo "APSIM produced no populated Report table - simulation failed (see db _Messages)" >> {log}; rm -f {output.db_file}; exit 1; }}
         """
 
 #######################################
