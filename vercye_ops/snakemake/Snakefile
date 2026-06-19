@@ -606,6 +606,8 @@ rule match_sim_real:
         senescence_lai_quantile = config.get('matching_params', {}).get('senescence_lai_quantile', 0.8),
         lai_gap_quantile = config.get('matching_params', {}).get('lai_gap_quantile', 0.2),
         green_lai_rmse_quantile = config.get('matching_params', {}).get('green_lai_rmse_quantile', 0.2),
+        match_metric = config.get('matching_params', {}).get('metric', 'neg_rmse'),
+        match_temperature = config.get('matching_params', {}).get('temperature', 0.3),
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
@@ -625,6 +627,8 @@ rule match_sim_real:
         --senescence_lai_quantile {params.senescence_lai_quantile} \
         --lai_gap_quantile {params.lai_gap_quantile} \
         --green_lai_rmse_quantile {params.green_lai_rmse_quantile} \
+        --metric {params.match_metric} \
+        --temperature {params.match_temperature} \
         {params.adjustment} \
         --lai_agg_type {params.lai_agg_type} \
         --verbose > {log}
