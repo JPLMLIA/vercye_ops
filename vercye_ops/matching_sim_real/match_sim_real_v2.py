@@ -152,7 +152,7 @@ def match_simulations(rs_lai_csv, db_path, sim_matches_output_fpath, conversion_
 @click.option('--use_adjusted', is_flag=True)
 @click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']))
 @click.option('--metric', default='neg_rmse', type=click.Choice(['neg_rmse', 'neg_auc_diff', 'cosine']))
-@click.option('--temperature', default=0.3, type=float, help='softmax temperature (lower=sharper)')
+@click.option('--temperature', default=0.03, type=float, help='softmax temperature (lower=sharper); 0.03 keeps effective sample ~80-90 sims (validated on Ukraine reliable targets)')
 @click.option('--n_jobs', default=10)  # accepted for CLI compatibility; unused
 @click.option('--drought_threshold', default=0.0, type=float)  # accepted, unused
 @click.option('--senescence_lai_quantile', default=0.0, type=float)  # accepted, unused
