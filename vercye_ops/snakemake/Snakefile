@@ -601,6 +601,11 @@ rule match_sim_real:
         adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",
         crop_name = config['lai_params']['crop_name'],
         lai_agg_type = config['lai_params']['lai_aggregation'],
+        # Optional matching tuning params (config-driven so they can be iterated without code edits).
+        drought_threshold = config.get('matching_params', {}).get('drought_threshold', 0.9),
+        senescence_lai_quantile = config.get('matching_params', {}).get('senescence_lai_quantile', 0.8),
+        lai_gap_quantile = config.get('matching_params', {}).get('lai_gap_quantile', 0.2),
+        green_lai_rmse_quantile = config.get('matching_params', {}).get('green_lai_rmse_quantile', 0.2),
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
@@ -616,6 +621,10 @@ rule match_sim_real:
         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
         --crop_name "{params.crop_name}" \
         --n_jobs 10 \
+        --drought_threshold {params.drought_threshold} \
+        --senescence_lai_quantile {params.senescence_lai_quantile} \
+        --lai_gap_quantile {params.lai_gap_quantile} \
+        --green_lai_rmse_quantile {params.green_lai_rmse_quantile} \
         {params.adjustment} \
         --lai_agg_type {params.lai_agg_type} \
         --verbose > {log}
