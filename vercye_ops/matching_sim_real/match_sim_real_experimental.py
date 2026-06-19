@@ -48,6 +48,17 @@ def calculate_metrics(merged_df, sim_id, crop_name, drought_threshold, rs_lai_ag
     if rs_lai_aligned.index.duplicated().any():
         raise ValueError("Duplicate dates found in the RS LAI data. Please ensure that the dates are unique.")
 
+    # Robustness guard: some APSIM sowing-date scenarios produce simulations whose date
+    # range ends before the RS LAI observation window begins (e.g. an early-terminated
+    # sim ending in autumn, with no overlap into spring). For such a sim the aligned RS
+    # series is entirely NaN, and pandas >=2.0 raises "Encountered all NA values" on
+    # idxmax (older pandas returned NaN). Such a sim carries no signal for matching
+    # against the RS LAI, so return NaN metrics; it is then excluded by the timing-gap
+    # filter (NaN Timing_Gap fails the <= threshold test) and never enters the matched set.
+    if sim_lai.isna().all() or rs_lai_aligned.isna().all():
+        max_yield = merged_df_subset['Yield'].max()
+        return sim_id, np.nan, np.nan, np.nan, np.nan, np.nan, max_yield, np.nan, np.nan
+
     # Calculate the maximum LAI values for both simulated and RS data and get gap
     max_sim_lai = sim_lai.max()
     max_rs_lai = rs_lai_aligned.max()
