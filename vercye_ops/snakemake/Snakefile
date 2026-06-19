@@ -425,6 +425,12 @@ rule execute_simulations:
     log:
         'logs_execute_simulation/{year}_{timepoint}_{region}.log',
     threads: int(config['apsim_execution']['local']['n_jobs'])
+    resources:
+        # Each APSIM `Models` (dotnet) process for a large multi-year sowing-date
+        # ensemble peaks around ~20 GB RSS. Declare it so a global `--resources
+        # mem_mb=<budget>` strictly caps how many run concurrently and prevents the
+        # node OOM-killer from tearing down the whole run. Override per study if needed.
+        mem_mb = int(config['apsim_execution']['local'].get('mem_mb_per_job', 24000)),
     output:
         db_file = (
             op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db')
