@@ -65,7 +65,7 @@ def whole_curve_scores(merged, sim_ids, lai_col, rs_col, metric):
 
 
 def match_simulations(rs_lai_csv, db_path, sim_matches_output_fpath, conversion_factor_output_fpath,
-                      crop_name, use_adjusted, lai_agg_type, metric, temperature, verbose, **_ignored):
+                      crop_name, use_adjusted, lai_agg_type, metric, temperature, top_k, verbose, **_ignored):
     if verbose:
         logger.setLevel('INFO')
 
@@ -93,16 +93,29 @@ def match_simulations(rs_lai_csv, db_path, sim_matches_output_fpath, conversion_
     }).set_index('SimulationID').sort_index()
 
     valid = res['Similarity'].notna()
+    res['Weight'] = 0.0
     if valid.sum() == 0:
         logger.error('No simulations had sufficient overlap with the RS LAI window; yield set to 0.')
         weighted_yield = 0.0
-        res['Weight'] = 0.0
     else:
         sc = res.loc[valid, 'Similarity'].to_numpy(dtype=float)
-        w = softmax(sc / temperature)
-        res['Weight'] = 0.0
-        res.loc[valid, 'Weight'] = w
-        weighted_yield = float(np.sum(w * res.loc[valid, 'Max_Yield'].to_numpy(dtype=float)))
+        valid_idx = res.index[valid]
+        # top_k: restrict the yield estimate to the K best-matching simulations, THEN softmax-weight
+        # within that set. A plain fixed-temperature softmax over ALL sims lets the effective sample
+        # size balloon (median ~74 but up to ~340 in flat-similarity regions, e.g. drought/low-LAI
+        # seasons where every sim fits the flat observed curve about equally) — averaging poor-yield
+        # sims into the estimate. Capping to the K genuinely-best matches removes that tail and was
+        # validated to lower RMSE + negative bias on held-out Ukraine oblast targets.
+        if top_k and 0 < top_k < len(sc):
+            keep_pos = np.argsort(sc)[-top_k:]
+            sc_k = sc[keep_pos]
+            w_k = softmax(sc_k / temperature)
+            res.loc[valid_idx[keep_pos], 'Weight'] = w_k
+            weighted_yield = float(np.sum(w_k * res.loc[valid_idx[keep_pos], 'Max_Yield'].to_numpy(dtype=float)))
+        else:
+            w = softmax(sc / temperature)
+            res.loc[valid_idx, 'Weight'] = w
+            weighted_yield = float(np.sum(w * res.loc[valid_idx, 'Max_Yield'].to_numpy(dtype=float)))
 
     # "matched" set = sims carrying the top 95% of probability mass (for reporting / save_matched_sims)
     res = res.sort_values('Weight', ascending=False)
@@ -153,6 +166,7 @@ def match_simulations(rs_lai_csv, db_path, sim_matches_output_fpath, conversion_
 @click.option('--lai_agg_type', required=True, type=click.Choice(['mean', 'median']))
 @click.option('--metric', default='neg_rmse', type=click.Choice(['neg_rmse', 'neg_auc_diff', 'cosine']))
 @click.option('--temperature', default=0.03, type=float, help='softmax temperature (lower=sharper); 0.03 keeps effective sample ~80-90 sims (validated on Ukraine reliable targets)')
+@click.option('--top_k', default=30, type=int, help='restrict the yield estimate to the K best-matching sims before softmax (0=use all). Caps effective sample size so flat-similarity regions do not average in poor matches.')
 @click.option('--n_jobs', default=10)  # accepted for CLI compatibility; unused
 @click.option('--drought_threshold', default=0.0, type=float)  # accepted, unused
 @click.option('--senescence_lai_quantile', default=0.0, type=float)  # accepted, unused
