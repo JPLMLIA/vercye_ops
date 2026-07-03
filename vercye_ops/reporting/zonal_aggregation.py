@@ -82,8 +82,22 @@ def compute_zonal_yield_stats(
 
             normalized_col = gdf[year_column].apply(_normalize_year)
             normalized_target = _normalize_year(year)
-            gdf = gdf[normalized_col == normalized_target].reset_index(drop=True)
-            logger.info(f"Filtered shapefile to year {year}: {len(gdf)} rows")
+            filtered = gdf[normalized_col == normalized_target].reset_index(drop=True)
+            if filtered.empty:
+                # Zonal PREDICTION stats are reference-independent: the geometries are
+                # the same across years (the shapefile only carries one row per region
+                # per year because it stores year-specific *reference* yields). When a
+                # year has no reference rows (e.g. an in-season/forecast year), keep all
+                # geometries so predictions are still produced for the report's table and
+                # map. Reference extraction (extract_reference_from_shapefile) is filtered
+                # separately and will simply return no rows for such a year.
+                logger.warning(
+                    f"No rows for year {year} in shapefile; computing zonal prediction stats "
+                    "for all unique geometries (predictions are reference-independent)."
+                )
+            else:
+                gdf = filtered
+                logger.info(f"Filtered shapefile to year {year}: {len(gdf)} rows")
 
     # Deduplicate: shapefile may have multiple rows per region.
     # For zonal stats we only need unique geometries.

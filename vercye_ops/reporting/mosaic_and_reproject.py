@@ -116,6 +116,7 @@ def _reproject_raster(
             height=height,
             nodata=nodata,
             compress="lzw",
+            BIGTIFF="IF_SAFER",
         )
 
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".tif", dir=os.path.dirname(output_path))
@@ -214,6 +215,9 @@ def create_yield_mosaic(
         "transform": merged_transform,
         "nodata": nodata_value,
         "compress": "lzw",
+        # National-scale mosaics can exceed the 4 GB classic-TIFF limit; write a
+        # BigTIFF when needed (inherited by the coverage-mask profile below).
+        "BIGTIFF": "IF_SAFER",
     }
 
     tmp_fd, tmp_4326 = tempfile.mkstemp(suffix=".tif", dir=os.path.dirname(output_mosaic_4326_path))

@@ -592,6 +592,8 @@ rule lai_quicklook:
 ##################################################################
 
 # Rule to match the simulated curves with the remotely sensed curves
+
+
 rule match_sim_real:
     input:
         stats_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
@@ -601,14 +603,6 @@ rule match_sim_real:
         adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",
         crop_name = config['lai_params']['crop_name'],
         lai_agg_type = config['lai_params']['lai_aggregation'],
-        # Optional matching tuning params (config-driven so they can be iterated without code edits).
-        drought_threshold = config.get('matching_params', {}).get('drought_threshold', 0.9),
-        senescence_lai_quantile = config.get('matching_params', {}).get('senescence_lai_quantile', 0.8),
-        lai_gap_quantile = config.get('matching_params', {}).get('lai_gap_quantile', 0.2),
-        green_lai_rmse_quantile = config.get('matching_params', {}).get('green_lai_rmse_quantile', 0.2),
-        match_metric = config.get('matching_params', {}).get('metric', 'neg_rmse'),
-        match_temperature = config.get('matching_params', {}).get('temperature', 0.3),
-        match_top_k = config.get('matching_params', {}).get('top_k', 30),
     log:
         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
@@ -624,17 +618,54 @@ rule match_sim_real:
         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
         --crop_name "{params.crop_name}" \
         --n_jobs 10 \
-        --drought_threshold {params.drought_threshold} \
-        --senescence_lai_quantile {params.senescence_lai_quantile} \
-        --lai_gap_quantile {params.lai_gap_quantile} \
-        --green_lai_rmse_quantile {params.green_lai_rmse_quantile} \
-        --metric {params.match_metric} \
-        --temperature {params.match_temperature} \
-        --top_k {params.match_top_k} \
         {params.adjustment} \
         --lai_agg_type {params.lai_agg_type} \
         --verbose > {log}
         """
+
+# rule match_sim_real:
+#     input:
+#         stats_csv = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_LAI_STATS.csv'),
+#         db_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}.db'),
+#     params:
+#         executable_fpath = config['scripts']['match_sim_real'],
+#         adjustment = "--use_adjusted" if config['lai_params']['use_crop_adjusted_lai'] else "",
+#         crop_name = config['lai_params']['crop_name'],
+#         lai_agg_type = config['lai_params']['lai_aggregation'],
+#         # Optional matching tuning params (config-driven so they can be iterated without code edits).
+#         drought_threshold = config.get('matching_params', {}).get('drought_threshold', 0.9),
+#         senescence_lai_quantile = config.get('matching_params', {}).get('senescence_lai_quantile', 0.8),
+#         lai_gap_quantile = config.get('matching_params', {}).get('lai_gap_quantile', 0.2),
+#         green_lai_rmse_quantile = config.get('matching_params', {}).get('green_lai_rmse_quantile', 0.2),
+#         match_metric = config.get('matching_params', {}).get('metric', 'neg_rmse'),
+#         match_temperature = config.get('matching_params', {}).get('temperature', 0.3),
+#         match_top_k = config.get('matching_params', {}).get('top_k', 30),
+#     log:
+#         'logs_match_sim_real/{year}_{timepoint}_{region}.log',
+#     threads: 10 + 2 # Workaround as i had a lot of issues with the threads in the match_sim_real script
+#     output:
+#         sim_matches_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_sim_matches.csv'),
+#         conversion_factor_output_fpath = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', '{region}', '{region}_conversion_factor.csv'),
+#     shell:
+#         """
+#         python {params.executable_fpath} \
+#         --rs_lai_csv {input.stats_csv} \
+#         --db_path {input.db_fpath} \
+#         --sim_matches_output_fpath {output.sim_matches_output_fpath} \
+#         --conversion_factor_output_fpath {output.conversion_factor_output_fpath} \
+#         --crop_name "{params.crop_name}" \
+#         --n_jobs 10 \
+#         --drought_threshold {params.drought_threshold} \
+#         --senescence_lai_quantile {params.senescence_lai_quantile} \
+#         --lai_gap_quantile {params.lai_gap_quantile} \
+#         --green_lai_rmse_quantile {params.green_lai_rmse_quantile} \
+#         --metric {params.match_metric} \
+#         --temperature {params.match_temperature} \
+#         --top_k {params.match_top_k} \
+#         {params.adjustment} \
+#         --lai_agg_type {params.lai_agg_type} \
+#         --verbose > {log}
+#         """
 
 rule save_matched_sims:
     input:

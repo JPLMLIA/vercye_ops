@@ -168,6 +168,28 @@ def load_prep_project_data(
     df.insert(1, "DOY", df.index.dayofyear)
 
     ###################################
+    # Guard against gaps in the measured series. APSIM requires strictly
+    # consecutive daily records ("Non consecutive dates found in file ..."),
+    # but near-real-time ERA5 can leave a transient hole at the recent edge
+    # (the latest day is published before the day just before it is
+    # consolidated), which the measured CSV carries through. Truncate the
+    # measured data at the first gap so the climatology projection below fills
+    # everything from there to sim_end_date, yielding a continuous .met.
+    df = df.sort_index()
+    full_range = pd.date_range(df.index.min(), df.index.max(), freq="D")
+    missing_dates = full_range.difference(df.index)
+    if not missing_dates.empty:
+        first_gap = missing_dates.min()
+        logger.warning(
+            "Found %d gap(s) in measured weather data (first at %s); truncating measured data "
+            "to the last continuous date (%s) and projecting the remainder.",
+            len(missing_dates),
+            first_gap.date(),
+            (first_gap - pd.Timedelta(days=1)).date(),
+        )
+        df = df.loc[: first_gap - pd.Timedelta(days=1)]
+
+    ###################################
     # Generate weather projections if needed
     last_date = df.index[-1]
 
