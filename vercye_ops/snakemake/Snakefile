@@ -372,6 +372,8 @@ rule update_apsimx_template:
     params:
         script_fpath = config['scripts']['update_apsimx_template'],
         sowing_date_col = config['apsim_params']['sowing_date_col'],
+        sim_start_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_start_date'],
+        sim_end_date = lambda wildcards: config['apsim_params']['time_bounds'][int(wildcards.year)][wildcards.timepoint]['sim_end_date'],
 
     log:
         'logs_update_apsimx_template/{year}_{timepoint}_{region}.log',
@@ -402,6 +404,8 @@ rule update_apsimx_template:
           --apsimx_template_fpath {input.apsimx_template_fpath} \
           --apsimx_output_fpath {output.apsimx_fpath} \
           --new_met_fpath {input.met_fpath} \
+          --sim_start_date {params.sim_start_date} \
+          --sim_end_date {params.sim_end_date} \
           ${{SOWINGDATE_CMD[@]}} \
           --verbose > {log}
         """
@@ -441,13 +445,16 @@ rule execute_simulations:
     shell:
         # APSIM's `Models` exits 0 even when every simulation errors out (it only logs the
         # error into the db's `_Messages` table), producing a db without a populated `Report`
-        # table. Without this guard such a db is treated as success and the failure only
-        # surfaces (fatally) downstream in match_sim_real. Validate the Report table so a
-        # transient run failure raises a non-zero exit and the `retries` above kick in.
+        # table. Normally we validate the Report table so a transient run failure raises a
+        # non-zero exit and the `retries` above kick in.
+        # NOTE: Report verification TEMPORARILY DISABLED per request ("comment out for now").
+        # This removes a per-job python subprocess; a silent APSIM failure (empty Report) will now
+        # pass as success and only surface downstream in match_sim_real. Re-enable by uncommenting
+        # the python check below.
         """
         {params.execution_command} --verbose > {log}
-        python -c "import sqlite3, sys; c = sqlite3.connect('{output.db_file}'); n = c.execute(\\"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='Report'\\").fetchone()[0] and c.execute('SELECT count(*) FROM Report').fetchone()[0]; sys.exit(0 if n else 1)" \
-            || {{ echo "APSIM produced no populated Report table - simulation failed (see db _Messages)" >> {log}; rm -f {output.db_file}; exit 1; }}
+        # --- Report verification disabled for now ---
+        # python -c "import sqlite3, sys; c = sqlite3.connect('{output.db_file}'); n = c.execute(\\"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='Report'\\").fetchone()[0] and c.execute('SELECT count(*) FROM Report').fetchone()[0]; sys.exit(0 if n else 1)" || {{ echo "APSIM produced no populated Report table - simulation failed (see db _Messages)" >> {log}; rm -f {output.db_file}; exit 1; }}
         """
 
 #######################################
@@ -766,6 +773,11 @@ rule create_yield_mosaic:
         mosaic_4326 = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'yield_mosaic_4326_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         mosaic_projected = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         coverage_mask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'coverage_mask_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    resources:
+        # National-scale mosaic + reproject peaks around ~36 GB RSS; declare a memory
+        # footprint so a global --resources mem_mb budget serializes these heavy jobs
+        # and they cannot all run at once and trip the OOM killer (box has no swap).
+        mem_mb = 50000,
     shell:
         """
         python {params.executable_fpath} \
@@ -793,6 +805,9 @@ rule create_apsim_yield_mosaic:
         apsim_mosaic_4326 = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_yield_mosaic_4326_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         apsim_mosaic_projected = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_yield_mosaic_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
         apsim_coverage_mask = op.join(config['sim_study_head_dir'], '{year}', '{timepoint}', 'apsim_coverage_mask_projected_{}_{}_{}.tif'.format(sanitize_filename(config['study_id']), '{year}', '{timepoint}')),
+    resources:
+        # See create_yield_mosaic: same national-scale reproject, same ~36 GB peak.
+        mem_mb = 50000,
     shell:
         """
         python {params.executable_fpath} \

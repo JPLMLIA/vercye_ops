@@ -80,6 +80,36 @@ def get_nested_object_by_name(json_data, object_name):
                     return result
 
 
+def set_clock_dates(json_data, start_date=None, end_date=None, verbose=False):
+    """
+    Set the APSIM simulation Clock Start/End from the pipeline config.
+
+    Making the clock authoritative here (rather than baked into the template at
+    ``prep`` time) means ``sim_start_date`` / ``sim_end_date`` in the run config
+    actually drive the simulation window on every run. APSIM stores these as
+    ISO datetimes, e.g. ``"2023-08-20T00:00:00"``.
+
+    Parameters
+    ----------
+    json_data : dict or list
+        The APSIM JSON data.
+    start_date, end_date : datetime or None
+        Simulation start/end. Each is applied only if provided.
+    verbose : bool
+        Whether to log the change.
+    """
+    clock_obj = get_nested_object_by_name(json_data, object_name="Clock")
+    if clock_obj is None:
+        raise ValueError("No Clock object found in the .apsimx template.")
+
+    for prop, value in (("Start", start_date), ("End", end_date)):
+        if value is None:
+            continue
+        clock_obj[prop] = value.strftime("%Y-%m-%dT00:00:00")
+        if verbose:
+            logger.info('Set Clock "%s" to "%s"', prop, clock_obj[prop])
+
+
 def update_object_property(json_data, object_property, target_value, verbose=False):
     if object_property not in json_data:
         raise ValueError(f"{object_property} not found in dictionary.")
@@ -125,8 +155,20 @@ def update_kv_list(search_list, key, value, verbose=False):
     required=False,
     help="True sowing date. Will replace sowing window / sowing date factorial.",
 )
+@click.option(
+    "--sim_start_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    required=False,
+    help="Simulation start date. Overrides the Clock Start baked into the template.",
+)
+@click.option(
+    "--sim_end_date",
+    type=click.DateTime(formats=["%Y-%m-%d"]),
+    required=False,
+    help="Simulation end date. Overrides the Clock End baked into the template.",
+)
 @click.option("--verbose", is_flag=True, help="Enable verbose output.")
-def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, verbose):
+def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, sim_start_date, sim_end_date, verbose):
     """Update an .apsimx file with new fields and save the updated version."""
     if verbose:
         logger.setLevel("INFO")
@@ -138,6 +180,11 @@ def cli(apsimx_template_fpath, apsimx_output_fpath, new_met_fpath, sowing_date, 
 
     # Update metfile path
     recursive_update(json_data, "FileName", ".met", new_met_fpath, verbose)
+
+    # Drive the simulation window from the run config so sim_start_date / sim_end_date
+    # take effect on every run (the template's baked-in clock is only a default).
+    if sim_start_date or sim_end_date:
+        set_clock_dates(json_data, start_date=sim_start_date, end_date=sim_end_date, verbose=verbose)
 
     # Use real sowing date
     if sowing_date:
