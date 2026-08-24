@@ -38,14 +38,23 @@ RETRY_WAIT_TIME = 5  # Seconds to wait between retries
 PROGRESS_UPDATE_INTERVAL = 10
 MAX_FTP_CONNECTIONS = 5  # Maximum number of FTP connections to open at once. Max 5 to avoid blacklist.
 
+# CHIRPS v3.0 is fundamentally a pentad product; the daily archive is published in
+# two flavours that differ only in how the pentad total is split across its 5 days:
+#   "sat" - split using NASA IMERG Late V07 (0.1 deg source, from 1998)
+#   "rnl" - split using ECMWF ERA5 (0.25 deg source, from 1981)
+# "sat" is the default: it gives daily rain structure that is independent of the
+# ERA5 series the rest of the .met comes from. Use "rnl" for pre-1998 dates, or
+# when day-to-day consistency with the ERA5 met variables matters more.
+CHIRPS_V3_DAILY_FLAVOUR = os.environ.get("CHIRPS_V3_DAILY_FLAVOUR", "sat")
+
 FILE_TEMPLATES = {
     ProductVersion.V2: {
         ProductType.FINAL: "chirps-v2.0.{date}.cog",
         ProductType.PRELIM: "chirps-v2.0.{date}_prelim.tif",
     },
     ProductVersion.V3: {
-        ProductType.FINAL: "chirp-v3.0.{date}.tif",
-        # No Prelim available
+        ProductType.FINAL: f"chirps-v3.0.{CHIRPS_V3_DAILY_FLAVOUR}.{{date}}.tif",
+        ProductType.PRELIM: "chirps-v3.0.prelim.{date}.tif",
     },
 }
 
@@ -55,9 +64,15 @@ FTP_BASEDIRS = {
         ProductType.FINAL: "/pub/org/chc/products/CHIRPS-2.0/global_daily/cogs/p05",
         ProductType.PRELIM: "/pub/org/chc/products/CHIRPS-2.0/prelim/global_daily/tifs/p05",
     },
+    # NOTE: /CHIRP-v3.0/ (no S) is the *satellite-only* estimate with no station
+    # blending - it is not the v3 counterpart of CHIRPS-2.0. The station-blended
+    # archive, which is what `precipitation_source: CHIRPS_V3` means, lives under
+    # /CHIRPS/v3.0/. It also extends to 60N-60S (v2 stops at 50N-50S) and draws on
+    # ~4x the station sources of v2.
     ProductVersion.V3: {
-        ProductType.FINAL: "/pub/org/chc/products/CHIRP-v3.0/daily/global/tifs",
-        # No Prelim available
+        ProductType.FINAL: f"/pub/org/chc/products/CHIRPS/v3.0/daily/final/{CHIRPS_V3_DAILY_FLAVOUR}",
+        # Preliminary daily is only published for the "sat" flavour.
+        ProductType.PRELIM: "/pub/org/chc/products/CHIRPS/v3.0/daily/prelim/sat",
     },
 }
 
@@ -283,7 +298,7 @@ def fetch_chirps_files(daterange, output_dir, connection_pool, version):
                 logger.error(f"Error downloading file {chirps_file_name}: {e}")
                 failed_downloads.append(date)
 
-            # Check if prelim file exists locally (only for V2 currtly as not avail in V3)
+            # Check if prelim file exists locally (both V2 and V3 publish a preliminary product)
             if chirps_prelim_basedir:
                 chirps_prelim_file_name = get_chirps_file_name(date, version, ProductType.PRELIM)
                 chirps_prelim_file_name = chirps_prelim_file_name.replace(".tif.gz", "_prelim.tif")

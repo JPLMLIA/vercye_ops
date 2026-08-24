@@ -99,8 +99,24 @@ def compute_zonal_yield_stats(
                 gdf = filtered
                 logger.info(f"Filtered shapefile to year {year}: {len(gdf)} rows")
 
-    # Deduplicate: shapefile may have multiple rows per region.
-    # For zonal stats we only need unique geometries.
+    # Deduplicate identical geometries: a shapefile carrying one row per region per
+    # year repeats each region's geometry across years, and those repeats are safe to
+    # collapse. But two DIFFERENT geometries sharing a name_column value is a region
+    # identity collision (e.g. the same rayon name in two different oblasts). Silently
+    # keeping the first would attribute one region's pixels to another, so fail loudly.
+    geom_check = pd.DataFrame(
+        {"name": gdf[name_column].to_numpy(), "wkb": gdf.geometry.to_wkb().to_numpy()}
+    )
+    distinct_geoms_per_name = geom_check.groupby("name")["wkb"].nunique()
+    collided = distinct_geoms_per_name[distinct_geoms_per_name > 1]
+    if len(collided) > 0:
+        raise ValueError(
+            f"Column '{name_column}' is not a unique region identifier in {shapefile_path}: "
+            f"{len(collided)} name(s) map to multiple distinct geometries (collided region(s): "
+            f"{list(collided.index)}). Use a column that is unique per region "
+            "(e.g. one qualified by its parent region)."
+        )
+
     n_before = len(gdf)
     gdf = gdf.drop_duplicates(subset=[name_column]).reset_index(drop=True)
     if len(gdf) < n_before:
@@ -277,4 +293,20 @@ def extract_reference_from_shapefile(
         }
     )
 
-    return ref_df.dropna(subset=["reported_mean_yield_kg_ha"]).reset_index(drop=True)
+    ref_df = ref_df.dropna(subset=["reported_mean_yield_kg_ha"]).reset_index(drop=True)
+
+    # The region identifier must be unique (at most one reference row per region per
+    # year). A duplicate here - a collided name across parent regions, or a genuine
+    # duplicate data row - would fan out into a many-to-many merge downstream and
+    # silently inflate evaluation counts. Fail loudly so the data gets fixed.
+    dup_regions = ref_df["region"][ref_df["region"].duplicated(keep=False)].unique()
+    if len(dup_regions) > 0:
+        year_msg = f" for year {year}" if year else ""
+        raise ValueError(
+            f"Reference data has non-unique region identifier(s){year_msg} in column "
+            f"'{name_column}': {sorted(dup_regions)}. Each region must appear at most once "
+            "per year; remove duplicate rows or use a region identifier that is unique "
+            "(e.g. qualified by its parent region)."
+        )
+
+    return ref_df
