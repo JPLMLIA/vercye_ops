@@ -103,7 +103,14 @@ def merge_preds_gt_yearly(preds_paths, gt_paths):
             if "year" in df_gt.columns:
                 df_gt["year_ref_original"] = df_gt["year"]
                 df_gt.drop(columns=["year"], inplace=True)
-            df_merged = pd.merge(df_pred, df_gt, on="region")  # Inner join
+            # The per-year prediction file already carries reference columns (merged
+            # upstream in aggregate_yield_stats_per_level). Re-merging those columns
+            # here would create _x/_y duplicates, so only bring across columns not
+            # already present. validate="one_to_one" fails loudly on a non-unique
+            # region key instead of silently fanning out into a cartesian product.
+            overlap = [c for c in df_gt.columns if c != "region" and c in df_pred.columns]
+            df_gt = df_gt.drop(columns=overlap)
+            df_merged = pd.merge(df_pred, df_gt, on="region", validate="one_to_one")  # Inner join
             yearly_dfs.append(df_merged)
         else:
             yearly_dfs.append(df_pred)

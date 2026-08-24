@@ -97,12 +97,12 @@ class TestGetAvailableTimepoints:
 class TestGetAvailableAggLevels:
     def test_finds_agg_levels(self, tmp_path):
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"]}, agg_levels=["county", "state"])
-        levels = get_avaiable_agg_levels(str(tmp_path))
+        levels = get_avaiable_agg_levels(str(tmp_path), DEFAULT_STUDY_ID)
         assert set(levels) == {"county", "state"}
 
     def test_deduplicates(self, tmp_path):
         _create_dir_structure(str(tmp_path), {"2022": ["T-0", "T-1"]}, agg_levels=["county"])
-        levels = get_avaiable_agg_levels(str(tmp_path))
+        levels = get_avaiable_agg_levels(str(tmp_path), DEFAULT_STUDY_ID)
         assert levels == ["county"]
 
 
@@ -166,6 +166,41 @@ class TestMergePredsGtYearly:
         dfs = merge_preds_gt_yearly({"2022": str(pred_path)}, {})
         assert len(dfs) == 1
         assert "reported_mean_yield_kg_ha" not in dfs[0].columns
+
+    def test_duplicate_gt_region_raises(self, tmp_path):
+        """A reference file with a duplicated region key must not silently fan the
+        prediction out into a many-to-many cartesian product; the merge should fail.
+        """
+        pred_path = tmp_path / "pred.csv"
+        gt_path = tmp_path / "gt.csv"
+        pd.DataFrame({"region": ["A", "B"], "mean_yield_kg_ha": [1000, 2000]}).to_csv(pred_path, index=False)
+        # Region A duplicated with two different reported values.
+        pd.DataFrame(
+            {"region": ["A", "A", "B"], "reported_mean_yield_kg_ha": [1100, 1200, 1900]}
+        ).to_csv(gt_path, index=False)
+
+        with pytest.raises(Exception):
+            merge_preds_gt_yearly({"2022": str(pred_path)}, {"2022": str(gt_path)})
+
+    def test_reference_already_in_pred_no_duplicate_columns(self, tmp_path):
+        """When the per-year prediction file already carries reported_mean_yield_kg_ha
+        (the pipeline merges reference upstream), re-merging the reference must not
+        create _x/_y duplicate columns nor multiply rows.
+        """
+        pred_path = tmp_path / "pred.csv"
+        gt_path = tmp_path / "gt.csv"
+        pd.DataFrame(
+            {"region": ["A", "B"], "mean_yield_kg_ha": [1000, 2000], "reported_mean_yield_kg_ha": [1100, 1900]}
+        ).to_csv(pred_path, index=False)
+        pd.DataFrame({"region": ["A", "B"], "reported_mean_yield_kg_ha": [1100, 1900]}).to_csv(gt_path, index=False)
+
+        dfs = merge_preds_gt_yearly({"2022": str(pred_path)}, {"2022": str(gt_path)})
+        df = dfs[0]
+        assert len(df) == 2
+        assert "reported_mean_yield_kg_ha_x" not in df.columns
+        assert "reported_mean_yield_kg_ha_y" not in df.columns
+        assert "reported_mean_yield_kg_ha" in df.columns
+        assert sorted(df["reported_mean_yield_kg_ha"].tolist()) == [1100, 1900]
 
     def test_existing_year_column_renamed(self, tmp_path):
         """If the prediction CSV already has a 'year' column, it should be

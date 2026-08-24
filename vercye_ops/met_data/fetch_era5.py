@@ -304,6 +304,25 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
     # Keep only required columns for APSIM
     df = df[["date", "ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]]
 
+    # ERA5-Land is a land-only product: cells that are mostly water (coastlines,
+    # estuaries, large lakes) are masked and reduceRegion returns null for every
+    # date. Zero-filling that produces a met series of 0 degC and 0 radiation,
+    # which is not obviously wrong to any downstream check - error_checking_function
+    # treats 0 as in-range - so APSIM silently runs a crop that never germinates.
+    # Fail loudly instead; the caller must pick a nearby land cell.
+    core_vars = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "WS2M"]
+    fully_null = [c for c in core_vars if df[c].isna().all()]
+    if fully_null:
+        raise ValueError(
+            f"ERA5-Land returned no data for {fully_null} over the whole requested range. "
+            "The queried geometry most likely falls in a water-masked ERA5-Land cell "
+            "(coast/estuary/lake). Query a nearby land cell instead."
+        )
+
+    n_null = int(df[core_vars].isna().sum().sum())
+    if n_null:
+        logger.warning("Zero-filling %d isolated null ERA5 value(s) across %s.", n_null, core_vars)
+
     df.fillna(
         {"ALLSKY_SFC_SW_DWN": 0, "T2M": 0, "T2M_MAX": 0, "T2M_MIN": 0, "PRECTOTCORR": 0, "WS2M": 0},
         inplace=True,

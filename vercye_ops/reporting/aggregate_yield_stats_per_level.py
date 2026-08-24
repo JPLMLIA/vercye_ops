@@ -120,7 +120,7 @@ def cli(
         )
         # Coverage/area columns are duplicated; keep them from the primary run only.
         apsim_only_cols = ["region"] + [c for c in apsim_result.columns if c.endswith("_apsim")]
-        result = result.merge(apsim_result[apsim_only_cols], on="region", how="left")
+        result = result.merge(apsim_result[apsim_only_cols], on="region", how="left", validate="one_to_one")
 
     # If reference yield column is set, extract year-filtered reference data
     # and merge with zonal stats
@@ -139,7 +139,10 @@ def cli(
         )
 
         if not ref_df.empty:
-            result = result.merge(ref_df, on="region", how="left")
+            # ref_df is guaranteed unique per region by extract_reference_from_shapefile;
+            # validate one_to_one is belt-and-suspenders against a non-unique key silently
+            # duplicating prediction rows.
+            result = result.merge(ref_df, on="region", how="left", validate="one_to_one")
             logger.info(f"Merged reference data: {len(ref_df)} entries for year {year}")
         else:
             logger.warning(f"No reference data found for year {year}")
