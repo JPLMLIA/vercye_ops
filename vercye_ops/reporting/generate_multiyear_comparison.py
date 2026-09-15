@@ -241,7 +241,7 @@ def _apsim_pred_column(df):
     return None
 
 
-def load_obs_preds(input_dir, timepoint, years, agg_levels):
+def load_obs_preds(input_dir, timepoint, years, agg_levels, study_id):
     """Load predictions + reference data per level, for both LAI-converted and APSIM-only views.
 
     Returns ``{level: {"std": {...}, "apsim": {...} | None}}`` where each inner dict has the
@@ -258,7 +258,13 @@ def load_obs_preds(input_dir, timepoint, years, agg_levels):
 
         for year in years:
             base = os.path.join(input_dir, year, timepoint)
-            est = glob(os.path.join(base, f"agg_yield_estimates_{lvl}_*.csv"))
+            # exact level match - a bare f"...{lvl}_*.csv" glob also matches levels
+            # that merely start with lvl (e.g. "ADM1" matching "ADM1_ThreeCounties")
+            est = [
+                f
+                for f in glob(os.path.join(base, "agg_yield_estimates_*.csv"))
+                if _extract_agg_level_name(f, study_id, year, timepoint) == lvl
+            ]
             if not est:
                 continue
             if len(est) > 1:
@@ -612,7 +618,7 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file, study_id):
             """
             )
 
-        obs_preds = load_obs_preds(input_dir, tp, years, agg_levels)
+        obs_preds = load_obs_preds(input_dir, tp, years, agg_levels, study_id)
         yearly_eval_data = load_yearly_eval_data(input_dir, tp, agg_levels, years)
 
         for lvl, data in obs_preds.items():

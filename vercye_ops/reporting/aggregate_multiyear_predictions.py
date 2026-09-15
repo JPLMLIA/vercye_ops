@@ -61,16 +61,22 @@ def get_avaiable_agg_levels(base_dir, study_id):
     return list(set(all_agg_levels))
 
 
-def collect_files(base_dir, agg_lvl_name, timepoint):
+def collect_files(base_dir, agg_lvl_name, timepoint, study_id):
     pred_paths = {}
     gt_paths = {}
 
-    # Collect all aggregated predictions at this agg lvl & timepoint
+    # Collect all aggregated predictions at this agg lvl & timepoint.
+    # Match the level name EXACTLY via _extract_agg_level_name rather than globbing
+    # f"agg_yield_estimates_{agg_lvl_name}_*_...": that wildcard also swallows another
+    # level whose name merely starts with this one (level "ADM1" matched the
+    # "ADM1_ThreeCounties" files), which used to abort the whole multiyear step.
     for year in _year_dirs(base_dir):
-        preds_pattern = os.path.join(
-            base_dir, year, timepoint, f"agg_yield_estimates_{agg_lvl_name}_*_{year}_{timepoint}.csv"
-        )
-        agg_preds_files = glob(preds_pattern)
+        preds_pattern = os.path.join(base_dir, year, timepoint, "agg_yield_estimates_*.csv")
+        agg_preds_files = [
+            f
+            for f in glob(preds_pattern)
+            if _extract_agg_level_name(f, study_id, year, timepoint) == agg_lvl_name
+        ]
         if len(agg_preds_files) > 1:
             raise Exception(
                 f"More than one aggregated yield estimates file detected for {year}, {timepoint}, {agg_lvl_name}."
@@ -118,8 +124,8 @@ def merge_preds_gt_yearly(preds_paths, gt_paths):
     return yearly_dfs
 
 
-def aggregate_years(base_dir, agg_lvl_name, timepoint):
-    preds_paths, gt_paths = collect_files(base_dir, agg_lvl_name, timepoint)
+def aggregate_years(base_dir, agg_lvl_name, timepoint, study_id):
+    preds_paths, gt_paths = collect_files(base_dir, agg_lvl_name, timepoint, study_id)
     if not preds_paths:
         return pd.DataFrame({})
 
@@ -145,7 +151,7 @@ def main(base_dir: str, output_suffix: str):
 
     for agg_lvl_name in agg_lvls:
         for timepoint in timepoints:
-            agg_df = aggregate_years(base_dir, agg_lvl_name, timepoint)
+            agg_df = aggregate_years(base_dir, agg_lvl_name, timepoint, output_suffix)
             out_file = os.path.join(base_dir, f"all_predictions_{output_suffix}_{agg_lvl_name}_{timepoint}.csv")
             agg_df.to_csv(out_file)
 

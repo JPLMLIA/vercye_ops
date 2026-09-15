@@ -114,7 +114,7 @@ class TestGetAvailableAggLevels:
 class TestCollectFiles:
     def test_collects_pred_and_gt(self, tmp_path):
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"]})
-        pred_paths, gt_paths = collect_files(str(tmp_path), "county", "T-0")
+        pred_paths, gt_paths = collect_files(str(tmp_path), "county", "T-0", DEFAULT_STUDY_ID)
         assert "2022" in pred_paths
         assert "2022" in gt_paths
 
@@ -122,21 +122,36 @@ class TestCollectFiles:
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"]})
         # Remove GT file
         os.remove(os.path.join(str(tmp_path), "2022", "referencedata_county-2022.csv"))
-        pred_paths, gt_paths = collect_files(str(tmp_path), "county", "T-0")
+        pred_paths, gt_paths = collect_files(str(tmp_path), "county", "T-0", DEFAULT_STUDY_ID)
         assert "2022" in pred_paths
         assert "2022" not in gt_paths
 
-    def test_raises_on_duplicate_pred_files(self, tmp_path):
+    def test_other_studys_file_is_ignored(self, tmp_path):
+        """A file for the same level but a different study_id must not be picked up.
+
+        This used to raise "More than one ..." because the level was matched with a
+        wildcard that also absorbed the study_id; the level name is now matched
+        exactly, so another study's file is simply not ours.
+        """
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"]})
-        # Create a second file that also matches the collect_files glob for
-        # county/2022/T-0 but with a different study_id.
         tp_dir = os.path.join(str(tmp_path), "2022", "T-0")
         pd.DataFrame({"region": ["A"]}).to_csv(
             os.path.join(tp_dir, "agg_yield_estimates_county_otherstudy_2022_T-0.csv"),
             index=False,
         )
-        with pytest.raises(Exception, match="More than one"):
-            collect_files(str(tmp_path), "county", "T-0")
+        pred_paths, _ = collect_files(str(tmp_path), "county", "T-0", DEFAULT_STUDY_ID)
+        assert list(pred_paths) == ["2022"]
+        assert DEFAULT_STUDY_ID in os.path.basename(pred_paths["2022"])
+
+    def test_level_that_is_a_prefix_of_another_is_not_confused(self, tmp_path):
+        """"county" must not swallow "county_subset" (the ADM1 / ADM1_ThreeCounties bug)."""
+        _create_dir_structure(str(tmp_path), {"2022": ["T-0"]}, agg_levels=["county", "county_subset"])
+        for lvl in ("county", "county_subset"):
+            pred_paths, _ = collect_files(str(tmp_path), lvl, "T-0", DEFAULT_STUDY_ID)
+            assert len(pred_paths) == 1
+            assert os.path.basename(pred_paths["2022"]).startswith(
+                f"agg_yield_estimates_{lvl}_{DEFAULT_STUDY_ID}_"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -223,11 +238,11 @@ class TestMergePredsGtYearly:
 class TestAggregateYears:
     def test_multi_year_aggregation(self, tmp_path):
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"], "2023": ["T-0"]})
-        result = aggregate_years(str(tmp_path), "county", "T-0")
+        result = aggregate_years(str(tmp_path), "county", "T-0", DEFAULT_STUDY_ID)
         assert len(result) == 4  # 2 regions x 2 years
         assert set(result["year"]) == {"2022", "2023"}
 
     def test_no_preds_returns_empty(self, tmp_path):
         os.makedirs(str(tmp_path / "2022" / "T-0"))
-        result = aggregate_years(str(tmp_path), "county", "T-0")
+        result = aggregate_years(str(tmp_path), "county", "T-0", DEFAULT_STUDY_ID)
         assert result.empty
