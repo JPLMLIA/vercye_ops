@@ -41,17 +41,36 @@ RUN_RESULTS_DIRNAME = "run_results"
 RUN_META_FILENAME = "_run_meta.json"
 APSIM_MAPPING_FILENAME = "_apsim_mapping.json"
 APSIM_SUBDIR = "apsim"
+# Trailing tag in output_data_patterns.txt marking a pattern for the core bundle too.
+CORE_TAG = "@core"
 
 
-def load_patterns(patterns_file: Path) -> list[str]:
-    patterns = []
+def load_patterns(patterns_file: Path) -> tuple[list[str], list[str]]:
+    """Return (all patterns, core patterns).
+
+    A line may carry a trailing ``@core`` tag, marking it as also belonging to the
+    small "core data bundle" - the CSVs, reports and multiyear report a collaborator
+    needs without the multi-GB rasters. Core is always a subset of the full set, so
+    the tag annotates the existing line rather than duplicating it into a second
+    file; a patterns file with no tags simply yields no core bundle.
+    """
+    patterns: list[str] = []
+    core: list[str] = []
     for line in patterns_file.read_text().splitlines():
         line = line.strip()
-        if line and not line.startswith("#"):
-            patterns.append(line)
+        if not line or line.startswith("#"):
+            continue
+        is_core = line.endswith(CORE_TAG)
+        if is_core:
+            line = line[: -len(CORE_TAG)].strip()
+            if not line:
+                continue
+        patterns.append(line)
+        if is_core:
+            core.append(line)
     if not patterns:
         raise ValueError(f"No patterns loaded from {patterns_file}")
-    return patterns
+    return patterns, core
 
 
 def iter_matching_files(root: Path, patterns: list[str]):
@@ -140,12 +159,16 @@ def snapshot_apsim_sources(study_root: Path, snapshot_root: Path) -> dict:
     return manifest
 
 
-def zip_snapshot(snapshot_dir: Path, out_zip: Path) -> int:
+def zip_snapshot(snapshot_dir: Path, out_zip: Path, patterns: list[str] | None = None) -> int:
+    """Zip the snapshot. With ``patterns``, include only files whose basename matches
+    one of them - used to build the core bundle from the same snapshot."""
     count = 0
     with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as zf:
         for dirpath, _dirnames, filenames in os.walk(snapshot_dir):
             for name in filenames:
                 if name == RUN_META_FILENAME:
+                    continue
+                if patterns is not None and not any(fnmatch.fnmatch(name, p) for p in patterns):
                     continue
                 full = Path(dirpath) / name
                 zf.write(full, full.relative_to(snapshot_dir))
@@ -216,8 +239,11 @@ def main() -> None:
     if not root.is_dir():
         raise SystemExit(f"Study dir is not a directory: {root}")
 
-    patterns = load_patterns(args.patterns_file)
-    print(f"Loaded {len(patterns)} patterns from {args.patterns_file}")
+    patterns, core_patterns = load_patterns(args.patterns_file)
+    print(
+        f"Loaded {len(patterns)} patterns from {args.patterns_file} "
+        f"({len(core_patterns)} tagged {CORE_TAG} for the core bundle)"
+    )
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     snapshot_root = root / RUN_RESULTS_DIRNAME / run_id
@@ -243,6 +269,7 @@ def main() -> None:
     )
 
     remote_dir = None
+    uploaded_zips: list[str] = []
     rclone_target = (args.rclone_target or "").strip()
     if rclone_target:
         if shutil.which("rclone") is None:
@@ -260,6 +287,22 @@ def main() -> None:
             n_zipped = zip_snapshot(snapshot_root, zip_path)
             print(f"Packaged {n_zipped} files into {zip_path.name} ({zip_path.stat().st_size} bytes)")
             rclone_upload(zip_path, remote_dir)
+            uploaded_zips.append(zip_path.name)
+
+            # Core bundle: the same snapshot minus the rasters, for collaborators who
+            # only need the numbers and the reports. Uploaded into the same folder.
+            if core_patterns:
+                core_zip_path = Path(tmp) / f"{folder_name}_core.zip"
+                n_core = zip_snapshot(snapshot_root, core_zip_path, patterns=core_patterns)
+                if n_core:
+                    print(
+                        f"Packaged {n_core} files into {core_zip_path.name} "
+                        f"({core_zip_path.stat().st_size} bytes)"
+                    )
+                    rclone_upload(core_zip_path, remote_dir)
+                    uploaded_zips.append(core_zip_path.name)
+                else:
+                    print(f"No files matched the {CORE_TAG} patterns - skipping the core bundle")
     else:
         print("No rclone target configured - skipping upload")
 
@@ -269,6 +312,7 @@ def main() -> None:
         "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "file_count": n_copied,
         "uploaded_to": remote_dir,
+        "uploaded_zips": uploaded_zips,
     }
     (snapshot_root / RUN_META_FILENAME).write_text(json.dumps(meta, indent=2))
 
