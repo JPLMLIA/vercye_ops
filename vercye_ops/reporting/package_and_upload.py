@@ -159,6 +159,54 @@ def snapshot_apsim_sources(study_root: Path, snapshot_root: Path) -> dict:
     return manifest
 
 
+def snapshot_aggregation_shapefiles(study_root: Path, snapshot_root: Path) -> list[str]:
+    """Copy the aggregation-level boundary files into the snapshot.
+
+    These cannot be expressed in ``output_data_patterns.txt`` because their names are
+    chosen per study (``KE_ADM1_ThreeCounties_AgStats_LongRains.geojson``), so they are
+    read out of the run config instead.
+
+    Without them a snapshot is not self-contained: the interactive results map draws
+    every non-primary level from these files, and would fall back to whatever the *live*
+    study currently holds - so re-preparing a study with different boundaries would
+    silently redraw its own history. ESRI shapefiles are copied with their sidecars,
+    since a lone ``.shp`` cannot be opened.
+    """
+    config_path = study_root / "config.yaml"
+    if not config_path.is_file():
+        return []
+    try:
+        import yaml as _yaml
+
+        cfg = _yaml.safe_load(config_path.read_text()) or {}
+    except Exception:
+        return []
+
+    levels = ((cfg.get("eval_params") or {}).get("aggregation_levels") or {}).values()
+    src_dir = study_root / "aggregation_shapefiles"
+    dest = snapshot_root / "aggregation_shapefiles"
+
+    copied: list[str] = []
+    for entry in levels:
+        name = (entry or {}).get("shapefile")
+        if not name:
+            continue
+        src = Path(str(name))
+        if not src.is_absolute():
+            src = src_dir / src
+        if not src.is_file():
+            continue
+        # A shapefile is a file set; a GeoJSON is a single file and has no siblings.
+        members = sorted(src.parent.glob(src.stem + ".*")) if src.suffix.lower() == ".shp" else [src]
+        for member in members:
+            dest.mkdir(parents=True, exist_ok=True)
+            target = dest / member.name
+            if not target.exists():
+                shutil.copy2(member, target)
+                copied.append(member.name)
+    return copied
+
+
 def zip_snapshot(snapshot_dir: Path, out_zip: Path, patterns: list[str] | None = None) -> int:
     """Zip the snapshot. With ``patterns``, include only files whose basename matches
     one of them - used to build the core bundle from the same snapshot."""
@@ -261,6 +309,9 @@ def main() -> None:
         # Leave nothing behind on an empty snapshot.
         shutil.rmtree(snapshot_root, ignore_errors=True)
         raise SystemExit("No files matched the output patterns - refusing to create an empty snapshot")
+
+    n_shapes = snapshot_aggregation_shapefiles(root, snapshot_root)
+    print(f"Copied {len(n_shapes)} aggregation shapefile(s) into the snapshot")
 
     apsim_manifest = snapshot_apsim_sources(root, snapshot_root)
     print(
