@@ -6,6 +6,7 @@ from typing import List
 import click
 import numpy as np
 import rasterio
+import rasterio.shutil as rio_shutil
 from rasterio.merge import merge
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 
@@ -94,10 +95,45 @@ def _atomic_write(src_path: str, dst_path: str):
     os.replace(src_path, dst_path)
 
 
+def _write_cog(src_path: str, dst_path: str, overview_resampling: str = "average"):
+    """Rewrite a GeoTIFF as a Cloud Optimized GeoTIFF, then move it into place.
+
+    Plain GTiff output here is strip-organised (one row per block) with no overviews, so
+    reading any window pulls whole raster-width rows and a zoomed-out view has to touch
+    the entire file. That makes the mosaics unusable for tile/range-request serving.
+    The COG driver writes 512x512 tiles plus internal overviews.
+
+    Use "average" for continuous data (yield) and "nearest" for categorical rasters such
+    as the coverage mask, where averaging would invent class values.
+    """
+    tmp_fd, tmp_cog = tempfile.mkstemp(suffix=".cog.tif", dir=os.path.dirname(dst_path))
+    os.close(tmp_fd)
+    try:
+        rio_shutil.copy(
+            src_path,
+            tmp_cog,
+            driver="COG",
+            compress="LZW",
+            blocksize=512,
+            overview_resampling=overview_resampling,
+            bigtiff="IF_SAFER",
+            num_threads="ALL_CPUS",
+        )
+        os.replace(tmp_cog, dst_path)
+    except Exception:
+        if os.path.exists(tmp_cog):
+            os.remove(tmp_cog)
+        raise
+    finally:
+        if os.path.exists(src_path):
+            os.remove(src_path)
+
+
 def _reproject_raster(
     input_path: str,
     output_path: str,
     target_crs: str,
+    cog_overview_resampling: str = "average",
     resampling: Resampling = Resampling.nearest,
     nodata=None,
 ):
@@ -135,7 +171,7 @@ def _reproject_raster(
                         src_nodata=nodata,
                         dst_nodata=nodata,
                     )
-            _atomic_write(tmp_path, output_path)
+            _write_cog(tmp_path, output_path, overview_resampling=cog_overview_resampling)
         except Exception:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
@@ -225,7 +261,7 @@ def create_yield_mosaic(
     try:
         with rasterio.open(tmp_4326, "w", **profile_4326) as dst:
             dst.write(merged_array[0], 1)
-        _atomic_write(tmp_4326, output_mosaic_4326_path)
+        _write_cog(tmp_4326, output_mosaic_4326_path, overview_resampling="average")
     except Exception:
         if os.path.exists(tmp_4326):
             os.remove(tmp_4326)
@@ -256,6 +292,7 @@ def create_yield_mosaic(
             tmp_cov_4326,
             output_coverage_mask_projected_path,
             target_crs,
+            cog_overview_resampling="nearest",
             resampling=Resampling.nearest,
             nodata=255,
         )

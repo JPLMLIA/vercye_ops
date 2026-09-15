@@ -862,6 +862,45 @@ def get_map_resource(study_id: StudyID, year: int, timepoint: str, resource: str
     return FileResponse(resolved_path)
 
 
+# Pixel-level yield mosaics are COGs (tiled + internal overviews), and Starlette's
+# FileResponse serves HTTP range requests, so the browser reads only the tiles it needs.
+# No server-side tiler required.
+COG_KINDS = {
+    "yield": "yield_mosaic_4326_*.tif",
+    "apsim_yield": "apsim_yield_mosaic_4326_*.tif",
+}
+
+
+def _resolve_cog(base_dir, kind: str):
+    pattern = COG_KINDS.get(kind)
+    if pattern is None:
+        raise HTTPException(status_code=404, detail=f"Unknown COG kind '{kind}'.")
+    # "yield_mosaic_4326_*" would also match "apsim_yield_mosaic_4326_*"; pin the start.
+    candidates = [p for p in glob(os.path.join(str(base_dir), pattern)) if os.path.basename(p).startswith(pattern.split("*")[0])]
+    if len(candidates) != 1:
+        raise HTTPException(status_code=404, detail=f"Expected one {kind} mosaic, found {len(candidates)}.")
+    return candidates[0]
+
+
+@router.get("/{study_id}/cog/{year}/{timepoint}/{kind}")
+def get_cog(study_id: StudyID, year: int, timepoint: str, kind: str):
+    base = Path(studies_dir) / study_id / study_id / str(year) / str(timepoint)
+    return FileResponse(_resolve_cog(base, kind), media_type="image/tiff")
+
+
+@router.get("/{study_id}/runs/{run_id}/cog/{year}/{timepoint}/{kind}")
+def get_run_cog(study_id: StudyID, run_id: RunID, year: int, timepoint: str, kind: str):
+    # Run archives only keep the equal-area "..._projected_..." mosaic; the EPSG:4326 one
+    # that Leaflet can draw is not in output_data_patterns.txt, so fall back to the live
+    # study copy for the same year/timepoint when the archive lacks it.
+    run_dir = _ensure_run_dir(study_id, run_id)
+    try:
+        return FileResponse(_resolve_cog(run_dir / str(year) / str(timepoint), kind), media_type="image/tiff")
+    except HTTPException:
+        live = Path(studies_dir) / study_id / study_id / str(year) / str(timepoint)
+        return FileResponse(_resolve_cog(live, kind), media_type="image/tiff")
+
+
 @router.get("/{study_id}/report/{year}/{timepoint}")
 def get_report(study_id: StudyID, year: int, timepoint: str):
     report_dir = os.path.join(studies_dir, study_id, study_id, str(year), timepoint)

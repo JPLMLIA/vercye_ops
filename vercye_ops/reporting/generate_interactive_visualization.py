@@ -1,4 +1,5 @@
 import json
+import base64
 import os
 import shutil
 import warnings
@@ -14,6 +15,58 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 DEFAULT_LAI_COLUMNS = ["LAI Median:Median LAI", "LAI Mean:Mean LAI"]
+
+
+
+# NASA Harvest logo, embedded as a data URI so the map stays self-contained.
+
+MAP_SIMPLIFY_TOLERANCE_DEG = 0.0005  # ~55 m; below what the map can resolve at its usable zooms
+
+
+def simplify_levels_for_display(levels, tolerance=MAP_SIMPLIFY_TOLERANCE_DEG):
+    """Thin the polygon vertices that get embedded in the map.
+
+    These boundaries carry far more detail than the browser can draw, and every vertex
+    costs parse time, memory and render time. Display only - the yield results are
+    untouched. A geometry that fails to simplify is kept as-is rather than dropped.
+    """
+    if not tolerance:
+        return levels
+    try:
+        from shapely.geometry import mapping, shape
+    except ImportError:
+        return levels
+    for level in (levels.get("level_data") or {}).values():
+        for feat in level.get("features", []):
+            geom = feat.get("geometry")
+            if not geom:
+                continue
+            try:
+                simplified = shape(geom).simplify(tolerance, preserve_topology=True)
+                if not simplified.is_empty:
+                    feat["geometry"] = mapping(simplified)
+            except Exception:
+                pass
+    return levels
+
+
+NASA_HARVEST_LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "nasa-harvest.png")
+
+
+def _logo_html():
+    """Bottom-left logo overlay, or '' if the asset is missing (never fail a run for a logo)."""
+    try:
+        with open(NASA_HARVEST_LOGO, "rb") as fh:
+            b64 = base64.b64encode(fh.read()).decode()
+    except OSError:
+        return ""
+    return (
+        '<div id="nasaHarvestLogo" style="position:absolute;left:12px;bottom:22px;z-index:1000;'
+        'background:rgba(255,255,255,0.85);padding:6px 8px;border-radius:6px;'
+        'box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;">'
+        f'<img src="data:image/png;base64,{b64}" alt="NASA Harvest" '
+        'style="height:34px;width:auto;display:block;"/></div>'
+    )
 
 
 class InteractiveMapGenerator:
@@ -478,6 +531,9 @@ class InteractiveMapGenerator:
 
         lai_column_options = "".join(f'<option value="{col}">{col}</option>' for col in self.lai_column_names)
 
+        logo_html = _logo_html()
+        levels = simplify_levels_for_display(levels)
+
         dark_primary = "#324e47"
         dark_white = "#F5F8F5"
         dark_gray = ""
@@ -496,6 +552,14 @@ class InteractiveMapGenerator:
                 <title>{title}</title>
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+                <!-- Carto's raster basemaps (basemaps.cartocdn.com/light_all/*.png) now require an
+                     API key, so the basemap is drawn from Carto's keyless VECTOR style instead.
+                     MapLibre GL renders it; maplibre-gl-leaflet bridges it into the Leaflet map. -->
+                <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+                <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+                <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
+                <script src="https://unpkg.com/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
+                <script src="https://unpkg.com/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"></script>
@@ -1310,7 +1374,9 @@ class InteractiveMapGenerator:
 
                 <script>
                     // Embedded data
-                    const mapData = {json.dumps(levels, separators=(",", ":"), ensure_ascii=False)};
+                    // JSON.parse on a string literal is markedly faster than making the JS
+                    // engine parse an ~18 MB object literal at load time.
+                    const mapData = JSON.parse({json.dumps(json.dumps(levels, separators=(",", ":"), ensure_ascii=False))});
 
                     const allValueRanges = {json.dumps(value_ranges)}
 
@@ -1428,16 +1494,18 @@ class InteractiveMapGenerator:
 
                         const tooltipValue = `${{props[heatmapType]?.toFixed(1)}} ${{getHeatmapUnits()}}` ?? 'N/A';
                         const center = layer.getBounds().getCenter();
-                        const tooltip = L.tooltip({{
-                            permanent: false,
-                            direction: 'center',
-                            className: 'polygon-tooltip',
-                            opacity: 0.9
-                        }})
-                        .setLatLng(center)
-                        .setContent(`${{tooltipValue}}`);
-
-                        layer.bindTooltip(tooltip).openTooltip();
+                        // One reusable tooltip. Allocating and binding a new L.tooltip per
+                        // mouseover churned garbage on every pointer move across the map.
+                        if (!window.__hoverTooltip) {{
+                            window.__hoverTooltip = L.tooltip({{
+                                permanent: false,
+                                direction: 'center',
+                                className: 'polygon-tooltip',
+                                opacity: 0.9
+                            }});
+                        }}
+                        window.__hoverTooltip.setLatLng(center).setContent(`${{tooltipValue}}`);
+                        window.__hoverTooltip.addTo(map);
 
                         if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {{
                             layer.bringToFront();
@@ -1448,6 +1516,7 @@ class InteractiveMapGenerator:
 
                     function resetHighlight(e) {{
                         currentLayer.resetStyle(e.target);
+                        if (window.__hoverTooltip) {{ map.removeLayer(window.__hoverTooltip); }}
                         hideHoverInfo();
                     }}
 
@@ -1887,7 +1956,7 @@ class InteractiveMapGenerator:
                             updateUI();
 
                             // Fit map to new bounds
-                            const bounds = L.geoJSON(mapData.level_mappings[parentId]).getBounds();
+                            const bounds = currentLayer.getBounds();
                             map.fitBounds(bounds, {{ padding: [20, 20] }});
 
                             document.getElementById('backButton').style.display = 'block';
@@ -1917,7 +1986,7 @@ class InteractiveMapGenerator:
                                 document.getElementById('backButton').style.display = 'none';
                                 loadLevel(mapData.level_data[`level_0`]);
 
-                                const bounds = L.geoJSON(mapData.level_data.level_0).getBounds();
+                                const bounds = currentLayer.getBounds();
                                 map.fitBounds(bounds, {{ padding: [20, 20] }});
                             }} else {{
                                 // Go back one step
@@ -1930,7 +1999,7 @@ class InteractiveMapGenerator:
                                     currentLevel--;
                                     loadLevel(mapData.level_data[`level_${{currentLevel}}`]);
                                 }}
-                                const bounds = L.geoJSON(mapData.level_data[`level_${{currentLevel}}`]).getBounds();
+                                const bounds = currentLayer.getBounds();
                                 map.fitBounds(bounds, {{ padding: [20, 20] }});
                             }}
 
@@ -1952,7 +2021,7 @@ class InteractiveMapGenerator:
                         updateUI();
 
                         // Fit map to bounds of entire next level
-                        const bounds = L.geoJSON(mapData.level_data[`level_${{currentLevel}}`]).getBounds();
+                        const bounds = currentLayer.getBounds();
                         map.fitBounds(bounds, {{ padding: [20, 20] }});
 
                         document.getElementById('backButton').style.display = 'block';
@@ -2005,24 +2074,23 @@ class InteractiveMapGenerator:
                     }}
 
                     // Data loading
+                    let sharedCanvas = null;
+
                     function loadLevel(levelData) {{
                         if (currentLayer) {{
                             map.removeLayer(currentLayer);
                         }}
 
-                        console.log(currentLayer, levelData);
 
                         currentLayer = L.geoJSON(levelData, {{
                             style: style,
-                            onEachFeature: onEachFeature
+                            onEachFeature: onEachFeature,
+                            renderer: sharedCanvas,
+                            smoothFactor: 1.5
                         }}).addTo(map);
 
-                        featureLayerIndex = new Map();
-                        currentLayer.eachLayer(l => {{
-                            if (l?.feature?.properties?.id) {{
-                                featureLayerIndex.set(l.feature.properties.id, l);
-                            }}
-                        }});
+                        // featureLayerIndex is populated by onEachFeature during construction;
+                        // re-walking every layer here duplicated that work.
 
                         // Build or hide the scatter plot for this view
                         updateScatter(levelData);
@@ -2547,26 +2615,83 @@ class InteractiveMapGenerator:
                     // Initialize map
                     window.addEventListener('load', function () {{
                         setTimeout(() => {{
-                        map = L.map('map');
+                        // preferCanvas: one canvas instead of one SVG node per feature.
+                        // This is the single biggest win at 10k+ polygons.
+                        map = L.map('map', {{ preferCanvas: true, zoomAnimation: false }});
+                        // One canvas shared by every level, with generous padding so panning
+                        // does not force a re-render at the viewport edge.
+                        sharedCanvas = L.canvas({{ padding: 0.5, tolerance: 4 }});
                         map.doubleClickZoom.disable();
 
-                        L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
-                            attribution: '&copy; OpenStreetMap contributors & Carto',
-                            subdomains: 'abcd',
-                            maxZoom: 19
+                        // positron-gl-style is the vector equivalent of the old light_all raster.
+                        // Falls back to OSM raster if MapLibre fails to load, so the map is never blank.
+                        if (typeof L.maplibreGL === 'function') {{
+                            L.maplibreGL({{
+                                style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+                                attribution: '&copy; OpenStreetMap contributors &copy; Carto'
                             }}).addTo(map);
+                        }} else {{
+                            L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+                                attribution: '&copy; OpenStreetMap contributors',
+                                maxZoom: 19
+                            }}).addTo(map);
+                        }}
+
+                        // Pixel-level yield COG, read directly over HTTP range requests.
+                        // URL derived from this page's path so it works from /map-result/... and
+                        // /runs/<id>/map-result/... alike. Skipped for a standalone file:// map.
+                        (function () {{
+                            var p = window.location.pathname;
+                            if (p.indexOf('/map-result/') === -1 || typeof parseGeoraster !== 'function') return;
+                            var b = p.replace('/map-result/', '/cog/');
+                            if (b.charAt(b.length - 1) === '/') b = b.slice(0, -1);
+                            var cogUrl = b + '/yield';
+                            // COG_LAYER_V2: build the control immediately. If it is only created
+                            // inside .then(), a slow or failed read leaves no trace in the UI.
+                            var ctl = L.control.layers(null, {{}}, {{ collapsed: false, position: 'topright' }}).addTo(map);
+                            var status = L.DomUtil.create('div', '', ctl.getContainer());
+                            status.style.cssText = 'padding:3px 6px;font:11px sans-serif;color:#555;';
+                            status.textContent = 'Loading pixel-level yield...';
+                            parseGeoraster(cogUrl).then(function (georaster) {{
+                                // parseGeoraster does not compute mins/maxs for a REMOTE cog (it
+                                // never reads the whole raster), so fall back to a fixed kg/ha range
+                                // rather than render every pixel one colour.
+                                var mn = (georaster.mins && georaster.mins[0] != null) ? georaster.mins[0] : NaN;
+                                var mx = (georaster.maxs && georaster.maxs[0] != null) ? georaster.maxs[0] : NaN;
+                                if (!isFinite(mn) || !isFinite(mx) || mx <= mn) {{ mn = 0; mx = 6000; }}
+                                var scale = chroma.scale('viridis').domain([mn, mx]);
+                                var layer = new GeoRasterLayer({{
+                                    georaster: georaster,
+                                    opacity: 0.75,
+                                    resolution: 256,
+                                    pixelValuesToColorFn: function (v) {{
+                                        var x = v[0];
+                                        if (x === null || isNaN(x) || x <= 0) return null;
+                                        return scale(x).hex();
+                                    }}
+                                }});
+                                // Not added by default: a full-resolution raster on top of
+                                // 10k+ polygons is the slowest thing on the page. Opt in.
+                                ctl.addOverlay(layer, 'Pixel-level yield (kg/ha)');
+                                status.textContent = '';
+                            }}).catch(function (e) {{
+                                status.textContent = 'Pixel-level yield unavailable';
+                                console.warn('Pixel-level yield COG unavailable:', e);
+                            }});
+                        }})();
 
                         // Load initial (level 0)
                         loadLevel(mapData.level_data.level_0);
 
                         // Fit map to initial bounds
-                        const bounds = L.geoJSON(mapData.level_data.level_0).getBounds();
+                        const bounds = currentLayer.getBounds();
                         map.fitBounds(bounds, {{ padding: [20, 20] }});
 
                         updateUI();
                         }}, 100);
                     }});
                 </script>
+                {logo_html}
             </body>
             </html>"""
         return template
