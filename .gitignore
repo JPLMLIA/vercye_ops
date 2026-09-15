@@ -190,6 +190,12 @@ vercye_ops/lai/GEE_pipeline/custom_configs
 # Profiling
 *.lprof
 
+# GDAL scratch. The COG driver writes its temporaries into the *current* directory, not
+# beside the output, so running gdalwarp from a checkout drops multi-hundred-MB files
+# here mid-conversion.
+*.tmp_*
+*.tif.tmp
+
 # Private matching script. Never commit the matcher itself or any copy of it - the
 # operational script lives outside this repo and is wired in via scripts.match_sim_real
 # in run_config.yaml.

@@ -93,7 +93,13 @@ def build_overviews(tif: Path) -> bool:
                 "gdaladdo", "-ro", "-q",
                 "--config", "COMPRESS_OVERVIEW", "LZW",
                 "--config", "GDAL_NUM_THREADS", "ALL_CPUS",
-                "-r", "average", str(tif), "2", "4", "8", "16", "32", "64", "128", "256",
+                # A cropmask is categorical, so take the majority class rather than the
+                # mean: "average" over 0/1 uint8 lands back on 0 or 1 depending on where
+                # the resampler rounds, which made the layer flip between drawn and
+                # absent from one zoom to the next. ("max" would be the ideal - keep a
+                # footprint wherever any cropland falls inside it - but GDAL offers it
+                # for warps only, not for overview building or reads.)
+                "-r", "mode", str(tif), "2", "4", "8", "16", "32", "64", "128", "256",
             ],
             check=True,
             capture_output=True,
@@ -212,7 +218,9 @@ def get_cropmask_tile(
 
     try:
         with Reader(str(tif)) as src:
-            img = src.tile(x, y, z, tilesize=256, resampling_method="average")
+            # Categorical data: pick a class, never blend two. The overviews above are
+            # already majority-resampled, so a zoomed-out tile reads finished values.
+            img = src.tile(x, y, z, tilesize=256, resampling_method="nearest")
     except TileOutsideBounds:
         return Response(content=_blank_png(), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
 
@@ -222,15 +230,18 @@ def get_cropmask_tile(
 
 @lru_cache(maxsize=8)
 def _mask_colormap(color: str) -> dict:
-    """0 (and anything that averaged down to nothing) transparent; cropland opaque.
+    """0 transparent, anything else the cropland colour at full strength.
 
-    Overviews are built with `average`, so a downsampled pixel holds the *fraction* of
-    cropland beneath it. Carrying that through as opacity keeps sparse cropland visible
-    when zoomed out instead of disappearing to a hard 0/1 threshold.
+    The alpha used to track the pixel value (`60 + i`) on the theory that a downsampled
+    pixel carries the *fraction* of cropland beneath it. Cropmasks are binary 0/1, so that
+    theory never held: every cropland pixel rendered at alpha 61 - barely visible - and
+    overview pixels landed on 0 or 1 depending on where the resampler rounded, so the
+    layer appeared to change colour from one zoom level to the next. A binary mask gets a
+    binary colour; the opacity slider is how the user sees through it.
     """
     c = color.lstrip("#")
     r, g, b = (int(c[i : i + 2], 16) for i in (0, 2, 4))
-    return {i: (r, g, b, 0 if i == 0 else min(255, 60 + i)) for i in range(256)}
+    return {i: (r, g, b, 0 if i == 0 else 255) for i in range(256)}
 
 
 @lru_cache(maxsize=1)

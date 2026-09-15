@@ -657,3 +657,73 @@ class TestSharedColourScales:
         assert "mean_yield_kg_ha" in by_level[LEVEL]
         # Derived error metrics exist wherever both sides of the comparison do.
         assert "abs_error" in by_level[LEVEL] and "rel_error" in by_level[LEVEL]
+
+
+class TestStudyWithoutReferenceData:
+    """A study with no ground truth anywhere must still serve its whole map.
+
+    Ethiopia has no reported yields at any level, so its all_predictions files carry no
+    `reported_mean_yield_kg_ha` column. The shared-scale computation reached for that
+    column with `df.get(...)`, which returns None, and `pd.to_numeric(None)` is a NaN
+    *scalar* rather than None - so the "is not None" guard passed and the next line called
+    .replace on a float. That raised inside the manifest, which is the one request every
+    view of the study depends on, so the entire map 500'd.
+    """
+
+    @pytest.fixture(scope="class")
+    def noref_client(self, tmp_path_factory):
+        import os
+        import sys
+
+        base = tmp_path_factory.mktemp("noref_studies")
+        study = "norefstudy"
+        root = base / study / study
+        ytp = root / YEAR / TP
+        ytp.mkdir(parents=True)
+        (root / "aggregation_shapefiles").mkdir()
+
+        gpd.GeoDataFrame(
+            [{"shapeName": n, "geometry": box(x, y, x + 0.9, y + 0.9)} for n, (x, y) in REGIONS.items()],
+            crs="EPSG:4326",
+        ).to_file(root / "aggregation_shapefiles" / "levels.geojson", driver="GeoJSON")
+
+        # No reported_mean_yield_kg_ha column anywhere - this is the whole point.
+        rows = [{"region": n, "mean_yield_kg_ha": YIELDS[n], "total_production_ton": 1.0} for n in REGIONS]
+        pd.DataFrame(rows).to_csv(ytp / f"agg_yield_estimates_{LEVEL}_{study}_{YEAR}_{TP}.csv", index=False)
+        pd.DataFrame([{**r, "year": int(YEAR)} for r in rows]).to_csv(
+            root / f"all_predictions_{study}_{LEVEL}_{TP}.csv", index=False
+        )
+
+        sys.path.insert(0, str(WEBAPP))
+        os.environ["STUDY_DIR"] = str(base)
+        import routers.maps as maps
+
+        saved_dir, saved_cfg = maps.studies_dir, maps.get_run_config
+        maps.studies_dir = str(base)
+        maps.get_run_config = lambda _d, _s: {
+            "eval_params": {"aggregation_levels": {LEVEL: {"shapefile": "levels.geojson", "name_column": "shapeName"}}}
+        }
+
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        app = FastAPI()
+        app.include_router(maps.router, prefix="/api")
+        yield TestClient(app), study
+        maps.studies_dir, maps.get_run_config = saved_dir, saved_cfg
+
+    def test_manifest_is_served(self, noref_client):
+        client, study = noref_client
+        r = client.get(f"/api/studies/{study}/results/manifest")
+        assert r.status_code == 200, r.text
+        assert LEVEL in r.json()["levels"]
+
+    def test_error_metrics_are_simply_absent(self, noref_client):
+        """Not derivable without a reference, so they must not be offered - and the
+        frontend greys them out on the strength of exactly this."""
+        client, study = noref_client
+        m = client.get(f"/api/studies/{study}/results/manifest").json()
+        assert "rel_error" not in m["scales"] and "abs_error" not in m["scales"]
+        assert "rel_error" not in m["metrics_by_level"].get(LEVEL, [])
+        # The values that do exist are still scaled.
+        assert "mean_yield_kg_ha" in m["scales"]

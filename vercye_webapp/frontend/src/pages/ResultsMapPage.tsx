@@ -251,7 +251,15 @@ export default function ResultsMapPage() {
     } else if (pixel === 'cropmask' && cropmaskName) {
       layer = L.tileLayer(CropmasksAPI.tileUrl(cropmaskName), {
         opacity,
+        // Stop fetching new tiles past the mask's own resolution and upscale instead:
+        // beyond this every zoom step re-requested a full set of tiles that carried no
+        // more detail, so the layer blanked and repainted on the way in.
+        maxNativeZoom: 15,
         maxZoom: 19,
+        // Keep the previous zoom's tiles up until the new ones arrive, and hold a wider
+        // ring around the viewport, so panning and zooming do not flash through gaps.
+        updateWhenZooming: false,
+        keepBuffer: 4,
         zIndex: LAYER_Z.raster,
       });
     }
@@ -664,6 +672,10 @@ export default function ResultsMapPage() {
             lai={lai}
             plotUrl={showPlot ? ResultsAPI.regionPlotUrl(scope, year, timepoint, selected) : undefined}
             plotsLevel={manifest?.plots_level}
+            referenceLevels={Object.entries(manifest?.metrics_by_level ?? {})
+              .filter(([lv, keys]) => lv !== level && keys.includes('reported_mean_yield_kg_ha'))
+              .map(([lv]) => lv)}
+            onGoToLevel={(lv) => patch({ level: lv, region: undefined })}
             onGoToPlotsLevel={
               manifest && level !== manifest.plots_level
                 ? () => patch({ level: manifest.plots_level, region: undefined })

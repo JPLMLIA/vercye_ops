@@ -391,9 +391,14 @@ def _scales(root: Path, study_id: str, levels: list, timepoints: list) -> dict:
         return {}
     df = pd.concat(frames, ignore_index=True)
 
-    pred = pd.to_numeric(df.get("mean_yield_kg_ha"), errors="coerce")
-    ref = pd.to_numeric(df.get("reported_mean_yield_kg_ha"), errors="coerce")
-    if pred is not None and ref is not None:
+    # Test for the columns, not for the result of .get(): pandas' Series.get returns None
+    # for a missing column and pd.to_numeric(None) is a NaN *scalar*, not None, so the
+    # obvious "is not None" guard passes and the next line calls .replace on a float. A
+    # study with no reference data anywhere - Ethiopia - hit exactly that and 500'd the
+    # whole manifest, which is every map in the study.
+    if {"mean_yield_kg_ha", "reported_mean_yield_kg_ha"} <= set(df.columns):
+        pred = pd.to_numeric(df["mean_yield_kg_ha"], errors="coerce")
+        ref = pd.to_numeric(df["reported_mean_yield_kg_ha"], errors="coerce")
         df["abs_error"] = (pred - ref).abs()
         df["rel_error"] = ((pred - ref) / ref.replace(0, float("nan"))) * 100
 

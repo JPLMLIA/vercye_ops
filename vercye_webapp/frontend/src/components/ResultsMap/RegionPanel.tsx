@@ -18,6 +18,9 @@ type Props = {
   /** Name of the level that does carry per-region reports, for the "switch to" prompt. */
   plotsLevel?: string;
   onGoToPlotsLevel?: () => void;
+  /** Levels that do have reference yields, for the "no reference data here" note. */
+  referenceLevels?: string[];
+  onGoToLevel?: (level: string) => void;
   /** Whether this region is currently in the comparison set. */
   inComparison: boolean;
   onToggleCompare: () => void;
@@ -38,6 +41,8 @@ export default function RegionPanel({
   plotUrl,
   plotsLevel,
   onGoToPlotsLevel,
+  referenceLevels,
+  onGoToLevel,
   inComparison,
   onToggleCompare,
   onClose,
@@ -52,6 +57,10 @@ export default function RegionPanel({
   }, [plotUrl, region]);
 
   const rows = STAT_LABELS.filter(([key]) => stats && stats[key] !== undefined && stats[key] !== null);
+  // An empty reference cell is ambiguous: it could mean this region was not surveyed, or
+  // that the whole level has no ground truth. Say which, and where to find it.
+  const hasReference = typeof stats?.reported_mean_yield_kg_ha === 'number';
+  const elsewhere = (referenceLevels ?? []).filter((l) => l !== undefined);
 
   return (
     <aside className="region-panel">
@@ -88,6 +97,33 @@ export default function RegionPanel({
             ))}
           </tbody>
         </table>
+      )}
+
+      {!hasReference && (
+        <div className="region-panel-note">
+          <strong>Reference yield:</strong> not available at this level.
+          {elsewhere.length > 0 ? (
+            <>
+              {' '}
+              Reported yields exist at{' '}
+              {elsewhere.map((l, i) => (
+                <span key={l}>
+                  {i > 0 && (i === elsewhere.length - 1 ? ' or ' : ', ')}
+                  {onGoToLevel ? (
+                    <button type="button" className="stats-clear" onClick={() => onGoToLevel(l)}>
+                      {l}
+                    </button>
+                  ) : (
+                    <strong>{l}</strong>
+                  )}
+                </span>
+              ))}
+              , so accuracy metrics and the error colourings are only meaningful there.
+            </>
+          ) : (
+            ' This study has no reported yields for any level, so nothing is evaluated against ground truth.'
+          )}
+        </div>
       )}
 
       {lai?.regions?.[region] && (

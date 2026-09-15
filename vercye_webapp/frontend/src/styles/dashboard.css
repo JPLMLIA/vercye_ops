@@ -1377,3 +1377,12 @@ html { scrollbar-gutter: stable; }
     animation: map-busy-in .18s ease-out;
 }
 @keyframes map-busy-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* An explanatory note inside a detail pane: quieter than the table, but not a hint. */
+.region-panel-note {
+    margin: 0.5rem 0.9rem 0.25rem; padding: 0.5rem 0.6rem;
+    font-size: 11.5px; line-height: 1.5; color: var(--neutral-600);
+    background: var(--neutral-50); border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-sm, 4px);
+}
+.region-panel-note strong { color: var(--neutral-800); }
