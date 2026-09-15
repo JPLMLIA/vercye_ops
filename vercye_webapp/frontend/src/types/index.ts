@@ -110,3 +110,18 @@ export interface StudyRun {
   timepoints: Record<string, string[]>;
   size_bytes: number | null;
 }
+
+/** Read-only view of the run config, shown before a run is started. */
+export interface RunSummary {
+  study_id: StudyId;
+  title: string | null;
+  years: string[];
+  timepoints: string[];
+  n_regions: number;
+  aggregation_levels: string[];
+  cropmasks: Record<string, string>;
+  lai_region: string | null;
+  lai_resolution: number | null;
+  met_source: string | null;
+  precipitation_source: string | null;
+}

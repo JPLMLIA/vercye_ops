@@ -633,6 +633,39 @@ def get_run_config_file(study_id: StudyID):
     return FileResponse(run_cfg_path, filename="run_config.yaml")
 
 
+@router.get("/{study_id}/run-summary")
+def get_run_summary(study_id: StudyID):
+    """What a run of this study will actually do, in the terms the user chose them.
+
+    Shown before starting a run so the confirmation is about the configuration rather than
+    about the word "Run". Everything here is read straight out of config.yaml - no
+    defaults are filled in, so a field the user never set shows as absent rather than as
+    something plausible.
+    """
+    if not os.path.exists(get_run_config_file_path(studies_dir, study_id)):
+        raise HTTPException(status_code=404, detail="Run config not found")
+    cfg = get_run_config(studies_dir, study_id)
+
+    apsim = cfg.get("apsim_params") or {}
+    lai = cfg.get("lai_params") or {}
+    levels = (cfg.get("eval_params") or {}).get("aggregation_levels") or {}
+    masks = {str(y): Path(str(p)).name for y, p in (lai.get("crop_mask") or {}).items() if p}
+
+    return {
+        "study_id": study_id,
+        "title": cfg.get("title"),
+        "years": [str(y) for y in (cfg.get("years") or [])],
+        "timepoints": [str(t) for t in (cfg.get("timepoints") or [])],
+        "n_regions": len(cfg.get("regions") or []),
+        "aggregation_levels": sorted(levels),
+        "cropmasks": masks,
+        "lai_region": lai.get("lai_region"),
+        "lai_resolution": lai.get("lai_resolution"),
+        "met_source": apsim.get("met_source"),
+        "precipitation_source": apsim.get("precipitation_source"),
+    }
+
+
 @router.get("/{study_id}/run-config-formdata")
 def get_run_config_formdata(study_id: StudyID):
     """Returns previous lai selection - cropmasks to display when reloading the form in the frontend."""
@@ -844,24 +877,6 @@ def get_result_timepoints(study_id: StudyID):
     return {"timepoints": years}
 
 
-@router.get("/{study_id}/map-result/{year}/{timepoint}/{resource}")
-def get_map_resource(study_id: StudyID, year: int, timepoint: str, resource: str):
-    base_path = (
-        Path(studies_dir) / study_id / "snakemake" / "result_maps" / str(year) / str(timepoint) / "interactive_map"
-    )
-    file_path = base_path / resource
-
-    try:
-        resolved_path = file_path.resolve(strict=False)
-        # Prevent traversal attacks
-        if not resolved_path.is_file() or not str(resolved_path).startswith(str(base_path.resolve())):
-            raise HTTPException(status_code=403, detail="Invalid resource path.")
-    except Exception:
-        raise HTTPException(status_code=403, detail="Invalid resource path.")
-
-    return FileResponse(resolved_path)
-
-
 # Pixel-level yield mosaics are COGs (tiled + internal overviews), and Starlette's
 # FileResponse serves HTTP range requests, so the browser reads only the tiles it needs.
 # No server-side tiler required.
@@ -918,38 +933,6 @@ def get_report(study_id: StudyID, year: int, timepoint: str):
     if not os.path.isfile(report_path):
         raise HTTPException(status_code=404, detail="Report not found")
     return FileResponse(report_path, filename=Path(report_path).name)
-
-
-@router.get("/{study_id}/map-result/{year}/{timepoint}")
-def get_map_results(study_id: StudyID, year: int, timepoint: str):
-    map_zip_candidates = glob(
-        os.path.join(studies_dir, study_id, study_id, str(year), str(timepoint), "interactive_map_*.zip")
-    )
-    if len(map_zip_candidates) != 1:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Excepted to find a single matching entry containing interactive_map_*.zip. Found {len(map_zip_candidates)}",
-        )
-
-    target_dir = (
-        Path(studies_dir) / study_id / "snakemake" / "result_maps" / str(year) / str(timepoint) / "interactive_map"
-    )
-    with zipfile.ZipFile(map_zip_candidates[0]) as z:
-        z.extractall(target_dir)
-
-    map_path = os.path.join(target_dir, "vercye_results_map.html")
-    if not os.path.exists(map_path):
-        raise HTTPException(status_code=404, detail="No result map avilable.")
-
-    with open(map_path, "r") as f:
-        content = f.read()
-        new_path_base = f"/api/studies/{study_id}/map-result/{year}/{timepoint}"
-        # Replace imagery relative path
-        content = content.replace(
-            "img.src = props.simulationsImgPath;",
-            f"img.src = `{new_path_base}/${{props.simulationsImgPath}}`",
-        )
-        return HTMLResponse(content=content)
 
 
 @router.get("/{study_id}/multiyear-report/assets/{asset_path:path}")
@@ -1188,66 +1171,6 @@ def get_run_report(study_id: StudyID, run_id: RunID, year: int, timepoint: str):
             detail=f"Expected to find one final report, found {len(report_candidates)}",
         )
     return FileResponse(report_candidates[0], filename=report_candidates[0].name)
-
-
-@router.get("/{study_id}/runs/{run_id}/map-result/{year}/{timepoint}/{resource}")
-def get_run_map_resource(study_id: StudyID, run_id: RunID, year: int, timepoint: str, resource: str):
-    base_path = (
-        Path(studies_dir)
-        / study_id
-        / "snakemake"
-        / "run_maps"
-        / run_id
-        / str(year)
-        / str(timepoint)
-        / "interactive_map"
-    )
-    file_path = base_path / resource
-    try:
-        resolved_path = file_path.resolve(strict=False)
-        if not resolved_path.is_file() or not str(resolved_path).startswith(str(base_path.resolve())):
-            raise HTTPException(status_code=403, detail="Invalid resource path.")
-    except Exception:
-        raise HTTPException(status_code=403, detail="Invalid resource path.")
-    return FileResponse(resolved_path)
-
-
-@router.get("/{study_id}/runs/{run_id}/map-result/{year}/{timepoint}")
-def get_run_map_result(study_id: StudyID, run_id: RunID, year: int, timepoint: str):
-    run_dir = _ensure_run_dir(study_id, run_id)
-    map_zip_candidates = list((run_dir / str(year) / str(timepoint)).glob("interactive_map_*.zip"))
-    if len(map_zip_candidates) != 1:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Expected to find a single interactive_map_*.zip, found {len(map_zip_candidates)}",
-        )
-
-    target_dir = (
-        Path(studies_dir)
-        / study_id
-        / "snakemake"
-        / "run_maps"
-        / run_id
-        / str(year)
-        / str(timepoint)
-        / "interactive_map"
-    )
-    target_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(map_zip_candidates[0]) as z:
-        z.extractall(target_dir)
-
-    map_path = target_dir / "vercye_results_map.html"
-    if not map_path.exists():
-        raise HTTPException(status_code=404, detail="No result map available.")
-
-    with open(map_path, "r") as f:
-        content = f.read()
-        new_path_base = f"/api/studies/{study_id}/runs/{run_id}/map-result/{year}/{timepoint}"
-        content = content.replace(
-            "img.src = props.simulationsImgPath;",
-            f"img.src = `{new_path_base}/${{props.simulationsImgPath}}`",
-        )
-        return HTMLResponse(content=content)
 
 
 @router.get("/{study_id}/runs/{run_id}/multiyear-report/assets/{asset_path:path}")

@@ -8,6 +8,7 @@ import type {
   RunConfigFormParams,
   StudyRun,
   RunID,
+  RunSummary,
 } from '@/types';
 import { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 
@@ -27,6 +28,10 @@ export const StudiesAPI = {
 
   runConfig: (id: StudyId) =>
     http.get<Blob>(`/studies/${id}/run-config`),
+
+  /** What a run of this study will do, for the confirmation dialog. */
+  runSummary: (id: StudyId) =>
+    http.get<RunSummary>(`/studies/${id}/run-summary`),
 
   runConfigStatus: (id: StudyId) =>
     http.get<RunConfigStatusResponse>(`/studies/${id}/run-config-status`),
@@ -132,9 +137,6 @@ export const StudiesAPI = {
   resultTimepoints: (id: StudyId) =>
     http.get<{ timepoints: Record<string, string[]> }>(`/studies/${id}/result-timepoints`),
 
-  mapResultUrl: (id: StudyId, year: string, timepoint: string) =>
-    `/api/studies/${id}/map-result/${year}/${timepoint}`,
-
   studyYears: (id: StudyId) =>
     http.get<number[]>(`/studies/${id}/required-years`),
 
@@ -158,8 +160,6 @@ export const StudiesAPI = {
     runReport: (id: StudyId, runId: RunID, year: string, timepoint: string) =>
       http.download(`/studies/${id}/runs/${runId}/report/${year}/${timepoint}`),
 
-    runMapUrl: (id: StudyId, runId: RunID, year: string, timepoint: string) =>
-      `/api/studies/${id}/runs/${runId}/map-result/${year}/${timepoint}`,
 
     runMultiyearUrl: (id: StudyId, runId: RunID) =>
       `/api/studies/${id}/runs/${runId}/multiyear-report`,
