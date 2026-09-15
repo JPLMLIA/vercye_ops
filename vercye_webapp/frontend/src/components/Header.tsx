@@ -1,5 +1,6 @@
 
 import { NavLink } from 'react-router-dom';
+import nasaHarvestLogo from '@/assets/nasa-harvest.png';
 
 const Header = () => {
   return (
@@ -7,7 +8,8 @@ const Header = () => {
       <div className="container-inner">
         <div className="title-container">
           <div className="title-left">
-            <h1 className="title">Vercye Dashboard</h1>
+            <img src={nasaHarvestLogo} alt="NASA Harvest" className="header-logo" />
+            <h1 className="title">VeRCYe: Yield-Prediction Dashboard</h1>
             <div className="help-icon">
               <button className="help-button">?</button>
               <div className="help-tooltip">Help coming soon.</div>

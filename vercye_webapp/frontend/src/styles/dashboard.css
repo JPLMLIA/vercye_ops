@@ -56,6 +56,7 @@ p { font-size: 14px; }
 .subtitle { color: var(--light-grey); font-size: 14px; }
 .title-container { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 .title-left { display: flex; align-items: center; gap: 10px; }
+.header-logo { height: 56px; width: auto; display: block; flex: 0 0 auto; }
 
 .navbar-nav { display: flex; list-style: none; gap: 0; margin: 0; padding: 0; align-items: center; }
 .nav-item { margin: 0; }

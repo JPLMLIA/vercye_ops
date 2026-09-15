@@ -104,6 +104,65 @@ def get_contrasting_text_color(rgb):
     return "black" if brightness > 0.5 else "white"
 
 
+
+def _place_region_labels(ax, merged, cmap, norm, fontsize=7, max_regions=300):
+    """Label each region, but only where the text actually fits inside its polygon.
+
+    The previous behaviour was all-or-nothing (label every region, or none above a
+    count threshold), which left dense clusters of small geometries unreadable.
+    matplotlib has no built-in decluttering, so measure the rendered text extent
+    against the polygon's own extent in display space and degrade gracefully:
+    full label -> value only -> no label.
+
+    Placement uses representative_point() rather than centroid: for concave or
+    multipart geometries the centroid can fall outside the polygon entirely.
+    """
+    if len(merged) > max_regions:
+        logger.info("Skipping region labels: %d regions exceeds the %d cap.", len(merged), max_regions)
+        return 0, len(merged)
+
+    fig = ax.figure
+    fig.canvas.draw()  # a renderer is required before text extents can be measured
+    renderer = fig.canvas.get_renderer()
+
+    placed = skipped = 0
+    for _, row in merged.iterrows():
+        geom = row["geometry"]
+        if geom is None or geom.is_empty:
+            skipped += 1
+            continue
+
+        point = geom.representative_point()
+        minx, miny, maxx, maxy = geom.bounds
+        (x0, y0), (x1, y1) = ax.transData.transform([(minx, miny), (maxx, maxy)])
+        poly_w, poly_h = abs(x1 - x0), abs(y1 - y0)
+
+        text_color = get_contrasting_text_color(cmap(norm(row["mean_yield_kg_ha"])))
+        value = safe_int(row["mean_yield_kg_ha"])
+
+        for candidate in (f"{row['region']}\n{value}", f"{value}"):
+            label = ax.text(
+                point.x,
+                point.y,
+                candidate,
+                horizontalalignment="center",
+                verticalalignment="center",
+                fontsize=fontsize,
+                weight="bold",
+                color=text_color,
+            )
+            bbox = label.get_window_extent(renderer=renderer)
+            if bbox.width <= poly_w and bbox.height <= poly_h:
+                placed += 1
+                break
+            label.remove()
+        else:
+            skipped += 1
+
+    logger.info("Region labels: %d placed, %d omitted (too small at this scale).", placed, skipped)
+    return placed, skipped
+
+
 def create_map(regions_summary, combined_geojson):
     # Merge geometry with summary data
     combined_geojson["region"] = combined_geojson["region"].astype(str)
@@ -135,22 +194,8 @@ def create_map(regions_summary, combined_geojson):
         ax=ax,
     )
 
-    # Add region labels with dynamic contrast adjustment if not too many regions
-    if len(merged) < 70:
-        for idx, row in merged.iterrows():
-            centroid = row["geometry"].centroid
-            color_rgb = cmap(norm(row["mean_yield_kg_ha"]))
-            text_color = get_contrasting_text_color(color_rgb)
-
-            ax.text(
-                x=centroid.x,
-                y=centroid.y,
-                s=f"{row['region']} \n {safe_int(row['mean_yield_kg_ha'])}",
-                horizontalalignment="center",
-                fontsize=7,
-                weight="bold",
-                color=text_color,
-            )
+    # Add region labels, dropping any that cannot fit inside their own polygon.
+    _place_region_labels(ax, merged, cmap, norm)
 
     ax.set_title("Crop Productivity Overview - Estimated Mean Yield (kg/ha) per Region", fontsize=16)
     ax.axis("off")
@@ -229,6 +274,73 @@ def convert_geotiff_to_png_with_legend(geotiff_path, output_png_path, width=3840
     fig.savefig(output_png_path, format="PNG", bbox_inches="tight", dpi=400)
     plt.close(fig)
     return output_png_path
+
+
+LAI_PLOT_COLUMN_PREFERENCE = [
+    "LAI Median Adjusted",
+    "LAI Median",
+    "LAI Mean Adjusted",
+    "LAI Mean",
+]
+
+
+def create_level_lai_plot(regions_dir, section_name):
+    """Render the observed LAI timeseries for one aggregation level.
+
+    Reads agg_lai_timeseries_{level}_*.csv (written by
+    aggregate_lai_timeseries_per_level) and draws one thin line per region plus a
+    bold level-mean, so a level with 47 counties stays readable. Returns the PNG
+    path, or None when there is no timeseries for this level (e.g. the primary
+    simulation level, which has no aggregation shapefile).
+    """
+    pattern = op.join(regions_dir, f"agg_lai_timeseries_{section_name}_*.csv")
+    prefix = f"agg_lai_timeseries_{section_name}_"
+    matches = [f for f in glob.glob(pattern) if op.basename(f).startswith(prefix)]
+    if not matches:
+        logger.info("No aggregated LAI timeseries found for level '%s'; skipping its LAI plot.", section_name)
+        return None
+
+    df = pd.read_csv(matches[0])
+    column = next((c for c in LAI_PLOT_COLUMN_PREFERENCE if c in df.columns), None)
+    if column is None or df.empty:
+        logger.warning("LAI timeseries for level '%s' has no usable LAI column or no rows.", section_name)
+        return None
+
+    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
+    df = df.dropna(subset=["Date", column]).sort_values("Date")
+    if df.empty:
+        logger.warning("LAI timeseries for level '%s' has no valid rows after parsing.", section_name)
+        return None
+
+    regions = list(dict.fromkeys(df["region"]))
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    for region in regions:
+        sub = df[df["region"] == region]
+        ax.plot(sub["Date"], sub[column], linewidth=0.9, alpha=0.45, label=region)
+
+    level_mean = df.groupby("Date")[column].mean()
+    ax.plot(level_mean.index, level_mean.values, linewidth=2.4, color="black", label="Level mean")
+
+    ax.set_xlabel("Date")
+    ax.set_ylabel(column)
+    ax.set_title(f"Observed LAI timeseries - {section_name}")
+    ax.grid(alpha=0.25)
+    # A legend only helps while the entries are individually distinguishable.
+    if len(regions) <= 8:
+        ax.legend(fontsize=7, ncol=2)
+    else:
+        ax.text(
+            0.99, 0.97, f"{len(regions)} regions", transform=ax.transAxes,
+            ha="right", va="top", fontsize=8, color="0.35",
+        )
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    out_path = op.join(regions_dir, f"lai_timeseries_{section_name}.png")
+    fig.savefig(out_path, dpi=200)
+    plt.close(fig)
+    logger.info("Wrote LAI timeseries plot for level '%s' (%d regions).", section_name, len(regions))
+    return out_path
 
 
 def build_section_params(
@@ -316,6 +428,7 @@ def build_section_params(
         "apsim_evaluation_results": apsim_evaluation_results,
         "apsim_scatter_plot_path": apsim_scatter_plot_path,
         "reference_yield_agg": reference_yield_agg,
+        "lai_timeseries_plot_path": create_level_lai_plot(regions_dir, section_name),
     }
 
     return section_params
@@ -352,6 +465,7 @@ def fill_section_template(
     reference_yield_agg,
     apsim_evaluation_results=None,
     apsim_scatter_plot_path=None,
+    lai_timeseries_plot_path=None,
 ):
     crop_name = crop_name.lower().capitalize()
     section_name = section_name if section_name != primary_suffix else "Simulation"
@@ -433,6 +547,11 @@ def fill_section_template(
         """
 
     html_content += f'<img src="{vector_yield_map_path}" class="margin-img" alt="Estimated Yield Map">'
+    if lai_timeseries_plot_path:
+        html_content += (
+            "<h3 style='-pdf-keep-with-next: true;'>Observed LAI timeseries</h3>"
+            f'<img src="{lai_timeseries_plot_path}" class="margin-img" alt="Observed LAI timeseries">'
+        )
 
     has_apsim_cols = "mean_yield_kg_ha_apsim" in regions_summary.columns
 
@@ -467,11 +586,11 @@ def fill_section_template(
                         <td>{safe_int(row['median_yield_kg_ha'])}</td>
                         {f'<td>{safe_int(row["mean_yield_kg_ha_apsim"])}</td>' if has_apsim_cols else ''}
                         {f'<td>{safe_int(row["reported_mean_yield_kg_ha"]) if not pd.isna(row["reported_mean_yield_kg_ha"]) else "N/A"}</td>' if 'reported_mean_yield_kg_ha' in row else ''}
-                        <td>{'{:,}'.format(row['total_production_ton'])}</td>
-                        {f'<td>{"{:,.3f}".format(row["total_production_ton_apsim"]) if not pd.isna(row["total_production_ton_apsim"]) else "N/A"}</td>' if 'total_production_ton_apsim' in row else ''}
-                        {f'<td>{"{:,.2f}".format((row["reported_production_kg"] / 1000)) if not pd.isna(row["reported_production_kg"]) else "N/A"}</td>' if 'reported_production_kg' in row else ''}
+                        <td>{'{:,.0f}'.format(row['total_production_ton'])}</td>
+                        {f'<td>{"{:,.0f}".format(row["total_production_ton_apsim"]) if not pd.isna(row["total_production_ton_apsim"]) else "N/A"}</td>' if 'total_production_ton_apsim' in row else ''}
+                        {f'<td>{"{:,.0f}".format((row["reported_production_kg"] / 1000)) if not pd.isna(row["reported_production_kg"]) else "N/A"}</td>' if 'reported_production_kg' in row else ''}
                         {f'<td>{safe_int(row["mean_err_kg_ha"]) if not pd.isna(row["mean_err_kg_ha"]) else "N/A"}</td>' if 'mean_err_kg_ha' in row else ''}
-                        <td>{"{:,.2f}".format(row['total_area_ha'])}</td>
+                        <td>{"{:,.0f}".format(row['total_area_ha'])}</td>
                     </tr>
         """
 
@@ -586,10 +705,10 @@ def generate_final_report(sections, global_summary, metadata, met_config, aggreg
             <strong>Estimated Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_yield_kg'])} kg/ha</br>
             {f"<strong>APSIM Yield (Weighted Mean):</strong> {safe_int(global_summary['apsim_mean_yield_kg'])} kg/ha</br>" if global_summary.get('apsim_mean_yield_kg') is not None else ''}
             {f"<strong>Reported Yield (Weighted Mean):</strong> {safe_int(global_summary['mean_reported_yield_kg'])} kg/ha (from {num_available_regions_yield}/{num_regions} regions)</br>" if global_summary['mean_reported_yield_kg'] is not None else ''}
-            <strong>Estimated Total Production:</strong> {'{:,.3f}'.format(global_summary['total_production_ton'])} t</br>
-            {f"<strong>APSIM Total Production:</strong> {'{:,.3f}'.format(global_summary['apsim_total_production_ton'])} t</br>" if global_summary.get('apsim_total_production_ton') is not None else ''}
-            {f"<strong>Reference Total Production:</strong> {'{:,.3f}'.format(global_summary['reported_total_production_ton'])} t (from {num_available_regions_production}/{num_regions} regions)</br>" if global_summary['reported_total_production_ton'] is not None else ''}
-            <strong>Total {crop_name} Area:</strong> {'{:,.2f}'.format(global_summary['total_area_ha'])} ha</p>
+            <strong>Estimated Total Production:</strong> {'{:,.0f}'.format(global_summary['total_production_ton'])} t</br>
+            {f"<strong>APSIM Total Production:</strong> {'{:,.0f}'.format(global_summary['apsim_total_production_ton'])} t</br>" if global_summary.get('apsim_total_production_ton') is not None else ''}
+            {f"<strong>Reference Total Production:</strong> {'{:,.0f}'.format(global_summary['reported_total_production_ton'])} t (from {num_available_regions_production}/{num_regions} regions)</br>" if global_summary['reported_total_production_ton'] is not None else ''}
+            <strong>Total {crop_name} Area:</strong> {'{:,.0f}'.format(global_summary['total_area_ha'])} ha</p>
 
             <img src="{aggregated_yield_map_preview_path}" class="margin-img" alt="Estimated Yield per Pixel Map">
 
@@ -651,8 +770,19 @@ def create_final_report(input, output, params, log, wildcards):
     for suffix, admin_column_name in aggregationsuffix_admincol.items():
         # Collect predictions
         # The aggregated yield estimates files have the additional suffix of study id year, timepoint so we use wildcards to match
+        # Pin the level name by requiring the study_id to follow it immediately: a bare
+        # f"agg_yield_estimates_{suffix}_*.csv" glob also matches any level whose name
+        # starts with this one (e.g. "ADM1" matching the "ADM1_ThreeCounties" file), and
+        # taking matching_files[0] would then build this level's section from another
+        # level's numbers with nothing raised.
         aggregated_yield_estimates_patttern = os.path.join(regions_dir, f"agg_yield_estimates_{suffix}_*.csv")
-        matching_files = glob.glob(aggregated_yield_estimates_patttern)
+        _prefix = f"agg_yield_estimates_{suffix}_{metadata['study_id']}_"
+        matching_files = [f for f in glob.glob(aggregated_yield_estimates_patttern)
+                          if os.path.basename(f).startswith(_prefix)]
+        if len(matching_files) > 1:
+            raise ValueError(
+                f"Multiple aggregated yield estimates files matched level '{suffix}': {matching_files}"
+            )
         aggregated_yield_estimates_path = matching_files[0] if matching_files else None
 
         if aggregated_yield_estimates_path is None:
