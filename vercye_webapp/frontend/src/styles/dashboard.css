@@ -1,83 +1,151 @@
-
-/* Styles consolidated from original dashboards to preserve look & feel */
-/* Source: study_dashboard.html and lai_dashboard.html */
+/* VeRCYe dashboard styling.
+ *
+ * Design system ported from RAAPID-ORG/stacnotator (develop): a warm, papery,
+ * low-contrast palette on an off-white canvas, muted forest-green brand, white
+ * surfaces with hairline borders and barely-there shadows, Inter throughout.
+ * The old variable names are kept and remapped onto the new palette so every
+ * existing rule inherits the new look.
+ */
 :root {
-    --primary: #4d688c;
-    --primary-hover: #2c5282;
-    --primary-light: #56749c;
-    --success: #38a169;
-    --success-hover: #2f855a;
-    --danger: #e53e3e;
-    --danger-hover: #c53030;
-    --warning: #d69e2e;
-    --warning-hover: #b7791f;
-    --blue: #4299e1;
-    --blue-light: #63b3ed;
-    --red: #e53e3e;
-    --red-dark: #c53030;
-    --gray-50: #f7fafc;
-    --gray-100: #edf2f7;
-    --gray-200: #e2e8f0;
-    --gray-300: #cbd5e0;
-    --gray-500: #718096;
-    --gray-700: #4a5568;
-    --gray-900: #2d3748;
-    --dark-primary: #324e47;
-    --dark-gray: #4a5568;
-    --light-grey: #718096;
-    --dark-white: #f7fafc;
+    /* Canvas - warm off-white, not blue-grey. Everything sits on this. */
+    --canvas: rgb(247 246 245);
+
+    /* Brand: muted forest green */
+    --brand-50: rgb(236 247 242);
+    --brand-100: rgb(211 232 224);
+    --brand-200: rgb(171 210 195);
+    --brand-400: rgb(90 153 125);
+    --brand-500: rgb(65 120 93);
+    --brand-600: rgb(50 98 71);
+    --brand-700: rgb(39 77 56);
+    --brand-800: rgb(28 56 41);
+
+    /* Warm neutrals */
+    --neutral-900: rgb(18 18 17);
+    --neutral-800: rgb(28 28 26);
+    --neutral-700: rgb(37 36 35);
+    --neutral-600: rgb(77 75 73);
+    --neutral-500: rgb(118 115 111);
+    --neutral-400: rgb(162 159 155);
+    --neutral-300: rgb(206 204 202);
+    --neutral-200: rgb(218 217 216);
+    --neutral-100: rgb(237 236 235);
+    --neutral-50:  rgb(247 246 245);
+
+    /* Muted feedback colours - terracotta, ochre, sage, slate-blue */
+    --success: rgb(66 128 88);
+    --success-hover: rgb(52 105 70);
+    --danger: rgb(163 84 68);
+    --danger-hover: rgb(140 66 53);
+    --warning: rgb(163 136 58);
+    --warning-hover: rgb(136 112 42);
+    --info: rgb(82 118 170);
+
+    /* Legacy names remapped, so existing rules pick up the new palette. */
+    --primary: rgb(50 98 71);
+    --primary-hover: rgb(39 77 56);
+    --primary-light: rgb(90 153 125);
+    --blue: rgb(82 118 170);
+    --blue-light: rgb(116 148 196);
+    --red: rgb(163 84 68);
+    --red-dark: rgb(140 66 53);
+    --gray-50: rgb(247 246 245);
+    --gray-100: rgb(237 236 235);
+    --gray-200: rgb(218 217 216);
+    --gray-300: rgb(206 204 202);
+    --gray-500: rgb(118 115 111);
+    --gray-700: rgb(77 75 73);
+    --gray-900: rgb(18 18 17);
+    --dark-primary: rgb(28 56 41);
+    --dark-gray: rgb(77 75 73);
+    --light-grey: rgb(118 115 111);
+    --dark-white: rgb(247 246 245);
     --white: #ffffff;
+
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08);
+    --shadow-lg: 0 10px 30px rgb(0 0 0 / 0.12);
+
+    --sidebar-w: 190px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    font-family: "Merriweather", serif;
-    background: #f9f9f9;
-    color: var(--gray-900);
-    line-height: 1.5;
+    padding-left: var(--sidebar-w);
+    font-family: var(--font-sans);
+    background: var(--canvas);
+    color: var(--neutral-900);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
+h1, h2, h3, h4, h5, h6 { letter-spacing: -0.01em; font-weight: 600; }
 p { font-size: 14px; }
 
-.container { max-width: 1200px; margin: 0 auto; padding: 0 2rem 2rem; }
-.header .container-inner { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+/* The shell is a fixed left rail plus a scrolling content column, as in
+   stacnotator - not a full-width banner above the page. */
+.container {
+    max-width: 1280px;
+    margin-inline: auto;
+    padding: 1.75rem 1.5rem 3rem;
+}
 
-.header {
+.sidebar {
+    position: fixed; inset-block: 0; left: 0; width: var(--sidebar-w); z-index: 50;
+    display: flex; flex-direction: column;
     background: var(--white);
-    padding: 2rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    margin: 0 0 2rem 0;
-    border: 1px solid var(--gray-200);
-    width: 100vw;
-    margin-left: calc(50% - 50vw);
-    border-radius: 0;
+    border-right: 1px solid var(--neutral-200);
 }
-.title { font-size: 2rem; font-weight: 400; color: var(--dark-primary); font-family: "Roboto", sans-serif; margin-bottom: 0.5rem; }
-.subtitle { color: var(--light-grey); font-size: 14px; }
-.title-container { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-.title-left { display: flex; align-items: center; gap: 10px; }
-.header-logo { height: 56px; width: auto; display: block; flex: 0 0 auto; }
+.sidebar-head {
+    display: flex; align-items: center; gap: 0.375rem; min-width: 0;
+    padding: 0.5rem 0.625rem; min-height: 3rem;
+    border-bottom: 1px solid var(--neutral-200);
+}
+.sidebar-logo { height: 32px; width: 32px; object-fit: contain; flex: 0 0 auto; }
+.sidebar-wordmark { min-width: 0; line-height: 1.2; }
+.sidebar-name {
+    display: block; max-width: 100%; font-size: 14px; font-weight: 600;
+    color: var(--neutral-900); letter-spacing: -0.01em; line-height: 1.2;
+    background: none; border: none; padding: 0; cursor: pointer;
+    text-align: left; font-family: inherit;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: color .15s ease;
+}
+.sidebar-name:hover { color: var(--brand-700); }
+.sidebar-wordmark { min-width: 0; line-height: 1.2; }
+/* stacnotator: 10px, neutral-500, the link darkening and underlining on hover. */
+.sidebar-by {
+    display: block; font-size: 10px; line-height: 1.3; color: var(--neutral-500);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar-by-link { color: inherit; text-decoration: none; }
+.sidebar-by-link:hover { color: var(--neutral-800); text-decoration: underline; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 0.6rem 0.5rem; }
+.sidebar-foot { margin-top: auto; padding: 0.75rem; border-top: 1px solid var(--neutral-100); font-size: 10px; color: var(--neutral-400); }
 
-.navbar-nav { display: flex; list-style: none; gap: 0; margin: 0; padding: 0; align-items: center; }
-.nav-item { margin: 0; }
 .nav-link {
-    display: flex; align-items: center; padding: 0.75rem 1.25rem; color: var(--light-grey);
-    text-decoration: none; font-family: "Roboto", sans-serif; font-weight: 500; font-size: 14px;
-    transition: all 0.3s ease; position: relative; border-radius: 8px; margin: 0 0.25rem;
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.4rem 0.6rem; border-radius: var(--radius-md);
+    color: var(--neutral-600); text-decoration: none;
+    font-size: 13px; font-weight: 400;
+    transition: background-color .15s ease, color .15s ease;
 }
-.nav-link:hover { color: var(--primary); background: rgba(77, 104, 140, 0.08); transform: translateY(-1px); }
-.nav-link.active { color: var(--primary); background: rgba(77, 104, 140, 0.12); font-weight: 600; }
-.nav-link.active::after {
-    content: ''; position: absolute; bottom: 0; left: 1.25rem; right: 1.25rem; height: 2px;
-    background: var(--primary); border-radius: 1px;
-}
+.nav-link:hover { color: var(--neutral-900); background: var(--neutral-100); }
+.nav-link.active { color: var(--brand-800); background: var(--brand-50); font-weight: 500; }
 
-@media (max-width: 768px) {
-    .title-container { flex-direction: column; align-items: flex-start; gap: 1rem; }
-    .navbar-nav { align-self: flex-end; }
-    .nav-link { padding: 0.5rem 1rem; font-size: 13px; }
-    .nav-link.active::after { left: 1rem; right: 1rem; }
-}
+.page-header { margin-bottom: 1.25rem; }
+.title { font-size: 1.5rem; font-weight: 600; color: var(--neutral-900); letter-spacing: -0.01em; line-height: 1.2; }
+.subtitle { color: var(--neutral-500); font-size: 0.875rem; margin-top: 0.25rem; }
+
 @media (max-width: 480px) {
     .nav-link { padding: 0.5rem 0.75rem; margin: 0 0.125rem; }
 }
@@ -397,12 +465,13 @@ p { font-size: 14px; }
 }
 /* Archived-runs grid (replaces the old runs-table).
  * Each row is a CSS grid so align-items: center reliably centers every
- * cell — no table-cell / vertical-align quirks. */
+ * cell - no table-cell / vertical-align quirks. */
 .runs-grid { width: 100%; font-size: 13px; }
 .runs-grid-head,
 .runs-grid-row {
   display: grid;
-  grid-template-columns: 36px minmax(160px, 1.4fr) minmax(160px, 1fr) minmax(110px, 0.7fr) minmax(320px, 2.4fr);
+  /* toggle | created | run | results - the file count moved into the Download tooltip */
+  grid-template-columns: 36px minmax(160px, 1.3fr) minmax(170px, 1fr) minmax(340px, 2.6fr);
   column-gap: 14px;
   align-items: center;
 }
@@ -600,3 +669,701 @@ p { font-size: 14px; }
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+
+/* ================================================================== */
+/* Actions column: one row of icon buttons                            */
+/* ================================================================== */
+.actions-cell { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.btn-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; width: 32px; height: 32px; flex: 0 0 auto; line-height: 1;
+}
+.btn-icon svg { pointer-events: none; }
+.btn-icon.btn-part1 { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+/* ================================================================== */
+/* Map views (results + cropmask). Same card/typography language as    */
+/* the rest of the dashboard: white surfaces, gray-200 borders, soft   */
+/* shadow, Roboto for controls, the --primary blue for active state.   */
+/* ================================================================== */
+/* The map is a workspace, not a page: it takes the whole viewport, over the
+   sidebar too, and carries its own back control in the toolbar. `fixed` is
+   relative to the viewport, so it escapes the shell's left padding. */
+.results-map-page, .cropmask-viewer {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    background: var(--canvas);
+}
+
+.map-toolbar {
+    display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+    padding: 0.85rem 1.25rem;
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    font-family: "Roboto", sans-serif;
+}
+.map-toolbar-back {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; padding: 0; flex: 0 0 auto;
+}
+.map-toolbar-title {
+    margin-right: auto; display: flex; align-items: baseline; gap: 0.6rem;
+    font-family: "Roboto", sans-serif; color: var(--dark-primary); font-size: 1.05rem;
+}
+.map-toolbar-run { font-size: 12px; color: var(--light-grey); font-weight: 400; }
+.map-toolbar-group { display: flex; align-items: center; gap: 0.45rem; }
+.map-toolbar-label {
+    font-size: 11px; color: var(--light-grey); text-transform: uppercase;
+    letter-spacing: .06em; font-weight: 500; white-space: nowrap;
+}
+.map-toolbar-select {
+    height: 32px; padding: 2px 8px; width: auto; min-width: 96px;
+    font-family: "Roboto", sans-serif; font-size: 13px;
+}
+.map-toolbar-opacity { width: 88px; accent-color: var(--primary); }
+.map-toolbar-status { font-size: 12px; color: var(--light-grey); min-width: 58px; }
+.map-toolbar-status.busy { color: var(--primary); font-weight: 500; }
+.map-toolbar-label input[type="checkbox"] { vertical-align: middle; margin-right: 4px; accent-color: var(--primary); }
+
+.map-error {
+    padding: 0.7rem 1.25rem; background: #fff5f5; color: var(--red-dark);
+    font-size: 13px; border-bottom: 1px solid var(--gray-200);
+}
+
+.results-map-body { position: relative; flex: 1 1 auto; min-height: 0; }
+.results-map-canvas { position: absolute; inset: 0; }
+/* Leaflet defaults are a different typeface and heavier than this dashboard. */
+.results-map-canvas .leaflet-container { font-family: "Roboto", sans-serif; background: var(--gray-50); }
+.results-map-canvas .leaflet-control-layers,
+.results-map-canvas .leaflet-bar {
+    border: 1px solid var(--gray-200); border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.results-map-canvas .leaflet-bar a { color: var(--gray-700); }
+
+.map-legend {
+    position: absolute; left: 16px; bottom: 26px; z-index: 900;
+    background: rgba(255,255,255,.96);
+    border: 1px solid var(--gray-200); border-radius: 10px;
+    padding: 0.7rem 0.85rem; font-size: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.10); min-width: 190px;
+    font-family: "Roboto", sans-serif;
+}
+.map-legend-title { font-weight: 500; margin-bottom: 0.45rem; color: var(--dark-primary); }
+.map-legend-bar { height: 10px; border-radius: 3px; border: 1px solid var(--gray-300); }
+.map-legend-scale { display: flex; justify-content: space-between; margin-top: 4px; color: var(--gray-700); font-variant-numeric: tabular-nums; }
+.map-legend-note { margin-top: 6px; color: var(--light-grey); }
+.map-legend-nodata { margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--gray-700); }
+.map-legend-swatch { width: 12px; height: 12px; border: 1px solid var(--gray-300); border-radius: 3px; display: inline-block; }
+
+.region-panel {
+    position: absolute; top: 16px; right: 16px; bottom: 16px; width: 340px; max-width: 42%;
+    z-index: 900; background: var(--white);
+    border: 1px solid var(--gray-200); border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-family: "Roboto", sans-serif;
+}
+.region-panel-head {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--gray-100);
+}
+.region-panel-title {
+    font-weight: 500; font-size: 14px; color: var(--dark-primary); flex: 1 1 auto;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.region-panel-table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.region-panel-table th { text-align: left; font-weight: 400; color: var(--gray-700); padding: 6px 14px; }
+.region-panel-table td { text-align: right; padding: 6px 14px; font-variant-numeric: tabular-nums; color: var(--gray-900); }
+.region-panel-table tr:nth-child(odd) { background: var(--gray-50); }
+.region-panel-plot { padding: 0.7rem 0.9rem; overflow: auto; }
+.region-panel-plot img { width: 100%; height: auto; border: 1px solid var(--gray-100); border-radius: 6px; }
+.region-panel-empty { padding: 0.9rem; color: var(--light-grey); font-size: 13px; }
+
+.cropmask-slider { flex: 1 1 300px; max-width: 440px; }
+.cropmask-slider input[type="range"] { flex: 1 1 auto; min-width: 110px; accent-color: var(--primary); }
+.cropmask-month { font-size: 12px; color: var(--gray-900); min-width: 78px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px) {
+    .region-panel { left: 16px; width: auto; max-width: none; top: auto; height: 46%; }
+    .map-legend { bottom: calc(46% + 20px); }
+}
+
+/* ================================================================== */
+/* Component alignment with the stacnotator design language.          */
+/* Flat surfaces, hairline borders, restrained motion: controls should */
+/* not lift, glow or cast coloured shadows on hover.                   */
+/* ================================================================== */
+
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid transparent; border-radius: var(--radius-md);
+    font-family: var(--font-sans); font-weight: 500; font-size: 13px; line-height: 1.4;
+    cursor: pointer; text-decoration: none;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 1px; }
+
+/* No translate/box-shadow on hover - the old buttons jumped and threw a coloured glow. */
+.btn-primary { background: var(--brand-600); color: #fff; border-color: var(--brand-600); }
+.btn-primary:hover:not(:disabled) { background: var(--brand-700); border-color: var(--brand-700); transform: none; box-shadow: none; }
+.btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+.btn-success:hover:not(:disabled) { background: var(--success-hover); border-color: var(--success-hover); transform: none; box-shadow: none; }
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); border-color: var(--danger-hover); transform: none; box-shadow: none; }
+.btn-secondary { background: var(--white); color: var(--neutral-700); border-color: var(--neutral-200); box-shadow: var(--shadow-sm); }
+.btn-secondary:hover:not(:disabled) { background: var(--neutral-50); color: var(--neutral-900); border-color: var(--neutral-300); }
+.btn-sm { padding: 0.35rem 0.65rem; font-size: 12.5px; border-radius: var(--radius-md); }
+.btn-xs { padding: 0.25rem 0.5rem; font-size: 11.5px; border-radius: var(--radius-sm); }
+.btn-icon { width: 30px; height: 30px; padding: 0; }
+.btn-delete { color: var(--danger); }
+.btn-delete:hover:not(:disabled) { background: rgb(252 244 241); border-color: rgb(234 196 183); color: var(--danger-hover); }
+
+/* Surfaces: white cards on the warm canvas, hairline border, whisper shadow. */
+.table-container, .runs-panel, .logs-container, .run-config-viewer, .empty-state {
+    background: var(--white);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.table th {
+    background: var(--neutral-50); padding: 0.6rem 0.9rem; font-size: 12px; font-weight: 600;
+    color: var(--neutral-700); letter-spacing: 0.01em;
+    border-bottom: 1px solid var(--neutral-200); font-family: var(--font-sans);
+}
+.table td { padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--neutral-100); font-size: 13px; }
+.table tbody tr:hover { background: var(--neutral-50); }
+.table tbody tr:last-child td { border-bottom: none; }
+
+/* Badges: quiet tinted chips, sentence case rather than shouting uppercase. */
+.status-badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.15rem 0.5rem; border-radius: 999px;
+    font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: 0;
+    font-family: var(--font-sans); border: 1px solid transparent;
+}
+.status-ready      { background: var(--neutral-100); color: var(--neutral-700); border-color: var(--neutral-200); }
+.status-pending    { background: rgb(250 247 235); color: rgb(110 88 32); border-color: rgb(230 216 168); }
+.status-running,
+.status-generating,
+.status-standardizing,
+.status-merging,
+.status-finalizing { background: rgb(244 247 252); color: rgb(50 76 116); border-color: rgb(196 210 238); }
+.status-completed  { background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-200); }
+.status-failed     { background: rgb(252 244 241); color: rgb(115 52 42); border-color: rgb(234 196 183); }
+.status-cancelled  { background: rgb(250 247 235); color: rgb(110 88 32); border-color: rgb(230 216 168); }
+
+.form-label { font-size: 12.5px; font-weight: 500; color: var(--neutral-700); display: block; margin-bottom: 0.3rem; }
+.form-input {
+    width: 100%; padding: 0.45rem 0.6rem; font-size: 13px; font-family: var(--font-sans);
+    color: var(--neutral-900); background: var(--white);
+    border: 1px solid var(--neutral-200); border-radius: var(--radius-md);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-input:focus { outline: none; border-color: var(--brand-400); box-shadow: 0 0 0 3px rgb(65 120 93 / 0.12); }
+
+.modal { background: rgb(18 18 17 / 0.35); backdrop-filter: blur(2px); }
+.modal-content {
+    background: var(--white); border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+}
+.modal-title { font-size: 1.05rem; font-weight: 600; color: var(--neutral-900); letter-spacing: -0.01em; }
+
+.dropdown-menu {
+    background: var(--white); border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-md); padding: 3px;
+}
+.dropdown-item { border-radius: var(--radius-sm); font-size: 12.5px; color: var(--neutral-700); }
+.dropdown-item:hover { background: var(--neutral-100); color: var(--neutral-900); }
+
+.empty-state { padding: 3rem 1.5rem; text-align: center; color: var(--neutral-500); }
+.empty-state h3 { color: var(--neutral-800); font-size: 1rem; margin-bottom: 0.35rem; }
+
+/* Monospaced surfaces use the design system's mono face. */
+.logs-container, .yaml-tree, .yt-key, .yt-value, .yt-raw { font-family: var(--font-mono); }
+
+input[type='radio'], input[type='checkbox'], input[type='range'] { accent-color: var(--brand-500); }
+
+/* Map chrome inherits the same language. */
+.map-toolbar, .region-panel, .map-legend { font-family: var(--font-sans); }
+.map-toolbar { border-bottom: 1px solid var(--neutral-200); }
+.map-toolbar-title { color: var(--neutral-900); font-weight: 600; }
+.map-toolbar-label { color: var(--neutral-500); }
+.map-legend, .region-panel { border-color: var(--neutral-200); box-shadow: var(--shadow-md); }
+.region-panel-title { color: var(--neutral-900); }
+
+@media (max-width: 860px) {
+    /* Rail becomes a top strip so the content column keeps full width. */
+    body { padding-left: 0; }
+    .sidebar { position: static; width: auto; flex-direction: row; align-items: center;
+               border-right: none; border-bottom: 1px solid var(--neutral-200); }
+    .sidebar-nav { flex-direction: row; margin-left: auto; padding: 0.4rem 0.5rem; }
+    .sidebar-foot { display: none; }
+}
+
+/* ================================================================== */
+/* Map chrome, in the stacnotator language.                            */
+/* Floating panels are white-95 with a hairline border, generous radius */
+/* and a soft shadow; controls are small, quiet and tabular.            */
+/* ================================================================== */
+
+.map-toolbar {
+    gap: 1rem; padding: 0.55rem 0.9rem; flex: 0 0 auto;
+    background: var(--white); border-bottom: 1px solid var(--neutral-200);
+    box-shadow: var(--shadow-sm); z-index: 1000;
+}
+.map-toolbar-title { font-size: 0.9rem; }
+.map-toolbar-label { font-size: 10.5px; letter-spacing: 0.04em; }
+/* Height and min-width sized to the longest option ("Yield (LAI-converted)"); the
+   previous 28px/88px clipped both the label and the descender of the year. */
+.map-toolbar-select { height: 32px; line-height: 1.4; font-size: 12.5px; min-width: 104px; max-width: 200px; }
+.map-toolbar-group { flex: 0 0 auto; }
+.map-toolbar-status { font-size: 11px; }
+
+/* Leaflet's own controls, restyled to read as part of the app. */
+.leaflet-control-layers, .leaflet-bar {
+    border: 1px solid var(--neutral-200) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-sm) !important;
+    overflow: hidden;
+}
+.leaflet-bar a { color: var(--neutral-600) !important; border-bottom-color: var(--neutral-100) !important; }
+.leaflet-bar a:hover { background: var(--neutral-50) !important; color: var(--neutral-900) !important; }
+.leaflet-control-layers-expanded { padding: 8px 10px; font-size: 12.5px; color: var(--neutral-700); }
+.leaflet-control-attribution {
+    background: rgb(255 255 255 / 0.82) !important; font-size: 10px !important;
+    color: var(--neutral-500) !important; border-radius: var(--radius-sm) 0 0 0;
+}
+.leaflet-control-attribution a { color: var(--neutral-600) !important; }
+.leaflet-tooltip {
+    border: 1px solid var(--neutral-200); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm); font-size: 12px; color: var(--neutral-800);
+    font-family: var(--font-sans); padding: 4px 8px;
+}
+/* Leaflet focuses SVG paths on click, painting an outline on a shape that cannot be
+   keyboard-operated anyway. */
+.leaflet-interactive:focus { outline: none; }
+
+.map-legend {
+    left: 14px; bottom: 16px; padding: 0.6rem 0.75rem;
+    background: rgb(255 255 255 / 0.95); backdrop-filter: blur(4px);
+    border-radius: var(--radius-xl); min-width: 180px;
+}
+.map-legend-title { font-size: 11.5px; font-weight: 600; color: var(--neutral-800); }
+.map-legend-scale, .map-legend-note, .map-legend-nodata { font-size: 10.5px; color: var(--neutral-500); }
+
+.region-panel { border-radius: var(--radius-xl); }
+.region-panel-head { padding: 0.6rem 0.8rem; }
+.region-panel-title { font-size: 13px; }
+.region-panel-table th, .region-panel-table td { padding: 5px 13px; font-size: 12px; }
+
+/* ---------------------- month scrubber for S2 imagery ---------------------- */
+.time-slider-dock {
+    position: absolute; left: 0; right: 0; bottom: 14px; z-index: 900;
+    display: flex; justify-content: center; pointer-events: none;
+}
+.time-slider {
+    pointer-events: auto;
+    width: min(46rem, calc(100% - 2rem));
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    background: rgb(255 255 255 / 0.95);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+}
+.time-slider-step {
+    flex: 0 0 auto; width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: none; border-radius: var(--radius-md);
+    color: var(--neutral-400); font-size: 17px; line-height: 1; cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+.time-slider-step:hover:not(:disabled) { background: var(--neutral-100); color: var(--neutral-700); }
+.time-slider-step:disabled { opacity: .3; cursor: default; }
+.time-slider-main { flex: 1 1 auto; min-width: 0; }
+.time-slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.time-slider-label {
+    font-size: 13px; font-weight: 500; color: var(--neutral-900);
+    font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.time-slider-count { flex: 0 0 auto; font-size: 11px; color: var(--neutral-400); font-variant-numeric: tabular-nums; }
+.time-slider-busy { color: var(--brand-600); }
+.time-slider-warn { color: var(--warning); }
+
+.time-slider-track { position: relative; height: 24px; margin-top: 6px; cursor: pointer; touch-action: none; user-select: none; }
+.time-slider-track:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; border-radius: var(--radius-sm); }
+.time-slider-rail {
+    position: absolute; inset-inline: 0; top: 50%; height: 4px;
+    transform: translateY(-50%); border-radius: 999px; background: var(--neutral-200);
+}
+.time-slider-fill {
+    position: absolute; left: 0; top: 50%; height: 4px;
+    transform: translateY(-50%); border-radius: 999px; background: var(--brand-500);
+}
+.time-slider-tick {
+    position: absolute; top: 50%; width: 1px; height: 8px;
+    transform: translateY(-50%); background: var(--neutral-300);
+}
+.time-slider-tick.is-current { background: transparent; }
+.time-slider-thumb {
+    position: absolute; top: 50%; width: 14px; height: 14px;
+    transform: translate(-50%, -50%); border-radius: 999px;
+    background: var(--brand-600); border: 2px solid var(--white);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+    transition: transform .15s ease;
+}
+.time-slider-track:hover .time-slider-thumb { transform: translate(-50%, -50%) scale(1.12); }
+.time-slider-years { position: relative; height: 12px; margin-top: 2px; }
+.time-slider-years span {
+    position: absolute; transform: translateX(-50%);
+    font-size: 10px; color: var(--neutral-400); font-variant-numeric: tabular-nums;
+}
+
+/* The legend would sit under the scrubber when imagery is on. */
+.results-map-body:has(.time-slider-dock) .map-legend { bottom: 84px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .time-slider-thumb, .btn, .nav-link { transition: none; }
+}
+
+/* ---------------------- motion ----------------------
+   Ported from stacnotator: a short, eased fade so moving from the dashboard into
+   a map workspace reads as one step rather than a hard cut to a white screen. */
+@keyframes motion-page-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.motion-fade-in { animation: motion-page-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* The layer control is open by default, so it needs to read as a panel rather than
+   a raw stack of radio buttons. */
+.leaflet-control-layers.leaflet-control-layers-expanded {
+    padding: 0.5rem 0.65rem;
+    background: rgb(255 255 255 / 0.95);
+    backdrop-filter: blur(4px);
+    border-radius: var(--radius-lg);
+    font-family: var(--font-sans); font-size: 12.5px; color: var(--neutral-700);
+    min-width: 116px;
+}
+.leaflet-control-layers-list { display: flex; flex-direction: column; gap: 1px; }
+.leaflet-control-layers label { margin: 0; }
+.leaflet-control-layers label > div {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.2rem 0.3rem; border-radius: var(--radius-sm); cursor: pointer;
+    transition: background-color .12s ease;
+}
+.leaflet-control-layers label:hover > div { background: var(--neutral-100); }
+.leaflet-control-layers-selector { margin: 0; accent-color: var(--brand-500); }
+.leaflet-control-layers-separator { border-top: 1px solid var(--neutral-100); margin: 0.35rem 0; }
+
+@media (prefers-reduced-motion: reduce) {
+    .motion-fade-in { animation: none; }
+}
+
+/* Toolbar must not clip its controls: on a narrow window the row wraps instead of
+   pushing the later groups off the edge, and the bar scrolls if it still cannot fit. */
+.map-toolbar { flex-wrap: wrap; row-gap: 0.4rem; max-height: 30vh; overflow-y: auto; }
+.map-toolbar-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- hover: quieter, matching stacnotator ----
+   Rows and list items tint their background only. No lift, no shadow, no colour shift
+   on the text; the pointer already says the row is interactive. */
+.table tbody tr { transition: background-color .12s ease; }
+.table tbody tr:hover { background: var(--neutral-50); }
+.runs-grid-row:hover, .studies-table tbody tr:hover, .file-chip:hover { background: var(--neutral-50); }
+.study-row.open { background: var(--neutral-50); }
+.row-toggle { color: var(--neutral-400); transition: color .12s ease; }
+.row-toggle:hover { color: var(--neutral-700); background: none; transform: none; }
+.btn:hover:not(:disabled) { transform: none !important; box-shadow: none; }
+.btn-secondary:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
+.nav-link:hover { transform: none; }
+
+/* ---- runs list: the live run and its archived snapshots as one timeline ---- */
+.runs-grid-current { background: var(--brand-50); }
+.runs-grid-current.is-running { background: rgb(244 247 252); }
+.run-current-badge {
+    display: inline-block; margin-right: 0.4rem; padding: 0.1rem 0.4rem;
+    border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--brand-800); background: var(--brand-100); border: 1px solid var(--brand-200);
+}
+.runs-grid-current.is-running .run-current-badge {
+    color: rgb(50 76 116); background: rgb(228 234 248); border-color: rgb(196 210 238);
+}
+.runs-hint { color: var(--neutral-500); font-size: 12px; }
+.runs-grid-current.is-failed { background: rgb(253 246 245); }
+.runs-grid-current.is-failed .run-current-badge {
+    color: rgb(124 45 35); background: rgb(250 234 231); border-color: rgb(238 205 199);
+}
+
+/* ---- start-a-new-run bar ----
+   Starting a run is a decision about the study as a whole, so it gets its own band at the
+   top of the panel rather than a button on a row - rows below are history, this is the
+   one place that makes more of it. */
+.run-launcher {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 1.25rem;
+    flex-wrap: wrap;
+    padding: 0.85rem 1rem; margin-bottom: 0.75rem;
+    background: var(--brand-50); border: 1px solid var(--brand-200); border-radius: var(--radius-md, 6px);
+}
+.run-launcher.is-busy { background: var(--neutral-50); border-color: var(--neutral-200); }
+.run-launcher-main { min-width: 0; flex: 1 1 420px; }
+.run-launcher-title {
+    font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--neutral-800); margin-bottom: 0.3rem;
+}
+.run-launcher-note {
+    margin: 0; font-size: 12px; line-height: 1.55; color: var(--neutral-600); max-width: 82ch;
+}
+.run-launcher-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+
+.runs-section-title {
+    font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--neutral-500); padding: 0.85rem 1rem 0.25rem;
+}
+.runs-section-title:first-child { padding-top: 0.25rem; }
+.runs-panel { padding: 0.75rem; }
+
+/* ---- map panels: flush to the edges, no overlap ----
+   The summary sits left, region detail right, legends stack above the scrubber. Panels
+   are anchored to the map's own borders so none of the canvas is wasted on gutters, and
+   the layer control no longer collides with them because basemap choice moved into the
+   toolbar. */
+.map-legend-stack {
+    position: absolute; left: 0; bottom: 0; z-index: 900;
+    display: flex; flex-direction: column; gap: 6px; padding: 8px;
+    pointer-events: none;
+}
+.map-legend-stack > * { pointer-events: auto; }
+.map-legend { position: static; left: auto; bottom: auto; }
+
+.stats-panel {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 370px; max-width: 38%;
+    z-index: 910; background: var(--white);
+    border-right: 1px solid var(--neutral-200);
+    box-shadow: 2px 0 10px rgb(0 0 0 / 0.06);
+    display: flex; flex-direction: column; overflow: hidden;
+    font-family: var(--font-sans);
+}
+.stats-panel-body { overflow-y: auto; padding-bottom: 0.75rem; }
+.stats-block { padding: 0.75rem 0.9rem 0.25rem; border-top: 1px solid var(--neutral-100); }
+.stats-block-title {
+    font-size: 11.5px; font-weight: 600; color: var(--neutral-800);
+    margin-bottom: 0.4rem; display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+}
+.stats-chart { height: 150px; }
+.stats-hint { font-size: 10.5px; color: var(--neutral-500); margin-top: 0.3rem; }
+.stats-clear {
+    border: none; background: none; padding: 0; cursor: pointer;
+    font-size: 10.5px; color: var(--brand-600); text-decoration: underline; font-family: inherit;
+}
+/* Legends move clear of the summary panel when it is open. */
+.results-map-body:has(.stats-panel) .map-legend-stack { left: 370px; }
+.results-map-body:has(.time-slider-dock) .map-legend-stack { bottom: 76px; }
+
+.region-panel { top: 0; right: 0; bottom: 0; border-radius: 0; border-right: none; border-top: none; border-bottom: none; box-shadow: -2px 0 10px rgb(0 0 0 / 0.06); }
+
+.map-toolbar-search { height: 32px; width: 150px; font-size: 12.5px; }
+
+@media (max-width: 1100px) {
+    .stats-panel { width: 300px; }
+    .results-map-body:has(.stats-panel) .map-legend-stack { left: 300px; }
+}
+.runs-panel-note {
+    font-size: 12px; color: var(--neutral-600); line-height: 1.5;
+    padding: 0 1rem 0.7rem; margin: 0; max-width: 76ch;
+}
+.runs-panel-note code { font-family: var(--font-mono); font-size: 11px; background: var(--neutral-100); padding: 0 3px; border-radius: 3px; }
+
+/* ---- toolbar selects ----
+   Native selects render the OS chevron at the OS's own size and colour, and centre their
+   text to the OS's metrics - next to Inter at 12.5px that reads as a different control
+   from everything around it. Draw our own chevron and own the box. */
+.map-toolbar-select,
+.form-input.map-toolbar-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding: 0 26px 0 9px;
+    height: 30px;
+    line-height: 28px;
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--neutral-800);
+    background-color: var(--white);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-md);
+    /* Chevron matches Icons.tsx: 20-unit grid, 1.5 stroke, round joins. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23767370' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 7.5l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 7px center;
+    background-size: 13px 13px;
+    cursor: pointer;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+.map-toolbar-select:hover { border-color: var(--neutral-300); background-color: var(--neutral-50); }
+.map-toolbar-select:focus {
+    outline: none; border-color: var(--brand-400);
+    box-shadow: 0 0 0 3px rgb(65 120 93 / 0.12);
+}
+/* The native dropdown list is OS-drawn; at least keep its text in the app's face. */
+.map-toolbar-select option { font-family: var(--font-sans); color: var(--neutral-800); }
+
+/* Labels sit on the same baseline as the control they name. */
+.map-toolbar-group { align-items: center; }
+.map-toolbar-label { line-height: 30px; }
+.map-toolbar-search { height: 30px; line-height: 28px; }
+.map-toolbar-back, .map-toolbar .btn-icon { height: 30px; width: 30px; }
+.map-toolbar .btn-xs { height: 30px; padding: 0 7px; line-height: 1; }
+
+/* ---- region report: readable at panel width is impossible, so enlarge on click ---- */
+.region-plot-button {
+    display: block; width: 100%; padding: 0; border: none; background: none; cursor: zoom-in;
+}
+.region-plot-button img {
+    width: 100%; height: auto; display: block;
+    border: 1px solid var(--neutral-100); border-radius: var(--radius-md);
+    transition: border-color .15s ease;
+}
+.region-plot-button:hover img { border-color: var(--brand-400); }
+.region-plot-hint { font-size: 10.5px; font-weight: 400; color: var(--neutral-500); }
+
+.plot-lightbox {
+    position: fixed; inset: 0; z-index: 2000;
+    background: rgb(18 18 17 / 0.72);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2.5rem 1.5rem 1.5rem; cursor: zoom-out; outline: none;
+    animation: motion-page-fade-in 150ms ease-out both;
+}
+.plot-lightbox-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.5rem 0.9rem; background: var(--white);
+    border-bottom: 1px solid var(--neutral-200);
+    font-family: var(--font-sans); font-size: 13px; font-weight: 500; color: var(--neutral-900);
+}
+.plot-lightbox > img {
+    max-width: 100%; max-height: 100%; object-fit: contain; cursor: default;
+    background: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+}
+
+/* ---- zoom control must never sit under a docked panel ----
+   Panels are absolutely positioned over the map, so the control is nudged by the width of
+   whichever is open. Leaflet reads its own position from the corner container, so this
+   shifts that container rather than the buttons. */
+.results-map-body .leaflet-top.leaflet-right { transition: right .18s ease; }
+.results-map-body:has(.region-panel) .leaflet-top.leaflet-right { right: 340px; }
+@media (max-width: 1100px) {
+    .results-map-body:has(.region-panel) .leaflet-top.leaflet-right { right: 42%; }
+}
+
+/* The lightbox is portalled to <body>, so it is outside every panel's stacking context
+   and its z-index is absolute. Above Leaflet's controls (1000) and the toolbar. */
+.plot-lightbox { z-index: 4000; }
+.plot-lightbox-bar { z-index: 4001; }
+
+/* Compare table: which regions are selected, and how each one scores. */
+.compare-table thead td, .compare-table thead th {
+    font-size: 10.5px; color: var(--neutral-500); font-weight: 500;
+    text-transform: uppercase; letter-spacing: .03em; padding-bottom: 2px;
+}
+.compare-table th { display: flex; align-items: center; gap: 6px; }
+.compare-swatch { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
+.compare-neg { color: var(--danger); }
+
+/* Comparison has to announce itself: shift-click is invisible to anyone who has not been
+   told, so the region pane carries a real button and the summary explains the feature
+   while nothing is selected. */
+.region-panel-actions {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--neutral-100);
+}
+.region-panel-shortcut { font-size: 10.5px; color: var(--neutral-500); }
+.stats-empty-hint { font-size: 11.5px; color: var(--neutral-600); line-height: 1.55; }
+.stats-empty-hint strong { color: var(--neutral-800); font-weight: 600; }
+
+/* The newest archive is also the study's live output directory - the one a plain "Run"
+   builds on and overwrites. Worth marking, since every row otherwise looks alike. */
+.run-latest-badge {
+    display: inline-block; margin-left: 0.45rem; padding: 0.1rem 0.4rem;
+    border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--brand-800); background: var(--brand-100); border: 1px solid var(--brand-200);
+}
+
+/* A disabled coloured button at 45% opacity is a washed-out version of an action that
+   still looks available. While a run is in progress the launcher is genuinely inert, so
+   it reads as inert: neutral surface, muted ink, full opacity so the label stays legible. */
+.run-launcher .btn:disabled,
+.run-launcher .btn-split:has(.btn:disabled) .btn {
+    opacity: 1;
+    background: var(--neutral-100);
+    border-color: var(--neutral-200);
+    color: var(--neutral-500);
+}
+
+/* ---- summary panel: year vs all-years ---- */
+.stats-tabs {
+    display: flex; gap: 2px; padding: 0.5rem 0.9rem 0;
+    border-bottom: 1px solid var(--neutral-100);
+}
+.stats-tab {
+    border: none; background: none; cursor: pointer; font-family: inherit;
+    font-size: 11.5px; font-weight: 600; color: var(--neutral-500);
+    padding: 0.35rem 0.6rem; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.stats-tab:hover { color: var(--neutral-800); }
+.stats-tab.is-active { color: var(--brand-700); border-bottom-color: var(--brand-600); }
+
+/* The comparison and per-year tables carry four numeric columns; the region name is the
+   only elastic part, so it truncates and the numbers stay on screen instead of the table
+   overflowing the panel. */
+.stats-scroll { overflow-x: auto; }
+.compare-table { width: 100%; table-layout: fixed; }
+.compare-table th:first-child, .compare-table thead th { text-align: left; }
+.compare-table td { text-align: right; font-variant-numeric: tabular-nums; width: 4.6em; }
+.compare-table .compare-name {
+    display: inline-block; max-width: calc(100% - 1.1rem);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+}
+
+/* ---- legend: user-settable range ---- */
+.map-legend-title { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.map-legend-edit {
+    border: none; background: none; padding: 0; cursor: pointer; font-family: inherit;
+    font-size: 10px; color: var(--brand-600); text-decoration: underline; flex-shrink: 0;
+}
+.map-legend-range { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.map-legend-range .form-input { width: 5.2em; height: 24px; padding: 0 5px; font-size: 11px; }
+.map-legend-pinned {
+    margin-left: auto; font-size: 10px; color: var(--brand-700);
+    background: var(--brand-50); border-radius: 3px; padding: 0 4px;
+}
+
+/* A vertical scrollbar appearing when a study row expands reflowed the whole page a few
+   pixels to the left; reserving the gutter keeps the width constant. */
+html { scrollbar-gutter: stable; }
+
+/* Collapsed state of the new-run block: one button, so a finished study's panel opens as
+   its history rather than as a prompt to run it again. */
+/* Right-aligned, like the other "make something new" actions on the page. */
+.run-launcher-collapsed { display: flex; justify-content: flex-end; padding: 0 0 0.6rem; }
+.run-confirm-table { width: 100%; margin-bottom: 1rem; }
+.run-confirm-table th { width: 40%; }
+.run-confirm-note {
+    font-size: 12.5px; line-height: 1.55; color: var(--neutral-600);
+    background: var(--neutral-50); border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-sm, 4px); padding: 0.6rem 0.75rem; margin: 0 0 1rem;
+}
+
+/* The study row opens the study, so it says so on hover and takes keyboard focus. Its
+   buttons stop propagation, so they keep the ordinary arrow. */
+.study-row { cursor: pointer; }
+.study-row .actions-cell { cursor: default; }
+.study-row:focus-visible {
+    outline: 2px solid var(--brand-500, rgb(50 98 71));
+    outline-offset: -2px;
+}
+.study-row-expanded > td { cursor: default; }

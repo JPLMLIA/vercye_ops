@@ -33,7 +33,10 @@ async function handle<T>(res: Response): Promise<T> {
   }
 
   const ct = res.headers.get('content-type') || '';
-  if (ct.includes('application/json')) {
+  // Structured-suffix types are JSON too (RFC 6839): the geometry endpoint serves
+  // `application/geo+json`, which an `includes('application/json')` test misses - the
+  // response then came back as a Blob and Leaflet rejected it as "Invalid GeoJSON object".
+  if (/^application\/(\w[\w.-]*\+)?json\b/.test(ct)) {
     return (await res.json()) as T;
   }
   if (ct.startsWith('text/')) {
@@ -62,8 +65,9 @@ export const http = {
   put: <T, B = unknown>(path: string, body?: B) =>
     fetch(`${API_BASE}${path}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
+      // Let the browser set the multipart boundary when sending FormData, as post does.
+      headers: body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     }).then(handle<T>),
   del: <T>(path: string) => fetch(`${API_BASE}${path}`, { method: 'DELETE' }).then(handle<T>),
   download: (path: string) =>

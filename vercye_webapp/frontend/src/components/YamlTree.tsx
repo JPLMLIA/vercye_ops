@@ -104,7 +104,7 @@ const YamlTree: React.FC<YamlTreeProps> = memo(({ text, defaultOpenDepth = 1, co
   if (!parsed.ok) {
     return (
       <div className="yt-fallback">
-        <div className="yt-error">Could not parse YAML — showing raw text. ({parsed.error})</div>
+        <div className="yt-error">Could not parse YAML - showing raw text. ({parsed.error})</div>
         <pre className="yt-raw">{text}</pre>
       </div>
     );
