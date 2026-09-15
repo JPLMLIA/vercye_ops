@@ -7,10 +7,11 @@ import tempfile
 from typing import List
 
 import click
+import pandas as pd
 import yaml
 
 from vercye_ops.lai.lai_creation_STAC.run_stac_dl_pipeline import run_pipeline as run_imagery_dl_pipeline
-from vercye_ops.met_data.download_chirps_data import run_chirps_download
+from vercye_ops.met_data.download_chirps_data import ProductVersion, run_chirps_download
 from vercye_ops.prepare_yieldstudy import load_yaml_ruamel, prepare_study
 from vercye_ops.snakemake.config_validation import validate_run_config
 from vercye_ops.utils.env_utils import (
@@ -114,6 +115,7 @@ def download_chirps(
     Returns:
         None
     """
+    version = ProductVersion.V3
     if not start_date and end_date and output_dir:
         if start_date or end_date or output_dir:
             raise ValueError(
@@ -122,6 +124,9 @@ def download_chirps(
     elif studies_dir and study_name:
         config = get_run_config(studies_dir, study_name)
         output_dir = config["apsim_params"]["chirps_dir"]
+        # e.g. 'CHIRPS_V3' -> ProductVersion.V3, same convention as the Snakefile's
+        # construct_chirps_data rule.
+        version = ProductVersion(int(str(config["apsim_params"]["precipitation_source"])[-1]))
 
         # Derive min and max start and end date
         all_start_dates = []
@@ -138,7 +143,16 @@ def download_chirps(
     else:
         raise ValueError("Must either provide --chirps-start, --chirps-end and --chirps-dir or --name and --dir.")
 
-    run_chirps_download(start_date=start_date, end_date=end_date, output_dir=output_dir, num_workers=num_workers)
+    start_date = pd.to_datetime(start_date).to_pydatetime()
+    end_date = pd.to_datetime(end_date).to_pydatetime()
+
+    run_chirps_download(
+        start_date=start_date,
+        end_date=end_date,
+        output_dir=output_dir,
+        num_workers=num_workers,
+        version=version,
+    )
 
 
 def _is_snakemake_running_for_dir(snakemake_run_dir: str) -> bool:
