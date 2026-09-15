@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -997,7 +997,9 @@ The complete logic is defined in <code>vecrye_ops/snakemake/Snakefile</code>.</p
 <h3 id="8-yield-map-generation">8. Yield Map Generation<a class="headerlink" href="#8-yield-map-generation" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Rule</strong>: <code>generate_converted_lai_map</code></li>
-<li>Uses conversion factors to transform predicted yield into pixel-level raster maps.</li>
+<li>Distributes the APSIM matched regional yield across cropland pixels in proportion to each
+  pixel's peak LAI (mean-anchored), so the cropland-mean of the map equals the APSIM yield and
+  LAI sets only the within-region spatial pattern.</li>
 </ul>
 <hr />
 <h3 id="9-yield-estimation-aggregation">9. Yield Estimation &amp; Aggregation<a class="headerlink" href="#9-yield-estimation-aggregation" title="Permanent link">&para;</a></h3>
@@ -1102,7 +1104,7 @@ Additionally, if other outputs should be produced, this becomes slightly hacky d
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "toc.integrate", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

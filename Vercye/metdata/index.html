@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -887,8 +887,8 @@ During execution of the pipeline, the meteorological data is then fetched as the
 <ol>
 <li><strong>Registered with Earth Engine</strong> at https://signup.earthengine.google.com/#!/service_accounts</li>
 <li>Granted the following IAM roles on the GCP project:<ul>
-<li><code>roles/serviceusage.serviceUsageConsumer</code> — allows billing API calls to the project</li>
-<li><code>roles/earthengine.viewer</code> — allows running EE computations and reading public datasets (use <code>roles/earthengine.writer</code> instead if you also need to run the GEE LAI export pipeline)</li>
+<li><code>roles/serviceusage.serviceUsageConsumer</code> - allows billing API calls to the project</li>
+<li><code>roles/earthengine.viewer</code> - allows running EE computations and reading public datasets (use <code>roles/earthengine.writer</code> instead if you also need to run the GEE LAI export pipeline)</li>
 </ul>
 </li>
 </ol>
@@ -896,7 +896,7 @@ During execution of the pipeline, the meteorological data is then fetched as the
 <pre><code>EE_SERVICE_ACCOUNT_KEY=/path/to/your/service-account-key.json
 EE_PROJECT_NAME=your-gcp-project-id
 </code></pre>
-<p>The pipeline will pick this up automatically — no interactive login required.</p>
+<p>The pipeline will pick this up automatically - no interactive login required.</p>
 <h3 id="option-2-interactive-user-authentication">Option 2: Interactive user authentication<a class="headerlink" href="#option-2-interactive-user-authentication" title="Permanent link">&para;</a></h3>
 <p>If you are on a machine with a browser available, run <code>earthengine authenticate</code> and complete the browser flow before starting the pipeline. Leave <code>EE_SERVICE_ACCOUNT_KEY</code> unset in your <code>.env</code>.</p>
 <h2 id="chirps">CHIRPS<a class="headerlink" href="#chirps" title="Permanent link">&para;</a></h2>
@@ -918,7 +918,58 @@ Options:
   --help                   Show this message and exit.
 </code></pre>
 <p>!Attention: This can amount to 100+ GB of data when downloading many years of historical data. Therefore this is rather intended to be run on HPC environments.</p>
-<p>This will first try to download all final <a href="https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/cogs/p05/">CHIRPS v2.0 global daily products</a> at 0.05 degrees resolution. For days without data available, the downloader will fallback to the <a href="https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_daily/tifs/p05/">preliminary product</a>.</p>
+<p>This will first try to download all final CHIRPS products at 0.05 degrees resolution, falling back to the preliminary product for days where the final one is not yet available.</p>
+<h3 id="choosing-a-chirps-version">Choosing a CHIRPS version<a class="headerlink" href="#choosing-a-chirps-version" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>CHIRPS_V2</code></th>
+<th><code>CHIRPS_V3</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Archive</td>
+<td><a href="https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/cogs/p05/">CHIRPS-2.0 global daily COGs</a></td>
+<td><a href="https://data.chc.ucsb.edu/products/CHIRPS/v3.0/daily/final/">CHIRPS v3.0 daily</a></td>
+</tr>
+<tr>
+<td>Latitude coverage</td>
+<td>50S - 50N</td>
+<td>60S - 60N</td>
+</tr>
+<tr>
+<td>Station sources</td>
+<td>baseline</td>
+<td>~4x v2, plus gauge-undercatch correction</td>
+</tr>
+<tr>
+<td>File size / day</td>
+<td>~8 MB (COG)</td>
+<td>~15 MB (TIFF)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pick v3 for any region outside 50S-50N</strong> - v2 simply has no data there, and regions
+whose centroid falls outside the CHIRPS bounds are silently dropped from the extracted
+precipitation table (they then either error out or, with <code>fallback_precipitation: True</code>,
+quietly revert to the base met source's precipitation).</p>
+<p>Beware that <code>/products/CHIRP-v3.0/</code> on the CHC server (no <code>S</code>) is the <strong>satellite-only</strong>
+estimate with no station blending - it is not the v3 counterpart of CHIRPS-2.0. The
+station-blended archive that <code>CHIRPS_V3</code> refers to is <code>/products/CHIRPS/v3.0/</code>.</p>
+<h3 id="chirps-v3-daily-flavours">CHIRPS v3 daily flavours<a class="headerlink" href="#chirps-v3-daily-flavours" title="Permanent link">&para;</a></h3>
+<p>CHIRPS v3.0 is fundamentally a pentad product. The daily archive is published in two
+flavours that differ only in how each pentad total is split across its five days:</p>
+<ul>
+<li><code>sat</code> (default) - split using NASA IMERG Late V07 (0.1 deg source, from 1998 onwards).</li>
+<li><code>rnl</code> - split using ECMWF ERA5 (0.25 deg source, from 1981 onwards).</li>
+</ul>
+<p><code>sat</code> is the default because it gives daily rain structure independent of the ERA5 series
+that the rest of the <code>.met</code> is built from. Set <code>CHIRPS_V3_DAILY_FLAVOUR=rnl</code> in the
+environment to use the ERA5-disaggregated variant instead (needed for pre-1998 dates).
+The same value must be set when downloading and when running the pipeline, since it
+determines the filenames looked up in your CHIRPS directory.</p>
 <p>The VeRCYe pipeline will then read local regions from these global files during runtime.</p>
 
 
@@ -972,7 +1023,7 @@ Options:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "toc.integrate", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

@@ -17,7 +17,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -828,6 +828,113 @@
 </ul>
 <p><strong>Understanding the Flow</strong>: User request new pipeline execution -&gt; Frontend uses JS to send a request with specific paramters to the FastAPI Restful API backend that is exposed on a UNIX Socket.
 The FastAPI backend then handles handles this and if a execution is requested it prepares a job that is queued via Redis. Once a Celery worker becomes available, the worker will fetch the job and process it, by starting and monitoring the snakemake pipeline.</p>
+<h3 id="running-on-vm-startup-systemd">Running on VM startup (systemd)<a class="headerlink" href="#running-on-vm-startup-systemd" title="Permanent link">&para;</a></h3>
+<p>On a server you typically want the webapp to come up automatically on boot and to be restarted if it ever crashes. The <code>run.sh</code> script is the entrypoint - it builds the frontend, starts Redis, the two Celery worker queues, and Uvicorn, and installs traps that clean everything up on exit. That makes it a clean fit for a single systemd service.</p>
+<h4 id="1-install-the-unit-file">1. Install the unit file<a class="headerlink" href="#1-install-the-unit-file" title="Permanent link">&para;</a></h4>
+<p>Create <code>/etc/systemd/system/vercye-webapp.service</code> (adjust <code>User</code>, <code>Group</code>, and the paths if your install lives elsewhere):</p>
+<pre><code class="language-ini">[Unit]
+Description=VeRCYe webapp (FastAPI + Celery workers + Redis)
+Documentation=file:///home/raapidadmin/vercye/vercye_ops/docs/docs/Vercye/webapp.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=raapidadmin
+Group=raapidadmin
+WorkingDirectory=/home/raapidadmin/vercye/vercye_ops/vercye_webapp
+ExecStart=/usr/bin/env bash /home/raapidadmin/vercye/vercye_ops/vercye_webapp/run.sh
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+KillMode=mixed
+UMask=0002
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<h4 id="2-enable-and-start">2. Enable and start<a class="headerlink" href="#2-enable-and-start" title="Permanent link">&para;</a></h4>
+<pre><code class="language-bash">sudo systemctl daemon-reload
+sudo systemctl enable --now vercye-webapp.service
+</code></pre>
+<p><code>enable --now</code> both turns on auto-start at boot and starts the service immediately.</p>
+<h4 id="4-verify">4. Verify<a class="headerlink" href="#4-verify" title="Permanent link">&para;</a></h4>
+<pre><code class="language-bash">systemctl status vercye-webapp.service       # should be &quot;active (running)&quot;
+journalctl -u vercye-webapp -f               # live logs (Ctrl+C to detach)
+ls -l /tmp/vercye-uvicorn.sock               # socket should exist with the perms run.sh sets
+</code></pre>
+<p>The first start is slower than subsequent ones because <code>run.sh</code> runs <code>npm ci &amp;&amp; npm run build</code> for the frontend on every launch.</p>
+<h4 id="5-day-to-day-operation">5. Day-to-day operation<a class="headerlink" href="#5-day-to-day-operation" title="Permanent link">&para;</a></h4>
+<pre><code class="language-bash">sudo systemctl restart vercye-webapp         # apply code/config changes
+sudo systemctl stop vercye-webapp            # stop (won't auto-restart until started)
+sudo systemctl disable vercye-webapp         # remove from boot, keep current state
+journalctl -u vercye-webapp -n 200 --no-pager
+</code></pre>
+<p>The detailed component logs (Celery, Redis, Uvicorn) still go to <code>LOGS_PATH</code> from <code>.env</code> with a per-start timestamp suffix; systemd's journal only captures <code>run.sh</code>'s own stdout/stderr.</p>
+<h3 id="storage-layout-keep-studies-off-the-os-disk">Storage layout (keep studies off the OS disk)<a class="headerlink" href="#storage-layout-keep-studies-off-the-os-disk" title="Permanent link">&para;</a></h3>
+<p>Studies grow large quickly (per-cell APSIM runs, snakemake intermediates, output rasters). On a typical install the OS disk (<code>/</code>) is small and a separate, larger volume is mounted at <code>/data</code>. To keep new studies from filling the OS disk:</p>
+<ol>
+<li>
+<p>Pick the canonical location on <code>/data</code> and create it once:</p>
+<p><code>bash
+sudo mkdir -p /data/vercye/studies
+sudo chown raapidadmin:raapidadmin /data/vercye/studies
+chmod 2775 /data/vercye/studies      # 2 = setgid, see "Shared multi-user access"</code></p>
+</li>
+<li>
+<p>In <code>vercye_ops/.env</code>, point <code>STUDY_DIR</code> at it:</p>
+<p><code>bash
+STUDY_DIR=/data/vercye/studies</code></p>
+</li>
+</ol>
+<p>This is the simplest setup: the webapp writes directly to <code>/data</code> and there is no symlink involved.</p>
+<h4 id="migration-from-an-existing-in-home-install">Migration from an existing in-<code>$HOME</code> install<a class="headerlink" href="#migration-from-an-existing-in-home-install" title="Permanent link">&para;</a></h4>
+<p>If <code>STUDY_DIR</code> historically pointed somewhere in the install user's home (e.g. <code>/home/raapidadmin/vercye/data/studies</code>) and you don't want to change the env var (or scripts that hard-code the path), replace the directory itself with a symlink so the path resolves to <code>/data</code>:</p>
+<pre><code class="language-bash">sudo systemctl stop vercye-webapp        # avoid races with the live celery workers
+
+# Move existing studies onto /data (skip if there are none)
+mv /home/raapidadmin/vercye/data/studies/* /data/vercye/studies/   2&gt;/dev/null || true
+
+# Replace the dir with a symlink
+rmdir /home/raapidadmin/vercye/data/studies
+ln -s /data/vercye/studies /home/raapidadmin/vercye/data/studies
+
+sudo systemctl start vercye-webapp
+</code></pre>
+<p>After the swap, <code>os.listdir(STUDY_DIR)</code> and every other path lookup resolves to <code>/data/vercye/studies/...</code> transparently - no code or env change.</p>
+<h3 id="shared-multi-user-access-to-data">Shared multi-user access to <code>/data</code><a class="headerlink" href="#shared-multi-user-access-to-data" title="Permanent link">&para;</a></h3>
+<p>When more than one human user works on the VM (e.g. <code>raapidadmin</code> runs the service, but a colleague also needs to read and edit study inputs/outputs), set up shared group access on <code>/data/vercye</code> so both users can collaborate without <code>sudo</code> and without files ending up owned by whoever happened to create them.</p>
+<p>The webapp install already runs as <code>raapidadmin:raapidadmin</code>, so the simplest setup is to use <code>raapidadmin</code> as the shared group. Replace <code>&lt;colleague&gt;</code> with each additional username:</p>
+<pre><code class="language-bash"># 1. Add the colleague to the install group.
+sudo usermod -aG raapidadmin &lt;colleague&gt;
+# The colleague must log out and back in for the new group to take effect.
+
+# 2. Make every existing file/dir under /data/vercye group-readable+writable.
+sudo chmod -R g+rwX /data/vercye         # capital X = exec only for dirs, not files
+
+# 3. Set the setgid bit on every directory so newly-created files inherit
+#    the raapidadmin group instead of the creator's primary group.
+sudo find /data/vercye -xdev -type d -exec chmod g+s {} +
+
+# 4. Make sure both users create files with group-write by default.
+#    For interactive shells: add `umask 002` to ~/.bashrc for each user.
+#    For the webapp service: the unit above already sets `UMask=0002`.
+</code></pre>
+<p>What each piece does:</p>
+<ul>
+<li><strong>Group membership</strong> gives the colleague the same <code>g</code> permission bit as <code>raapidadmin</code> on every file in <code>/data/vercye</code>.</li>
+<li><strong><code>chmod -R g+rwX</code></strong> flips on group read/write everywhere, and group-execute on directories only (so you can <code>cd</code> into them) - the capital <code>X</code> is the safe form that doesn't accidentally mark plain files as executable.</li>
+<li><strong>Setgid on directories (<code>g+s</code>)</strong> makes new files and subdirectories inherit the parent dir's group (<code>raapidadmin</code>) instead of the creator's primary group. Without this, files a colleague creates would land as <code>&lt;colleague&gt;:&lt;colleague&gt;</code> and <code>raapidadmin</code> would lose group access.</li>
+<li><strong><code>umask 002</code> / <code>UMask=0002</code></strong> controls the <em>mode</em> of new files. With the default <code>umask 022</code>, files are created <code>rw-r--r--</code> - group can read but not write. With <code>002</code> they're <code>rw-rw-r--</code>, which is what we want for shared editing. The systemd unit's <code>UMask=0002</code> covers everything the running webapp creates; per-user shells need their own <code>umask 002</code> (typically in <code>~/.bashrc</code>).</li>
+</ul>
+<p>Verify the result:</p>
+<pre><code class="language-bash">ls -ld /data/vercye/studies
+# drwxrwsr-x   ...   raapidadmin raapidadmin   /data/vercye/studies
+#    ^^^^      group has rwx and the trailing 's' shows setgid is set
+</code></pre>
+<p><code>/data/vercye/keys/</code> contains things like the Google Earth Engine key - by giving the group read access you are explicitly making those keys readable to everyone in the <code>raapidadmin</code> group. If a key should <em>not</em> be shared with a colleague, store it elsewhere (e.g. each user's home) and set its path in their own environment, rather than hand-tightening permissions on individual files inside <code>/data/vercye</code> (the next <code>chmod -R g+rwX</code> for a new colleague would undo it).</p>
 
 
 
@@ -880,7 +987,7 @@ The FastAPI backend then handles handles this and if a execution is requested it
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "toc.integrate", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

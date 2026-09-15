@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -62,6 +62,11 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
+      
+        
+        <a href="#stac-lai-pipeline-architecture" class="md-skip">
+          Skip to content
+        </a>
       
     </div>
     <div data-md-component="announce">
@@ -722,6 +727,26 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    STAC Pipeline Architecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
         
@@ -739,6 +764,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-directory-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output directory structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-formats-per-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data formats per stage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bring-your-own-lai-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bring-your-own-LAI compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -796,9 +884,175 @@
 
 
 
-  <h1>STAC Pipeline Architecture</h1>
-
-<p>Architecture and full documentation of STAC based LAI pipeline coming soon.</p>
+<h1 id="stac-lai-pipeline-architecture">STAC LAI Pipeline Architecture<a class="headerlink" href="#stac-lai-pipeline-architecture" title="Permanent link">&para;</a></h1>
+<p>This page documents the internals of the STAC-based LAI pipeline
+(<code>vercye_ops/lai/lai_creation_STAC</code>), in particular <strong>how the pipeline is
+structured into steps</strong> and <strong>which data formats each step produces</strong>. For
+instructions on how to <em>run</em> the pipeline, see
+<a href="../running/#b-stac-catalog-awsazure-pipeline">Generating LAI Data</a>.</p>
+<p>The entrypoint is <code>run_stac_dl_pipeline.py</code>, which reads a single YAML config
+and orchestrates all steps as subprocesses. It can be resumed from a given
+step via the <code>from_step</code> config option (valid values: <code>0</code>, <code>2</code>, <code>3</code>, <code>4</code>).</p>
+<h2 id="pipeline-steps">Pipeline steps<a class="headerlink" href="#pipeline-steps" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Script</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>1_download_S2_*.py</code></td>
+<td>Query the STAC catalog for Sentinel-2 tiles intersecting the ROI and download the required bands.</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>2_1_primary_LAI_tiled.py</code></td>
+<td>Run the LAI neural network per tile to produce per-tile LAI rasters.</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>2_2_standardize.py</code></td>
+<td>Reproject every LAI tile to a common CRS/resolution and quantize to Int16.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>2_3_build_daily_LAI_vrts.py</code></td>
+<td>Build one mosaicked daily VRT per date, clipped to the ROI extent.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>(in <code>run_stac_dl_pipeline.py</code>)</td>
+<td>Finalize <code>meta.json</code> (record available dates, set status).</td>
+</tr>
+</tbody>
+</table>
+<p>Steps 0 and 1 run per date-range chunk (<code>chunk_days</code>); steps 2–4 run once over
+the whole time span after all chunks are processed.</p>
+<h2 id="output-directory-structure">Output directory structure<a class="headerlink" href="#output-directory-structure" title="Permanent link">&para;</a></h2>
+<p>Everything lands under the configured <code>out_dir</code>:</p>
+<pre><code>out_dir/
+├── region.geojson        # Copy of the ROI used, for reproducibility
+├── meta.json             # Status, available dates, processed date-ranges, centroid
+├── tiles/                # (transient) Raw downloaded Sentinel-2 band tiles
+├── tile-lai/             # (transient) Per-tile LAI rasters
+├── standardized-lai/     # Per-tile LAI, reprojected + quantized (persisted)
+└── merged-lai/           # Daily VRT mosaics — the final LAI product
+</code></pre>
+<blockquote>
+<p>The <code>tiles/</code> and <code>tile-lai/</code> directories are intermediate. With
+<code>keep_imagery: false</code> (the default), the raw imagery is removed after LAI is
+computed, and the per-tile LAI files are removed by step 2 once standardized
+versions exist. In a normal completed run only <code>standardized-lai/</code> and
+<code>merged-lai/</code> remain.</p>
+</blockquote>
+<h2 id="data-formats-per-stage">Data formats per stage<a class="headerlink" href="#data-formats-per-stage" title="Permanent link">&para;</a></h2>
+<p>The pipeline deliberately changes representation between stages. The table
+below summarizes each persisted raster format:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Dir</th>
+<th>Driver</th>
+<th>Dtype</th>
+<th>CRS</th>
+<th>NoData</th>
+<th>Scale</th>
+<th>Tiling</th>
+<th>Overviews</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Downloaded imagery</td>
+<td><code>tiles/</code></td>
+<td>GeoTIFF</td>
+<td>Int16</td>
+<td>native (UTM)</td>
+<td>source-dependent</td>
+<td>—</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Per-tile LAI</td>
+<td><code>tile-lai/</code></td>
+<td>GeoTIFF (LZW)</td>
+<td>Float32</td>
+<td>native (UTM)</td>
+<td><code>NaN</code></td>
+<td>none</td>
+<td>256×256</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Standardized LAI</td>
+<td><code>standardized-lai/</code></td>
+<td>GeoTIFF (ZSTD, predictor 2)</td>
+<td><strong>Int16</strong></td>
+<td><strong>EPSG:4326</strong></td>
+<td><code>-32768</code></td>
+<td><strong>0.001</strong></td>
+<td>512×512</td>
+<td><strong>no</strong></td>
+</tr>
+<tr>
+<td>Daily mosaic</td>
+<td><code>merged-lai/</code></td>
+<td><strong>VRT</strong></td>
+<td><strong>Float32</strong></td>
+<td>EPSG:4326</td>
+<td><code>NaN</code></td>
+<td>applied (0.001)</td>
+<td>inherited</td>
+<td>inherited</td>
+</tr>
+</tbody>
+</table>
+<h3 id="standardized-tiles-standardized-laitif">Standardized tiles (<code>standardized-lai/*.tif</code>)<a class="headerlink" href="#standardized-tiles-standardized-laitif" title="Permanent link">&para;</a></h3>
+<p>These are the canonical persisted pixel data. Key conventions
+(see <code>2_2_standardize.py</code>):</p>
+<ul>
+<li><strong>Reprojected to <code>EPSG:4326</code></strong> and resampled to a single common resolution
+  (the most frequent resolution across tiles after reprojection), so that all
+  tiles are stackable without on-the-fly warping downstream.</li>
+<li><strong>Stored as Int16 with <code>scale_factor = 0.001</code>.</strong> A stored value of <code>1234</code>
+  therefore represents an LAI of <code>1.234</code>. This roughly halves storage vs.
+  Float32 while preserving 3-decimal precision over the <code>0 … 32.767</code> range.</li>
+<li><strong>NoData sentinel is <code>-32768</code>.</strong> Negative LAI values produced by the model
+  are clipped to NoData during quantization.</li>
+<li>Compressed with <strong>ZSTD</strong> (predictor 2, level 19) and internally <strong>tiled at
+  512×512</strong>. The <code>scales</code>/<code>offsets</code> metadata is written so any
+  scale-aware reader returns physical LAI values automatically.</li>
+</ul>
+<h3 id="daily-vrt-mosaics-merged-laivrt-the-final-product">Daily VRT mosaics (<code>merged-lai/*.vrt</code>) — the final product<a class="headerlink" href="#daily-vrt-mosaics-merged-laivrt-the-final-product" title="Permanent link">&para;</a></h3>
+<p>One VRT per date, named <code>{region_out_prefix}_{resolution}m_{YYYY-MM-DD}_LAI.vrt</code>.
+Each VRT mosaics together every standardized tile that had usable imagery on
+that date, clipped to the ROI's bounding box (<code>gdalbuildvrt -te ... -tap</code>).</p>
+<p>Although the underlying tiles are Int16, the VRT is <strong>patched</strong> (see
+<code>vrt_patcher.py</code>) so that downstream readers see:</p>
+<ul>
+<li><code>dataType="Float32"</code></li>
+<li><code>NoDataValue=nan</code></li>
+<li>the <code>0.001</code> scale already applied (via per-source <code>ScaleRatio</code>/<code>NODATA</code>)</li>
+</ul>
+<p>In other words, reading a <code>merged-lai</code> VRT yields ready-to-use floating-point
+LAI with <code>NaN</code> for missing pixels — no manual rescaling required.</p>
+<blockquote>
+<p><strong>VRTs reference their source tiles by absolute path.</strong> Do not move or delete
+<code>standardized-lai/</code> while the VRTs are in use, and be aware that the VRTs are
+only directly usable on a machine that can see those exact paths.</p>
+</blockquote>
+<h2 id="bring-your-own-lai-compatibility">Bring-your-own-LAI compatibility<a class="headerlink" href="#bring-your-own-lai-compatibility" title="Permanent link">&para;</a></h2>
+<p>Any external LAI product can be dropped in as long as it matches the naming and
+spatial conventions described in
+<a href="../intro/#c-bring-your-own-lai-data">Bring your own LAI data</a>: a consistent
+prefix, resolution, <code>YYYY-MM-DD</code> date, identical CRS / extent / resolution
+across files, and the same <code>0.001</code> scale convention used here.</p>
 
 
 
@@ -851,7 +1105,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "toc.integrate", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

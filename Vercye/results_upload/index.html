@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -899,7 +899,7 @@
 
 <h1 id="uploading-results-rclone">Uploading Results (rclone)<a class="headerlink" href="#uploading-results-rclone" title="Permanent link">&para;</a></h1>
 <p>At the end of a VeRCYe run the pipeline can optionally package the most
-relevant study outputs (a curated subset — not every file produced by the
+relevant study outputs (a curated subset - not every file produced by the
 run) into a zip and upload it to a cloud drive via <code>rclone</code>. This is useful
 when the machine running VeRCYe is not where users want to fetch results
 from (e.g. a shared HPC node).</p>
@@ -955,7 +955,7 @@ than at the end of a long run.</p>
 <li>leave <code>client_id</code> / <code>client_secret</code> empty unless you have your own</li>
 <li>scope: <code>1</code> (full access) or <code>2</code> (file scope)</li>
 <li>leave root_folder_id / service account blank for interactive auth</li>
-<li><code>y</code> → auto config; a browser window opens — sign in and grant access</li>
+<li><code>y</code> → auto config; a browser window opens - sign in and grant access</li>
 <li><code>n</code> → not a team drive (unless it is)</li>
 <li>confirm with <code>y</code></li>
 </ul>
@@ -969,7 +969,7 @@ than at the end of a long run.</p>
    rclone listremotes          # should list 'gdrive:'
    rclone lsd gdrive:          # should list your Drive top-level folders</code></p>
 <ol>
-<li><strong>Point VeRCYe at it.</strong> Add to <code>.env</code> (preferred — <code>vercye prep</code> writes
+<li><strong>Point VeRCYe at it.</strong> Add to <code>.env</code> (preferred - <code>vercye prep</code> writes
    it into the run config) …</li>
 </ol>
 <p><code>dotenv
@@ -984,11 +984,11 @@ than at the end of a long run.</p>
    <code>gdrive:vercye_kenya/&lt;study_id&gt;_&lt;YYYYMMDD&gt;[_N]/&lt;zip&gt;</code>.</p>
 <h2 id="other-backends">Other backends<a class="headerlink" href="#other-backends" title="Permanent link">&para;</a></h2>
 <p><code>rclone_target</code> can be any <a href="https://rclone.org/overview/">rclone-supported backend</a>
-— Google Drive, S3, Azure Blob, Dropbox, SFTP, Backblaze B2, OneDrive, etc.
+- Google Drive, S3, Azure Blob, Dropbox, SFTP, Backblaze B2, OneDrive, etc.
 The setup is always the same: <code>rclone config</code> to add the remote, then set
 <code>RCLONE_TARGET</code> to <code>&lt;remote_name&gt;:</code> (or <code>&lt;remote_name&gt;:&lt;path&gt;</code>).</p>
 <h2 id="running">Running<a class="headerlink" href="#running" title="Permanent link">&para;</a></h2>
-<p>No extra CLI flag is needed — the upload step runs automatically as the
+<p>No extra CLI flag is needed - the upload step runs automatically as the
 last rule of <code>vercye run</code> when <code>rclone_target</code> is set. Logs are written to
 <code>logs_package_and_upload/&lt;study_id&gt;_package_and_upload.log</code> under the
 snakemake run directory, and a marker file
@@ -1046,7 +1046,7 @@ the upload has completed successfully.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "toc.integrate", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
