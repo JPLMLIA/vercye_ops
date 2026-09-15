@@ -27,7 +27,7 @@ This document details all output artifacts and their computation methods.
 
 ### Maps
 
-- **`yield_map.tif`**: Raster output representing the yield in kg/ha per pixel. The pixel values are derived my multiplying the remotely sensed LAI with a conversion factor. The conversion factor is computed from the matched simulations of the region.
+- **`yield_map.tif`**: Raster output representing the yield in kg/ha per pixel. The APSIM matched regional yield is distributed across cropland pixels in proportion to each pixel's peak remotely sensed LAI, so the cropland-mean of this raster equals the region's APSIM matched yield and LAI sets only the within-region spatial pattern.
 
 ### Detailed Outputs
 
@@ -59,7 +59,7 @@ This document details all output artifacts and their computation methods.
     - apsim_all_maxlai_std: The standard LAI deviation of `Max_Sim_LAI` over all (not-filtered) APSIM simulations.
     - max_rs_lai: For each date the remotely sensed mean LAI is computed (negative values clipped to 0). Hereby the mean is taken spatially over the region. `max_rs_lai` then defines the maximum LAI value of these.
     - max_rs_lai_date: The correspinding date of the `max_rs_lai` value.
-    - conversion_factor: The factor used to convert the remotely sensed LAI raster to yield estimates that are in kg/ha per pixel.
+    - conversion_factor: Legacy ratio factor (apsim_mean_yield / max_rs_lai) written by the matching script. No longer used to build `yield_map.tif`, which is mean-anchored on `apsim_mean_yield_estimate_kg_ha` instead.
 
 
 - **`LAI_STATS.csv`**: Insights on the estimated LAI from the remotely sensed data.
