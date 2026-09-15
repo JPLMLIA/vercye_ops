@@ -6,6 +6,7 @@ from typing import List
 import click
 import numpy as np
 import rasterio
+import rasterio.shutil as rio_shutil
 from rasterio.merge import merge
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 
@@ -94,10 +95,45 @@ def _atomic_write(src_path: str, dst_path: str):
     os.replace(src_path, dst_path)
 
 
+def _write_cog(src_path: str, dst_path: str, overview_resampling: str = "average"):
+    """Rewrite a GeoTIFF as a Cloud Optimized GeoTIFF, then move it into place.
+
+    Plain GTiff output here is strip-organised (one row per block) with no overviews, so
+    reading any window pulls whole raster-width rows and a zoomed-out view has to touch
+    the entire file. That makes the mosaics unusable for tile/range-request serving.
+    The COG driver writes 512x512 tiles plus internal overviews.
+
+    Use "average" for continuous data (yield) and "nearest" for categorical rasters such
+    as the coverage mask, where averaging would invent class values.
+    """
+    tmp_fd, tmp_cog = tempfile.mkstemp(suffix=".cog.tif", dir=os.path.dirname(dst_path))
+    os.close(tmp_fd)
+    try:
+        rio_shutil.copy(
+            src_path,
+            tmp_cog,
+            driver="COG",
+            compress="LZW",
+            blocksize=512,
+            overview_resampling=overview_resampling,
+            bigtiff="IF_SAFER",
+            num_threads="ALL_CPUS",
+        )
+        os.replace(tmp_cog, dst_path)
+    except Exception:
+        if os.path.exists(tmp_cog):
+            os.remove(tmp_cog)
+        raise
+    finally:
+        if os.path.exists(src_path):
+            os.remove(src_path)
+
+
 def _reproject_raster(
     input_path: str,
     output_path: str,
     target_crs: str,
+    cog_overview_resampling: str = "average",
     resampling: Resampling = Resampling.nearest,
     nodata=None,
 ):
@@ -116,6 +152,7 @@ def _reproject_raster(
             height=height,
             nodata=nodata,
             compress="lzw",
+            BIGTIFF="IF_SAFER",
         )
 
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".tif", dir=os.path.dirname(output_path))
@@ -134,7 +171,7 @@ def _reproject_raster(
                         src_nodata=nodata,
                         dst_nodata=nodata,
                     )
-            _atomic_write(tmp_path, output_path)
+            _write_cog(tmp_path, output_path, overview_resampling=cog_overview_resampling)
         except Exception:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
@@ -214,6 +251,9 @@ def create_yield_mosaic(
         "transform": merged_transform,
         "nodata": nodata_value,
         "compress": "lzw",
+        # National-scale mosaics can exceed the 4 GB classic-TIFF limit; write a
+        # BigTIFF when needed (inherited by the coverage-mask profile below).
+        "BIGTIFF": "IF_SAFER",
     }
 
     tmp_fd, tmp_4326 = tempfile.mkstemp(suffix=".tif", dir=os.path.dirname(output_mosaic_4326_path))
@@ -221,7 +261,7 @@ def create_yield_mosaic(
     try:
         with rasterio.open(tmp_4326, "w", **profile_4326) as dst:
             dst.write(merged_array[0], 1)
-        _atomic_write(tmp_4326, output_mosaic_4326_path)
+        _write_cog(tmp_4326, output_mosaic_4326_path, overview_resampling="average")
     except Exception:
         if os.path.exists(tmp_4326):
             os.remove(tmp_4326)
@@ -252,6 +292,7 @@ def create_yield_mosaic(
             tmp_cov_4326,
             output_coverage_mask_projected_path,
             target_crs,
+            cog_overview_resampling="nearest",
             resampling=Resampling.nearest,
             nodata=255,
         )
@@ -319,6 +360,13 @@ def _merge_via_vrt(tif_paths: List[str], nodata_value: float):
     required=True,
     help="Target equal-area CRS string (e.g., EPSG:9854).",
 )
+@click.option(
+    "--region-tif-suffix",
+    required=False,
+    default="_yield_map.tif",
+    show_default=True,
+    help="Filename suffix appended to each region name for per-region raster discovery.",
+)
 @click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 def cli(
     yield_tif_dir,
@@ -326,26 +374,27 @@ def cli(
     output_mosaic_projected,
     output_coverage_mask,
     target_crs,
+    region_tif_suffix,
     verbose,
 ):
     """Create yield mosaic from per-region TIFs, reproject, and build coverage mask."""
     logging_level = logging.INFO if verbose else logging.WARNING
     logger.setLevel(logging_level)
 
-    # Discover yield_map.tif files in subdirectories
+    # Discover per-region TIFs in subdirectories using the configured suffix
     tif_paths = []
     for region_dir in sorted(os.listdir(yield_tif_dir)):
         region_path = os.path.join(yield_tif_dir, region_dir)
         if not os.path.isdir(region_path):
             continue
-        yield_tif = os.path.join(region_path, f"{region_dir}_yield_map.tif")
+        yield_tif = os.path.join(region_path, f"{region_dir}{region_tif_suffix}")
         if os.path.exists(yield_tif):
             tif_paths.append(yield_tif)
 
     if not tif_paths:
-        raise click.ClickException(f"No yield_map.tif files found in {yield_tif_dir}")
+        raise click.ClickException(f"No '*{region_tif_suffix}' files found in {yield_tif_dir}")
 
-    logger.info(f"Found {len(tif_paths)} yield map TIFs")
+    logger.info(f"Found {len(tif_paths)} TIFs (suffix '{region_tif_suffix}')")
 
     create_yield_mosaic(
         region_yield_tif_paths=tif_paths,

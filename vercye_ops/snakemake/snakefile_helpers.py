@@ -26,11 +26,39 @@ def build_apsim_execution_command(
     else:
 
         tmp_uuid = uuid.uuid4().hex
-        tmpdir = op.join(op.dirname(input_file), tmp_uuid)
-        os.makedirs(tmpdir, exist_ok=True)
-
         dotnet_export = f'export DOTNET_ROOT="{dotnet_root}" && ' if dotnet_root else ""
 
+        # APSIM writes a large SQLite results DB and fsyncs it heavily. On a slow
+        # study disk that fsync — not CPU — bottlenecks a large ensemble run (the
+        # node sits at ~1% CPU while many APSIM wait on I/O). When tmpfs (/dev/shm,
+        # RAM) is available, run APSIM there so the DB is written to RAM (fsync is
+        # ~free), then move the finished DB to its real path on disk. The built
+        # .apsimx references its .met by absolute path, so running from a copy in
+        # tmpfs still resolves weather correctly. Falls back to the original
+        # in-place behavior when tmpfs is unavailable (e.g. other deployments).
+        shm = "/dev/shm"
+        use_shm = op.isdir(shm) and os.access(shm, os.W_OK)
+
+        if use_shm:
+            tmpdir = op.join(shm, f"vercye_apsim_{tmp_uuid}")
+            in_name = op.basename(input_file)
+            db_name = op.splitext(in_name)[0] + ".db"
+            real_db = op.join(op.dirname(input_file), db_name)
+            return (
+                f"{dotnet_export}"
+                f'mkdir -p "{tmpdir}" '
+                f'&& cp "{input_file}" "{tmpdir}/{in_name}" '
+                f'&& export DOTNET_SYSTEM_IO_TMPDIR="{tmpdir}" '
+                f'&& export TMPDIR="{tmpdir}" '
+                f'&& export TMP="{tmpdir}" '
+                f'&& export TEMP="{tmpdir}" '
+                f'&& {executable_fpath} "{tmpdir}/{in_name}" --cpu-count {n_jobs} '
+                f'&& mv -f "{tmpdir}/{db_name}" "{real_db}" '
+                f'&& rm -rf "{tmpdir}" '
+            )
+
+        tmpdir = op.join(op.dirname(input_file), tmp_uuid)
+        os.makedirs(tmpdir, exist_ok=True)
         return (
             f"{dotnet_export}"
             f'export DOTNET_SYSTEM_IO_TMPDIR="{tmpdir}" '

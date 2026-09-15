@@ -649,7 +649,7 @@ useEffect(() => {
               onChange={(e) => setTargetProjection(e.target.value)}
             />
             <p className="subtitle" style={{ marginTop: 4 }}>
-              Equal-area projection for accurate area and production calculations (e.g., Albers Equal-Area for your study region).
+              Equal-area projection for accurate area and production calculations. Enter a value as an EPSG code (e.g. EPSG:5070) or a PROJ string (e.g. +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs).
             </p>
           </div>
         </div>
@@ -1174,23 +1174,17 @@ useEffect(() => {
               // Identify newly added files (not already in the current list)
               const existingNames = new Set(aggShapefileFiles.map(f => f.name));
               const newFiles = files.filter(f => !existingNames.has(f.name));
-              const removedNames = new Set(
-                aggShapefileFiles
-                  .filter(f => !files.some(nf => nf.name === f.name))
-                  .map(f => f.name)
+
+              // Configs are index-aligned with files; remove the config at each removed
+              // index so a removed file clears its fields even after the level was renamed.
+              const newNames = new Set(files.map(f => f.name));
+              const removedIdx = new Set(
+                aggShapefileFiles.map((_, i) => i).filter(i => !newNames.has(aggShapefileFiles[i].name))
               );
 
               setAggShapefileFiles(files);
 
-              // Remove configs for removed files
-              let updatedConfigs = aggShapefileConfigs.filter(
-                c => !removedNames.has(c.level_name.replace(/\.(zip|geojson|json)$/i, ''))
-                  && !removedNames.has(c.level_name + '.zip')
-                  && !removedNames.has(c.level_name + '.geojson')
-                  && !removedNames.has(c.level_name + '.json')
-                  // Also keep configs whose source file is still present
-                  && !Array.from(removedNames).some(rn => rn.replace(/\.(zip|geojson|json)$/i, '') === c.level_name)
-              );
+              let updatedConfigs = aggShapefileConfigs.filter((_, i) => !removedIdx.has(i));
 
               // Parse newly added files client-side
               if (newFiles.length > 0) {
@@ -1208,25 +1202,31 @@ useEffect(() => {
                       geojson = await shp(arrayBuffer);
                     }
 
-                    // Extract columns with type info from feature properties
-                    const colMap = new Map<string, { is_numeric: boolean; dtype: string }>();
+                    // Scan all features (not just the first) so a numeric column whose first
+                    // value is null/a string isn't mislabeled: numeric iff every non-null value parses.
+                    const colMap = new Map<string, { hasNumeric: boolean; hasNonNumeric: boolean }>();
                     const features = geojson?.features || [];
                     for (const feature of features) {
                       if (!feature.properties) continue;
                       for (const [key, value] of Object.entries(feature.properties)) {
-                        if (!colMap.has(key)) {
-                          const isNum = typeof value === 'number';
-                          colMap.set(key, {
-                            is_numeric: isNum,
-                            dtype: isNum ? 'float64' : 'object',
-                          });
-                        }
+                        if (!colMap.has(key)) colMap.set(key, { hasNumeric: false, hasNonNumeric: false });
+                        const info = colMap.get(key)!;
+                        if (value === null || value === undefined || value === '') continue; // ignore nulls/blanks
+                        const isNum =
+                          typeof value === 'number'
+                            ? Number.isFinite(value)
+                            : typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
+                        if (isNum) info.hasNumeric = true;
+                        else info.hasNonNumeric = true;
                       }
                     }
 
                     const columns = Array.from(colMap.entries())
                       .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([name, info]) => ({ name, ...info }));
+                      .map(([name, info]) => {
+                        const is_numeric = info.hasNumeric && !info.hasNonNumeric;
+                        return { name, is_numeric, dtype: is_numeric ? 'float64' : 'object' };
+                      });
 
                     updatedConfigs.push({
                       level_name: f.name.replace(/\.(zip|geojson|json)$/i, ''),
@@ -1319,7 +1319,8 @@ useEffect(() => {
                 }}
               >
                 <option value="">-- None --</option>
-                {cfg.columns.filter(col => col.is_numeric).map(col => (
+                {/* Show all columns; the backend validates the chosen reference column. */}
+                {cfg.columns.map(col => (
                   <option key={col.name} value={col.name}>{col.name} ({col.dtype})</option>
                 ))}
               </select>

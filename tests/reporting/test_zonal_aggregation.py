@@ -2,10 +2,11 @@
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pytest
 import rasterio
 from rasterio.transform import from_bounds
-from shapely.geometry import box
+from shapely.geometry import box, mapping
 
 
 def _create_test_raster(path, bounds, shape=(100, 100), crs="EPSG:32637", data=None, nodata=float("nan")):
@@ -181,6 +182,42 @@ class TestComputeZonalYieldStats:
             # Allow 10% tolerance due to pixel-level aggregation
             assert abs(row["total_production_kg"] - expected_production) / expected_production < 0.1
 
+    def test_id_named_column_not_mislabeled(self, tmp_path):
+        """Regression: a name_column literally called 'id' must not be overridden by
+        exactextract with the 0-based feature index, which previously assigned each
+        region the geometry-at-position-N's stats (region '91' got a neighbor's yield).
+        """
+        from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
+
+        crs = "EPSG:32637"
+        bounds = (300000, 5400000, 400000, 5500000)
+        shape = (100, 100)
+
+        # Left half = 1000 kg/ha, right half = 8000 kg/ha. Distinct so a mislabel is visible.
+        yield_data = np.empty(shape, dtype=np.float32)
+        yield_data[:, : shape[1] // 2] = 1000.0
+        yield_data[:, shape[1] // 2 :] = 8000.0
+        yield_tif = str(tmp_path / "yield.tif")
+        _create_test_raster(yield_tif, bounds, shape, crs, yield_data)
+
+        cov_tif = str(tmp_path / "cov.tif")
+        _create_test_coverage(cov_tif, bounds, shape, crs, coverage_pct=1.0)
+
+        mid_x = (bounds[0] + bounds[2]) / 2
+        left = box(bounds[0], bounds[1], mid_x, bounds[3])
+        right = box(mid_x, bounds[1], bounds[2], bounds[3])
+        shp_path = str(tmp_path / "regions_id.shp")
+        # Non-sequential ids; "10" sorts before "2" so any positional fallback diverges.
+        _create_test_shapefile(shp_path, {"geometry": [left, right], "id": ["2", "10"]}, crs=crs)
+
+        result = compute_zonal_yield_stats(yield_tif, cov_tif, shp_path, name_column="id")
+
+        assert set(result["region"]) == {"2", "10"}
+        left_mean = result.loc[result["region"] == "2", "mean_yield_kg_ha"].iloc[0]
+        right_mean = result.loc[result["region"] == "10", "mean_yield_kg_ha"].iloc[0]
+        assert abs(left_mean - 1000) < 100, f"region '2' (left) should be ~1000, got {left_mean}"
+        assert abs(right_mean - 8000) < 100, f"region '10' (right) should be ~8000, got {right_mean}"
+
 
 class TestExtractReferenceFromShapefile:
     def test_basic_extraction(self, test_data):
@@ -197,3 +234,137 @@ class TestExtractReferenceFromShapefile:
 
         with pytest.raises(ValueError):
             extract_reference_from_shapefile(test_data["shapefile"], "NAME", "nonexistent")
+
+    def test_name_column_with_null_value_raises(self, tmp_path):
+        """A null region identifier is a data error and must fail loudly rather than
+        being silently coerced or dropped.
+        """
+        from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
+
+        crs = "EPSG:32637"
+        bounds = (300000, 5400000, 400000, 5500000)
+        shape = (100, 100)
+        yield_tif = str(tmp_path / "y.tif")
+        _create_test_raster(yield_tif, bounds, shape, crs, np.full(shape, 3000.0, dtype=np.float32))
+        cov_tif = str(tmp_path / "c.tif")
+        _create_test_coverage(cov_tif, bounds, shape, crs, coverage_pct=1.0)
+
+        mid_x = (bounds[0] + bounds[2]) / 2
+        poly1 = box(bounds[0], bounds[1], mid_x, bounds[3])
+        poly2 = box(mid_x, bounds[1], bounds[2], bounds[3])
+        shp_path = str(tmp_path / "regions_null.shp")
+        _create_test_shapefile(shp_path, {"geometry": [poly1, poly2], "FID": [10.0, None]}, crs=crs)
+
+        with pytest.raises(ValueError, match="non-null"):
+            compute_zonal_yield_stats(yield_tif, cov_tif, shp_path, name_column="FID")
+
+    def test_duplicate_region_in_year_raises(self, tmp_path):
+        """Two rows sharing the same region identifier within a single year is a
+        non-unique key (e.g. a collided rayon name, or a genuine duplicate row). It
+        must fail loudly rather than silently produce duplicate reference rows that
+        later fan out into a cartesian product downstream.
+        """
+        import json
+
+        from vercye_ops.reporting.zonal_aggregation import extract_reference_from_shapefile
+
+        geoms = [box(0, 0, 1, 1), box(1, 0, 2, 1), box(2, 0, 3, 1)]
+        # Two "Ochakiv" rows for the same year with different yields -> non-unique key.
+        features = [
+            {"type": "Feature", "properties": {"name": n, "ref": v, "yr": "2022"}, "geometry": mapping(g)}
+            for n, v, g in zip(["Ochakiv", "Ochakiv", "Bashtan"], ["2658", "3264", "2500"], geoms)
+        ]
+        gj = str(tmp_path / "dup.geojson")
+        with open(gj, "w") as f:
+            json.dump({"type": "FeatureCollection", "features": features}, f)
+
+        with pytest.raises(ValueError, match="Ochakiv"):
+            extract_reference_from_shapefile(gj, "name", "ref", year_column="yr", year="2022")
+
+    def test_name_collision_distinct_geometries_raises(self, tmp_path):
+        """Two polygons sharing a name_column value but with different geometries is a
+        real region-identity collision (e.g. same rayon name in two oblasts). Silently
+        keeping the first polygon would attribute one region's yield to another, so it
+        must raise instead of drop_duplicates.
+        """
+        from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
+
+        crs = "EPSG:32637"
+        bounds = (300000, 5400000, 400000, 5500000)
+        shape = (100, 100)
+        yield_tif = str(tmp_path / "y.tif")
+        _create_test_raster(yield_tif, bounds, shape, crs, np.full(shape, 3000.0, dtype=np.float32))
+        cov_tif = str(tmp_path / "c.tif")
+        _create_test_coverage(cov_tif, bounds, shape, crs, coverage_pct=1.0)
+
+        mid_x = (bounds[0] + bounds[2]) / 2
+        poly1 = box(bounds[0], bounds[1], mid_x, bounds[3])
+        poly2 = box(mid_x, bounds[1], bounds[2], bounds[3])
+        shp_path = str(tmp_path / "collision.shp")
+        # Same NAME, different polygons -> collision.
+        _create_test_shapefile(shp_path, {"geometry": [poly1, poly2], "NAME": ["Dup", "Dup"]}, crs=crs)
+
+        with pytest.raises(ValueError, match="collid|duplicate|Dup"):
+            compute_zonal_yield_stats(yield_tif, cov_tif, shp_path, name_column="NAME")
+
+    def test_identical_geometry_duplicates_are_deduped(self, tmp_path):
+        """A shapefile carrying one row per region per year repeats each geometry across
+        years. When all rows for a name share the same geometry that is not a collision -
+        it must be deduplicated to a single region, not raise.
+        """
+        import json
+
+        from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
+
+        crs = "EPSG:32637"
+        bounds = (300000, 5400000, 400000, 5500000)
+        shape = (100, 100)
+        yield_tif = str(tmp_path / "y.tif")
+        _create_test_raster(yield_tif, bounds, shape, crs, np.full(shape, 3000.0, dtype=np.float32))
+        cov_tif = str(tmp_path / "c.tif")
+        _create_test_coverage(cov_tif, bounds, shape, crs, coverage_pct=1.0)
+
+        mid_x = (bounds[0] + bounds[2]) / 2
+        left = box(bounds[0], bounds[1], mid_x, bounds[3])
+        right = box(mid_x, bounds[1], bounds[2], bounds[3])
+        # Region A appears twice with the SAME geometry (two years); region B once.
+        features = []
+        for name, geom, yr in [("A", left, "2020"), ("A", left, "2021"), ("B", right, "2020")]:
+            features.append(
+                {"type": "Feature", "properties": {"NAME": name}, "geometry": mapping(geom)}
+            )
+        # Write via geopandas to preserve CRS
+        gdf = gpd.GeoDataFrame.from_features(features, crs=crs)
+        shp_path = str(tmp_path / "cross_year.shp")
+        gdf.to_file(shp_path)
+
+        result = compute_zonal_yield_stats(yield_tif, cov_tif, shp_path, name_column="NAME")
+        assert set(result["region"]) == {"A", "B"}
+        assert len(result) == 2
+
+    def test_string_numeric_reference_with_null_first(self, tmp_path):
+        """Regression: a reference column stored as strings with a null first value is
+        read as object dtype. It must still be coerced to numeric (not carried through
+        as strings) and the null row dropped.
+        """
+        import json
+
+        from vercye_ops.reporting.zonal_aggregation import extract_reference_from_shapefile
+
+        geoms = [box(0, 0, 1, 1), box(1, 0, 2, 1), box(2, 0, 3, 1)]
+        # First value null, the rest numeric-but-stored-as-strings -> object dtype on read.
+        vals = [None, "3200", "2800"]
+        features = [
+            {"type": "Feature", "properties": {"name": n, "ref": v}, "geometry": mapping(g)}
+            for n, v, g in zip(["A", "B", "C"], vals, geoms)
+        ]
+        gj = str(tmp_path / "level.geojson")
+        with open(gj, "w") as f:
+            json.dump({"type": "FeatureCollection", "features": features}, f)
+
+        result = extract_reference_from_shapefile(gj, "name", "ref")
+
+        # Null row dropped, remaining values coerced to numeric.
+        assert len(result) == 2
+        assert pd.api.types.is_numeric_dtype(result["reported_mean_yield_kg_ha"])
+        assert sorted(result["reported_mean_yield_kg_ha"].tolist()) == [2800.0, 3200.0]

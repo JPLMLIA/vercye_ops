@@ -5,3 +5,5 @@ fastapi[standard]
 pyproj
 pyyaml
 packaging<26
+# XYZ tiles rendered straight from the mosaics' COG overviews for the results map
+rio-tiler>=7,<8

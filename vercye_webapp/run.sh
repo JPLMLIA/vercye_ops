@@ -19,6 +19,19 @@ fi
 if [[ -n "${PYTHON_ENV_PATH:-}" ]]; then
   export PYTHONNOUSERSITE=1
   export PATH="$PYTHON_ENV_PATH:$PATH"
+
+  # Source the conda env's activation scripts so data-dir env vars
+  # (PROJ_DATA, GDAL_DATA, ...) get exported. Without these, the env's
+  # GDAL/PROJ binaries are on PATH but cannot resolve CRSs (e.g. EPSG:4326),
+  # which silently breaks the LAI VRT step. Adding bin to PATH alone does not
+  # run these scripts the way `conda activate` would.
+  CONDA_PREFIX="$(dirname "$PYTHON_ENV_PATH")"
+  export CONDA_PREFIX
+  if [[ -d "$CONDA_PREFIX/etc/conda/activate.d" ]]; then
+    for activate_script in "$CONDA_PREFIX"/etc/conda/activate.d/*.sh; do
+      [[ -r "$activate_script" ]] && source "$activate_script"
+    done
+  fi
 fi
 
 # Redirect cache directory if configured (e.g. to avoid filling up home on shared filesystems)
@@ -36,6 +49,7 @@ fi
 : "${REDIS_PATH:?Set REDIS_PATH in .env}"
 : "${LOGS_PATH:=./logs}"
 : "${SOCKET_PATH:=/tmp/vercye-uvicorn.sock}"
+: "${UVICORN_WORKERS:=4}"
 : "${USERS:=}"
 
 mkdir -p "$LOGS_PATH"
@@ -101,7 +115,7 @@ mkdir -p "$sock_dir"
 [[ -e "$SOCKET_PATH" ]] && rm -f "$SOCKET_PATH"
 
 echo "[info] Starting Uvicorn..."
-python -m uvicorn main:app --uds "$SOCKET_PATH" > "$LOGS_PATH/serverlog_${DATETIME_SUFFIX}.txt" 2>&1 &
+python -m uvicorn main:app --uds "$SOCKET_PATH" --workers "$UVICORN_WORKERS" > "$LOGS_PATH/serverlog_${DATETIME_SUFFIX}.txt" 2>&1 &
 
 # Wait for socket
 echo -n "[info] Waiting for socket to be created"

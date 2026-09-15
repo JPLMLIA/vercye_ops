@@ -104,7 +104,9 @@ The complete logic is defined in `vecrye_ops/snakemake/Snakefile`.
 
 ### 8. Yield Map Generation
 - **Rule**: `generate_converted_lai_map`
-- Uses conversion factors to transform predicted yield into pixel-level raster maps.
+- Distributes the APSIM matched regional yield across cropland pixels in proportion to each
+  pixel's peak LAI (mean-anchored), so the cropland-mean of the map equals the APSIM yield and
+  LAI sets only the within-region spatial pattern.
 
 ---
 

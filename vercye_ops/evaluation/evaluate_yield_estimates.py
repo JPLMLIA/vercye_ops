@@ -248,7 +248,16 @@ def get_preds_obs(estimation_fpath, val_fpath, pixel_converted=True):
     gt = load_csv(val_fpath)
     pred = load_csv(estimation_fpath)
 
-    predictions_column = "mean_yield_kg_ha" if pixel_converted else "apsim_mean_yield_estimate_kg_ha"
+    if pixel_converted:
+        predictions_column = "mean_yield_kg_ha"
+    elif "mean_yield_kg_ha_apsim" in pred.columns:
+        # Mosaic-derived APSIM yield is present at every aggregation level (primary +
+        # higher). Prefer it so APSIM eval works at all levels.
+        predictions_column = "mean_yield_kg_ha_apsim"
+    else:
+        # Legacy fallback: per-region APSIM scalar joined in by collect_apsim_metadata.
+        # Only present at primary level in pre-APSIM-mosaic CSVs.
+        predictions_column = "apsim_mean_yield_estimate_kg_ha"
 
     if "reported_mean_yield_kg_ha" in pred.columns:
         pred.drop(["reported_mean_yield_kg_ha"], axis="columns", inplace=True)
@@ -346,6 +355,15 @@ def cli(val_fpath, estimation_fpath, out_eval_fpath, out_errors_fpath, out_plot_
     logger.info("Computing errors...")
     errors = compute_errors_per_region(preds_obs["preds"], obs=preds_obs["obs"], region_names=preds_obs["region"])
     write_errors(errors, out_errors_fpath)
+
+    if preds_obs_apsimonly is not None:
+        errors_apsimonly = compute_errors_per_region(
+            preds_obs_apsimonly["preds"],
+            obs=preds_obs_apsimonly["obs"],
+            region_names=preds_obs_apsimonly["region"],
+        )
+        out_errors_fpath_apsim = str(out_errors_fpath).replace(".csv", "_no-pixel-conversion.csv")
+        write_errors(errors_apsimonly, out_errors_fpath_apsim)
 
     logger.info("Creating scatter plot...")
     scatter_plot = create_scatter_plot(preds=preds_obs["preds"], obs=preds_obs["obs"])

@@ -1,6 +1,8 @@
 """CLI tools for fetching/formatting meteorological data"""
 
 import os
+import random
+import time
 from pathlib import Path
 
 import click
@@ -16,6 +18,36 @@ logger = get_logger()
 
 # Environment variable for the service account key path
 EE_SERVICE_ACCOUNT_KEY_ENV = "EE_SERVICE_ACCOUNT_KEY"
+
+# Retry config for Earth Engine rate-limit (HTTP 429) errors
+EE_MAX_RETRIES = 8
+EE_BASE_BACKOFF_SECONDS = 5.0
+
+# Max distance (days) a missing date may sit before the latest available ERA5
+# date and still be treated as a tolerable near-real-time (ERA5T) trailing-edge
+# gap rather than a hard error. See fetch_era5_data().
+RECENT_EDGE_TOLERANCE_DAYS = 10
+
+
+def _is_rate_limit_error(exc):
+    msg = str(exc).lower()
+    return "too many requests" in msg or "rate" in msg and "limit" in msg or "429" in msg
+
+
+def _getinfo_with_retry(ee_obj, label):
+    """Call .getInfo() with exponential backoff on EE 429/rate-limit errors."""
+    for attempt in range(EE_MAX_RETRIES):
+        try:
+            return ee_obj.getInfo()
+        except ee.ee_exception.EEException as e:
+            if not _is_rate_limit_error(e) or attempt == EE_MAX_RETRIES - 1:
+                raise
+            sleep_s = EE_BASE_BACKOFF_SECONDS * (2 ** attempt) + random.uniform(0, 1.0)
+            logger.warning(
+                f"EE rate-limited on {label} (attempt {attempt + 1}/{EE_MAX_RETRIES}); "
+                f"sleeping {sleep_s:.1f}s before retry. Error: {e}"
+            )
+            time.sleep(sleep_s)
 
 
 def init_ee(project, service_account_key=None):
@@ -212,7 +244,9 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
             features = era5.map(extract)
             feature_collection = ee.FeatureCollection(features)
-            result = feature_collection.getInfo()
+            result = _getinfo_with_retry(
+                feature_collection, label=f"ERA5 {chunk_start}..{chunk_end}"
+            )
             records = [f["properties"] for f in result["features"]]
             all_records.extend(records)
 
@@ -221,6 +255,18 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
             raise e
 
     df = pd.DataFrame(all_records)
+
+    # No records can legitimately be returned when only not-yet-published dates
+    # were requested (e.g. an isolated near-real-time hole, or a range entirely
+    # in the future). Return an empty frame and let the caller skip it rather
+    # than crashing on the missing "date" column below.
+    if df.empty:
+        logger.warning(
+            "No ERA5 records returned for %s..%s (dates not yet available); skipping.",
+            start_date,
+            end_date,
+        )
+        return df
 
     logger.info("Processing ERA5 data to required format.")
 
@@ -258,6 +304,25 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
     # Keep only required columns for APSIM
     df = df[["date", "ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "T2M", "PRECTOTCORR", "WS2M"]]
 
+    # ERA5-Land is a land-only product: cells that are mostly water (coastlines,
+    # estuaries, large lakes) are masked and reduceRegion returns null for every
+    # date. Zero-filling that produces a met series of 0 degC and 0 radiation,
+    # which is not obviously wrong to any downstream check - error_checking_function
+    # treats 0 as in-range - so APSIM silently runs a crop that never germinates.
+    # Fail loudly instead; the caller must pick a nearby land cell.
+    core_vars = ["ALLSKY_SFC_SW_DWN", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "WS2M"]
+    fully_null = [c for c in core_vars if df[c].isna().all()]
+    if fully_null:
+        raise ValueError(
+            f"ERA5-Land returned no data for {fully_null} over the whole requested range. "
+            "The queried geometry most likely falls in a water-masked ERA5-Land cell "
+            "(coast/estuary/lake). Query a nearby land cell instead."
+        )
+
+    n_null = int(df[core_vars].isna().sum().sum())
+    if n_null:
+        logger.warning("Zero-filling %d isolated null ERA5 value(s) across %s.", n_null, core_vars)
+
     df.fillna(
         {"ALLSKY_SFC_SW_DWN": 0, "T2M": 0, "T2M_MAX": 0, "T2M_MIN": 0, "PRECTOTCORR": 0, "WS2M": 0},
         inplace=True,
@@ -272,9 +337,24 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
         # sort missing dates ascending
         missing_dates = missing_dates.sort_values()
+        data_max = df["date"].max()
         # check if it is the newest dates that are missing
-        if missing_dates[0] > df["date"].max():
+        if missing_dates[0] > data_max:
             logger.warning("Missing dates are at the end of the data. Not filling them.")
+        elif (data_max - missing_dates[0]).days <= RECENT_EDGE_TOLERANCE_DAYS:
+            # Near-real-time ERA5 publishes the most recent day(s) as preliminary
+            # (ERA5T) before the day(s) just before them are consolidated, which
+            # leaves a transient 1-2 day hole at the trailing edge. Tolerate small
+            # gaps at the recent edge by truncating to the last fully-continuous
+            # date and treating everything from the first gap on as not-yet-available.
+            # A genuine interior gap well before the latest available data is still
+            # a hard error (handled in the else branch below).
+            logger.warning(
+                "Gap near the trailing edge of available ERA5 data "
+                f"(first missing date {missing_dates[0].date()}, latest available {data_max.date()}). "
+                "Truncating to the last continuous date; remaining dates treated as not-yet-available."
+            )
+            df = df[df["date"] < missing_dates[0]]
         else:
             raise Exception("Missing dates - Not yet handled, this shouldnt occur.")
 
@@ -323,11 +403,41 @@ def fetch_from_cache(start_date, end_date, lon, lat, polygon_path, ee_project, c
         )
 
         chunk_data = fetch_era5_data(chunk[0], chunk[-1], ee_project, lon, lat, polygon_path)
-        missing_data.append(chunk_data)
+        # An isolated near-real-time hole (or a purely future range) yields no
+        # records; skip it instead of writing a gappy frame into the cache.
+        if chunk_data is not None and not chunk_data.empty:
+            missing_data.append(chunk_data)
 
     # Combine existing data with newly fetched data and bring in correct order
     df_combined = pd.concat([df_existing] + missing_data)
     df_combined.sort_index(inplace=True)
+    df_combined = df_combined[~df_combined.index.duplicated(keep="last")]
+
+    # Enforce day-to-day continuity before caching. Near-real-time ERA5 can
+    # leave a transient hole at the recent edge (the latest day is published
+    # before the day just before it is consolidated). Storing that would create
+    # a gappy cache that breaks downstream (.met "Non consecutive dates", and an
+    # isolated hole would later be re-fetched as an empty single-day chunk).
+    # Truncate at the first gap when it sits near the recent edge; a genuine
+    # historical gap well before the latest data remains a hard error.
+    full_range = pd.date_range(df_combined.index.min(), df_combined.index.max(), freq="D")
+    internal_missing = full_range.difference(df_combined.index)
+    if not internal_missing.empty:
+        first_gap = internal_missing.min()
+        data_max = df_combined.index.max()
+        if (data_max - first_gap).days <= RECENT_EDGE_TOLERANCE_DAYS:
+            logger.warning(
+                "Gap in combined ERA5 series at %s (latest available %s); truncating cache to "
+                "the last continuous date and treating the remainder as not-yet-available.",
+                first_gap.date(),
+                data_max.date(),
+            )
+            df_combined = df_combined.loc[: first_gap - pd.Timedelta(days=1)]
+        else:
+            raise Exception(
+                f"Non-consecutive dates in ERA5 cache at {first_gap.date()} "
+                "(not a recent-edge gap) - not yet handled."
+            )
 
     df_combined = clean_era5(df_combined)
     error_checking_function(df_combined)
@@ -486,7 +596,7 @@ def cli(
 
     error_checking_function(df)
     if output_dir is not None:
-        region = Path(output_dir).stem
+        region = Path(output_dir).name
         output_fpath = Path(output_dir) / f"{region}_met.csv"
         write_met_data_to_csv(df, output_fpath)
         logger.info("Data successfully written to %s", output_fpath)

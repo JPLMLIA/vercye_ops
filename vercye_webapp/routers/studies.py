@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 import aiofiles
 import geopandas as gpd
+import pandas as pd
 import yaml
 from celery.result import AsyncResult
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
@@ -27,6 +28,8 @@ from models import (
     LAIConfigRunParams,
     RegionExtractionResponse,
     RunConfigFormParams,
+    RunID,
+    RunSummary,
     SetupConfigTemplate,
     SetupSubmissionsRequest,
     ShapefileColumnInfo,
@@ -62,6 +65,18 @@ cropmasks_dir = read_cropmasks_dir_from_env()
 
 # Cache for storing study status to deal with fast responses in status updates
 status_cache: Dict[str, Tuple[float, str]] = {}
+
+
+def _column_is_numeric(series) -> bool:
+    """Numeric iff every non-null value parses as a number (robust to object dtype from
+    null/string-typed columns, unlike a plain dtype.kind check)."""
+    if series.dtype.kind in ("i", "f"):
+        return True
+    coerced = pd.to_numeric(series, errors="coerce")
+    non_null = series.notna()
+    has_bad = bool((coerced.isna() & non_null).any())
+    return (not has_bad) and bool(coerced.notna().any())
+
 
 router = APIRouter(
     prefix="/studies",
@@ -341,11 +356,12 @@ async def setup_study(
                             "shapefile_path": resolved_path,
                             "name_column": cfg.name_column,
                             "reference_yield_column": cfg.reference_yield_column,
+                            "year_column": cfg.year_column,
                         }
                         break
 
     elif setup_submission.aggregation_shapefiles:
-        # No new files uploaded but configs exist (e.g. duplicated study) —
+        # No new files uploaded but configs exist (e.g. duplicated study) -
         # preserve existing shapefile paths from the current study config
         existing_config_path = get_setup_config_file_path(studies_dir, study_id)
         if os.path.exists(existing_config_path):
@@ -415,18 +431,24 @@ def fetch_setup_config(study_id: StudyID):
     apsim_files = list(apsim_mapping.keys())
     apsim_column = str(raw.get("apsim_column", ""))
 
-    # shapefile
+    # Region attribute table only. The frontend uses feature.properties to populate the
+    # column/value dropdowns and never renders the geometry, so we skip reading geometry
+    # entirely - this keeps the payload to a few hundred KB instead of several MB.
     try:
-        gdf = gpd.read_file(config["regions_shp_name"])
-        for col in gdf.select_dtypes(include=["datetime64[ns]"]).columns:
-            gdf[col] = gdf[col].astype(str)
+        regions_df = gpd.read_file(config["regions_shp_name"], ignore_geometry=True)
+        for col in regions_df.select_dtypes(include=["datetime64[ns]"]).columns:
+            regions_df[col] = regions_df[col].astype(str)
 
-        shapefile_geojson = json.loads(gdf.to_json())
+        records = regions_df.astype(object).where(pd.notna(regions_df), None).to_dict(orient="records")
+        shapefile_geojson = {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "geometry": None, "properties": rec} for rec in records],
+        }
         shapefile_name = Path(config["regions_shp_name"]).name
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read shapefile: {e}")
 
-    # aggregation shapefiles — enrich with columns read from stored files
+    # aggregation shapefiles - enrich with columns read from stored files
     agg_shp_raw = raw.get("aggregation_shapefiles", [])
     agg_shp_stored = config.get("AGGREGATION_SHAPEFILES", {})
     agg_shp_configs: list[AggregationShapefileConfigWithColumns] = []
@@ -440,7 +462,9 @@ def fetch_setup_config(study_id: StudyID):
         if shp_path:
             agg_shp_names.append(Path(shp_path).name)
             try:
-                gdf_agg = gpd.read_file(shp_path)
+                # Only the attribute schema (column names/dtypes) is needed for the UI
+                # dropdowns, so skip reading geometry.
+                gdf_agg = gpd.read_file(shp_path, ignore_geometry=True)
                 for col in gdf_agg.columns:
                     if col == "geometry":
                         continue
@@ -448,7 +472,7 @@ def fetch_setup_config(study_id: StudyID):
                         ShapefileColumnInfo(
                             name=col,
                             dtype=str(gdf_agg[col].dtype),
-                            is_numeric=gdf_agg[col].dtype.kind in ("i", "f"),
+                            is_numeric=_column_is_numeric(gdf_agg[col]),
                         )
                     )
             except Exception:
@@ -516,7 +540,7 @@ async def get_shapefile_columns(
         if col == "geometry":
             continue
         dtype = str(gdf[col].dtype)
-        is_numeric = gdf[col].dtype.kind in ("i", "f")
+        is_numeric = _column_is_numeric(gdf[col])
         columns.append({"name": col, "dtype": dtype, "is_numeric": is_numeric})
 
     return {"columns": columns}
@@ -607,6 +631,39 @@ def get_run_config_file(study_id: StudyID):
     if not os.path.isfile(run_cfg_path):
         raise HTTPException(status_code=404, detail="Run config not found")
     return FileResponse(run_cfg_path, filename="run_config.yaml")
+
+
+@router.get("/{study_id}/run-summary")
+def get_run_summary(study_id: StudyID):
+    """What a run of this study will actually do, in the terms the user chose them.
+
+    Shown before starting a run so the confirmation is about the configuration rather than
+    about the word "Run". Everything here is read straight out of config.yaml - no
+    defaults are filled in, so a field the user never set shows as absent rather than as
+    something plausible.
+    """
+    if not os.path.exists(get_run_config_file_path(studies_dir, study_id)):
+        raise HTTPException(status_code=404, detail="Run config not found")
+    cfg = get_run_config(studies_dir, study_id)
+
+    apsim = cfg.get("apsim_params") or {}
+    lai = cfg.get("lai_params") or {}
+    levels = (cfg.get("eval_params") or {}).get("aggregation_levels") or {}
+    masks = {str(y): Path(str(p)).name for y, p in (lai.get("crop_mask") or {}).items() if p}
+
+    return {
+        "study_id": study_id,
+        "title": cfg.get("title"),
+        "years": [str(y) for y in (cfg.get("years") or [])],
+        "timepoints": [str(t) for t in (cfg.get("timepoints") or [])],
+        "n_regions": len(cfg.get("regions") or []),
+        "aggregation_levels": sorted(levels),
+        "cropmasks": masks,
+        "lai_region": lai.get("lai_region"),
+        "lai_resolution": lai.get("lai_resolution"),
+        "met_source": apsim.get("met_source"),
+        "precipitation_source": apsim.get("precipitation_source"),
+    }
 
 
 @router.get("/{study_id}/run-config-formdata")
@@ -820,22 +877,43 @@ def get_result_timepoints(study_id: StudyID):
     return {"timepoints": years}
 
 
-@router.get("/{study_id}/map-result/{year}/{timepoint}/{resource}")
-def get_map_resource(study_id: StudyID, year: int, timepoint: str, resource: str):
-    base_path = (
-        Path(studies_dir) / study_id / "snakemake" / "result_maps" / str(year) / str(timepoint) / "interactive_map"
-    )
-    file_path = base_path / resource
+# Pixel-level yield mosaics are COGs (tiled + internal overviews), and Starlette's
+# FileResponse serves HTTP range requests, so the browser reads only the tiles it needs.
+# No server-side tiler required.
+COG_KINDS = {
+    "yield": "yield_mosaic_4326_*.tif",
+    "apsim_yield": "apsim_yield_mosaic_4326_*.tif",
+}
 
+
+def _resolve_cog(base_dir, kind: str):
+    pattern = COG_KINDS.get(kind)
+    if pattern is None:
+        raise HTTPException(status_code=404, detail=f"Unknown COG kind '{kind}'.")
+    # "yield_mosaic_4326_*" would also match "apsim_yield_mosaic_4326_*"; pin the start.
+    candidates = [p for p in glob(os.path.join(str(base_dir), pattern)) if os.path.basename(p).startswith(pattern.split("*")[0])]
+    if len(candidates) != 1:
+        raise HTTPException(status_code=404, detail=f"Expected one {kind} mosaic, found {len(candidates)}.")
+    return candidates[0]
+
+
+@router.get("/{study_id}/cog/{year}/{timepoint}/{kind}")
+def get_cog(study_id: StudyID, year: int, timepoint: str, kind: str):
+    base = Path(studies_dir) / study_id / study_id / str(year) / str(timepoint)
+    return FileResponse(_resolve_cog(base, kind), media_type="image/tiff")
+
+
+@router.get("/{study_id}/runs/{run_id}/cog/{year}/{timepoint}/{kind}")
+def get_run_cog(study_id: StudyID, run_id: RunID, year: int, timepoint: str, kind: str):
+    # Run archives only keep the equal-area "..._projected_..." mosaic; the EPSG:4326 one
+    # that Leaflet can draw is not in output_data_patterns.txt, so fall back to the live
+    # study copy for the same year/timepoint when the archive lacks it.
+    run_dir = _ensure_run_dir(study_id, run_id)
     try:
-        resolved_path = file_path.resolve(strict=False)
-        # Prevent traversal attacks
-        if not resolved_path.is_file() or not str(resolved_path).startswith(str(base_path.resolve())):
-            raise HTTPException(status_code=403, detail="Invalid resource path.")
-    except Exception:
-        raise HTTPException(status_code=403, detail="Invalid resource path.")
-
-    return FileResponse(resolved_path)
+        return FileResponse(_resolve_cog(run_dir / str(year) / str(timepoint), kind), media_type="image/tiff")
+    except HTTPException:
+        live = Path(studies_dir) / study_id / study_id / str(year) / str(timepoint)
+        return FileResponse(_resolve_cog(live, kind), media_type="image/tiff")
 
 
 @router.get("/{study_id}/report/{year}/{timepoint}")
@@ -855,38 +933,6 @@ def get_report(study_id: StudyID, year: int, timepoint: str):
     if not os.path.isfile(report_path):
         raise HTTPException(status_code=404, detail="Report not found")
     return FileResponse(report_path, filename=Path(report_path).name)
-
-
-@router.get("/{study_id}/map-result/{year}/{timepoint}")
-def get_map_results(study_id: StudyID, year: int, timepoint: str):
-    map_zip_candidates = glob(
-        os.path.join(studies_dir, study_id, study_id, str(year), str(timepoint), "interactive_map_*.zip")
-    )
-    if len(map_zip_candidates) != 1:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Excepted to find a single matching entry containing interactive_map_*.zip. Found {len(map_zip_candidates)}",
-        )
-
-    target_dir = (
-        Path(studies_dir) / study_id / "snakemake" / "result_maps" / str(year) / str(timepoint) / "interactive_map"
-    )
-    with zipfile.ZipFile(map_zip_candidates[0]) as z:
-        z.extractall(target_dir)
-
-    map_path = os.path.join(target_dir, "vercye_results_map.html")
-    if not os.path.exists(map_path):
-        raise HTTPException(status_code=404, detail="No result map avilable.")
-
-    with open(map_path, "r") as f:
-        content = f.read()
-        new_path_base = f"/api/studies/{study_id}/map-result/{year}/{timepoint}"
-        # Replace imagery relative path
-        content = content.replace(
-            "img.src = props.simulationsImgPath;",
-            f"img.src = `{new_path_base}/${{props.simulationsImgPath}}`",
-        )
-        return HTMLResponse(content=content)
 
 
 @router.get("/{study_id}/multiyear-report/assets/{asset_path:path}")
@@ -1023,3 +1069,237 @@ def delete_study(study_id: StudyID):
     # also invalidate cache
     status_cache.pop(study_id, None)
     return {"status": "deleted", "study_id": study_id}
+
+
+# Run snapshots related
+
+def _run_results_root(study_id: str) -> Path:
+    return Path(studies_dir) / study_id / study_id / "run_results"
+
+
+def _run_dir(study_id: str, run_id: str) -> Path:
+    return _run_results_root(study_id) / run_id
+
+
+def _ensure_run_dir(study_id: str, run_id: str) -> Path:
+    run_dir = _run_dir(study_id, run_id)
+    if not run_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Run not found.")
+    # Defensive path containment check.
+    try:
+        run_dir.resolve(strict=True).relative_to(_run_results_root(study_id).resolve())
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid run path.")
+    return run_dir
+
+
+def _scan_run_timepoints(run_dir: Path) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {}
+    for year_entry in sorted(run_dir.iterdir()):
+        if not year_entry.is_dir() or not year_entry.name.isdigit():
+            continue
+        timepoints = sorted(tp.name for tp in year_entry.iterdir() if tp.is_dir())
+        out[year_entry.name] = timepoints
+    return out
+
+
+def _build_run_summary(study_id: str, run_dir: Path) -> RunSummary:
+    meta_path = run_dir / "_run_meta.json"
+    meta: dict = {}
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text())
+        except Exception:
+            meta = {}
+
+    timepoints = _scan_run_timepoints(run_dir)
+    multiyear_zip = next(run_dir.glob("multiyear_summary_*.zip"), None)
+
+    size_bytes = 0
+    for dirpath, _dirnames, filenames in os.walk(run_dir):
+        for name in filenames:
+            try:
+                size_bytes += os.path.getsize(os.path.join(dirpath, name))
+            except OSError:
+                pass
+
+    created_at = meta.get("created_at")
+    if not created_at:
+        try:
+            from datetime import datetime as _dt
+
+            created_at = _dt.fromtimestamp(run_dir.stat().st_mtime).astimezone().isoformat(timespec="seconds")
+        except Exception:
+            created_at = None
+
+    return RunSummary(
+        run_id=run_dir.name,
+        created_at=created_at,
+        file_count=meta.get("file_count"),
+        uploaded_to=meta.get("uploaded_to"),
+        has_multiyear_report=multiyear_zip is not None,
+        timepoints=timepoints,
+        size_bytes=size_bytes or None,
+    )
+
+
+@router.get("/{study_id}/runs")
+def list_runs(study_id: StudyID):
+    """List snapshotted runs for a study, newest first."""
+    root = _run_results_root(study_id)
+    if not root.is_dir():
+        return {"items": []}
+
+    entries = [p for p in root.iterdir() if p.is_dir()]
+    entries.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return {"items": [_build_run_summary(study_id, p) for p in entries]}
+
+
+@router.get("/{study_id}/runs/{run_id}/result-timepoints")
+def get_run_result_timepoints(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    return {"timepoints": _scan_run_timepoints(run_dir)}
+
+
+@router.get("/{study_id}/runs/{run_id}/report/{year}/{timepoint}")
+def get_run_report(study_id: StudyID, run_id: RunID, year: int, timepoint: str):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    report_candidates = list((run_dir / str(year) / timepoint).glob("final_report_*.pdf"))
+    if len(report_candidates) != 1:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Expected to find one final report, found {len(report_candidates)}",
+        )
+    return FileResponse(report_candidates[0], filename=report_candidates[0].name)
+
+
+@router.get("/{study_id}/runs/{run_id}/multiyear-report/assets/{asset_path:path}")
+def get_run_multiyear_report_asset(study_id: StudyID, run_id: RunID, asset_path: str):
+    base_path = (
+        Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id / "assets"
+    )
+    file_path = (base_path / asset_path).resolve(strict=False)
+    try:
+        if not file_path.is_file() or not str(file_path).startswith(str(base_path.resolve())):
+            raise HTTPException(status_code=403, detail="Invalid asset path.")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid asset path.")
+    return FileResponse(file_path)
+
+
+@router.get("/{study_id}/runs/{run_id}/multiyear-report")
+def get_run_multiyear_report(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    report_candidates = list(run_dir.glob("multiyear_summary_*.zip"))
+    if len(report_candidates) != 1:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Found {len(report_candidates)} entries with multiyear_summary_ in the run folder.",
+        )
+
+    target_dir = Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(report_candidates[0]) as z:
+        z.extractall(target_dir)
+
+    report_path = target_dir / "report.html"
+    if not report_path.exists():
+        raise HTTPException(status_code=404, detail="No multiyear report available.")
+
+    content = report_path.read_text(encoding="utf-8")
+    assets_base = f"/api/studies/{study_id}/runs/{run_id}/multiyear-report/assets"
+    content = content.replace('src="assets/', f'src="{assets_base}/')
+    content = content.replace("src='assets/", f"src='{assets_base}/")
+    return HTMLResponse(content=content)
+
+
+@router.get("/{study_id}/runs/{run_id}/config")
+def get_run_config_snapshot(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    cfg_path = run_dir / "config.yaml"
+    if not cfg_path.is_file():
+        raise HTTPException(status_code=404, detail="Run config snapshot not available.")
+    return FileResponse(cfg_path, filename=f"{study_id}_{run_id}_config.yaml")
+
+
+@router.get("/{study_id}/runs/{run_id}/download")
+def download_run_archive(study_id: StudyID, run_id: RunID):
+    """Stream a zip of the entire run snapshot."""
+    run_dir = _ensure_run_dir(study_id, run_id)
+    tmp = tempfile.NamedTemporaryFile(prefix=f"{study_id}_{run_id}_", suffix=".zip", delete=False)
+    tmp.close()
+    try:
+        with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+            for dirpath, _dirnames, filenames in os.walk(run_dir):
+                for name in filenames:
+                    if name == "_run_meta.json":
+                        continue
+                    full = Path(dirpath) / name
+                    zf.write(full, full.relative_to(run_dir))
+    except Exception:
+        os.unlink(tmp.name)
+        raise
+    return FileResponse(
+        tmp.name,
+        filename=f"{study_id}_{run_id}.zip",
+        media_type="application/zip",
+        background=None,
+    )
+
+
+@router.get("/{study_id}/runs/{run_id}/apsim")
+def get_run_apsim(study_id: StudyID, run_id: RunID):
+    """Return the APSIM mapping + list of source-template files snapshotted with the run."""
+    run_dir = _ensure_run_dir(study_id, run_id)
+    manifest_path = run_dir / "_apsim_mapping.json"
+    apsim_dir = run_dir / "apsim"
+
+    manifest = {"filter_column": None, "region_to_template": {}, "files": []}
+    if manifest_path.exists():
+        try:
+            data = json.loads(manifest_path.read_text())
+            if isinstance(data, dict):
+                manifest.update(data)
+        except Exception:
+            pass
+
+    files: List[dict] = []
+    if apsim_dir.is_dir():
+        for p in sorted(apsim_dir.iterdir()):
+            if not p.is_file():
+                continue
+            files.append({"name": p.name, "size": p.stat().st_size})
+
+    return {"manifest": manifest, "files": files}
+
+
+@router.get("/{study_id}/runs/{run_id}/apsim/{filename}")
+def download_run_apsim_file(study_id: StudyID, run_id: RunID, filename: str):
+    """Download one APSIM source template from the snapshot."""
+    run_dir = _ensure_run_dir(study_id, run_id)
+    apsim_dir = (run_dir / "apsim").resolve()
+    if not apsim_dir.is_dir():
+        raise HTTPException(status_code=404, detail="No APSIM files snapshotted for this run.")
+
+    file_path = (apsim_dir / filename).resolve()
+    if not str(file_path).startswith(str(apsim_dir) + os.sep) or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="APSIM file not found.")
+    return FileResponse(file_path, filename=filename, media_type="application/octet-stream")
+
+
+@router.delete("/{study_id}/runs/{run_id}")
+def delete_run(study_id: StudyID, run_id: RunID):
+    run_dir = _ensure_run_dir(study_id, run_id)
+    shutil.rmtree(run_dir, ignore_errors=False)
+
+    # Clean up any extracted caches for this run.
+    for extracted in [
+        Path(studies_dir) / study_id / "snakemake" / "run_maps" / run_id,
+        Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id,
+    ]:
+        if extracted.exists():
+            shutil.rmtree(extracted, ignore_errors=True)
+
+    return {"status": "deleted", "run_id": run_id}

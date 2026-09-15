@@ -380,6 +380,10 @@ const LAIPage = () => {
   return (
     <div className="container">
       <Header />
+      <div className="page-header">
+        <h1 className="title">LAI</h1>
+        <p className="subtitle">Generate and browse leaf-area-index archives.</p>
+      </div>
       <div className="actions">
         <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
           ✚ Create New LAI Entry

@@ -56,6 +56,14 @@ logger = get_logger()
     help="The year to filter reference data by (matched against year_column values).",
 )
 @click.option(
+    "--apsim-yield-mosaic-tif",
+    required=False,
+    type=click.Path(exists=True),
+    default=None,
+    help="Optional path to the APSIM (pure simulation) yield mosaic. When provided, "
+    "yield/production columns from this mosaic are appended with the '_apsim' suffix.",
+)
+@click.option(
     "--out-fpath",
     required=True,
     type=click.Path(),
@@ -77,6 +85,7 @@ def cli(
     reference_yield_column,
     year_column,
     year,
+    apsim_yield_mosaic_tif,
     out_fpath,
     out_refdata_fpath,
     verbose,
@@ -98,6 +107,21 @@ def cli(
         year=year,
     )
 
+    if apsim_yield_mosaic_tif:
+        logger.info(f"Computing APSIM zonal yield stats from {apsim_yield_mosaic_tif}")
+        apsim_result = compute_zonal_yield_stats(
+            yield_mosaic_tif=apsim_yield_mosaic_tif,
+            coverage_mask_tif=coverage_mask_tif,
+            shapefile_path=level_shapefile,
+            name_column=name_column,
+            year_column=year_column,
+            year=year,
+            column_suffix="_apsim",
+        )
+        # Coverage/area columns are duplicated; keep them from the primary run only.
+        apsim_only_cols = ["region"] + [c for c in apsim_result.columns if c.endswith("_apsim")]
+        result = result.merge(apsim_result[apsim_only_cols], on="region", how="left", validate="one_to_one")
+
     # If reference yield column is set, extract year-filtered reference data
     # and merge with zonal stats
     ref_df = pd.DataFrame(columns=["region", "reported_mean_yield_kg_ha"])
@@ -115,7 +139,10 @@ def cli(
         )
 
         if not ref_df.empty:
-            result = result.merge(ref_df, on="region", how="left")
+            # ref_df is guaranteed unique per region by extract_reference_from_shapefile;
+            # validate one_to_one is belt-and-suspenders against a non-unique key silently
+            # duplicating prediction rows.
+            result = result.merge(ref_df, on="region", how="left", validate="one_to_one")
             logger.info(f"Merged reference data: {len(ref_df)} entries for year {year}")
         else:
             logger.warning(f"No reference data found for year {year}")

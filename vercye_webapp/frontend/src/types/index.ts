@@ -28,6 +28,7 @@ export interface LAIEntry {
   lng: number;
   dates: [string];
   status: string;
+  status_details?: string | null;
   resolution: number;
   geometry: Geometry
 }
@@ -96,4 +97,31 @@ export interface RunConfigFormParams {
   laiId: string
   laiResolution: number
   cropmasks: Record<string, string>
+}
+
+export type RunID = string;
+
+export interface StudyRun {
+  run_id: RunID;
+  created_at: string | null;
+  file_count: number | null;
+  uploaded_to: string | null;
+  has_multiyear_report: boolean;
+  timepoints: Record<string, string[]>;
+  size_bytes: number | null;
+}
+
+/** Read-only view of the run config, shown before a run is started. */
+export interface RunSummary {
+  study_id: StudyId;
+  title: string | null;
+  years: string[];
+  timepoints: string[];
+  n_regions: number;
+  aggregation_levels: string[];
+  cropmasks: Record<string, string>;
+  lai_region: string | null;
+  lai_resolution: number | null;
+  met_source: string | null;
+  precipitation_source: string | null;
 }

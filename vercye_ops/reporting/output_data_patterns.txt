@@ -1,13 +1,49 @@
-lai_report_*.pdf
-multiyear_summary*.zip
-config.yaml
-all_predictions_*.csv
-referencedata_*.csv
-agg_yield_estimates_*.csv
+# Files packaged by reporting/package_and_upload.py.
+#
+# Every pattern below is snapshotted into run_results/<run_id>/ and uploaded as the
+# full bundle. Lines tagged @core are ADDITIONALLY packaged into a second, much
+# smaller "<run>_core.zip" uploaded to the same folder: the predictions and reference
+# CSVs, the per-year final reports and the multiyear reports, without the rasters
+# that dominate the full bundle (on the three-county Kenya study the full bundle was
+# 2.8 GiB zipped, the core bundle 16 MiB).
+#
+# Matching is on the file's basename, so a pattern needs no path. The snapshot keeps
+# each file's path relative to the study root, which is what lets the interactive
+# results map read a snapshot with the same code it uses for the live outputs.
+#
+# The aggregation shapefiles are NOT listed here - their names vary per study, so
+# package_and_upload.py copies them explicitly from the run config instead.
+
+# --- numbers: predictions and the reference data they are evaluated against ---
+all_predictions_*.csv @core
+referencedata_*.csv @core
+agg_yield_estimates_*.csv @core
+# Pipeline-computed accuracy metrics per level/year; the map reports these rather than
+# recomputing them, so they have to travel with the run.
+evaluation_*.csv @core
+
+# --- reports ---
+final_report_*.pdf @core
+multiyear_summary*.zip @core
+lai_report_*.pdf @core
+aggregated_met_stats_*.pdf
+
+# --- run provenance ---
+config.yaml @core
+
+# --- rasters and interactive artefacts (full bundle only) ---
 aggregated_LAI_MAX_*.tif
 aggregated_cropmask_*.tif
-aggregated_met_stats_*.pdf
 aggregated_region_boundaries_*.geojson
-final_report_*.pdf
 interactive_map_*.zip
 yield_mosaic_projected_*.tif
+
+# --- what the interactive results map reads ---
+# The EPSG:4326 mosaics are the ones the map tiles from; the "_projected_" twins above
+# are the equal-area versions used for area maths and are not displayable as XYZ tiles.
+yield_mosaic_4326_*.tif
+apsim_yield_mosaic_4326_*.tif
+# Observed-LAI curves: per aggregation level, and per region for the primary level
+# (which the pipeline never aggregates, so the map assembles it from these).
+agg_lai_timeseries_*.csv
+*_LAI_STATS.csv

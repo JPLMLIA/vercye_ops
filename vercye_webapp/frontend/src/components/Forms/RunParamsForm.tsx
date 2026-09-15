@@ -168,6 +168,10 @@ const RunParamsForm: React.FC<RunParamsFormProps> = ({ runConfigMessage, onSubmi
                 value={cropmaskMapping}
                 onChange={setCropmaskMapping}
                 allowDuplicateTargets={true}
+                gridTemplateColumns="minmax(56px, 88px) 1fr"
+                searchable
+                targetMinWidth={280}
+                wrapLabels
             />
 
            <div className="form-group" style={{ marginTop: "10px" }}>

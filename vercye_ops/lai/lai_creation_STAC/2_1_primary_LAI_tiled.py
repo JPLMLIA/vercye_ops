@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 import numpy as np
 import rasterio as rio
+from rasterio.windows import Window
 import torch
 
 from vercye_ops.lai.model.model import load_model
@@ -73,13 +74,17 @@ def worker_process_files(worker_id, file_batch, lai_dir, remove_original, satell
     return output_files
 
 
+# Rows per model forward pass. 1098 divides a 10980-row S2 tile exactly into 10 stripes and
+# keeps one stripe's float32 buffer near 0.5 GB for an 11-band tile.
+STRIPE_ROWS = 1098
+
+
 def process_single_file(vrt_path, model, lai_dir, remove_original):
     """Process a single VRT file with the provided model and return the output filename"""
     logger.info(f"Processing ... {vrt_path}")
 
     # Load the image
     with rio.open(vrt_path) as s2_ds:
-        s2_array = s2_ds.read()
         profile = s2_ds.profile
         nodata_val = s2_ds.nodata
 
@@ -87,34 +92,52 @@ def process_single_file(vrt_path, model, lai_dir, remove_original):
             raise ValueError(f"Received tif with no nodata value set. Can't process {vrt_path}.")
 
         # Validate that correct number of input bands is provided.
-        if not s2_array.shape[0] == model.num_in_ch:
+        if not s2_ds.count == model.num_in_ch:
             raise ValueError(
-                f"Number of bands in {vrt_path} does not match the number of input channels. Expected {model.num_in_ch} but got {s2_array.shape[0]}"
+                f"Number of bands in {vrt_path} does not match the number of input channels. Expected {model.num_in_ch} but got {s2_ds.count}"
             )
 
         # If the last band of the image is all nodata, skip
-        if np.all(s2_array[-1] == nodata_val):
+        if np.all(s2_ds.read(s2_ds.count) == nodata_val):
             logger.info(f"Skipping {Path(vrt_path).name} because it is all zeros")
             s2_ds.close()
             return None
         else:
             logger.info(f"Processing {Path(vrt_path).name}")
 
-        # Set NODATA to nan
-        mask = s2_array == nodata_val
-        s2_array = np.where(mask, np.nan, s2_array)
-
-        # Built-in scaling
-        # Now handling in model directly s2_array = s2_array * 0.0001
-
-        # Input
+        # Run the model over horizontal stripes rather than the whole tile at once.
+        #
+        # The LAI network (lai/model/model.py) is Scale2d -> Conv2d(k=1) -> Tanh ->
+        # Conv2d(k=1) -> UnScale2d: every layer is 1x1, so an output pixel depends only on
+        # the input pixel at the same position. Striping is therefore exactly equivalent to
+        # a whole-tile forward pass, not an approximation -- but it holds one stripe instead
+        # of a full 11 x 10980 x 10980 tile, cutting peak RSS from ~38 GB to ~3 GB and
+        # letting many more workers run on a box with no swap.
         t1 = time.time()
-        s2_tensor = torch.tensor(s2_array, dtype=torch.float32).unsqueeze(0)
+        height, width = s2_ds.height, s2_ds.width
+        LAI_estimate = np.empty((height, width), dtype=np.float32)
 
-        # Run model
-        with torch.no_grad():
-            LAI_estimate = model(s2_tensor)
-        LAI_estimate = LAI_estimate.cpu().squeeze(0).squeeze(0).numpy()
+        for row0 in range(0, height, STRIPE_ROWS):
+            nrows = min(STRIPE_ROWS, height - row0)
+            window = Window(0, row0, width, nrows)
+            stripe = s2_ds.read(window=window)
+
+            # Set NODATA to nan. Casting to float32 rather than letting np.where upcast to
+            # float64 is bit-identical (int16 -> float32 is exact) and halves the buffer.
+            mask = stripe == nodata_val
+            stripe = stripe.astype(np.float32)
+            stripe[mask] = np.nan
+
+            # Built-in scaling
+            # Now handling in model directly stripe = stripe * 0.0001
+
+            # from_numpy shares the buffer instead of copying it (stripe is already float32)
+            stripe_tensor = torch.from_numpy(stripe).unsqueeze(0)
+
+            with torch.no_grad():
+                stripe_out = model(stripe_tensor)
+            LAI_estimate[row0 : row0 + nrows, :] = stripe_out.cpu().squeeze(0).squeeze(0).numpy()
+
         logger.info(f"Model prediction for {Path(vrt_path).name} in {time.time()-t1:.2f} seconds")
 
     # Write the LAI data

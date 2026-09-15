@@ -11,6 +11,7 @@ import click
 import geopandas as gpd
 import rasterio as rio
 
+from vercye_ops.lai.lai_creation_STAC.vrt_patcher import patch_vrt_for_int16_sources
 from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
@@ -75,12 +76,19 @@ def build_vrt(args):
             crs_str,
             out_file,
         ]
-        + paths
+        + paths,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
-        logger.error(f"Error creating VRT for {date}: {result.stderr}")
-    else:
-        logger.info(f"VRT created successfully for {date} at {out_file}")
+        logger.error(f"Error creating VRT for {date} (exit code {result.returncode}): {result.stderr}")
+        return date
+    # Standardized tiles are Int16 (scale=0.001, nodata=-32768). Patch the VRT
+    # so downstream readers see Float32 with NaN - gdalbuildvrt by itself does
+    # not apply the scale factor or convert the nodata sentinel.
+    patch_vrt_for_int16_sources(out_file)
+    logger.info(f"VRT created successfully for {date} at {out_file}")
+    return None
 
 
 @click.command()
@@ -195,12 +203,22 @@ def main(lai_dir, out_dir, resolution, region_out_prefix, start_date, end_date, 
     os.makedirs(out_dir, exist_ok=True)
 
     with multiprocessing.Pool(num_workers) as pool:
-        pool.map(
+        results = pool.map(
             build_vrt,
             [
                 (date, paths, out_dir, region_out_prefix, res_x, res_y, crs_str, minx, miny, maxx, maxy, resolution)
                 for date, paths in date_groups.items()
             ],
+        )
+
+    # build_vrt returns the date on failure, None on success. If any VRT failed,
+    # abort with a non-zero exit so the orchestrating pipeline marks the run as
+    # failed instead of reporting success.
+    failed_dates = sorted(d for d in results if d is not None)
+    if failed_dates:
+        raise Exception(
+            f"Failed to create VRTs for {len(failed_dates)}/{len(results)} dates: {failed_dates}. "
+            "See the errors logged above for details."
         )
 
     logger.info(f"VRTS created successfully in {out_dir} with prefix {region_out_prefix}")

@@ -86,6 +86,7 @@ def merge_tifs(tif_files, label):
         count=0,
         compress="lzw",
         nodata=src_nodata,
+        BIGTIFF="IF_SAFER",
     )
 
     for ds in datasets:

@@ -16,6 +16,7 @@ def compute_zonal_yield_stats(
     name_column: str,
     year_column: str = None,
     year: str = None,
+    column_suffix: str = "",
 ) -> pd.DataFrame:
     """
     Compute zonal yield statistics for each polygon in the shapefile using exactextract.
@@ -38,16 +39,20 @@ def compute_zonal_yield_stats(
         Column containing year values, used to filter rows before deduplication.
     year : str, optional
         Year value to filter by. Required if year_column is set.
+    column_suffix : str, optional
+        Suffix appended to yield/production column names (e.g. "_apsim"). Coverage
+        and area columns (which are identical between yield sources for a given mosaic
+        grid) are NOT suffixed, so two suffixed runs can be merged on `region`.
     Returns
     -------
     pd.DataFrame
         DataFrame with columns:
         - region: region name from name_column
-        - mean_yield_kg_ha: mean yield of valid pixels
-        - median_yield_kg_ha: median yield of valid pixels
+        - mean_yield_kg_ha{column_suffix}: mean yield of valid pixels
+        - median_yield_kg_ha{column_suffix}: median yield of valid pixels
         - total_area_ha: area of valid (non-nodata) yield pixels
-        - total_production_kg: sum(yield_kg_ha * pixel_area_ha)
-        - total_production_ton: total_production_kg / 1000
+        - total_production_kg{column_suffix}: sum(yield_kg_ha * pixel_area_ha)
+        - total_production_ton{column_suffix}: total_production_kg / 1000
         - coverage_pct: percentage (0-100) of polygon area covered by primary regions
         - covered_area_ha: area with primary region coverage
         - total_polygon_area_ha: full polygon area in equal-area CRS
@@ -77,11 +82,41 @@ def compute_zonal_yield_stats(
 
             normalized_col = gdf[year_column].apply(_normalize_year)
             normalized_target = _normalize_year(year)
-            gdf = gdf[normalized_col == normalized_target].reset_index(drop=True)
-            logger.info(f"Filtered shapefile to year {year}: {len(gdf)} rows")
+            filtered = gdf[normalized_col == normalized_target].reset_index(drop=True)
+            if filtered.empty:
+                # Zonal PREDICTION stats are reference-independent: the geometries are
+                # the same across years (the shapefile only carries one row per region
+                # per year because it stores year-specific *reference* yields). When a
+                # year has no reference rows (e.g. an in-season/forecast year), keep all
+                # geometries so predictions are still produced for the report's table and
+                # map. Reference extraction (extract_reference_from_shapefile) is filtered
+                # separately and will simply return no rows for such a year.
+                logger.warning(
+                    f"No rows for year {year} in shapefile; computing zonal prediction stats "
+                    "for all unique geometries (predictions are reference-independent)."
+                )
+            else:
+                gdf = filtered
+                logger.info(f"Filtered shapefile to year {year}: {len(gdf)} rows")
 
-    # Deduplicate: shapefile may have multiple rows per region.
-    # For zonal stats we only need unique geometries.
+    # Deduplicate identical geometries: a shapefile carrying one row per region per
+    # year repeats each region's geometry across years, and those repeats are safe to
+    # collapse. But two DIFFERENT geometries sharing a name_column value is a region
+    # identity collision (e.g. the same rayon name in two different oblasts). Silently
+    # keeping the first would attribute one region's pixels to another, so fail loudly.
+    geom_check = pd.DataFrame(
+        {"name": gdf[name_column].to_numpy(), "wkb": gdf.geometry.to_wkb().to_numpy()}
+    )
+    distinct_geoms_per_name = geom_check.groupby("name")["wkb"].nunique()
+    collided = distinct_geoms_per_name[distinct_geoms_per_name > 1]
+    if len(collided) > 0:
+        raise ValueError(
+            f"Column '{name_column}' is not a unique region identifier in {shapefile_path}: "
+            f"{len(collided)} name(s) map to multiple distinct geometries (collided region(s): "
+            f"{list(collided.index)}). Use a column that is unique per region "
+            "(e.g. one qualified by its parent region)."
+        )
+
     n_before = len(gdf)
     gdf = gdf.drop_duplicates(subset=[name_column]).reset_index(drop=True)
     if len(gdf) < n_before:
@@ -105,43 +140,48 @@ def compute_zonal_yield_stats(
     elif gdf.crs is None:
         logger.warning("Shapefile has no CRS set. Assuming it matches the mosaic CRS.")
 
-    # Strip GeoDataFrame to only the name column + geometry for exactextract.
-    # exactextract iterates over ALL fields in the GeoDataFrame, and will crash
-    # on unsupported types (e.g., mixed-type columns from multi-year shapefiles).
-    gdf_extract = gdf[[name_column, "geometry"]].copy()
-    gdf_extract[name_column] = gdf_extract[name_column].astype(str)
+    # Region identifiers must be non-null; a null id is a data error, so fail loudly.
+    if gdf[name_column].isna().any():
+        n_null = int(gdf[name_column].isna().sum())
+        raise ValueError(
+            f"Name column '{name_column}' contains {n_null} null value(s); region identifiers "
+            "must be non-null. Fix or remove these features in the shapefile."
+        )
 
-    # Run exactextract on the yield mosaic
-    # We request: mean, median, count (valid pixels), sum (for total production)
+    # Carry region names through exactextract via an explicit key so each output row is
+    # labeled with its own region. Renamed off the user's column because exactextract
+    # overrides a field named "id" with the feature index.
+    region_key = "_vercye_region_key"
+    gdf_extract = gdf[[name_column, "geometry"]].copy()
+    gdf_extract[region_key] = gdf_extract[name_column].astype(str)
+    gdf_extract = gdf_extract[[region_key, "geometry"]]
+
     logger.info("Running exactextract on yield mosaic...")
     yield_stats = exact_extract(
         yield_mosaic_tif,
         gdf_extract,
         ops=["mean", "median", "count", "sum"],
-        include_cols=[name_column],
+        include_cols=[region_key],
         output="pandas",
     )
 
-    # Run exactextract on the coverage mask
-    # count where value == 1 (covered), and total count of all pixels in polygon
     logger.info("Running exactextract on coverage mask...")
     coverage_stats = exact_extract(
         coverage_mask_tif,
         gdf_extract,
         ops=["sum", "count"],
-        include_cols=[name_column],
+        include_cols=[region_key],
         output="pandas",
     )
 
     # Compute polygon areas in the equal-area CRS
-    polygon_areas_m2 = gdf_extract.geometry.area
-    polygon_areas_ha = polygon_areas_m2 / 10_000
+    polygon_areas_ha = gdf_extract.geometry.area / 10_000
 
     # Build result DataFrame
     results = pd.DataFrame()
-    results["region"] = yield_stats[name_column].astype(str)
-    results["mean_yield_kg_ha"] = yield_stats["mean"].round(0).astype("Int64")
-    results["median_yield_kg_ha"] = yield_stats["median"].round(0).astype("Int64")
+    results["region"] = yield_stats[region_key].astype(str)
+    results[f"mean_yield_kg_ha{column_suffix}"] = yield_stats["mean"].round(0).astype("Int64")
+    results[f"median_yield_kg_ha{column_suffix}"] = yield_stats["median"].round(0).astype("Int64")
 
     # Total cropland area = count of valid yield pixels * pixel area
     valid_pixel_count = yield_stats["count"]
@@ -149,8 +189,10 @@ def compute_zonal_yield_stats(
 
     # Total production = sum of (yield_kg_ha * pixel_area) for valid pixels
     # exactextract "sum" gives sum of pixel values; multiply by pixel_area_ha for production
-    results["total_production_kg"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype("Int64")
-    results["total_production_ton"] = (results["total_production_kg"] / 1000).round(3)
+    results[f"total_production_kg{column_suffix}"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype("Int64")
+    results[f"total_production_ton{column_suffix}"] = (
+        results[f"total_production_kg{column_suffix}"] / 1000
+    ).round(3)
 
     # Coverage: sum of coverage mask (=number of covered pixels), total count of pixels in polygon
     covered_pixels = coverage_stats["sum"]
@@ -243,11 +285,28 @@ def extract_reference_from_shapefile(
             logger.warning(f"No rows found for year {year} in column '{year_column}'")
             return pd.DataFrame(columns=["region", "reported_mean_yield_kg_ha"])
 
+    # Coerce to numeric (object dtype from null/string-typed columns -> floats); NaNs dropped below.
     ref_df = pd.DataFrame(
         {
             "region": gdf[name_column].astype(str),
-            "reported_mean_yield_kg_ha": gdf[reference_yield_column],
+            "reported_mean_yield_kg_ha": pd.to_numeric(gdf[reference_yield_column], errors="coerce"),
         }
     )
 
-    return ref_df.dropna(subset=["reported_mean_yield_kg_ha"]).reset_index(drop=True)
+    ref_df = ref_df.dropna(subset=["reported_mean_yield_kg_ha"]).reset_index(drop=True)
+
+    # The region identifier must be unique (at most one reference row per region per
+    # year). A duplicate here - a collided name across parent regions, or a genuine
+    # duplicate data row - would fan out into a many-to-many merge downstream and
+    # silently inflate evaluation counts. Fail loudly so the data gets fixed.
+    dup_regions = ref_df["region"][ref_df["region"].duplicated(keep=False)].unique()
+    if len(dup_regions) > 0:
+        year_msg = f" for year {year}" if year else ""
+        raise ValueError(
+            f"Reference data has non-unique region identifier(s){year_msg} in column "
+            f"'{name_column}': {sorted(dup_regions)}. Each region must appear at most once "
+            "per year; remove duplicate rows or use a region identifier that is unique "
+            "(e.g. qualified by its parent region)."
+        )
+
+    return ref_df

@@ -1,6 +1,15 @@
 import { SetupSubmissionsPayload } from '@/components/Forms/SetupStudyForm';
 import { http } from './client';
-import type { StudyId, StudyStatusResponse, RunConfigStatusResponse, SetupConfigTemplate, RunConfigFormParams } from '@/types';
+import type {
+  StudyId,
+  StudyStatusResponse,
+  RunConfigStatusResponse,
+  SetupConfigTemplate,
+  RunConfigFormParams,
+  StudyRun,
+  RunID,
+  RunSummary,
+} from '@/types';
 import { RunParamsSubmissionsPayload } from '@/components/Forms/RunParamsForm';
 
 export type PagedStudies = { items: StudyId[]; total: number; page: number; page_size: number };
@@ -19,6 +28,10 @@ export const StudiesAPI = {
 
   runConfig: (id: StudyId) =>
     http.get<Blob>(`/studies/${id}/run-config`),
+
+  /** What a run of this study will do, for the confirmation dialog. */
+  runSummary: (id: StudyId) =>
+    http.get<RunSummary>(`/studies/${id}/run-summary`),
 
   runConfigStatus: (id: StudyId) =>
     http.get<RunConfigStatusResponse>(`/studies/${id}/run-config-status`),
@@ -124,9 +137,6 @@ export const StudiesAPI = {
   resultTimepoints: (id: StudyId) =>
     http.get<{ timepoints: Record<string, string[]> }>(`/studies/${id}/result-timepoints`),
 
-  mapResultUrl: (id: StudyId, year: string, timepoint: string) =>
-    `/api/studies/${id}/map-result/${year}/${timepoint}`,
-
   studyYears: (id: StudyId) =>
     http.get<number[]>(`/studies/${id}/required-years`),
 
@@ -143,4 +153,41 @@ export const StudiesAPI = {
 
     delete: (id: StudyId) =>
       http.del<void>(`/studies/${id}`),
+
+    listRuns: (id: StudyId) =>
+      http.get<{ items: StudyRun[] }>(`/studies/${id}/runs`),
+
+    runReport: (id: StudyId, runId: RunID, year: string, timepoint: string) =>
+      http.download(`/studies/${id}/runs/${runId}/report/${year}/${timepoint}`),
+
+
+    runMultiyearUrl: (id: StudyId, runId: RunID) =>
+      `/api/studies/${id}/runs/${runId}/multiyear-report`,
+
+    runConfigDownload: (id: StudyId, runId: RunID) =>
+      http.download(`/studies/${id}/runs/${runId}/config`),
+
+    runConfigText: async (id: StudyId, runId: RunID): Promise<string> => {
+      const blob = await http.download(`/studies/${id}/runs/${runId}/config`);
+      return await blob.text();
+    },
+
+    runApsim: (id: StudyId, runId: RunID) =>
+      http.get<{
+        manifest: {
+          filter_column: string | null;
+          region_to_template: Record<string, string>;
+          files: { name: string; size: number | null; regions: string[] }[];
+        };
+        files: { name: string; size: number }[];
+      }>(`/studies/${id}/runs/${runId}/apsim`),
+
+    runApsimFileUrl: (id: StudyId, runId: RunID, filename: string) =>
+      `/api/studies/${id}/runs/${runId}/apsim/${encodeURIComponent(filename)}`,
+
+    runArchiveDownload: (id: StudyId, runId: RunID) =>
+      http.download(`/studies/${id}/runs/${runId}/download`),
+
+    deleteRun: (id: StudyId, runId: RunID) =>
+      http.del<void>(`/studies/${id}/runs/${runId}`),
 };
