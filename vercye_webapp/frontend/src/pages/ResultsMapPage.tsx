@@ -589,7 +589,6 @@ export default function ResultsMapPage() {
             if (hit) patch({ region: hit });
           }}
           statsOpen={showStats}
-          loading={loading}
           onChange={onToolbarChange}
         />
       )}
@@ -598,6 +597,16 @@ export default function ResultsMapPage() {
 
       <div className="results-map-body">
         <div ref={mapEl} className="results-map-canvas" />
+
+        {/* Floated over the map rather than occupying a slot in the toolbar: as a toolbar
+            child it appeared and disappeared on every fetch, which re-flowed the whole
+            bar and made the controls jump sideways. Here it overlays the canvas and
+            costs no layout. */}
+        {loading && (
+          <div className="map-busy" role="status" aria-live="polite">
+            Loading…
+          </div>
+        )}
 
         <div className="map-legend-stack">
           {hasVectorValues && (

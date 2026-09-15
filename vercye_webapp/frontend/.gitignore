@@ -1,2 +1,6 @@
 node_modules
 tsconfig.tsbuildinfo
+
+# Copied out of node_modules by "npm run copy:maplibre" (prebuild/predev); never edited
+# by hand, and must match the installed maplibre-gl version.
+public/maplibre/

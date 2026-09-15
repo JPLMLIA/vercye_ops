@@ -722,8 +722,6 @@ p { font-size: 14px; }
     font-family: "Roboto", sans-serif; font-size: 13px;
 }
 .map-toolbar-opacity { width: 88px; accent-color: var(--primary); }
-.map-toolbar-status { font-size: 12px; color: var(--light-grey); min-width: 58px; }
-.map-toolbar-status.busy { color: var(--primary); font-weight: 500; }
 .map-toolbar-label input[type="checkbox"] { vertical-align: middle; margin-right: 4px; accent-color: var(--primary); }
 
 .map-error {
@@ -922,7 +920,6 @@ input[type='radio'], input[type='checkbox'], input[type='range'] { accent-color:
    previous 28px/88px clipped both the label and the descender of the year. */
 .map-toolbar-select { height: 32px; line-height: 1.4; font-size: 12.5px; min-width: 104px; max-width: 200px; }
 .map-toolbar-group { flex: 0 0 auto; }
-.map-toolbar-status { font-size: 11px; }
 
 /* Leaflet's own controls, restyled to read as part of the app. */
 .leaflet-control-layers, .leaflet-bar {
@@ -1367,3 +1364,16 @@ html { scrollbar-gutter: stable; }
     outline-offset: -2px;
 }
 .study-row-expanded > td { cursor: default; }
+
+/* Busy indicator: floats at the top centre of the map, clear of both side panels and of
+   the toolbar, and never participates in layout so a fetch cannot shift the controls. */
+.map-busy {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    z-index: 905; pointer-events: none;
+    padding: 3px 10px; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 11.5px; color: var(--neutral-600);
+    background: rgb(255 255 255 / 0.88); border: 1px solid var(--neutral-200);
+    box-shadow: var(--shadow-sm);
+    animation: map-busy-in .18s ease-out;
+}
+@keyframes map-busy-in { from { opacity: 0; } to { opacity: 1; } }

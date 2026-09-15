@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "copy:maplibre": "mkdir -p public/maplibre && cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs public/maplibre/",
+    "predev": "npm run copy:maplibre",
+    "prebuild": "npm run copy:maplibre"
   },
   "dependencies": {
     "@maplibre/maplibre-gl-leaflet": "^0.1.4",

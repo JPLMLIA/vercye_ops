@@ -1,6 +1,24 @@
 import L from 'leaflet';
+import { setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '@maplibre/maplibre-gl-leaflet';
+
+/**
+ * Tell MapLibre where its web worker lives.
+ *
+ * From v6 the library is split into three ES modules and locates the worker at runtime
+ * with `new URL('./maplibre-gl-worker.mjs', import.meta.url)`. Once Vite bundles the
+ * library into `assets/index-<hash>.js`, that resolves to `/assets/maplibre-gl-worker.mjs`,
+ * which no build step ever emits - the request 404s, no tiles are ever parsed, and the
+ * basemap renders as an empty canvas with nothing logged to the console.
+ *
+ * The worker also imports `./maplibre-gl-shared.mjs` relatively, so the two files have to
+ * stay next to each other under a stable path. `npm run copy:maplibre` (wired into
+ * prebuild/predev) copies both out of node_modules into `public/maplibre/`, which Vite
+ * serves verbatim in dev and copies into the build, so the version served always matches
+ * the version installed.
+ */
+setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
 
 /**
  * Basemaps.

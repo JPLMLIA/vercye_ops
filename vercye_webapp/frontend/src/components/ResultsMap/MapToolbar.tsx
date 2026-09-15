@@ -27,7 +27,6 @@ type Props = {
   onSearch: (v: string) => void;
   onSearchSubmit: () => void;
   statsOpen: boolean;
-  loading: boolean;
   onChange: (patch: Record<string, string | undefined>) => void;
 };
 
@@ -61,7 +60,6 @@ export default function MapToolbar({
   onSearch,
   onSearchSubmit,
   statsOpen,
-  loading,
   onChange,
 }: Props) {
   const yearList = Object.keys(years).sort();
@@ -252,7 +250,6 @@ export default function MapToolbar({
         <ChartIcon />
       </button>
 
-      <div className={`map-toolbar-status ${loading ? 'busy' : ''}`}>{loading ? 'Loading…' : ''}</div>
     </div>
   );
 }
