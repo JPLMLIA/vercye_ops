@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from routers import cropmasks, lai, studies
+from routers import cropmasks, lai, maps, studies
 from utils import clean_running_tasks
 
 ##########################################################################################################
@@ -29,6 +29,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(lai.router, prefix="/api")
 app.include_router(studies.router, prefix="/api")
 app.include_router(cropmasks.router, prefix="/api")
+app.include_router(maps.router, prefix="/api")
 
 # Serve frontend
 STATIC_DIR = Path(__file__).parent / "static"
