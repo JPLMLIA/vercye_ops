@@ -190,8 +190,12 @@ vercye_ops/lai/GEE_pipeline/custom_configs
 # Profiling
 *.lprof
 
-# Private matching script
+# Private matching script. Never commit the matcher itself or any copy of it - the
+# operational script lives outside this repo and is wired in via scripts.match_sim_real
+# in run_config.yaml.
 vercye_ops/matching_sim_real/match_sim_rs_lai.py
+vercye_ops/matching_sim_real/match_sim_real_experimental.py
+vercye_ops/matching_sim_real/match_sim_real_*-*-*.py
 
 # Env file
 .env
