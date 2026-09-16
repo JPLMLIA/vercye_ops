@@ -1,5 +1,5 @@
-import json
 import base64
+import json
 import os
 import shutil
 import warnings
@@ -15,7 +15,6 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 DEFAULT_LAI_COLUMNS = ["LAI Median:Median LAI", "LAI Mean:Mean LAI"]
-
 
 
 # NASA Harvest logo, embedded as a data URI so the map stays self-contained.
@@ -62,7 +61,7 @@ def _logo_html():
         return ""
     return (
         '<div id="nasaHarvestLogo" style="position:absolute;left:12px;bottom:22px;z-index:1000;'
-        'background:rgba(255,255,255,0.85);padding:6px 8px;border-radius:6px;'
+        "background:rgba(255,255,255,0.85);padding:6px 8px;border-radius:6px;"
         'box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;">'
         f'<img src="data:image/png;base64,{b64}" alt="NASA Harvest" '
         'style="height:34px;width:auto;display:block;"/></div>'
@@ -146,8 +145,9 @@ class InteractiveMapGenerator:
         print("Loading simulations data")
         self.sim_data = self.load_sim_data()
 
-    def add_aggregation_level(self, level_name: str, column_name: str, name_column: str,
-                              agg_estimate_fpath: str, lai_csv_fpath: str):
+    def add_aggregation_level(
+        self, level_name: str, column_name: str, name_column: str, agg_estimate_fpath: str, lai_csv_fpath: str
+    ):
         """Register one aggregation level.
 
         Args:
@@ -2810,9 +2810,7 @@ class InteractiveMapGenerator:
                 series_obj = {}
                 for display_name, source_col in zip(self.lai_column_names, self.lai_columns):
                     if source_col in group.columns:
-                        series_obj[display_name] = [
-                            float(v) if pd.notna(v) else None for v in group[source_col].values
-                        ]
+                        series_obj[display_name] = [float(v) if pd.notna(v) else None for v in group[source_col].values]
                 if "interpolated" in group.columns:
                     interpolation_flags = [int(v) if pd.notna(v) else 0 for v in group["interpolated"].values]
                 else:
@@ -2894,8 +2892,7 @@ def parse_agg_level(ctx, param, value):
         parts = item.split(":", 4)
         if len(parts) != 5:
             raise click.BadParameter(
-                "Each --agg-level must be in format "
-                "level:shapefile_or_column:name_column:agg_csv:lai_csv"
+                "Each --agg-level must be in format " "level:shapefile_or_column:name_column:agg_csv:lai_csv"
             )
         level_name, shapefile_or_column, name_column, csv_path, lai_csv_path = parts
 
@@ -2941,12 +2938,14 @@ def parse_lai_column(ctx, param, value):
     "--agg-level",
     multiple=True,
     callback=parse_agg_level,
-    help=("Aggregation level. Format (5 colon-separated fields): "
-          "level:shapefile_or_column:name_column:agg_csv:lai_csv. "
-          "Pass 'none' for any field that does not apply (e.g. base/primary "
-          "level uses 'none:none' for shapefile/name_column; missing per-level "
-          "LAI CSV uses 'none' to fall back to on-the-fly aggregation). "
-          "Can be used multiple times."),
+    help=(
+        "Aggregation level. Format (5 colon-separated fields): "
+        "level:shapefile_or_column:name_column:agg_csv:lai_csv. "
+        "Pass 'none' for any field that does not apply (e.g. base/primary "
+        "level uses 'none:none' for shapefile/name_column; missing per-level "
+        "LAI CSV uses 'none' to fall back to on-the-fly aggregation). "
+        "Can be used multiple times."
+    ),
 )
 @click.option(
     "--lai-column",

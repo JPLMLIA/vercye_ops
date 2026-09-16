@@ -42,7 +42,7 @@ def _getinfo_with_retry(ee_obj, label):
         except ee.ee_exception.EEException as e:
             if not _is_rate_limit_error(e) or attempt == EE_MAX_RETRIES - 1:
                 raise
-            sleep_s = EE_BASE_BACKOFF_SECONDS * (2 ** attempt) + random.uniform(0, 1.0)
+            sleep_s = EE_BASE_BACKOFF_SECONDS * (2**attempt) + random.uniform(0, 1.0)
             logger.warning(
                 f"EE rate-limited on {label} (attempt {attempt + 1}/{EE_MAX_RETRIES}); "
                 f"sleeping {sleep_s:.1f}s before retry. Error: {e}"
@@ -244,9 +244,7 @@ def fetch_era5_data(start_date, end_date, ee_project, lon=None, lat=None, polygo
 
             features = era5.map(extract)
             feature_collection = ee.FeatureCollection(features)
-            result = _getinfo_with_retry(
-                feature_collection, label=f"ERA5 {chunk_start}..{chunk_end}"
-            )
+            result = _getinfo_with_retry(feature_collection, label=f"ERA5 {chunk_start}..{chunk_end}")
             records = [f["properties"] for f in result["features"]]
             all_records.extend(records)
 

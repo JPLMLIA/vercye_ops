@@ -30,7 +30,10 @@ def compute_global_summary(regions_summary):
     apsim_total_production_ton = None
     apsim_total_production_kg = None
     apsim_mean_yield_kg = None
-    if "total_production_kg_apsim" in regions_summary.columns and "total_production_ton_apsim" in regions_summary.columns:
+    if (
+        "total_production_kg_apsim" in regions_summary.columns
+        and "total_production_ton_apsim" in regions_summary.columns
+    ):
         apsim_total_production_kg = regions_summary["total_production_kg_apsim"].sum()
         apsim_total_production_ton = regions_summary["total_production_ton_apsim"].sum()
         if total_area_ha > 0:
@@ -102,7 +105,6 @@ def get_contrasting_text_color(rgb):
     """Returns black or white based on perceived brightness of the background color."""
     brightness = np.dot(rgb[:3], [0.299, 0.587, 0.114])  # Standard luminance formula
     return "black" if brightness > 0.5 else "white"
-
 
 
 def _place_region_labels(ax, merged, cmap, norm, fontsize=7, max_regions=300):
@@ -330,8 +332,14 @@ def create_level_lai_plot(regions_dir, section_name):
         ax.legend(fontsize=7, ncol=2)
     else:
         ax.text(
-            0.99, 0.97, f"{len(regions)} regions", transform=ax.transAxes,
-            ha="right", va="top", fontsize=8, color="0.35",
+            0.99,
+            0.97,
+            f"{len(regions)} regions",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=8,
+            color="0.35",
         )
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -777,12 +785,11 @@ def create_final_report(input, output, params, log, wildcards):
         # level's numbers with nothing raised.
         aggregated_yield_estimates_patttern = os.path.join(regions_dir, f"agg_yield_estimates_{suffix}_*.csv")
         _prefix = f"agg_yield_estimates_{suffix}_{metadata['study_id']}_"
-        matching_files = [f for f in glob.glob(aggregated_yield_estimates_patttern)
-                          if os.path.basename(f).startswith(_prefix)]
+        matching_files = [
+            f for f in glob.glob(aggregated_yield_estimates_patttern) if os.path.basename(f).startswith(_prefix)
+        ]
         if len(matching_files) > 1:
-            raise ValueError(
-                f"Multiple aggregated yield estimates files matched level '{suffix}': {matching_files}"
-            )
+            raise ValueError(f"Multiple aggregated yield estimates files matched level '{suffix}': {matching_files}")
         aggregated_yield_estimates_path = matching_files[0] if matching_files else None
 
         if aggregated_yield_estimates_path is None:

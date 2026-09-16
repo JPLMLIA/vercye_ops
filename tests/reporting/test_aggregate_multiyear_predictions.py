@@ -144,14 +144,12 @@ class TestCollectFiles:
         assert DEFAULT_STUDY_ID in os.path.basename(pred_paths["2022"])
 
     def test_level_that_is_a_prefix_of_another_is_not_confused(self, tmp_path):
-        """"county" must not swallow "county_subset" (the ADM1 / ADM1_ThreeCounties bug)."""
+        """ "county" must not swallow "county_subset" (the ADM1 / ADM1_ThreeCounties bug)."""
         _create_dir_structure(str(tmp_path), {"2022": ["T-0"]}, agg_levels=["county", "county_subset"])
         for lvl in ("county", "county_subset"):
             pred_paths, _ = collect_files(str(tmp_path), lvl, "T-0", DEFAULT_STUDY_ID)
             assert len(pred_paths) == 1
-            assert os.path.basename(pred_paths["2022"]).startswith(
-                f"agg_yield_estimates_{lvl}_{DEFAULT_STUDY_ID}_"
-            )
+            assert os.path.basename(pred_paths["2022"]).startswith(f"agg_yield_estimates_{lvl}_{DEFAULT_STUDY_ID}_")
 
 
 # ---------------------------------------------------------------------------
@@ -190,9 +188,9 @@ class TestMergePredsGtYearly:
         gt_path = tmp_path / "gt.csv"
         pd.DataFrame({"region": ["A", "B"], "mean_yield_kg_ha": [1000, 2000]}).to_csv(pred_path, index=False)
         # Region A duplicated with two different reported values.
-        pd.DataFrame(
-            {"region": ["A", "A", "B"], "reported_mean_yield_kg_ha": [1100, 1200, 1900]}
-        ).to_csv(gt_path, index=False)
+        pd.DataFrame({"region": ["A", "A", "B"], "reported_mean_yield_kg_ha": [1100, 1200, 1900]}).to_csv(
+            gt_path, index=False
+        )
 
         with pytest.raises(Exception):
             merge_preds_gt_yearly({"2022": str(pred_path)}, {"2022": str(gt_path)})

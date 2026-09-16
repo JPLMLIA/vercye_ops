@@ -347,8 +347,7 @@ def main() -> None:
                 n_core = zip_snapshot(snapshot_root, core_zip_path, patterns=core_patterns)
                 if n_core:
                     print(
-                        f"Packaged {n_core} files into {core_zip_path.name} "
-                        f"({core_zip_path.stat().st_size} bytes)"
+                        f"Packaged {n_core} files into {core_zip_path.name} " f"({core_zip_path.stat().st_size} bytes)"
                     )
                     rclone_upload(core_zip_path, remote_dir)
                     uploaded_zips.append(core_zip_path.name)

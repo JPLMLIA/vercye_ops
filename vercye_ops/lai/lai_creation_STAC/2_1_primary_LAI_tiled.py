@@ -11,8 +11,8 @@ from pathlib import Path
 import click
 import numpy as np
 import rasterio as rio
-from rasterio.windows import Window
 import torch
+from rasterio.windows import Window
 
 from vercye_ops.lai.model.model import load_model
 from vercye_ops.utils.init_logger import get_logger

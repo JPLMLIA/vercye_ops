@@ -104,9 +104,7 @@ def compute_zonal_yield_stats(
     # collapse. But two DIFFERENT geometries sharing a name_column value is a region
     # identity collision (e.g. the same rayon name in two different oblasts). Silently
     # keeping the first would attribute one region's pixels to another, so fail loudly.
-    geom_check = pd.DataFrame(
-        {"name": gdf[name_column].to_numpy(), "wkb": gdf.geometry.to_wkb().to_numpy()}
-    )
+    geom_check = pd.DataFrame({"name": gdf[name_column].to_numpy(), "wkb": gdf.geometry.to_wkb().to_numpy()})
     distinct_geoms_per_name = geom_check.groupby("name")["wkb"].nunique()
     collided = distinct_geoms_per_name[distinct_geoms_per_name > 1]
     if len(collided) > 0:
@@ -190,9 +188,7 @@ def compute_zonal_yield_stats(
     # Total production = sum of (yield_kg_ha * pixel_area) for valid pixels
     # exactextract "sum" gives sum of pixel values; multiply by pixel_area_ha for production
     results[f"total_production_kg{column_suffix}"] = (yield_stats["sum"] * pixel_area_ha).round(0).astype("Int64")
-    results[f"total_production_ton{column_suffix}"] = (
-        results[f"total_production_kg{column_suffix}"] / 1000
-    ).round(3)
+    results[f"total_production_ton{column_suffix}"] = (results[f"total_production_kg{column_suffix}"] / 1000).round(3)
 
     # Coverage: sum of coverage mask (=number of covered pixels), total count of pixels in polygon
     covered_pixels = coverage_stats["sum"]

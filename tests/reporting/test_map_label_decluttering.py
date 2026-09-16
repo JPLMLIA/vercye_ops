@@ -76,9 +76,7 @@ class TestLabelFitting:
         horseshoe = Polygon([(0, 0), (10, 0), (10, 10), (7, 10), (7, 3), (3, 3), (3, 10), (0, 10)])
         merged = _frame([horseshoe], ["Horseshoe"])
         merged.plot(ax=ax, column="mean_yield_kg_ha")
-        placed, _ = mod._place_region_labels(
-            ax, merged, plt.get_cmap("viridis"), matplotlib.colors.Normalize(0, 3000)
-        )
+        placed, _ = mod._place_region_labels(ax, merged, plt.get_cmap("viridis"), matplotlib.colors.Normalize(0, 3000))
         assert placed == 1
         from shapely.geometry import Point
 

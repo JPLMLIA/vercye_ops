@@ -90,16 +90,32 @@ def build_overviews(tif: Path) -> bool:
         lock.touch()
         subprocess.run(
             [
-                "gdaladdo", "-ro", "-q",
-                "--config", "COMPRESS_OVERVIEW", "LZW",
-                "--config", "GDAL_NUM_THREADS", "ALL_CPUS",
+                "gdaladdo",
+                "-ro",
+                "-q",
+                "--config",
+                "COMPRESS_OVERVIEW",
+                "LZW",
+                "--config",
+                "GDAL_NUM_THREADS",
+                "ALL_CPUS",
                 # A cropmask is categorical, so take the majority class rather than the
                 # mean: "average" over 0/1 uint8 lands back on 0 or 1 depending on where
                 # the resampler rounds, which made the layer flip between drawn and
                 # absent from one zoom to the next. ("max" would be the ideal - keep a
                 # footprint wherever any cropland falls inside it - but GDAL offers it
                 # for warps only, not for overview building or reads.)
-                "-r", "mode", str(tif), "2", "4", "8", "16", "32", "64", "128", "256",
+                "-r",
+                "mode",
+                str(tif),
+                "2",
+                "4",
+                "8",
+                "16",
+                "32",
+                "64",
+                "128",
+                "256",
             ],
             check=True,
             capture_output=True,

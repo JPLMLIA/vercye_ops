@@ -57,6 +57,7 @@ RASTER_KINDS = {
 # levels has its geometry written per year/timepoint rather than in a shapefile.
 PRIMARY_LEVEL = "primary"
 
+
 # Web-mercator tile pixels are 256 wide; one pixel at zoom z spans this many degrees.
 def _deg_per_pixel(zoom: int) -> float:
     return 360.0 / (256.0 * (2**zoom))
@@ -611,7 +612,9 @@ def _stats(study_id: str, run_id: Optional[str], year: int, timepoint: str, leve
     root = _resolve_root(study_id, run_id)
     path = _stats_csv(root, study_id, str(year), timepoint, level)
     values = _load_stats(path)
-    numeric = [v.get("mean_yield_kg_ha") for v in values.values() if isinstance(v.get("mean_yield_kg_ha"), (int, float))]
+    numeric = [
+        v.get("mean_yield_kg_ha") for v in values.values() if isinstance(v.get("mean_yield_kg_ha"), (int, float))
+    ]
     return {
         "level": level,
         "year": str(year),
@@ -723,7 +726,9 @@ def _tile(
     except TileOutsideBounds:
         # Transparent 256x256 rather than a 404, so Leaflet does not log errors while
         # panning past the study's extent.
-        return Response(content=_blank_tile(), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
+        return Response(
+            content=_blank_tile(), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"}
+        )
 
     img.rescale(in_range=((lo, hi),))
     png = img.render(img_format="PNG", colormap=_colormap())

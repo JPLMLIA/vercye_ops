@@ -643,7 +643,9 @@ def main(input_dir, lai_agg_type, adjusted, title, output_file, study_id):
                 apsim_preds_, apsim_preds_years_ = apsim_data["only_preds"]
                 apsim_pred_fig = create_predictions_plot(apsim_preds_, apsim_preds_years_)
                 apsim_pred_html_inner = pio.to_html(apsim_pred_fig, include_plotlyjs="cdn", full_html=False)
-                apsim_pred_html = f"<div class='ys-{group_id}-apsim' style='display:none;'>{apsim_pred_html_inner}</div>"
+                apsim_pred_html = (
+                    f"<div class='ys-{group_id}-apsim' style='display:none;'>{apsim_pred_html_inner}</div>"
+                )
             std_pred_html = f"<div class='ys-{group_id}-std'>{std_pred_html}</div>"
 
             multiyear_metrics_html_std = "<p><em>No ground-truth available for multiyear metrics.</em></p>"

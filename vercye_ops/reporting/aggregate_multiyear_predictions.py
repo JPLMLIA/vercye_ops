@@ -73,9 +73,7 @@ def collect_files(base_dir, agg_lvl_name, timepoint, study_id):
     for year in _year_dirs(base_dir):
         preds_pattern = os.path.join(base_dir, year, timepoint, "agg_yield_estimates_*.csv")
         agg_preds_files = [
-            f
-            for f in glob(preds_pattern)
-            if _extract_agg_level_name(f, study_id, year, timepoint) == agg_lvl_name
+            f for f in glob(preds_pattern) if _extract_agg_level_name(f, study_id, year, timepoint) == agg_lvl_name
         ]
         if len(agg_preds_files) > 1:
             raise Exception(

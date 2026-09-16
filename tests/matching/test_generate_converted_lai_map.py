@@ -62,8 +62,13 @@ def _run(tmp_path, data, apsim_yield, nodata=None, extra=None):
     # read everything while the dataset is open; returning `src` itself would hand
     # back a closed handle and any later attribute access fails inside GDAL
     with rasterio.open(str(tif_out)) as src:
-        return src.read(1), {"compression": src.compression, "crs": src.crs,
-                             "transform": src.transform, "width": src.width, "height": src.height}
+        return src.read(1), {
+            "compression": src.compression,
+            "crs": src.crs,
+            "transform": src.transform,
+            "width": src.width,
+            "height": src.height,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -155,8 +160,17 @@ class TestRasterOutput:
     def test_rejects_multiband_input(self, tmp_path):
         transform = Affine(0.01, 0, 30.0, 0, -0.01, 50.0)
         tif_in, csv_path, tif_out = tmp_path / "in.tif", tmp_path / "f.csv", tmp_path / "out.tif"
-        with rasterio.open(str(tif_in), "w", driver="GTiff", height=2, width=2, count=2,
-                           dtype="float32", crs="EPSG:4326", transform=transform) as dst:
+        with rasterio.open(
+            str(tif_in),
+            "w",
+            driver="GTiff",
+            height=2,
+            width=2,
+            count=2,
+            dtype="float32",
+            crs="EPSG:4326",
+            transform=transform,
+        ) as dst:
             dst.write(np.ones((2, 2), dtype="float32"), 1)
             dst.write(np.ones((2, 2), dtype="float32"), 2)
         _create_csv(csv_path, 1000.0)

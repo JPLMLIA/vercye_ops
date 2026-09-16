@@ -10,7 +10,6 @@ rewrites the XML accordingly.
 """
 
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 SCALE_RATIO = 0.001
 SCALE_OFFSET = 0.0
@@ -61,8 +60,10 @@ def patch_vrt_for_int16_sources(vrt_path):
                 modified = True
 
             idx = list(src).index(nodata_el)
-            so = ET.Element("ScaleOffset"); so.text = str(SCALE_OFFSET)
-            sr = ET.Element("ScaleRatio");  sr.text = str(SCALE_RATIO)
+            so = ET.Element("ScaleOffset")
+            so.text = str(SCALE_OFFSET)
+            sr = ET.Element("ScaleRatio")
+            sr.text = str(SCALE_RATIO)
             src.insert(idx, so)
             src.insert(idx + 1, sr)
             modified = True
@@ -79,6 +80,7 @@ def patch_vrt_for_int16_sources(vrt_path):
 
 if __name__ == "__main__":
     import sys
+
     for p in sys.argv[1:]:
         changed = patch_vrt_for_int16_sources(p)
         print(f"{'patched' if changed else 'unchanged'} {p}")

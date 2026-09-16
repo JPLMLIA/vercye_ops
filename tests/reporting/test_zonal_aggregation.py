@@ -312,8 +312,6 @@ class TestExtractReferenceFromShapefile:
         years. When all rows for a name share the same geometry that is not a collision -
         it must be deduplicated to a single region, not raise.
         """
-        import json
-
         from vercye_ops.reporting.zonal_aggregation import compute_zonal_yield_stats
 
         crs = "EPSG:32637"
@@ -330,9 +328,7 @@ class TestExtractReferenceFromShapefile:
         # Region A appears twice with the SAME geometry (two years); region B once.
         features = []
         for name, geom, yr in [("A", left, "2020"), ("A", left, "2021"), ("B", right, "2020")]:
-            features.append(
-                {"type": "Feature", "properties": {"NAME": name}, "geometry": mapping(geom)}
-            )
+            features.append({"type": "Feature", "properties": {"NAME": name}, "geometry": mapping(geom)})
         # Write via geopandas to preserve CRS
         gdf = gpd.GeoDataFrame.from_features(features, crs=crs)
         shp_path = str(tmp_path / "cross_year.shp")

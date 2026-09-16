@@ -5,13 +5,13 @@ Produces `agg_lai_timeseries_{level}_{study}_{year}_{timepoint}.csv` for one
 PDF and the interactive map's per-level LAI charts, so the three artefacts
 can never disagree.
 """
+
 import logging
 import os
 from pathlib import Path
 
 import click
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 
 from vercye_ops.utils.init_logger import get_logger
@@ -142,18 +142,26 @@ def aggregate_for_level(tp_path, region_to_level, lai_columns):
 
 
 @click.command()
-@click.option("--basedir-path", required=True, type=click.Path(exists=True),
-              help="Path to the timepoint directory (contains per-region subdirectories).")
-@click.option("--level-shapefile", required=True, type=click.Path(exists=True),
-              help="Path to the aggregation shapefile for this level.")
-@click.option("--name-column", required=True, type=str,
-              help="Column in the shapefile for region names.")
-@click.option("--adjusted/--no-adjusted", default=True,
-              help="Include crop-adjusted LAI columns if present in source files.")
-@click.option("--smoothed/--no-smoothed", default=True,
-              help="Include unsmoothed companion columns if present in source files.")
-@click.option("--out-fpath", required=True, type=click.Path(),
-              help="Output CSV path.")
+@click.option(
+    "--basedir-path",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to the timepoint directory (contains per-region subdirectories).",
+)
+@click.option(
+    "--level-shapefile",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to the aggregation shapefile for this level.",
+)
+@click.option("--name-column", required=True, type=str, help="Column in the shapefile for region names.")
+@click.option(
+    "--adjusted/--no-adjusted", default=True, help="Include crop-adjusted LAI columns if present in source files."
+)
+@click.option(
+    "--smoothed/--no-smoothed", default=True, help="Include unsmoothed companion columns if present in source files."
+)
+@click.option("--out-fpath", required=True, type=click.Path(), help="Output CSV path.")
 @click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 def cli(basedir_path, level_shapefile, name_column, adjusted, smoothed, out_fpath, verbose):
     """Aggregate per-region LAI timeseries to one row per (level region, date)."""
@@ -176,7 +184,9 @@ def cli(basedir_path, level_shapefile, name_column, adjusted, smoothed, out_fpat
 
     Path(out_fpath).parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(out_fpath, index=False)
-    logger.info(f"Wrote {len(result)} rows ({result['region'].nunique() if not result.empty else 0} level regions) to {out_fpath}")
+    logger.info(
+        f"Wrote {len(result)} rows ({result['region'].nunique() if not result.empty else 0} level regions) to {out_fpath}"
+    )
 
 
 if __name__ == "__main__":

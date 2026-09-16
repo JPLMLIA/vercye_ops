@@ -5,10 +5,10 @@ produced by `aggregate_lai_timeseries_per_level.py`, so the PDF, the per-level
 CSVs, and the interactive map's per-level chart all come from the same
 aggregation pass.
 """
+
 import os
 import re
 from collections import defaultdict
-from glob import glob
 
 import click
 import matplotlib.pyplot as plt
@@ -69,9 +69,7 @@ def _discover_level_csvs(basedir, level_name):
 
     Returns dict {timepoint: {year: csv_path}}.
     """
-    pattern = re.compile(
-        rf"^agg_lai_timeseries_{re.escape(level_name)}_.+_(?P<year>[^_]+)_(?P<timepoint>[^_]+)\.csv$"
-    )
+    pattern = re.compile(rf"^agg_lai_timeseries_{re.escape(level_name)}_.+_(?P<year>[^_]+)_(?P<timepoint>[^_]+)\.csv$")
     found = defaultdict(dict)
     for year in sorted(os.listdir(basedir)):
         year_path = os.path.join(basedir, year)
@@ -218,13 +216,19 @@ def create_agg_plots(basedir, out_path, level_name, lai_variants):
                         ax.set_xticklabels(tick_labels)
                     ax.legend(fontsize=8)
                 else:
-                    ax.text(0.5, 0.5, "No data available", ha="center", va="center",
-                            transform=ax.transAxes, fontsize=10, alpha=0.7)
+                    ax.text(
+                        0.5,
+                        0.5,
+                        "No data available",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                        fontsize=10,
+                        alpha=0.7,
+                    )
                 ax.set_ylim(0, None)
 
         # Hide unused trailing cells in this section (last admin row may be partial).
-        used_admin_cells = n_admin * n_variants
-        total_cells = n_rows_per_timepoint * n_cols
         for spare_idx in range(n_admin, admin_rows * n_cols):
             admin_row = spare_idx // n_cols
             col = spare_idx % n_cols
@@ -241,17 +245,31 @@ def create_agg_plots(basedir, out_path, level_name, lai_variants):
 
 
 @click.command()
-@click.option("--base-dir", type=click.Path(exists=True), required=True,
-              help="Yield Study base directory containing year/timepoint subdirs.")
+@click.option(
+    "--base-dir",
+    type=click.Path(exists=True),
+    required=True,
+    help="Yield Study base directory containing year/timepoint subdirs.",
+)
 @click.option("--out-path", type=click.Path(), required=True, help="Output PDF path.")
-@click.option("--level-name", type=str, required=True,
-              help="Aggregation level name (matches the aggregate_lai_timeseries CSV filename).")
-@click.option("--lai-agg-type", type=click.Choice(["Mean", "Median"]),
-              help="Column of the LAI traces to use - either Mean or Median.")
+@click.option(
+    "--level-name",
+    type=str,
+    required=True,
+    help="Aggregation level name (matches the aggregate_lai_timeseries CSV filename).",
+)
+@click.option(
+    "--lai-agg-type",
+    type=click.Choice(["Mean", "Median"]),
+    help="Column of the LAI traces to use - either Mean or Median.",
+)
 @click.option("--adjusted", is_flag=True, default=False, help="Use the adjusted column in the LAI data.")
-@click.option("--include-unsmoothed/--no-include-unsmoothed", default=True,
-              help="Also draw the unsmoothed companion column directly below each smoothed plot. "
-                   "Auto-skipped when the unsmoothed column is missing from every CSV.")
+@click.option(
+    "--include-unsmoothed/--no-include-unsmoothed",
+    default=True,
+    help="Also draw the unsmoothed companion column directly below each smoothed plot. "
+    "Auto-skipped when the unsmoothed column is missing from every CSV.",
+)
 def main(base_dir, out_path, level_name, lai_agg_type, adjusted, include_unsmoothed):
     base = "LAI Mean" if lai_agg_type == "Mean" else "LAI Median"
     if adjusted:

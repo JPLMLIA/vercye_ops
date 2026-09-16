@@ -891,7 +891,9 @@ def _resolve_cog(base_dir, kind: str):
     if pattern is None:
         raise HTTPException(status_code=404, detail=f"Unknown COG kind '{kind}'.")
     # "yield_mosaic_4326_*" would also match "apsim_yield_mosaic_4326_*"; pin the start.
-    candidates = [p for p in glob(os.path.join(str(base_dir), pattern)) if os.path.basename(p).startswith(pattern.split("*")[0])]
+    candidates = [
+        p for p in glob(os.path.join(str(base_dir), pattern)) if os.path.basename(p).startswith(pattern.split("*")[0])
+    ]
     if len(candidates) != 1:
         raise HTTPException(status_code=404, detail=f"Expected one {kind} mosaic, found {len(candidates)}.")
     return candidates[0]
@@ -1073,6 +1075,7 @@ def delete_study(study_id: StudyID):
 
 # Run snapshots related
 
+
 def _run_results_root(study_id: str) -> Path:
     return Path(studies_dir) / study_id / study_id / "run_results"
 
@@ -1175,9 +1178,7 @@ def get_run_report(study_id: StudyID, run_id: RunID, year: int, timepoint: str):
 
 @router.get("/{study_id}/runs/{run_id}/multiyear-report/assets/{asset_path:path}")
 def get_run_multiyear_report_asset(study_id: StudyID, run_id: RunID, asset_path: str):
-    base_path = (
-        Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id / "assets"
-    )
+    base_path = Path(studies_dir) / study_id / "snakemake" / "run_multiyear_reports" / run_id / "assets"
     file_path = (base_path / asset_path).resolve(strict=False)
     try:
         if not file_path.is_file() or not str(file_path).startswith(str(base_path.resolve())):

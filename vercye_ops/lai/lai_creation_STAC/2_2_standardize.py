@@ -11,6 +11,8 @@ import rasterio as rio
 from rasterio.transform import from_origin
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 
+from vercye_ops.utils.init_logger import get_logger
+
 # Int16 storage parameters for LAI. scale=0.001 gives ±32.767 with 3-decimal
 # precision - well below S2 LAI retrieval uncertainty. Values < 0 are treated
 # as invalid (matches downstream `clip_negative_lai` semantics) and written as
@@ -18,8 +20,6 @@ from rasterio.warp import Resampling, calculate_default_transform, reproject
 LAI_SCALE = 0.001
 LAI_NODATA = -32768
 LAI_MAX_STORABLE = 32.767  # 32767 * LAI_SCALE
-
-from vercye_ops.utils.init_logger import get_logger
 
 logger = get_logger()
 logger.setLevel("INFO")

@@ -6,7 +6,6 @@ masks keep working, they just get basemaps only).
 """
 
 import io
-import json
 import sys
 from pathlib import Path
 
@@ -27,8 +26,15 @@ def _mask_bytes(values=(0, 1)) -> bytes:
         data[0, 0, 0] = values[-1]
     buf = Path("/tmp") / f"_cm_{values[-1]}.tif"
     with rasterio.open(
-        buf, "w", driver="GTiff", height=64, width=64, count=1, dtype="uint8",
-        crs="EPSG:4326", transform=from_bounds(34, -1, 36, 1, 64, 64),
+        buf,
+        "w",
+        driver="GTiff",
+        height=64,
+        width=64,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=from_bounds(34, -1, 36, 1, 64, 64),
     ) as dst:
         dst.write(data)
     return buf.read_bytes()

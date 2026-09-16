@@ -49,12 +49,14 @@ def aggregate(estimation_data, col_name):
         # Propagate APSIM-mosaic-derived columns (area-weighted means / summed production)
         # when they're present on the input CSV.
         if "mean_yield_kg_ha_apsim" in cols:
-            row["mean_yield_kg_ha_apsim"] = weighted_mean(
-                group["mean_yield_kg_ha_apsim"], group["total_area_ha"]
-            )
+            row["mean_yield_kg_ha_apsim"] = weighted_mean(group["mean_yield_kg_ha_apsim"], group["total_area_ha"])
         if "median_yield_kg_ha_apsim" in cols:
             row["median_yield_kg_ha_apsim"] = weighted_median(
-                group["mean_yield_kg_ha_apsim"] if "mean_yield_kg_ha_apsim" in cols else group["median_yield_kg_ha_apsim"],
+                (
+                    group["mean_yield_kg_ha_apsim"]
+                    if "mean_yield_kg_ha_apsim" in cols
+                    else group["median_yield_kg_ha_apsim"]
+                ),
                 group["total_area_ha"],
             )
         if "total_production_kg_apsim" in cols:

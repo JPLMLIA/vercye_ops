@@ -133,8 +133,9 @@ def convert_one(path):
 def rebuild_merged_vrts(standardized_dir, merged_dir, geojson_path, resolution, region_out_prefix):
     """Rebuild all merged-lai daily VRTs from scratch. Assumes the standardized
     tiles are now Int16. Calls gdalbuildvrt then patches the resulting VRT."""
-    import geopandas as gpd
     from collections import defaultdict
+
+    import geopandas as gpd
 
     standardized_dir = Path(standardized_dir)
     merged_dir = Path(merged_dir)
@@ -169,9 +170,16 @@ def rebuild_merged_vrts(standardized_dir, merged_dir, geojson_path, resolution, 
             "gdalbuildvrt",
             "-overwrite",
             "-tap",
-            "-te", str(minx), str(miny), str(maxx), str(maxy),
-            "-tr", str(res_x), str(res_y),
-            "-a_srs", crs_str,
+            "-te",
+            str(minx),
+            str(miny),
+            str(maxx),
+            str(maxy),
+            "-tr",
+            str(res_x),
+            str(res_y),
+            "-a_srs",
+            crs_str,
             str(out_file),
         ] + paths
         res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -192,8 +200,17 @@ def rebuild_merged_vrts(standardized_dir, merged_dir, geojson_path, resolution, 
 @click.option("--dry-run", is_flag=True, help="List what would be converted, don't modify.")
 @click.option("--skip-vrt-rebuild", is_flag=True, help="Convert tiles only, don't rebuild VRTs.")
 @click.option("--limit", type=int, default=None, help="Process at most N files (for testing).")
-def main(standardized_dir, merged_dir, geojson_path, resolution, region_out_prefix,
-         num_workers, dry_run, skip_vrt_rebuild, limit):
+def main(
+    standardized_dir,
+    merged_dir,
+    geojson_path,
+    resolution,
+    region_out_prefix,
+    num_workers,
+    dry_run,
+    skip_vrt_rebuild,
+    limit,
+):
     files = sorted(glob(os.path.join(standardized_dir, "*_LAI_tile_standardized.tif")))
     if limit:
         files = files[:limit]

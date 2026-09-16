@@ -72,7 +72,9 @@ def study_root(tmp_path_factory):
     # The primary-level file lists every region of the *source* shapefile, so regions the
     # study never simulated appear as all-NaN rows. Real studies have hundreds of these.
     prim = [{"region": n, "mean_yield_kg_ha": YIELDS[n], "total_production_kg": YIELDS[n] * 10} for n in REGIONS]
-    prim += [{"region": f"unsimulated_{i}", "mean_yield_kg_ha": np.nan, "total_production_kg": np.nan} for i in range(4)]
+    prim += [
+        {"region": f"unsimulated_{i}", "mean_yield_kg_ha": np.nan, "total_production_kg": np.nan} for i in range(4)
+    ]
     pd.DataFrame(prim).to_csv(ytp / f"agg_yield_estimates_primary_{STUDY}_{YEAR}_{TP}.csv", index=False)
 
     # A small COG-ish raster covering the regions.
@@ -100,8 +102,10 @@ def study_root(tmp_path_factory):
     prev = root / PREV_YEAR / TP
     prev.mkdir(parents=True)
     pd.DataFrame(
-        [{"region": n, "mean_yield_kg_ha": YIELDS[n] * 0.8, "reported_mean_yield_kg_ha": YIELDS[n] * 0.7}
-         for n in REGIONS]
+        [
+            {"region": n, "mean_yield_kg_ha": YIELDS[n] * 0.8, "reported_mean_yield_kg_ha": YIELDS[n] * 0.7}
+            for n in REGIONS
+        ]
     ).to_csv(prev / f"agg_yield_estimates_{LEVEL}_{STUDY}_{PREV_YEAR}_{TP}.csv", index=False)
     gpd.GeoDataFrame(
         [{"region": n, "geometry": box(x, y, x + 0.9, y + 0.9)} for n, (x, y) in REGIONS.items()],
@@ -112,32 +116,36 @@ def study_root(tmp_path_factory):
     # verbatim - nothing in the map recomputes them.
     for yr, r2 in ((YEAR, 0.812), (PREV_YEAR, 0.604)):
         pd.DataFrame(
-            [{
-                "n_regions": 3,
-                "mape": 0.21,
-                "mean_err_kg_ha": 12.5,
-                "median_err_kg_ha": -4.0,
-                "mean_abs_err_kg_ha": 180.2,
-                "median_abs_err_kg_ha": 150.0,
-                "rmse_kg_ha": 240.7,
-                "rrmse": 15.3,
-                "r2_scikit": r2,
-            }]
+            [
+                {
+                    "n_regions": 3,
+                    "mape": 0.21,
+                    "mean_err_kg_ha": 12.5,
+                    "median_err_kg_ha": -4.0,
+                    "mean_abs_err_kg_ha": 180.2,
+                    "median_abs_err_kg_ha": 150.0,
+                    "rmse_kg_ha": 240.7,
+                    "rrmse": 15.3,
+                    "r2_scikit": r2,
+                }
+            ]
         ).to_csv(root / yr / TP / f"evaluation_{LEVEL}.csv", index=False)
 
     # all_predictions_*: what the pipeline writes by concatenating the per-year files.
     rows = []
     for yr, scale in ((PREV_YEAR, 0.8), (YEAR, 1.0)):
         for n in REGIONS:
-            rows.append({
-                "region": n,
-                "mean_yield_kg_ha": YIELDS[n] * scale,
-                "median_yield_kg_ha": YIELDS[n] * scale,
-                "reported_mean_yield_kg_ha": YIELDS[n] * scale * 0.9,
-                "total_production_ton": YIELDS[n] * scale * 0.01,
-                "total_area_ha": 100.0,
-                "year": int(yr),
-            })
+            rows.append(
+                {
+                    "region": n,
+                    "mean_yield_kg_ha": YIELDS[n] * scale,
+                    "median_yield_kg_ha": YIELDS[n] * scale,
+                    "reported_mean_yield_kg_ha": YIELDS[n] * scale * 0.9,
+                    "total_production_ton": YIELDS[n] * scale * 0.01,
+                    "total_area_ha": 100.0,
+                    "year": int(yr),
+                }
+            )
     pd.DataFrame(rows).to_csv(root / f"all_predictions_{STUDY}_{LEVEL}_{TP}.csv", index=False)
 
     return base, root
@@ -328,7 +336,9 @@ class TestLegacyLevelNaming:
             maps,
             "get_run_config",
             lambda _d, _s: {
-                "eval_params": {"aggregation_levels": {"friendly_key": {"shapefile": "levels.geojson", "name_column": "shapeName"}}}
+                "eval_params": {
+                    "aggregation_levels": {"friendly_key": {"shapefile": "levels.geojson", "name_column": "shapeName"}}
+                }
             },
         )
         maps._read_geometry.cache_clear()
@@ -413,9 +423,7 @@ class TestLaiTimeseries:
         for region in ("Alpha", "Beta"):
             for day, val in (("01/03/2024", 1.5), ("15/03/2024", 2.5), ("01/04/2024", None)):
                 rows.append({"Date": day, "region": region, "LAI Median Adjusted": val})
-        pd.DataFrame(rows).to_csv(
-            root / YEAR / TP / f"agg_lai_timeseries_{LEVEL}_{STUDY}_{YEAR}_{TP}.csv", index=False
-        )
+        pd.DataFrame(rows).to_csv(root / YEAR / TP / f"agg_lai_timeseries_{LEVEL}_{STUDY}_{YEAR}_{TP}.csv", index=False)
 
     def test_returns_parallel_arrays_per_region(self, client, study_root):
         _base, root = study_root
